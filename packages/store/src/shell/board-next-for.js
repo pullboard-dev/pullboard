@@ -1,3 +1,4 @@
+import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { liveClaimCollisions } from '../../../items/index.js';
@@ -30,6 +31,7 @@ import { itemHold } from "./board-query.js";
 import { laneHold } from "./board-query.js";
 import { itemFiles } from "../../../items/index.js";
 import { itemFileCollisions } from "../../../items/index.js";
+import { itemCollisionPlan } from "../../../items/index.js";
 import { firstRefusalReason } from "../../../items/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
@@ -50,6 +52,22 @@ import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
 
+/** Count each first eligibility refusal once; occupied reviews keep their separate lease diagnostics. */
+function skippedReviewReasons(failures) {
+  const groups = new Map();
+  for (const failure of failures.values()) {
+    if (!failure || failure.guard === 'reviewFree') continue;
+    const { code, message } = failure.problem;
+    const key = JSON.stringify([code, message]);
+    const group = groups.get(key) ?? { code, count: 0, message };
+    group.count++;
+    groups.set(key, group);
+  }
+  const count = [...groups.values()].reduce((total, group) => total + group.count, 0);
+  return count ? [`skipped ${count} submitted review${count === 1 ? '' : 's'} this seat cannot render`,
+    ...[...groups.values()].map(group => `${group.count} ${group.code}: ${group.message}`)] : [];
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -66,7 +84,7 @@ import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30 }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -77,7 +95,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
     const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
-      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, focusOnly: true }).item;
+      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
   const route = routeOf(board, agentId);
@@ -103,6 +121,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       return null;
     }
     const failures = new Map(unrelated.map(entry => [entry, failure(entry)]));
+    const skipped = skippedReviewReasons(failures);
+    /** Retain eligibility diagnostics whether selection succeeds, waits or has no candidate. */
+    const reviewResult = result => ({ ...result, reasons: [...skipped, ...result.reasons] });
     const standingRefusal = [...failures.values()].find(value => ['notBuilder', 'familyAllows'].includes(value?.guard))?.problem;
     const requiredRefusals = [...failures.values()].filter(value => value?.guard === 'requiredReviewFamily').map(value => value.problem);
     // Keep other holders only for the existing diagnostic; they can never become selected work.
@@ -115,9 +136,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
     const heldByMe = candidates.find((candidate) => candidate.holder === agentId)?.entry;
-    if (heldByMe) return { item: heldByMe, reasons: [] };
+    if (heldByMe) return reviewResult({ item: heldByMe, reasons: [] });
     const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
-    if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
+    if (presenceProblem) return reviewResult(empty('unknown', { item: null, reasons: [presenceProblem] }));
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
@@ -131,18 +152,23 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
+    if (reviewOrder) candidates.sort((a, b) => {
+      const first = reviewOrder.get(a.entry.item_id), second = reviewOrder.get(b.entry.item_id);
+      return (first?.at ?? Infinity) - (second?.at ?? Infinity)
+        || (first?.sequence ?? Infinity) - (second?.sequence ?? Infinity) || a.entry.item_id - b.entry.item_id;
+    });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
       && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
-    if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return { item, reasons: focusReasons(board, item, [], { milestones }) };
-    if (focus && !overflow) return focusIdle();
-    if (item) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
+    if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return reviewResult({ item, reasons: focusReasons(board, item, [], { milestones }) });
+    if (focus && !overflow) return reviewResult(focusIdle());
+    if (item) return reviewResult(empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] }));
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
-    return empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
-      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] });
+    return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
+      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
   }
   const claims = items.filter((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
   const held = (rejectionReturnEnabled(board) ? claims.find(entry => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId) : null) ?? claims[0];
@@ -204,6 +230,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
+    const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
+      .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
+    mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
+  }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
@@ -219,7 +250,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
     if (reserved) { reasons.push(reserved); continue; }
-    const collisions = [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
+    const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
+    const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { reasons.push(...collisions); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
@@ -231,7 +263,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (heldFor.length) { reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
     if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
-      [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
+      [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (ownRejectionFirst) return { item: held, reasons };

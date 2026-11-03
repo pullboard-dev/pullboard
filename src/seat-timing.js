@@ -30,7 +30,9 @@ export function timingSeat(cwd) {
     if (!existsSync(file)) return null;
     const db = new DatabaseSync(file, { readOnly: true });
     try {
-      const rows = db.prepare('SELECT agent_id, agent_path FROM agent').all();
+      // The seat registered at this exact path is found by index; only a moved or aliased path reads every seat.
+      const exact = db.prepare('SELECT agent_id, agent_path FROM agent WHERE agent_path=?').get(root);
+      const rows = exact ? [exact] : db.prepare('SELECT agent_id, agent_path FROM agent').all();
       const seat = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
       if (!seat) return null;
       const item = db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed' ORDER BY item_id LIMIT 1").get(seat.agent_id)?.item_id ?? null;

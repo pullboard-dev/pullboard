@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
+import { flakeSource, observeNativeFailure } from '../packages/flakes/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { openBoardForRead } from '../src/native-board.js';
@@ -37,7 +37,7 @@ import { readMainAudit } from '../packages/gate/index.js';
 import { saveMainAudit } from '../packages/gate/index.js';
 import { landingLeaseState } from '../src/board-landing-lease.js';
 import { executionServices } from './gate-execution-fixture.js';
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 
 const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },

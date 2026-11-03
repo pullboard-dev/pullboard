@@ -17,3 +17,9 @@ export * from './src/shell/cell-lint-cell-shards.js';
 export * from './src/shell/map-slice-say.js';
 export { isDefaultTestFile } from './src/core/default-test-file.js';
 export { withCellLintParser } from './src/shell/cell-parser.js';
+
+export { shimImportProblems, stagedShimImportProblems } from './src/shell/shim-import-ratchet.js';
+
+export { shimCountProblems, shimCountBaseline, shimBaselineProblems } from './src/core/shim-count-ratchet.js';
+export { shimLifecycle } from './src/shell/shim-lifecycle.js';
+export { predictItemFunctions, compareItemFunctions } from './src/core/item-functions.js';

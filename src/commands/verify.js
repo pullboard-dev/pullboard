@@ -22,7 +22,7 @@ import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
@@ -178,6 +178,21 @@ export function verificationCriterionDigest(freeze, item) {
 }
 
 /**
+ * Render a failed private check's own diagnostics: its output digest, sanitized tail and private full-output path.
+ *
+ * The test-output summary reads test counts and failing cases, which a plain shell check or install has none of,
+ * so a refusal must still carry the digest, tail and path the check recorded [V18,V2].
+ */
+function privateCheckEvidence(check) {
+  const digest = check.report ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
+  const tail = check.checked
+    ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map(line => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
+    : '';
+  const timings = check.profilePath ? `\n${timingDigest(check.profile)}\ntiming profile: ${check.profilePath}` : '';
+  return `${digest}${tail}${timings}`;
+}
+
+/**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
  *
@@ -326,7 +341,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
-        const evidence = verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '';
+        const evidence = privateCheckEvidence(check) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,

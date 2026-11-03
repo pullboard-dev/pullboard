@@ -1,6 +1,6 @@
-import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { flakeQuarantines as nativeFlakeQuarantines } from '../packages/flakes/index.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /**
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
@@ -36,7 +36,7 @@ import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLO
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const PRIVATE_WORKER = resolve(import.meta.dirname, '../src/private-check-worker.js');
+const PRIVATE_WORKER = resolve(import.meta.dirname, '../apps/runner/src/shell/private-check-worker.js');
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const dirs = [];

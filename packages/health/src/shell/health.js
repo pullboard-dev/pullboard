@@ -1,4 +1,6 @@
+import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './rank-inversion-history.js';
+import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing-failure.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
@@ -150,6 +152,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
   if (!db) return report;
+  report.workFreeReleases = readWorkFreeReleases(db);
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
   report.stuck.push(...landingFailureFindings({ db, clock: { now: () => now } }, now));
@@ -164,6 +167,18 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
   const items = db.prepare('SELECT * FROM item ORDER BY item_id').all();
+  const shimMaxAgeDays = config?.cells?.shimMaxAgeDays ?? 7;
+  report.shims = shimLifecycle(root, { commit: trunkTip(root)?.commit ?? 'HEAD', items });
+  for (const shim of report.shims) {
+    if (!shim.moveLandedAt || at - Date.parse(shim.moveLandedAt) <= shimMaxAgeDays * 86_400_000) continue;
+    report.stuck.push(finding('CELL_SHIM_OVERDUE', null, {
+      subject: shim.path, key: `CELL_SHIM_OVERDUE:${shim.path}`, since: shim.moveLandedAt, now: at,
+      title: `${shim.cell} compatibility shim exceeds ${shimMaxAgeDays} days`,
+      why: `${shim.path} remains after the ${shim.cell} move landed on ${shim.moveLandedAt}`,
+      next: shim.removalItem ? `finish shim removal item #${shim.removalItem}` : 'coordinator: file a shim removal item naming this path',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: shim,
+    }));
+  }
   const byId = new Map(items.map((item) => [item.item_id, item]));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
@@ -770,6 +785,7 @@ export function healthLines(report) {
   if (!report.stuck.length) lines.push('nothing is stuck');
   else lines.push(`${report.stuck.length} stuck:`, ...report.stuck.map((entry) => `  ${line(entry)}`));
   if (report.waiting.length) lines.push('waiting for a later release:', ...report.waiting.map((entry) => `  ${line(entry)}`));
+  for (const row of report.workFreeReleases ?? []) lines.push(`work-free releases ${row.day}: ${row.seat} ${row.reason} ${row.count}`);
   // Seats with nobody behind them get one line, never a finding or a shout (#940).
   if (report.retired?.length) lines.push(`retired seats, not counted as agents (quiet for 30 minutes or more, or their worktree is gone): ${report.retired.map((seat) => seat.agent).join(', ')}`);
   return lines;

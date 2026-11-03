@@ -1,3 +1,4 @@
+import { QUEUE_FAIRNESS_ENGINE } from '../../../../../src/queue-fairness-engine.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
 import { FOCUS_BOUNDARY_ENGINE } from '../../../../../src/focus-boundary-engine.js';
 import { REJECT_CLAUSE_ENGINE } from "../../../../../src/reject-clause-engine.js";
@@ -28,6 +29,7 @@ function historicalMinimumEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   return Math.max(
     historicalMinimumEngine(args, board, at),
+    args[0]?.key === 'agingMinutes' ? QUEUE_FAIRNESS_ENGINE : 1,
     args[0]?.key === 'focusMilestone' && args[0]?.value && typeof args[0].value === 'object' ? FOCUS_BOUNDARY_ENGINE : 1,
     args[0]?.key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : 1,
     args[0]?.key === 'bar.check' ? BAR_CHECK_ENGINE : 1,

@@ -6,6 +6,7 @@ import {
   gitExecFileSync,
   gitSpawnSync,
   realGitAdapter,
+  withProjectGitTimeout,
 } from './git-adapter.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
@@ -560,7 +561,12 @@ export function bareWorktreeFinding(cwd) {
  * @param {{env?: NodeJS.ProcessEnv}} [options]
  * @returns {{ root: string, commonDir: string, gitDir: string, isMain: boolean }}
  */
-export function repoInfo(cwd, { env } = {}) {
+export function repoInfo(cwd, options = {}) {
+  return withProjectGitTimeout(cwd, () => boundedRepoInfo(cwd, options));
+}
+
+/** Keep repository identity caching inside the same finite Git observation as a cache miss. */
+function boundedRepoInfo(cwd, { env } = {}) {
   if (env) return readRepoInfo(cwd, env);
   const key = `repoInfo:${resolve(cwd)}`;
   if (gitReadFacts.getStore() === true) {

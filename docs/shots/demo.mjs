@@ -119,7 +119,13 @@ function recordBeforeViewStop(observation) {
 async function recordAfterViewStop(observation) {
   if (!observation || observation.fixtureProcessesAfterStop) return;
   observation.viewAfterStop = processIdentity(observation.viewPid);
-  observation.fixtureProcessesAfterStop = fixtureProcessIdentities(observation.demoDirectory, observation.viewPid);
+  // The Chrome guardian polls every 250 ms and exits once Chrome's group is gone, so give it a few seconds to notice.
+  let survivors = fixtureProcessIdentities(observation.demoDirectory, observation.viewPid);
+  for (let waited = 0; survivors.length && waited < 5000; waited += 100) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    survivors = fixtureProcessIdentities(observation.demoDirectory, observation.viewPid);
+  }
+  observation.fixtureProcessesAfterStop = survivors;
   observation.testCleanup = await stopObservedView(observation);
   observation.fixtureProcessesAfterTestCleanup = fixtureProcessIdentities(observation.demoDirectory, observation.viewPid);
 }
@@ -174,7 +180,7 @@ async function buildBoard(base, env) {
   command('git', ['add', '-A'], app, env);
   command('git', ['commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
   setDemoMinutes(env, 2);
-  pb(app, 'submit', '1');
+  pb(app, 'submit', '1', '--no-next');
   const first = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', first], review, env);
   setDemoMinutes(env, 3);
@@ -187,13 +193,13 @@ async function buildBoard(base, env) {
   command('git', ['add', '-A'], app, env);
   command('git', ['commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
   setDemoMinutes(env, 6);
-  pb(app, 'submit', '1');
+  pb(app, 'submit', '1', '--no-next');
   const second = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', second], review, env);
   setDemoMinutes(env, 12);
   pb(review, 'next', '--verify');
   setDemoMinutes(env, 13);
-  pb(review, 'verify', '1', 'accept', '--note', 'Tried the edge that failed before; the revised demo passes.');
+  pb(review, 'verify', '1', 'accept', '--note', 'Tried the edge that failed before: edge passes in the revised demo.');
   setDemoMinutes(env, 14);
   command('git', ['merge', '-q', '--ff-only', 'app/1'], repo, env);
   pb(repo, 'merged', '1', second);
@@ -202,11 +208,11 @@ async function buildBoard(base, env) {
   await writeFile(join(app, 'src', 'review.js'), 'export const ready = true;\n');
   command('git', ['add', '-A'], app, env);
   command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app, env);
-  pb(app, 'submit', '3');
+  pb(app, 'submit', '3', '--no-next');
   pb(app, 'claim', '4');
-  pb(review, 'shout', 'coordinator', `#1 passes the edge that failed before. The fix is in src/demo.js:1@${second}.`, '--evidence', 'receipt', '--outcome', 'edge passes', '--item', '1', '--commit', second);
   setDemoMinutes(env, 75);
-  const decision = pb(app, 'shout', 'coordinator', 'The review is complete. May the verified change proceed?', '--decision').match(/as #(\d+)/)?.[1];
+  pb(repo, 'lanes', 'lead', 'app', 'app-1');
+  const decision = pb(app, 'shout', 'coordinator', 'The review is complete. May the verified change proceed?', '--decision', '--kind', 'decision').match(/as #(\d+)/)?.[1];
   if (!decision) throw new Error('The demo decision request was not recorded.');
   const passed = pb(repo, 'pass', decision, 'The review passed; ask the person before proceeding.').match(/as #(\d+)/)?.[1];
   if (!passed) throw new Error('The coordinator did not pass the demo decision to the person.');
@@ -215,7 +221,7 @@ async function buildBoard(base, env) {
   pb(app, 'inbox');
   pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
-  pb(repo, 'milestone', 'add', 'Demo release', '--items', '1,2,3,4,5', '--note', 'A demo release with reviewed, active and future work.');
+  pb(repo, 'milestone', 'add', 'Demo release', '--items', '1,2,3,4,5', '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
   if (item.item_builder_family !== 'codex' || item.verdicts.at(-1)?.verdict_verifier_family !== 'claude') {
@@ -302,7 +308,7 @@ async function captureRoadmap(view, repo, observation) {
         history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-estimate')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
-    if (reading.theme !== theme || !/4 remaining.*1 of 5 landed/u.test(reading.count) || reading.legend !== 6 || reading.rows !== 5 || reading.expanded !== 1
+    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || reading.legend !== 6 || reading.rows !== 5 || reading.expanded !== 1
       || !reading.history?.includes('sent back') || !reading.history?.includes('accepted') || !reading.time
       || reading.itemTop < 0 || reading.itemBottom > reading.height || reading.pageWidth > reading.width) {
       throw new Error('The demo Roadmap capture is incomplete: ' + JSON.stringify(reading));
@@ -390,15 +396,19 @@ else {
           observation.viewLaunch.reportedIdentity = processIdentity(observation.viewPid);
         }
         view = await browser(chrome, join(base, 'chrome-profile'), url);
+        await view.evaluate("document.querySelector('[data-tab=\"items\"]').click()");
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
           await view.viewport(1440, 900);
           await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:all\"]').click()");
           await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
           await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
-          await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted') && document.querySelector('#detail').textContent.includes('REJECT') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'selected accepted item and both verdicts');
+          await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted')", 'selected accepted item');
+          await view.waitFor("!!document.querySelector('#item-panel-tab-verdicts')", 'verdicts tab');
+          await view.evaluate("document.querySelector('#item-panel-tab-verdicts').click()");
+          await view.waitFor("document.querySelector('#detail').textContent.includes('The example skipped an edge') && document.querySelector('#detail').textContent.includes('edge passes')", 'both verdicts');
           await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:active\"]').click()");
-          await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('NEEDS YOU') && document.querySelector('#detail').textContent.includes('ACCEPT')", 'Active items, Needs you and the selected review history');
+          await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes')", 'Active items, Questions and sentinels and the selected review history');
           await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
@@ -407,12 +417,12 @@ else {
           await view.viewport(390, 900);
           for (const theme of THEMES) {
             await paintTheme(view, theme);
-            await view.evaluate("(()=>{const item=document.querySelector('[data-item=\"4\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(!item||!detail.includes('ACCEPT')||document.querySelector('#needs').hidden) throw new Error('The phone screenshot must show active work and Needs you'); return true})()");
+            await view.evaluate("(()=>{const item=document.querySelector('[data-item=\"4\"]'); const detail=document.querySelector('#detail')?.textContent??''; if(!item||!detail.includes('edge passes')||document.querySelector('#needs').hidden) throw new Error('The phone screenshot must show active work and Needs you'); return true})()");
             await view.screenshot(join(OUTPUT, `phone-${theme}.png`));
           }
           await view.viewport(1440, 900);
           await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
-          await view.waitFor("!document.querySelector('#shouts-pane').hidden && !!document.querySelector('#feed .heard:not(.not)') && !!document.querySelector('#feed .receipt') && !!document.querySelector('#feed [data-code]') && !!document.querySelector('#feed .band.done')", 'answered conversation, Heard, receipt and code reference');
+          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .conversation-row').length >= 3", 'the answered conversation list');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));

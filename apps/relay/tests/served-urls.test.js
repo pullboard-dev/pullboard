@@ -6,6 +6,7 @@ import { Refused } from '../../../packages/kernel/index.js';
 
 /** Public URLs under /relay/, by served name; the browser URL prefix is not a repository path. */
 const RELAY_NAMES = [
+  'browser-adapter.js',
   'browser-approval-card.js',
   'browser-deadline.js',
   'browser-devices.js',

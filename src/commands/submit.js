@@ -1,4 +1,6 @@
+import { requireKernelApproval } from '../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
+import { itemCollisionPlan } from '../../packages/items/index.js';
 import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { remoteSubmitCells } from '../submit-cells-remote.js';
@@ -13,7 +15,6 @@ import { toolRegenerationSource } from '../../packages/git/index.js';
 import { receiptLine as cellsReceiptLine } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
-import { runnerPhaseFields } from '../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -26,25 +27,25 @@ import {
 } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
-import { gateRuns } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
+import { gateRuns } from '../../packages/flakes/index.js';
 import { withImportParseCache } from '../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../packages/gate/index.js';
 import { importsIn } from '../../packages/gate/index.js';
 import { commonJsIn } from '../../packages/gate/index.js';
 import { requireSubmitCells } from '../../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../../bin/cells-submit-checks.js';
-import { privateCheckEnvelope } from '../runner-private-mode.js';
-import { trunkRef } from '../../packages/sandbox/index.js';
 import {
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../../packages/config/index.js';
+import { browserFreeChecksEnabled } from '../../packages/config/index.js';
+import { remoteGateWanted } from '../submit-remote-gate.js';
+import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
+import { doctrineRunnerChecks } from '../submit-remote-gate.js';
+export { doctrineExecutionPhases } from '../submit-remote-gate.js';
 import { loadMachineSettings } from '../../packages/config/index.js';
 import { effectiveRunners } from '../runner-slots.js';
 import { frozenCheckTiming } from '../check-timing.js';
@@ -54,8 +55,8 @@ import {
   summaryProfile,
   withTestOutput,
 } from '../test-output-summary.js';
-import { quarantineWaivers } from '../quarantine.js';
-import { quarantineVerdictSnapshot } from '../quarantine.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
+import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -110,7 +111,6 @@ import {
 import {
   contains,
   git,
-  gitPath,
   headCommit,
   headTree,
   isClean,
@@ -138,7 +138,7 @@ import {
 import {
   relayRecovered,
 } from '../../packages/link/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { refuseHeldElsewhere } from '../../packages/seats/index.js';
 import {
   submitPreflight,
   requirePlannedSource,
@@ -189,79 +189,6 @@ import { ambiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
-/** Sum sequential worker intervals only when every attempted run has complete measurements. */
-export function doctrineExecutionPhases(observations, attempts) {
-  const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
-  const fields = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs', 'totalMs'];
-  return attempts && attempts === observations.length && phases.every(Boolean)
-    ? runnerPhaseFields({ version: 1, ...Object.fromEntries(fields.map(field => [field, phases.reduce((sum, phase) => sum + phase[field], 0)])) }) : null;
-}
-
-/** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
-function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
-  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
-  const parent = artifactDirectory ? join(artifactDirectory, 'doctrine') : gitPath(root, 'pullboard-doctrine-output');
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  const observations = [];
-  let attempts = 0;
-  lease.tracker?.mark('runAt');
-  return {
-    /** Execute exactly one approved rule at its candidate or merge-base source; exit 1 is a counted result. */
-    async runCheck(commit, command, timeoutMs) {
-      attempts++;
-      const started = performance.now();
-      const directory = mkdtempSync(join(parent, 'rule-'));
-      const shell = `(\n${command}\n) 2>&1`;
-      const checkedSource = { commit, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim() };
-      const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
-        policyCommit: mainCommit, trunk: { ref: trunkRef(root), commit: mainCommit } });
-      let result;
-      try {
-        result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
-          runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
-      } catch (error) {
-        writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
-          code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });
-        throw error;
-      }
-      const receipt = result.privateCheck?.receipt;
-      const phase = receipt?.phases?.check;
-      const observed = { version: 1, policyCommit: mainCommit, commandSha256: createHash('sha256').update(command).digest('hex'),
-        privateCheckSha256: policy.sha256, checkedSource, executionSource: result.executionSource ?? null,
-        runner: result.executionRunner ?? null, environment: result.environment ?? null,
-        executionAdmission: result.executionAdmission ?? null, executionPhases: result.executionPhases ?? null,
-        privateCheck: receipt ?? null, rawOutputPath: result.rawOutputPath ?? null, rawOutputSha256: result.rawOutputSha256 ?? null };
-      writeFileSync(join(directory, 'observation.json'), JSON.stringify(observed) + '\n', { mode: 0o600 });
-      observations.push(observed);
-      if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== checkedSource.commit
-        || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256) {
-        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine runner result does not bind its admitted source and approved policy; inspect the retained observation before retrying');
-      }
-      const seconds = Math.round((performance.now() - started) / 1000);
-      const broken = !receipt.sourceUnchanged ? 'changed its private source' : receipt.problem ? receipt.problem.message
-        : !phase ? 'has no complete check phase' : phase.timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s`
-          : phase.signal ? `was killed by ${phase.signal}` : ![0, 1].includes(phase.code) ? `exited ${phase.code}` : '';
-      if (broken) return { problems: [], broken, seconds };
-      if (phase.offset !== 0 || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024
-        || statSync(result.rawOutputPath).size !== phase.length) return { problems: [], broken: 'exceeded the complete bounded check output', seconds };
-      const bytes = readFileSync(result.rawOutputPath);
-      if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
-        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine check bytes do not match the authenticated phase; inspect the retained observation before retrying');
-      }
-      return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
-    },
-    /** Sum the disjoint worker intervals for sequential rule runs when all were measured. */
-    finish() {
-      lease.tracker?.mark('ranAt');
-      const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
-      lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
-      lease.executionAdmission = single?.executionAdmission ?? null;
-      lease.executionPhases = doctrineExecutionPhases(observations, attempts);
-    },
-  };
-}
-
 /** Report wall time without sharing the execution closures of unrelated submit stages. */
 function reportSubmitStage(ctx, name, start) {
   ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`);
@@ -300,6 +227,7 @@ export async function submitHere(ctx, id, infra) {
       const item = store.getItem(board, id);
       const trunk = requireTrunkMerge(root, recovered.args[1].commit);
       requirePlannedSource(root, trunk.commit, recovered.args[1].commit);
+      requireKernelApproval(board, { root, base: trunk.commit, commit: recovered.args[1].commit, item: id });
       if (barReadySetting(board).enabled && (recovered.args[1].policyCommit !== trunk.commit || !contains(root, trunk.commit, recovered.args[1].commit))) {
         throw new Refused('MAIN_NOT_COMPOSED', 'the unrecorded recovered submission has no proof for current main; run pullboard inbox to synchronize its original receipt, or ask the coordinator to resolve the pending move before a fresh submit; the original request is retained');
       }
@@ -320,7 +248,7 @@ export async function submitHere(ctx, id, infra) {
     const item = store.getItem(board, id);
     const folder = itemFolderIdentity(board, ctx.info.root);
     if (folder && folder.item !== id) throw new Refused('NOT_YOURS', `this folder belongs to item #${folder.item}; submit that item from here`);
-    if (!isSubmitHandoffWorker(ctx) && !folder) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
+    if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
@@ -390,8 +318,10 @@ export async function submitHere(ctx, id, infra) {
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
+  const remoteMode = isSubmitHandoffWorker(ctx) && remoteGateWanted(runnerAdmission);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
+  withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
   const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
   let mechanicalPaths = [];
   submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
@@ -433,11 +363,12 @@ export async function submitHere(ctx, id, infra) {
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   });
+  if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
-  try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
+  try { if (requireComposition && !remoteMode) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
@@ -448,17 +379,35 @@ export async function submitHere(ctx, id, infra) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
+  const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
+  const submitConfig = regenerated || regeneratedFrom ? { ...configuredSubmit, affectedTests: '', submitGate: 'full' } : configuredSubmit;
+  const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
+  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
+  const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
+  const submissionStarted = async () => {
+    // A queued admission already has its native witness; a free slot records it at the real gate start.
+    if (!admission.id) await submissionWait({ admitted: true });
+  };
+  const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
+  // A queued worker sends every analysis step to one runner job with main's archived tooling; the controller only queues and records.
+  const remote = remoteMode ? await withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot, lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
+    trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
+    config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) }, lease, ctx.submitHandoffOutput),
+  { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build') })) : null;
+  for (const line of remote ? [...remote.notes, `submit remote analysis on ${remote.runner} (${remote.sha256.slice(0, 12)}): ${Object.entries(remote.steps).map(([step, ms]) => `${step} ${(ms / 1000).toFixed(2)}s`).join(', ')}`] : []) ctx.io.say(line);
   const placementStart = performance.now();
   try {
-    const planned = await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
+    const planned = remote ? null : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
       code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
-    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit));
-    if (planned.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
+    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
+    if (planned?.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
   } finally { reportSubmitStage(ctx, 'placement', placementStart); }
   // The repository's per-file lint subset is cheap; keep its full static stage later.
   const changedStaticStart = performance.now();
   try {
-    if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+    if (!remote && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
       await withItemPatchSubmit(root, companion, async gateRoot => {
         const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
         const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
@@ -474,7 +423,7 @@ export async function submitHere(ctx, id, infra) {
   let cells;
   const cellsStart = performance.now();
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
-  try { cells = runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
+  try { cells = remote ? remote.cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
     ? await withGateSlot(root, async lease => {
       try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
       finally {
@@ -493,40 +442,33 @@ export async function submitHere(ctx, id, infra) {
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
-  for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
-  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
-  // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
-  const submitConfig = regenerated || regeneratedFrom ? { ...configuredSubmit, affectedTests: '', submitGate: 'full' } : configuredSubmit;
-  const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
-  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
-  const submissionStarted = async () => {
-    // A queued admission already has its native witness; a free slot records it at the real gate start.
-    if (!admission.id) await submissionWait({ admitted: true });
-  };
+  for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
   // Static and lint checks run once, all at once, before doctrine and before any runner gate (fail fast).
   const staticStart = performance.now();
-  try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+  try { if (!remote) await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
     onWait: submissionWait, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput })); }
+    executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
   finally { reportSubmitStage(ctx, 'static', staticStart); }
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   let doctrine;
   const doctrineStart = performance.now();
   try { doctrine = await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
     ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
-      const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
+      const remoteDoctrine = gateAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
       try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
-        practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remote ? { runCheck: remote.runCheck } : {}) }); }
-      finally { remote?.finish(); }
+        practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
+      finally { remoteDoctrine?.finish(); }
     },
-      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
+      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
     : []); }
   finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
-  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, staticChecked: true, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
-
+  const crossRun = await withBoardRead(ctx, board => {
+    board.gitRoot = ctx.info.root;
+    return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
+  });
+  for (const warning of crossRun.warnings) ctx.io.say(warning);
+  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, ...(remote && !crossRun.tests.length && check === frozenCheck(held) ? { plan: remote.plan, admission: remote.admission } : {}), outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   ctx.submitAttempt.stage = 'runner';
@@ -699,6 +641,7 @@ export async function submitHere(ctx, id, infra) {
       sealQuarantineVerdict(board, receipt);
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
+    requireKernelApproval(board, { root, base: currentTrunk.commit, commit: companion?.commit ?? submitted, item: id });
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       ...(inspectClauses ? { inspectClauses: true } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,

@@ -1,7 +1,9 @@
 import { nextIdleChanged } from '../../packages/store/index.js';
+import { sayQueuedReds } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { claimWorktrees } from '../../packages/activity/index.js';
+import { takeWaitShouts } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -24,7 +26,7 @@ import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { seatLeadLine } from '../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
@@ -82,6 +84,7 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
@@ -99,9 +102,17 @@ async function nextWithProgress(io, values, progress) {
   }
   values = { ...values, observeIdle: true };
   let lastIdleReason;
+  const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
+    const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
+    for (const line of heard?.lines ?? []) io.say(line);
+    if (heard?.item) {
+      io.result?.({ item: heard.item, review: false, held: false, shared: [], reasons: heard.lines });
+      io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
+      return 0;
+    }
     const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;
@@ -128,9 +139,9 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
-      const here = cdTo(ctx.info.root);
+      const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
         if (comparison) io.say(renderVerificationComparison(comparison));
@@ -141,10 +152,11 @@ async function nextWithProgress(io, values, progress) {
         else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
-        if (found.seat && found.seat.path !== origin) io.say(seatCheckout.seatLeadLine(found.seat, item, found.held));
+        if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
+        if (found.itemFolder) io.say(`item folder: ${found.itemFolder}; seat ${found.holder}; build, commit and submit there`);
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);

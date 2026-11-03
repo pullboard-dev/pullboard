@@ -35,14 +35,14 @@ function deviceConfirmationPage() {
   return '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>Confirm board link · Pullboard</title><main><h1>Confirm board link</h1><p id="status">Checking this sign-in…</p>' +
     '<p id="intent"></p><button id="confirm" hidden>Confirm link</button> <button id="decline" hidden>Decline</button></main>' +
-    '<script>let ticket=decodeURIComponent(location.hash.slice(1));history.replaceState(null,"",location.pathname);const status=document.querySelector("#status");' +
+    '<script type="module">import {realRelayAdapter} from "/relay/browser-adapter.js";let ticket=decodeURIComponent(location.hash.slice(1));history.replaceState(null,"",location.pathname);const status=document.querySelector("#status");' +
     'const intent=document.querySelector("#intent");const confirmButton=document.querySelector("#confirm");const declineButton=document.querySelector("#decline");' +
     'let terminal=false;let pollTimer=null;/** Stop polling and make earlier status responses inert after a final decision. */function stopPolling(){terminal=true;if(pollTimer!==null){clearInterval(pollTimer);pollTimer=null;}}' +
     '/** Bind this browser tab to the one-use ticket without putting it in a request URL. */ async function openConfirmation(){' +
-    'const response=await fetch("/auth/device/confirmation/open",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({ticket})});' +
+    'const response=await realRelayAdapter.request("/auth/device/confirmation/open",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({ticket})});' +
     'const value=await response.json();if(!response.ok)throw new Error(value.error?.message||"This confirmation expired.");}' +
     '/** Read the current grant without exposing a session credential to the page. */ async function refresh(){if(terminal)return;try{' +
-    'const response=await fetch("/auth/device/confirmation/status",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({ticket})});' +
+    'const response=await realRelayAdapter.request("/auth/device/confirmation/status",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({ticket})});' +
     'if(terminal)return;const value=await response.json();if(terminal)return;if(!response.ok)throw new Error(value.error?.message||"This confirmation expired.");' +
     'if(value.declined){stopPolling();status.textContent="You declined this board link. Nothing was linked.";return;}' +
     'if(value.confirmed){stopPolling();status.textContent="The board is linked. You can return to the terminal.";return;}' +
@@ -51,7 +51,7 @@ function deviceConfirmationPage() {
     'intent.textContent="Link "+value.intent.boardName+" from "+value.intent.host+(value.intent.replaces?", replacing board "+value.intent.replaces:"")+"?";confirmButton.hidden=false;declineButton.hidden=false;' +
     '}catch(error){if(terminal)return;status.textContent=error.message;confirmButton.hidden=true;declineButton.hidden=true;}}' +
     '/** Send an exact-origin, cookie-bound confirmation decision. */ async function decide(decision){confirmButton.disabled=true;declineButton.disabled=true;try{' +
-    'const response=await fetch("/auth/device/confirmation",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},' +
+    'const response=await realRelayAdapter.request("/auth/device/confirmation",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},' +
     'body:JSON.stringify({ticket,decision})});const value=await response.json();if(!response.ok)throw new Error(value.error?.message||"The relay could not confirm this link.");stopPolling();' +
     'status.textContent=value.confirmed?"The board is linked. You can return to the terminal.":"You declined this board link. Nothing was linked.";' +
     'confirmButton.hidden=true;declineButton.hidden=true;}catch(error){status.textContent=error.message;confirmButton.disabled=false;declineButton.disabled=false;}}' +
@@ -115,7 +115,7 @@ export function createAuthHandler({ auth, publicOrigin }) {
       } else if (route === 'GET /auth/device/confirm') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
           'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
-          'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" });
+          'Content-Security-Policy': "default-src 'none'; script-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" });
         res.end(deviceConfirmationPage());
       } else if (route === 'POST /auth/device/confirmation/open') {
         if (req.headers.origin !== origin.origin) throw new Refused('BAD_ORIGIN', 'open a device confirmation from the relay origin');

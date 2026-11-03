@@ -1,6 +1,6 @@
-import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { flakeQuarantines as nativeFlakeQuarantines } from '../packages/flakes/index.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Actual native suite and gate receipts retain source-bound phases through board recording and replay [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -171,7 +171,7 @@ import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
-import {quarantineWaivers} from './src/quarantine.js';
+import {quarantineWaivers} from './packages/flakes/index.js';
 const landingPorts={quarantineWaivers};
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 // @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.

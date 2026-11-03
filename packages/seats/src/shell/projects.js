@@ -15,6 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
+import { projectRegistrationAllowed } from './project-registration.js';
 import {
   basename,
   dirname,
@@ -30,6 +31,7 @@ import { boardReferenceId } from '../../../kernel/src/core/registry-guards.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
+import { withProjectGitTimeout } from '../../../git/index.js';
 
 /**
  * The registry file.
@@ -43,7 +45,7 @@ export function registryFile() {
 /** Return a stable team handle only when Git origin and the opened board identity are both exact. */
 export function projectBoardIdentity(root, boardId) {
   const id = boardReferenceId(boardId);
-  const repository = remoteRepository(tryGit(root, ['remote', 'get-url', 'origin']), { optional: true });
+  const repository = withProjectGitTimeout(root, () => remoteRepository(tryGit(root, ['remote', 'get-url', 'origin']), { optional: true }));
   if (!repository) return null;
   const [owner, name] = repository.split('/');
   return { boardId: id, owner, name };
@@ -343,6 +345,7 @@ export function listApiProjects() {
  * @returns {boolean} Whether it was new.
  */
 export function registerProject(root, now = new Date(), config = {}, identity = null) {
+  if (!projectRegistrationAllowed(root)) return false;
   const normalizedRoot = resolve(root);
   return withRegistry((stored, readable) => {
     if (!readable) return false;
@@ -401,9 +404,10 @@ export function forgetProject(path) {
  * The CLI passes the store's board readers and the relay linker as `ports`, so the seats cell loads neither.
  */
 export async function registerProjectAndLink(root, now, config, io, identity, { store, autoLinkProject }) {
+  if (!projectRegistrationAllowed(root)) return false;
   let exactIdentity = identity;
   if (!exactIdentity) {
-    const file = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
+    const file = join(withProjectGitTimeout(root, () => repoInfo(root)).commonDir, 'pullboard', 'board.sqlite');
     if (existsSync(file)) {
       const board = store.openBoardForRead(file);
       try { exactIdentity = projectBoardIdentity(root, store.boardId(board)); }

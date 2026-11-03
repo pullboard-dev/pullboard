@@ -1,3 +1,4 @@
+import { landingFlakeRatchet } from '../../packages/flakes/index.js';
 import { landingFailureObservation } from '../../packages/health/index.js';
 import { scheduleAutomaticLanding } from '../../packages/landing/index.js';
 import { mainCheckout } from '../../packages/git/index.js';
@@ -6,16 +7,16 @@ import { landAcceptedItems } from '../../packages/merge/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { requireManualLanding } from '../../packages/merge/index.js';
-import { flakeLedger } from '../flakes.js';
+import { flakeLedger } from '../../packages/flakes/index.js';
 import { badgeCounts } from '../badge.js';
 import { writeBadges } from '../badge.js';
-import { flakeSource } from '../native-flakes.js';
-import { observeNativeFailure } from '../native-flakes.js';
-import { quarantineWaivers } from '../quarantine.js';
-import { quarantineVerdictSnapshot } from '../quarantine.js';
-import { validateQuarantineGate } from '../quarantine.js';
-import { validateQuarantineLandingProof } from '../quarantine.js';
-import { gateRuns } from '../quarantine.js';
+import { flakeSource } from '../../packages/flakes/index.js';
+import { observeNativeFailure } from '../../packages/flakes/index.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
+import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
+import { validateQuarantineGate } from '../../packages/flakes/index.js';
+import { validateQuarantineLandingProof } from '../../packages/flakes/index.js';
+import { gateRuns } from '../../packages/flakes/index.js';
 import { postLandSuitePorts } from '../post-land-suite-ports.js';
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import { fileURLToPath } from 'node:url';
@@ -83,7 +84,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
   let result;
-  try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
+  try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), due: Boolean(values.due), onWait: gateWaitReporter(io) });

@@ -1,3 +1,4 @@
+import { createItemSlice } from '../packages/store/index.js';
 /** Native operation recipes extracted from study 7b08e883 for the complete reader oracle [H5,H16,A2].
  * Original recipes: whole ff/db757 material pool; integration/helper: whole420/475.
  * Synthetic receipts exercise projection only, never gate, CI, watch or provider-authority assurance.
@@ -87,8 +88,14 @@ export async function seedMilestones(context) {
 export async function seedLifecycle(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, agent, reviewer, item, other } = context;
   const claim = { agentId: agent, lane: box.lane, leaseMs: 3600000,
-    freeze: () => ({ text: '{"rows":[]}', digest: 'study-frozen' }) };
+    freeze: () => ({ text: '{"rows":[],"criterion":"A seeded lifecycle."}', digest: 'study-frozen' }) };
   await exercise('claim', () => store.claim(board, item, claim));
+  const slice = await exercise('createItemSlice', () => createItemSlice(board, { agentId: agent,
+    parentId: item, parentDigest: store.getItem(board, item).item_frozen_digest,
+    title: 'Lifecycle projection slice', files: [`${box.lane}/projection-slice.js`] }));
+  assert.equal(store.getItem(board, slice.item).item_parent_id, item, 'both readers observe a real slice of the frozen parent');
+  await exercise('withdraw', () => store.withdraw(board, slice.item, { agentId: 'coordinator', reason: 'The parity slice observation is complete.' }));
+
   await exercise('recordAttempt', () => store.recordAttempt(board, item, { agentId: agent, n: 1, seconds: 1, result: 'red' }));
   await exercise('release', () => store.release(board, item, agent, 'Study release.', undefined, 'OTHER'));
   await exercise('refreeze', () => store.refreeze(board, item, { agentId: 'coordinator', freeze: claim.freeze }));

@@ -12,6 +12,7 @@ import { listApiProjects } from "../../../../src/projects.js";
 import { workProgress } from './work-progress.js';
 import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
+import { withProjectGitTimeout } from '../../../git/index.js';
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
 function roadmapPorts(ports, names) {
@@ -78,18 +79,20 @@ export function milestoneRoadmap(root, board, options = {}) {
     const { repo, number, project } = parsed;
     if (!project) return options.hideOutOfScope ? hidden() : { id: reference, title: `#${number} (${repo})`, status: 'unavailable' };
     try {
-      const info = repoInfo(project.root);
-      const other = resolve(project.root) === resolve(root)
-        ? board
-        : openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
-      try {
-        const item = getItem(other, Number(number));
-        externalItems.set(reference, { item, progress: itemProgress(other, item.item_id), held: Boolean(item.item_hold_reason)
-          || laneHolds(other).some(hold => hold.hold_lane === item.item_lane) });
-        return { id: reference, title: item.item_title, status: item.item_status, landed: Boolean(item.item_merged_commit) };
-      } finally {
-        if (other !== board) closeBoard(other);
-      }
+      return withProjectGitTimeout(project.root, () => {
+        const info = repoInfo(project.root);
+        const other = resolve(project.root) === resolve(root)
+          ? board
+          : openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+        try {
+          const item = getItem(other, Number(number));
+          externalItems.set(reference, { item, progress: itemProgress(other, item.item_id), held: Boolean(item.item_hold_reason)
+            || laneHolds(other).some(hold => hold.hold_lane === item.item_lane) });
+          return { id: reference, title: item.item_title, status: item.item_status, landed: Boolean(item.item_merged_commit) };
+        } finally {
+          if (other !== board) closeBoard(other);
+        }
+      });
     } catch {
       return options.hideOutOfScope ? hidden() : { id: reference, title: `#${number} (${repo})`, status: 'unavailable' };
     }

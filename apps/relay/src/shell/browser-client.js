@@ -1,3 +1,4 @@
+import { realRelayAdapter } from '../../../../relay/browser-adapter.js';
 import { browserPersonBarEffect } from './person-bar-effect.js';
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
 import {
@@ -616,7 +617,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
       url: () => '/api/v1/boards/' + entry.id + '/events?after=' + entry.cursor,
       signal: controller.signal,
       request: async (url, signal) => {
-        const response = await fetch(url, {
+        const response = await realRelayAdapter.request(url, {
           credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
           headers: { 'x-pullboard-engine': String(ENGINE_VERSION), accept: 'text/event-stream' },
         });

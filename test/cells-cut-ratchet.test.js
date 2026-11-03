@@ -37,7 +37,7 @@ function plannedFixture(t, prepare = () => {}) {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
-  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
+  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
 }
 
 /** Commit the candidate the immutable preflight will inspect. */
