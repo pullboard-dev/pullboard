@@ -106,7 +106,9 @@ export async function run(io, { first, second, rest, values }) {
     throw new Refused('USAGE', 'use pullboard milestone add, items, order, pin, sink, lift, move, edit, ship or remove');
   }
   entry ??= store.milestones(board).find((value) => value.name === name);
-  io.result?.({ milestone: entry });
+  const pins = first === 'order' ? (entry.order ?? []).filter(id => Object.hasOwn(entry.reasons ?? {}, String(id))) : [];
+  io.result?.({ milestone: entry, ...(first === 'order' ? { pins } : {}) });
+  if (pins.length) io.say(`pins keep their place ahead of this order: ${pins.map(id => '#' + id).join(', ')}; lift a pin explicitly to change that`);
   io.say(`milestone ${first === 'remove' ? 'removed' : first === 'add' ? 'added' : 'updated'}: ${name}`);
   return 0;
 });
