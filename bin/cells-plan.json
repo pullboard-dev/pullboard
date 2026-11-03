@@ -1756,6 +1756,10 @@
   ],
   "entries": [
     {
+      "path": "src/relay-checkpoint-worker.js",
+      "cell": "app:lib"
+    },
+    {
       "path": "bin/check-baseline.js",
       "cell": "app:lib"
     },
@@ -1781,6 +1785,18 @@
     },
     {
       "path": "bin/update-docs.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/cli-hook-work.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/relay-sender-main.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/submit-handoff-worker.js",
       "cell": "app:lib"
     },
     {
