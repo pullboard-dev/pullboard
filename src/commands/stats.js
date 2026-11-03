@@ -34,7 +34,7 @@ import {
 import * as store from '../../packages/store/index.js';
 import { caughtLines } from '../../packages/items/index.js';
 import * as gateReceipt from '../../packages/gate/index.js';
-import { readRunnerStage } from '../runner-stage-read.js';
+import { readRunnerStage } from '../../apps/runner/index.js';
 import {
   compareFlowWindows,
   flowLines,

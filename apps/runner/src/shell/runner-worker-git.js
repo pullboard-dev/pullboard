@@ -35,7 +35,8 @@ function gitSetupFailure(S, root, args, env, result, stderr, overflow, inputErro
 /** Invoke bounded Git in an owned group, retaining stderr if it fails instead of erasing the cause. */
 export async function gitBytes(S, root, args, env, input) {
   const started = performance.now();
-  const owned = spawnOwned(S, 'git', args, { cwd: root, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
+  // Runner-owned Git is short and reaped on close; its leader is bound at the next census instead of by a census per launch.
+  const owned = spawnOwned(S, 'git', args, { cwd: root, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], bindLater: true });
   const output = [];
   let stderr = Buffer.alloc(0);
   owned.child.stderr.on('data', chunk => { stderr = Buffer.concat([stderr, chunk]).subarray(-8_192); });

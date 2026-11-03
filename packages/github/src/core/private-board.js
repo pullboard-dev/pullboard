@@ -3,12 +3,10 @@ import { seatFamily } from '../../../../src/family-declaration.js';
 import * as store from '../../../../src/board.js';
 import { withPrivateBoard } from '../../../../src/projects.js';
 import { originRepository } from '../../../seats/index.js';
-import { relayMachineOwner } from '../../../../src/relay-machine.js';
-import { relayMachineContext } from '../../../../src/relay.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Run one add with the caller's native opener while keeping the repo checkout's own seat binding. */
-export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard }) {
+export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard, relayMachineOwner, relayMachineContext }) {
   return withBoard(ctx, async (repoBoard) => {
     const repoActor = whoAmI(ctx, repoBoard);
     const repository = originRepository(ctx.info.root, { optional: true });

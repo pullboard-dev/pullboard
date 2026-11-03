@@ -20,3 +20,15 @@ export function redReturnLeaseHolds(board, item, at) {
     OR event_kind='submit-handoff' AND json_extract(event_detail,'$.state')<>'red') LIMIT 1`).get(item.item_id, returned.event_id);
   return !since;
 }
+
+/**
+ * Whether the claim's own queued submit is waiting for or running its gate. That wait is the holder's activity: the
+ * lapsed-lease sweep and the idle release took #2504, #2341 and #2507 while their gates ran (#2561).
+ */
+export function submitGateInFlight(board, item) {
+  if (item?.item_status !== 'claimed' || !item.item_owner) return false;
+  const value = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${item.item_id}`)?.meta_value;
+  let job;
+  try { job = value ? JSON.parse(value) : null; } catch { return false; }
+  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner;
+}
