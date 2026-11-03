@@ -112,12 +112,19 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const git = loggingGit(box);
   const path = box.env.PATH;
   box.env.PATH = `${git.bin}:${path}`;
+  const startupTrace = join(box.dir, 'review-startup.jsonl');
+  box.env.PULLBOARD_STARTUP_TRACE_FILE = startupTrace;
+  box.env.PULLBOARD_STARTUP_TRACE_ENTRY = join(box.repo, 'bin/pullboard.js');
   const started = performance.now();
   const review = ok(box, box.repo, 'show', String(id), '--review');
   const elapsedMs = performance.now() - started;
+  const phases = existsSync(startupTrace) ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  delete box.env.PULLBOARD_STARTUP_TRACE_FILE;
+  delete box.env.PULLBOARD_STARTUP_TRACE_ENTRY;
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
   box.env.PATH = path;
-  assert.ok(elapsedMs < 2000, `show --review took ${Math.round(elapsedMs)} ms`); // budget: declared ceiling of the frozen bar
+  const timingFailure = `show --review took ${Math.round(elapsedMs)} ms; startup phases ${JSON.stringify(phases)}`;
+  assert.ok(elapsedMs < 2000, timingFailure); // budget: declared ceiling of the frozen bar
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
   assert.deepEqual(calls.filter(call => /(?:^| )(?:checkout|switch|read-tree|clone|diff|cat-file|worktree add)(?: |$)/u.test(call)), [],
     'show --review reads the stored packet: no checkout and no diff');
