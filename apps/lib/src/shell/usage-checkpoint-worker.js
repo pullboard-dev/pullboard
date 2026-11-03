@@ -11,8 +11,8 @@ export function usageCheckpointWorkerEntrypoint() { return fileURLToPath(import.
  */
 export async function runUsageCheckpointWorker(commonDir) {
   const nativeBoard = await import('../core/native-board.js');
-  const { context, withBoard } = await import('../../../../src/cli-context.js');
-  const { ordered } = await import('../../../../src/cli/claim.js');
+  const { cliContext$context: context, cliContext$withBoard: withBoard } = await import('../../../cli/index.js');
+  const { cliClaim$ordered: ordered } = await import('../../../cli/index.js');
   const { drainUsageCheckpoints, publishUsage } = await import('../../../../packages/stats/index.js');
   await drainUsageCheckpoints(commonDir, async (request) => {
     const ctx = context({ cwd: request.root, nativeBoard, say() {}, err() {} });

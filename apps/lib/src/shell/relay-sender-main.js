@@ -42,7 +42,7 @@ export function launchRelaySender(root, env) {
 /** Send and pull one board under its relay lock, then run the person's waiting requests. True when nothing waits. */
 async function serve(root, file, io) {
   const { syncRelay } = await import('../../../../src/relay.js');
-  const { relayOutboxSetting } = await import('../../../../src/cli.js');
+  const { cli$relayOutboxSetting: relayOutboxSetting } = await import('../../../cli/index.js');
   const loadNativeBoard = () => import('../core/native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
@@ -51,10 +51,10 @@ async function serve(root, file, io) {
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('../../../../src/relay-request-execution.js');
-    const { main } = await import('../../../../src/cli-main.js');
+    const { cliMain$main: main } = await import('../../../cli/index.js');
     /** Retain the sender process's explicit native capabilities in person commands. */
     const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
-    const { nativePersonRequestPorts } = await import('../../../../src/cli-context.js');
+    const { nativePersonRequestPorts } = await import('../../../cli/index.js');
     await executePersonRequests(root, boardIo, runCommand, nativePersonRequestPorts(boardIo));
   } catch (error) { io.err(`person requests not run: ${error.message}`); }
   return !outboxWaiting(file);

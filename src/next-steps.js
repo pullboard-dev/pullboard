@@ -1,2 +1,0 @@
-/** Preserve this module's public names through the apps/cli front door [C7]. */
-export { BLOCK_AUDIENCE, nextSteps$COORDINATOR_PERSON_REQUEST as COORDINATOR_PERSON_REQUEST, nextSteps$NEXT_STEPS as NEXT_STEPS, blockAudience, blockLine, blockNotice, mainLaneWork, nextSteps$nextStepFor as nextStepFor, nextSteps$personRequestGuidance as personRequestGuidance, nextSteps$personRequestStep as personRequestStep, refuseNextIdle, reportBlock, reviewerStartup } from '../apps/cli/index.js';

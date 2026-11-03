@@ -37,7 +37,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
     assert.ok(next.trim(), `${code} supplies a recovery action`);
     assert.doesNotMatch(next, /Run pullboard help, correct the reported problem/u, `${code} has its own recovery`);
   }
-  const { NEXT_STEPS } = await import('../src/next-steps.js');
+  const { nextSteps$NEXT_STEPS: NEXT_STEPS } = await import('../apps/cli/index.js');
   for (const code of codes) assert.ok(Object.hasOwn(NEXT_STEPS, code), `${code} has an explicit recovery entry`);
   assert.equal(refusalDocument({ code: 'FUTURE_REMOTE_RULE', message: 'The service refused.', next: 'ask the service owner to restore this board' }).error.next,
     'ask the service owner to restore this board', 'remote recovery guidance survives serialization');
@@ -149,7 +149,7 @@ test('the light collector preserves prepared JSON refusal documents and a single
   for (const error of cases) {
     let text = '';
     const io = lightCommandOutput(['show', '1', '--json'], { stdout: { write(value) { text += value; } }, stderr: { write() {} } },
-      { loadRefusal: async () => (await import('../src/next-step-words.js')).refusalDocument });
+      { loadRefusal: async () => (await import('../apps/cli/index.js')).refusalDocument });
     io.caller('seat', '/fixture');
     io.refusal(error);
     await io.prepareRefusal();
