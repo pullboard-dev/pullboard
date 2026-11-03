@@ -66,7 +66,8 @@ export function sealItemPatchFollow(board, id, options) {
     git(root, ['merge-base', '--is-ancestor', patch.commit, options.commit]);
     validateItemPatchInput(board, policy.config, patch.author.agentId, patch.patch, policy.commit);
   }
-  const rebound = patches.map(patch => ({ ...patch, commit: options.commit, source: { commit: options.commit } }));
+  // Each companion keeps the head it was written against, so a moved head composes three-way from there (#2625).
+  const rebound = patches.map(patch => ({ ...patch, origin: patch.attachedCommit ?? patch.commit, commit: options.commit, source: { commit: options.commit } }));
   const composed = composeItemPatches(root, { ...item, item_commit: options.commit }, rebound);
   return { agentId: options.agentId, commit: options.commit, digest: itemPatchDigest(board, id),
     previous: patches.map(({ key, commit, digest }) => ({ key, commit, digest })), nextDigest: composed.digest };
