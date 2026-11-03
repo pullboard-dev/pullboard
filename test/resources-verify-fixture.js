@@ -1,6 +1,6 @@
 import { installRunnerOnlyCases } from './resources-runner-only-fixture.js';
 /** Private real-board setup for resource-admission verification checks [C7,V4]. */
-import { copyPackageFiles } from '../packages/runners/index.js';
+import { copyFixtureRunner } from './fixture-runner-copy.js';
 import assert from 'node:assert/strict';
 import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
