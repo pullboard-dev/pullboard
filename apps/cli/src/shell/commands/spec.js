@@ -140,8 +140,7 @@ import {
 import { personCommandContext } from '../cli-context.js';
 import {
   assertNoCitedSpecDecline,
-  prepareSpecRefreezes,
-  specRefreezeSkips,
+  prepareSpecRowApplyPayload,
 } from '../../../../../packages/spec/index.js';
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
@@ -372,20 +371,26 @@ export async function specCommand(io, { first, second, rest, values }) {
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));
       drafted.forEach((row) => io.say(`${row.file}: ${row.id} drafted from a lane, for the person to approve`));
       clashingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).forEach((draft) => io.say(`${ctx.config.spec}: ${draft.id} holds other text, so the draft by ${draft.by} was not written; shout ${draft.by} to run pullboard spec draft again and cite the new id`));
-      const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
-      writeRowApply(ctx.info.root, plan);
-      let applied;
-      try {
-        const args = { agentId: me.id, events: plan.records.map((record) => record.event) };
-        const items = board.db.prepare('SELECT * FROM item ORDER BY item_id').all();
-        const skippedDrafts = specRefreezeSkips(board, plan.records, items);
-        const refreezes = prepareSpecRefreezes(plan.records, items,
-          freezer(ctx, { captureVerifyPolicy: true, board, applyingDecisions: plan.records }), { skippedDrafts });
-        if (refreezes !== undefined) args.refreezes = refreezes;
-        if (skippedDrafts.length) args.skippedDrafts = skippedDrafts;
-        applied = await ordered(ctx, board, 'applyRowDecisions', [args]);
-        if (skippedDrafts.length) io.say(`Refreeze skipped never-frozen open items ${skippedDrafts.map(id => `#${id}`).join(', ')} citing explicitly declined drafts.`);
-      } catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
+      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
+      let preparedApply;
+      const applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: preflight.records.map(record => record.event) }], {
+        prepareInWriter(currentBoard) {
+          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision }, { loadDoctrine });
+          try {
+            writeRowApply(ctx.info.root, plan);
+            const args = { agentId: me.id, events: plan.records.map(record => record.event) };
+            const payload = prepareSpecRowApplyPayload(currentBoard, plan.records.map(record => record.event),
+              freezer(ctx, { captureVerifyPolicy: true, board: currentBoard, applyingDecisions: plan.records }));
+            const { skippedDrafts, refreezes } = payload;
+            if (refreezes !== undefined) args.refreezes = refreezes;
+            if (skippedDrafts.length) args.skippedDrafts = skippedDrafts;
+            preparedApply = { plan, skippedDrafts };
+            return { args: [args], rollback: () => restoreRowApply(ctx.info.root, plan) };
+          } catch (error) { restoreRowApply(ctx.info.root, plan); throw error; }
+        },
+      });
+      const { plan, skippedDrafts } = preparedApply;
+      if (skippedDrafts.length) io.say(`Refreeze skipped never-frozen open items ${skippedDrafts.map(id => `#${id}`).join(', ')} citing explicitly declined drafts.`);
       const verifications = planRowVerificationApply(ctx.info.root, ctx.config, store.rowVerifications(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, verifications);
       verifications.applied.forEach(id => io.say(`${ctx.config.spec}: ${id} verifier verdict applied`));
