@@ -48,7 +48,7 @@ function landBatch(box, itemId) {
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
-    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
+    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const [root, itemId] = process.argv.slice(1);',
