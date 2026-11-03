@@ -80,6 +80,7 @@ test('the main audit withdraws only a named-file green Main red and records its 
   const dbFile = join(repo, '.git/pullboard/board.sqlite');
   const db = openBoard(dbFile, undefined, { isMain: true, gitRoot: repo });
   t.after(() => closeBoard(db));
+  store.register(db, { lane: 'coordinator', path: repo });
   function add(title, check) {
     const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check });
     const frozen = JSON.stringify({ title, criterion: 'The named file passes.', check, rows: [] });
@@ -117,6 +118,7 @@ test('withdraw refuses when the frozen check or digest changed after the audit s
   fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
   const db = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
   t.after(() => closeBoard(db));
+  store.register(db, { lane: 'coordinator', path: repo });
   const title = 'Main red: changed during audit';
   const check = 'node --test test/a.test.js';
   const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check });
