@@ -48,13 +48,13 @@ syncBuiltinESMExports();
 const started = Date.now();
 try { const run = await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
 process.stdout.write(JSON.stringify({ code: 'COMPLETED', exitCode: run.exitCode, green: run.isGreen, ms: Date.now() - started })); }
-catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.name, ms: Date.now() - started })); }`;
+catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.name, ms: Date.now() - started, why: error.diagnostic ?? error.message })); }`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script, root], {
     cwd: root, env, encoding: 'utf8', timeout: 45_000, // Budget: bounded child lifetime for the real private worker protocol.
   });
   assert.equal(result.status, 0, result.context);
   const outcome = JSON.parse(result.stdout);
-  assert.equal(outcome.code, 'COMPLETED', 'a slow cleanup never fails the gate');
+  assert.equal(outcome.code, 'COMPLETED', `a slow cleanup never fails the gate: ${JSON.stringify(outcome.why ?? null).slice(0, 2000)}`);
   assert.equal(outcome.green, true);
   assert.ok(outcome.ms < SLOW_CLEANUP_MS, `the result came back in ${outcome.ms} ms, before the ${SLOW_CLEANUP_MS} ms cleanup`);
   // The cleanup still runs to the end in the background: the job directory goes away.
