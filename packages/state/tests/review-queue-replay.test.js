@@ -162,20 +162,20 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
   assert.equal(legacyBoard.executionEngineVersion, undefined);
 
   const missingModernNote = applyEngineMove(currentBoard, { version: 1, engine: 5, id: 'current-review-release-missing-note', operation: 'release', args: [item, 'web-2'] },
-    { sequence: 1, at: '2026-10-08T09:00:30.000Z' });
+    { sequence: 1, at: '2026-10-08T08:00:34.000Z' });
   assert.equal(missingModernNote.error.code, 'NOTE_REQUIRED', 'the v5 replay receiver enforces the new construction contract');
   assert.equal(missingModernNote.events, undefined);
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused replay restores the live engine context');
   const modernRelease = prepareEngineMove(currentBoard, 'release', [item, 'web-2', 'recheck the submitted tree', 'OTHER'], { id: 'current-review-release' });
   assert.equal(modernRelease.engine, ENGINE_VERSION);
-  const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T09:00:31.000Z' });
+  const modern = applyEngineMove(currentBoard, modernRelease, { sequence: 2, at: '2026-10-08T08:00:35.000Z' });
   assert.equal(modern.error, undefined);
   assert.deepEqual(JSON.parse(modern.events[0].event_detail), { review: true, reason: 'recheck the submitted tree', reasonCode: 'OTHER', model: 'unknown' });
   assert.equal(currentBoard.executionEngineVersion, undefined);
   const filtered = store.reserveNextReview(currentBoard, { agentId: 'web-2', lane: 'web', leaseMs: LEASE_MS, policy: 'any' });
   assert.equal(filtered.item, null, 'engine 5 nextFor hides work released by this reviewer during cooldown');
   const modernReserve = applyEngineMove(currentBoard, prepareEngineMove(currentBoard, 'reserveReview', [item,
-    { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }], { id: 'current-review-reserve' }), { sequence: 3, at: '2026-10-08T09:00:32.000Z' });
+    { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' }], { id: 'current-review-reserve' }), { sequence: 3, at: '2026-10-08T08:00:36.000Z' });
   assert.equal(modernReserve.error.code, 'REVIEW_COOLDOWN');
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused v5 replay restores the live engine context');
 });

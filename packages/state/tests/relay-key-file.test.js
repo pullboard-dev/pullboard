@@ -12,6 +12,7 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { relayClientFixture } from '../../../test/relay-client-fixture.js';
@@ -59,6 +60,9 @@ function securityStandIn(box) {
 
 test('owner-only key file links and reads with a locked keychain, migrates once, and supports the environment key [H15,H17]', async (t) => {
   const box = await relayClientFixture(t);
+  // Keep the real generated hook active on the fixture's deliberately private PATH.
+  const cli = fileURLToPath(new URL('../../../bin/pullboard.js', import.meta.url));
+  writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(cli)} "$@"\n`, { mode: 0o700 });
   // Item reads use accepted main's family policy, so commit the policy that init generated.
   runFixtureGit(['add', 'pullboard.json', 'SPEC.md', 'AGENTS.md'], { cwd: box.root, env: box.env });
   runFixtureGit(['commit', '-q', '-m', 'chore: commit private relay policy'], { cwd: box.root, env: box.env });
