@@ -15,6 +15,8 @@ import { configFromSource } from '../packages/config/index.js';
 import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 
+// These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
+delete process.env.PULLBOARD_RUNNER_JOB;
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 

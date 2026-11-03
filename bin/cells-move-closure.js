@@ -1,9 +1,18 @@
 /** Prove the actual move declarations' bounded literal import closure without evaluating them [C7,H16]. */
 import { isBuiltin } from 'node:module';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { join, posix } from 'node:path';
-import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../packages/kernel/index.js';
+import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { posix } from 'node:path';
+import { discovered } from '../packages/kernel/index.js';
+import { MOVE_CANDIDATE } from '../packages/kernel/index.js';
+import { MOVE_FILE } from '../packages/kernel/index.js';
 import { lex } from '../packages/kernel/index.js';
+
+/** Folders that hold move declarations: the src/moves shims while they last, then the moves cell's bodies [C7]. */
+const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves']);
 
 /** Refuse symlinks, absent modules and paths outside the finite repository source capability. */
 function sourceAt(root, file, allowed) {
@@ -22,10 +31,15 @@ function sourceAt(root, file, allowed) {
 
 /** Return only a complete finite declaration closure; opaque or unbounded source grants no exception. */
 export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
-  const directory = join(root, 'src/moves');
-  if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('unproven moves directory');
-  const pending = discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
-    .map(name => `src/moves/${name}`);
+  // Every existing moves folder is a root, so the closure survives src/moves being deleted (#2478).
+  const folders = MOVE_FOLDERS.filter(folder => existsSync(join(root, folder)));
+  if (!folders.length) throw new Error('unproven moves directory');
+  for (const folder of folders) {
+    const stat = lstatSync(join(root, folder));
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('unproven moves directory');
+  }
+  const pending = folders.flatMap(folder => discovered(readdirSync(join(root, folder)), MOVE_CANDIDATE, MOVE_FILE, 'move')
+    .map(name => `${folder}/${name}`));
   if (!pending.length) throw new Error('no move declarations');
   return literalClosure(root, pending, { importsIn, commonJsIn, files }, 'move');
 }
