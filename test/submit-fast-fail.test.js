@@ -91,9 +91,14 @@ test('changed import style is refused while other stages may run [V4,C7]', t => 
   const { box, markers } = project(t, { staticLint: true });
   put(box.root, 'src/a.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
   commitAll(box, 'feat(core): change source with bad import style [G1]');
+  const checked = runFixtureChild(process.execPath, ['--experimental-vm-modules', 'bin/static-style-checks.js'],
+    { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const checkerOutput = checked.failure ?? checked.stderr ?? '';
+  assert.notEqual(checked.status, 0, checkerOutput);
+  assert.match(checkerOutput, /src\/a\.js:1: one import binding per line/u);
   const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
-  assert.notEqual(result.code, 0);
+  assert.equal(existsSync(markers.staticCheck), true, 'the submit static stage actually ran');
+  assert.notEqual(result.code, 0, result.err + result.out);
   assert.match(result.err + result.out, /src\/a\.js:1: one import binding per line/u);
-  assert.equal(existsSync(markers.staticCheck), true, 'the actual static checker ran');
   for (const name of ['item', 'gate', 'doctrine']) assert.equal(existsSync(markers[name]), false, `${name} proof did not run before static refusal`);
 });
