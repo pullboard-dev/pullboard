@@ -173,16 +173,14 @@ function sourceExportPorts(readSource) {
       if (!inherited) return null;
       for (const name of inherited) names.add(name);
     }
-    return names.size && [...names].every(name => safeNamed(file, name)) ? names : null;
-  }
-  /** Give a named export the same conservative filesystem-capability check as a whole surface. */
-  function safeNamed(file, name) {
-    const origin = named(file, name);
-    if (!origin || origin === unresolved) return false;
-    const value = snapshot(origin.file), scanned = value && lex(value.source);
-    if (!scanned || /\b(?:readFileSync|copyFileSync|cpSync)\b/u.test(scanned.code)) return false;
-    const bindings = imports(value.source, scanned, [], origin.file, { producer: true }).bindings;
-    return ![...bindings.values()].some(binding => binding.module === 'fs' && binding.imported === '*');
+    return names.size && [...names].every(name => {
+      const origin = named(file, name);
+      if (!origin || origin === unresolved) return false;
+      const value = snapshot(origin.file), scanned = value && lex(value.source);
+      if (!scanned || /\b(?:readFileSync|copyFileSync|cpSync)\b/u.test(scanned.code)) return false;
+      const bindings = imports(value.source, scanned, [], origin.file, { producer: true }).bindings;
+      return ![...bindings.values()].some(binding => binding.module === 'fs' && binding.imported === '*');
+    }) ? names : null;
   }
   /** Recheck captured immutable bytes before granting ordinary API-origin authority. */
   function stable() {
@@ -196,8 +194,7 @@ function sourceExportPorts(readSource) {
     } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return false; }
   }
   return { named: (file, name) => { const row = named(file, name); return row && row !== unresolved && stable() ? row : null; },
-    all: file => Boolean(all(file) && stable()),
-    safeNames: (file, names) => Boolean(names.length && names.every(name => safeNamed(file, name)) && stable()) };
+    all: file => Boolean(all(file) && stable()) };
 }
 
 /** Recognize imported module identities and exclude their declarations from binding-read probes. */
@@ -211,11 +208,8 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
     const before = scanned.code.slice(0, literal.start);
     const match = /\bimport\s*([^;]*?)\bfrom\s*$/u.exec(before);
     if (!match) {
-      const directNames = /\bconst\s*\{([^{}]+)\}\s*=\s*await\s+import\s*\(\s*$/u.exec(before)?.[1]
-        ?.split(',').map(name => name.trim());
-      const named = directNames?.length && directNames.every(name => new RegExp(`^${ID}$`, 'u').test(name)) ? directNames : [];
       if (/\b(?:require|import)\s*\(\s*$/u.test(before)
-        && !(target && /\bimport\s*\(\s*$/u.test(before) && (producer || dynamicPort?.(target, named)))) {
+        && !(target && /\bimport\s*\(\s*$/u.test(before) && (producer || dynamicPort?.(target)))) {
         problems.push(`${file}:${source.slice(0, literal.start).split('\n').length}: unsupported fixture source: dynamic/CommonJS fixture filesystem binding`);
       }
       continue;
@@ -280,8 +274,8 @@ function fixtureSourceEditsImpl(source, { file, moves, readSource, dataReads = [
   }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;
-  const imported = imports(source, scanned, problems, file, { dynamicPort: (target, names) => {
-    const proven = ports.all(target) || ports.safeNames(target, names);
+  const imported = imports(source, scanned, problems, file, { dynamicPort: target => {
+    const proven = ports.all(target);
     sourcePortsUsed ||= proven;
     return proven;
   } });

@@ -11,20 +11,17 @@ import { runFixtureGit } from './fixture-child.js';
 import { repoInfo } from '../src/git.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
+import { probeRelayCanary } from '../packages/link/index.js';
+import { observeRelayHealth } from '../packages/link/index.js';
+import { readRelayHealth } from '../packages/link/index.js';
+import { runRelayCanary } from '../packages/link/index.js';
 
-/** Load the new surface dynamically so the test-only baseline reports a focused missing-feature failure. */
-async function canaryApi() {
-  try {
-    const { probeRelayCanary, observeRelayHealth, readRelayHealth } = await import('../packages/link/index.js');
-    const probe = { probeRelayCanary };
-    const health = { observeRelayHealth, readRelayHealth };
-    assert.equal(typeof probe.probeRelayCanary, 'function', 'the real relay canary probe is exported');
-    assert.equal(typeof health.observeRelayHealth, 'function', 'the durable relay health observer is exported');
-    assert.equal(typeof health.readRelayHealth, 'function', 'the keyless relay health reader is exported');
-    return { ...probe, ...health };
-  } catch (error) {
-    assert.fail(`relay canary probe and health APIs are not implemented yet: ${error.message}`);
-  }
+/** Return the link cell's canary and health surface, checking each export is a function. */
+function canaryApi() {
+  assert.equal(typeof probeRelayCanary, 'function', 'the real relay canary probe is exported');
+  assert.equal(typeof observeRelayHealth, 'function', 'the durable relay health observer is exported');
+  assert.equal(typeof readRelayHealth, 'function', 'the keyless relay health reader is exported');
+  return { probeRelayCanary, observeRelayHealth, readRelayHealth };
 }
 
 /** Commit the fixture's initialized project so real sibling worktrees receive its coordinator configuration. */
@@ -77,7 +74,7 @@ function displayText(value) {
 
 test('a failed round trip alerts within two minutes and names the failed step [H2,H15,C7]', { timeout: 60_000 }, async t => { // budget: private relay startup, four real probes, and fixture cleanup; alert timing uses the injected clock.
   const drillStartedAt = new Date().toISOString();
-  const { probeRelayCanary, observeRelayHealth, readRelayHealth } = await canaryApi();
+  const { probeRelayCanary, observeRelayHealth, readRelayHealth } = canaryApi();
   const box = await relayClientFixture(t);
   commitConfiguration(box);
   await box.link();
@@ -142,7 +139,7 @@ test('a failed round trip alerts within two minutes and names the failed step [H
 });
 
 test('the health history waits for ten minutes of slow successful round-trip samples before p95 alerting [H5,H15,C7]', async t => {
-  const { observeRelayHealth, readRelayHealth } = await canaryApi();
+  const { observeRelayHealth, readRelayHealth } = canaryApi();
   const box = await relayClientFixture(t);
   const start = Date.parse('2026-01-01T00:00:00.000Z');
   let last;
@@ -166,7 +163,7 @@ test('the health history waits for ten minutes of slow successful round-trip sam
 });
 
 test('the client shows queued moves while the relay is degraded [H16,H17,C7]', { timeout: 60_000 }, async t => { // budget: linked fixture setup, two queued moves, two real probes, and cleanup.
-  const { probeRelayCanary, observeRelayHealth } = await canaryApi();
+  const { probeRelayCanary, observeRelayHealth } = canaryApi();
   const box = await relayClientFixture(t);
   commitConfiguration(box, { outbox: true });
   await box.link();
@@ -227,8 +224,7 @@ async function independentCanaryHost(host, lane, name) {
 test('two paired host configurations independently alert and recover through real configured canaries [H5,H15,H17]',
   { timeout: 180_000 }, async t => { // budget: two real private clones, ordinary seat joins, eight bounded network probes and cleanup; alert cadence uses an injected health clock.
     const startedAt = new Date().toISOString();
-    const { runRelayCanary } = await import('../packages/link/index.js');
-    const { readRelayHealth } = await canaryApi();
+    const { readRelayHealth } = canaryApi();
     const box = await relayClientFixture(t);
     commitConfiguration(box);
     await box.link();
