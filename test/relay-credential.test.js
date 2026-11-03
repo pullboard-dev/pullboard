@@ -159,30 +159,52 @@ test('every current operation selects its native actor credential without a seco
     assert.equal(result.code, 0, 'every operation reaches the real transport and deterministic replay');
     assert.equal(result.document.results.some(value => value?.fatal), false, JSON.stringify(result.document.results.filter(value => value?.fatal)));
     assert.equal(result.document.results.length, batch.length);
-    results.push(...result.document.results);
+    results.push(...batch.map((entry, index) => ({
+      operation: entry.operation,
+      label: entry.label ?? entry.operation,
+      expectedSent: entry.sent !== false,
+      result: result.document.results[index],
+    })));
   }
   const records = box.moveAcks.slice(start);
   const sentCases = cases.filter(entry => entry.sent !== false);
-  assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const acknowledged = [];
+  for (const record of records) {
+    const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
+    acknowledged.push({ record, move });
+  }
+  const expectedOperations = sentCases.map(entry => entry.operation);
+  const actualOperations = acknowledged.map(({ move }) => move.operation);
+  const mismatch = expectedOperations.findIndex((operation, index) => actualOperations[index] !== operation);
+  if (mismatch !== -1 || actualOperations.length !== expectedOperations.length) {
+    const start = Math.max(0, (mismatch === -1 ? Math.min(actualOperations.length, expectedOperations.length) : mismatch) - 2);
+    const caseStart = Math.max(0, start - 2);
+    const diagnostics = cases.slice(caseStart, start + 7).map((entry, offset) => ({
+      operation: entry.operation, label: entry.label ?? entry.operation, expectedSent: entry.sent !== false, result: results[caseStart + offset].result,
+    }));
+    assert.fail(`transport acknowledgement sequence differs near ${JSON.stringify({
+      expected: expectedOperations.slice(start, start + 5), actual: actualOperations.slice(start, start + 5), cases: diagnostics,
+    })}`);
+  }
+  assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   let recordIndex = 0;
   for (const [index, entry] of cases.entries()) {
     if (entry.sent === false) {
-      assert.equal(results[index], entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
+      assert.equal(results[index].result, entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
       continue;
     }
-    const record = records[recordIndex++];
-    const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
+    const { record, move } = acknowledged[recordIndex++];
     assert.equal(move.operation, entry.operation);
     assert.equal(move.engine, ENGINE_VERSION, 'the current engine version is recorded on every sealed operation');
     assert.equal(record.sender.kind, entry.kind, `${entry.operation} selects the correct authenticated credential`);
     if (entry.kind === 'agent') assert.equal(record.sender.agent, actor, 'the scoped credential belongs to the native actor');
     if (entry.kind === 'machine') assert.equal(record.sender.machine, state.machine, 'the machine credential is attributed to this native machine');
     if (entry.personRequest) {
-      assert.equal(results[index], 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
+      assert.equal(results[index].result, 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
     } else {
-      assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index]),
+      assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index].result),
         `${entry.operation} passes main's shared sender policy`);
     }
   }
