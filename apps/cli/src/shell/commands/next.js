@@ -82,6 +82,8 @@ function answerFirstReasons(reasons) {
  * @returns {Promise<number>}
  */
 export async function nextHere(io, values) {
+  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
+  values = { ...values, defaultLoop };
   const monitor = await startNextProgressMonitor(io);
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
@@ -93,7 +95,7 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  if (!values.defaultLoop) withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -124,7 +126,7 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
+    const takeMainRed = await progress.run('main-red routing', null, () => !values.defaultLoop && !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
@@ -134,6 +136,17 @@ async function nextWithProgress(io, values, progress) {
       continue;
     }
     if (found.item) {
+      if (values.defaultLoop && !found.offer && !found.buildOffer && !found.releaseRequest) {
+        const item = found.item, review = Boolean(found.review);
+        const folder = found.itemFolder ?? ctx.info.root;
+        io.result?.({ item: { item_id: item.item_id, item_title: item.item_title.slice(0, 160),
+          item_commit: item.item_commit, item_status: item.item_status }, review, held: Boolean(found.held),
+          itemFolder: folder });
+        io.say(`${review ? 'reserved review' : found.held ? 'you hold' : 'claimed'} #${item.item_id}: ${item.item_title.slice(0, 160)}`);
+        if (review) io.say(`check out ${item.item_commit}; read pullboard show ${item.item_id}, then verify with --no-next`);
+        else io.say(`work in ${folder.slice(0, 512)}; read pullboard show ${item.item_id}, build, commit, submit, then pullboard next`);
+        return 0;
+      }
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
@@ -197,6 +210,11 @@ async function nextWithProgress(io, values, progress) {
         io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
       }
       lastIdleReason = idleReason;
+    }
+    if (!found.retry && values.defaultLoop) {
+      io.result?.({ item: null, review: false, held: false, shared: [] });
+      io.say('nothing for this seat: end your turn');
+      return 0;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {

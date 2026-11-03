@@ -45,7 +45,7 @@ export function mainLaneWork(items) {
 export function refuseNextIdle(io, reasons, displayed, { minutes, verify, laneWork, lane, route }) {
   const waited = minutes ? ` after ${minutes} minutes` : '';
   const repair = laneWork ? `. ${laneWork.summary}. Start there: ${laneWork.next}`
-    : `${waited}. To keep looking: pullboard next --wait 9${verify ? ' --verify' : ''} (minutes; give the command a ten-minute timeout)`;
+    : `${waited}. Take other work with pullboard next; nothing for this seat: end your turn`;
   const scope = lane && route ? `lane ${lane}, route ${route}: ` : '';
   io.refusal?.(new Refused('NOTHING_FREE', scope + reasons.join('; ') + repair, laneWork?.next));
   io.err(`pullboard: [NOTHING_FREE] ${scope}${displayed.join('; ')}${repair}`);

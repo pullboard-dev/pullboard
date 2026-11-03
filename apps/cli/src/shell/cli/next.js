@@ -135,7 +135,7 @@ function nextPick(ctx, board, values) {
   const items = store.listItems(board), agents = store.listAgents(board);
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
-  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  if (!values.defaultLoop) for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
@@ -148,6 +148,12 @@ function nextPick(ctx, board, values) {
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
+  // Plain next reserves the first eligible review, including when a build is already held.
+  if (values.defaultLoop) {
+    const find = () => store.nextFor(board, { ...selection, verify: true, priority: mainRedReviewItems(ctx.info.root, board) });
+    const review = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, find) : find();
+    if (review.item) return { autoReview: review.item, item: review.item, reasons: [] };
+  }
   const firstReview = () => store.reviewOffer(board, { ...selection, mandatoryOnly: true,
     priority: [], skipIds: selection.skipIds });
   const mandatory = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, firstReview) : firstReview();

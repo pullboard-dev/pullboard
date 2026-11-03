@@ -1,4 +1,5 @@
 import * as store from "./board.js";
+import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
 
 /**
@@ -17,7 +18,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId);
+  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId && !pendingSubmitHandoff(board, item));
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
 
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
