@@ -143,7 +143,7 @@ test('a read command loads only its own modules [C7]', async (t) => {
   assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
   assert.deepEqual(status.modules.filter((path) => HEAVY.includes(path)), [], 'offline status loads no gate, relay or land module');
   // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
-  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/')), [],
+  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
     'offline status loads no move module');
   const list = box.run('list', '--json');
   assert.equal(JSON.parse(list.stdout).items.length, 1);
