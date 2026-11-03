@@ -59,7 +59,7 @@ import { quarantineWaivers } from '../../packages/flakes/index.js';
 import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
-import { checkAtCommit } from '../runner-private-check.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { submitGateConfig } from '../gate-submit.js';
