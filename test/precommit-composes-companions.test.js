@@ -109,8 +109,9 @@ test('a fixer\'s rewrite reaches the real index, so the checked blob is the comm
   assert.equal(readFileSync(checked, 'utf8').trim(), blob.trim(), 'the composed check read the committed bytes');
 });
 
+/* These two run the real CLI behind the composed entry (fixer: true), so the lane rule itself is exercised. */
 test('a merge of main commits cleanly when an attached companion changes a path of another lane [C7]', () => {
-  const { box, builder } = fixture();
+  const { box, builder } = fixture({ fixer: true });
   box.git(builder, 'rm', '-q', 'web/shim.js');
   const first = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
   assert.equal(first.status, 0, `${first.stdout}${first.stderr}`);
@@ -123,7 +124,7 @@ test('a merge of main commits cleanly when an attached companion changes a path 
 });
 
 test('control: a builder who stages a file of another lane is still refused [C7]', () => {
-  const { box, builder } = fixture();
+  const { box, builder } = fixture({ fixer: true });
   box.git(builder, 'rm', '-q', 'web/shim.js');
   write(builder, { 'api/own.js': 'export default 2;\n' });
   box.git(builder, 'add', 'api/own.js');
