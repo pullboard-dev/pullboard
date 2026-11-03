@@ -26,8 +26,18 @@ function forwards(source) {
   return /^(?:export(?:\*(?:as[\w$]+)?|\{[^}]*\})from(?:''|"");?)+$/u.test(code);
 }
 
-/** Load only recognized plan shard identities through the caller's immutable source reader. */
+/**
+ * Load only recognized plan shard identities through the caller's immutable source reader.
+ * Why: malformed plan JSON at one revision yields no plan here, so a commit carrying it is judged by the other
+ * revisions' plans and refused by the planned-source check, rather than crashing the hook with a parse error.
+ */
 function planAt(read, revision) {
+  try { return planRowsAt(read, revision); }
+  catch (error) { if (error instanceof SyntaxError) return null; throw error; }
+}
+
+/** Read one revision's plan index and canonical shards; malformed JSON throws SyntaxError to planAt. */
+function planRowsAt(read, revision) {
   const raw = read(revision, 'bin/cells-plan.json');
   if (raw === undefined || raw === null) return null;
   const index = JSON.parse(String(raw));

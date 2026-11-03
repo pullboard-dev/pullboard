@@ -28,7 +28,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { HELP } from '../src/cli.js';

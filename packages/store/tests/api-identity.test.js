@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 
 /** Make a unique directory for a real SQLite board file. */
 function boardFile() {

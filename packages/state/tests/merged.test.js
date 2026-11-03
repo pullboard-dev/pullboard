@@ -25,7 +25,7 @@ import {
 } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
