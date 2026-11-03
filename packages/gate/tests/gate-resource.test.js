@@ -26,9 +26,9 @@ import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../../../bin/run-tests.js');
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../resources/index.js')).href;
-const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/browser-admission.js')).href;
+const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const PROBE_NAME = 'machine gate slot runner probe [Q4]';
 const PROBE_PATTERN = '^machine gate slot runner probe \\[Q4\\]$';
 const PROBE_PATH_ENV = 'PULLBOARD_GATE_RESOURCE_PROBE_PATH';
@@ -246,6 +246,7 @@ function checkProject(box, { releaseCheck = null } = {}) {
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: box.env }).status, 0);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({
     gate: 'true',
+    landing: { manualOverride: true },
     lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   }));
   writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n\n## G · Goals\n- G1 [approved, must] The check runs. | gate: test -f web/result.txt\n- G2 [approved, must] The API responds. | gate: test -f api/result.txt\n');
@@ -254,7 +255,7 @@ function checkProject(box, { releaseCheck = null } = {}) {
   const initialized = spawnSync(process.execPath, [BIN, 'init'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
-  const joined = spawnSync(process.execPath, [BIN, 'join', 'web'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const joined = spawnSync(process.execPath, [BIN, 'join', 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stderr);
   writeFileSync(script, releaseCheck
     ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
@@ -475,13 +476,14 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   assert.equal(spawnSync('git', ['add', 'web/result.txt'], { cwd: runner, env: box.env }).status, 0);
   const commit = spawnSync('git', ['commit', '-q', '-m', 'feat(web): queue item proof [G1]'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(commit.status, 0, commit.stderr);
-  const submitted = spawnSync(process.execPath, [BIN, 'submit', '1'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const submitted = spawnSync(process.execPath, [BIN, 'submit', '1', '--wait', '--no-next'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(submitted.status, 0, submitted.stderr);
   rmSync(checkRelease, { force: true });
   const review = join(box.dir, 'check-review');
   const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
-  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api'], { cwd: review, env: box.env, encoding: 'utf8' });
+  const reviewBox = { ...box, env: { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'gate-resource-reviewer' } };
+  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
@@ -495,7 +497,7 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const verifyFocusedRelease = join(box.dir, 'release-verify-focused');
   const verifyHolder = launch(box, verifyHolderRoot);
   await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
-  const verify = launch(box, review, ['verify', '1', 'accept', '--note', 'queue fixture']);
+  const verify = launch(reviewBox, review, ['verify', '1', 'accept', '--no-next', '--note', 'queue fixture']);
   await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
   assert.ok(verify.stdoutText.includes('place 1'), `verify accept prints its queued gate-slot position: ${verify.stdoutText}${verify.stderrText}`);
   assert.match(verify.stdoutText, /gate waiting:/);
@@ -673,6 +675,7 @@ test('a short slot is offered only to a literal runner call over regular test fi
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} bin/run-tests.js`), null, 'a whole suite is not short');
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} bin/run-tests.js test/`), null, 'a directory is not short');
   assert.equal(await explicitCheckFiles(root, 'npm test packages/gate/tests/gate-resource.test.js'), null, 'an opaque runner is not short');
+  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js packages/gate/tests/../../../test/cells.test.js'), null, 'path traversal is not a package test');
   assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js $(printf packages/gate/tests/gate-resource.test.js)'), null, 'shell expansion is not short');
   assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js --unknown packages/gate/tests/gate-resource.test.js'), null, 'an unknown option is not short');
   assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js test/short-missing.test.js'), null, 'a missing file is not short');

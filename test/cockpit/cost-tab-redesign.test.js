@@ -7,10 +7,10 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { costOverviewHtml, bindCostOverview } from '../../src/view/cost-overview.js';
-import { modelPresentation } from '../../src/view/model-presentation.js';
+import { costOverviewHtml, bindCostOverview } from '../../apps/view/index.js';
+import { modelPresentation } from '../../apps/view/index.js';
 import { costAnalytics } from '../../packages/stats/index.js';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the private Cost overview renders prepared analytics and each confidence [N26]', { timeout: 90000 }, async () => {

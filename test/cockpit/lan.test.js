@@ -10,7 +10,7 @@ import {
   chromeExecutable, closeSnapshotChrome, fetchLive, machine, openSnapshotChrome, project, startView,
 } from './fixture.js';
 import { assertLanRefusal, lanBoundaryReply, startLanView } from './lan-fixture.js';
-import { viewLanAddress } from '../../src/view/lan-address.js';
+import { viewLanAddress } from '../../apps/view/index.js';
 
 test('a phone reaches the board on the local network [H19]', { timeout: 180_000 }, async t => { // budget: one real private board, two owned view listeners and a mobile Chrome session.
   t.diagnostic('runtime ' + JSON.stringify({ node: process.version, sqlite: process.versions.sqlite,

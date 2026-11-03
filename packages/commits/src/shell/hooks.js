@@ -262,7 +262,7 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  */
 export function stagedPaths(root, base = null) {
   const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
-  const touched = [], companion = new Set(base ? [] : JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593: a companion's own paths
+  const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
   while (index < fields.length - 1) {

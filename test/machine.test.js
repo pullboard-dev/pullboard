@@ -31,7 +31,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
-import { HELP } from '../src/cli.js';
+import { HELP } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
@@ -296,7 +296,7 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
-  const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
+  const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set(['../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];

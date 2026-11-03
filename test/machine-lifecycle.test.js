@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as machineRules from '../packages/state/index.js';
-import { HELP } from '../src/cli.js';
+import { HELP } from '../apps/cli/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const copy = () => structuredClone(machineRules.MACHINE);
