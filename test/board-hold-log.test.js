@@ -23,7 +23,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
     import { closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import assert from 'node:assert/strict';
     import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
     import { measureBoardWritePhase } from ${JSON.stringify(new URL('../packages/store/src/shell/board-write-lock.js', import.meta.url).href)};
@@ -105,7 +105,7 @@ test('a hold log append observes the actual SQLite writer already released after
     import { syncBuiltinESMExports } from 'node:module';
     import { DatabaseSync } from 'node:sqlite';
     import { closeBoard, atomic } from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { boardHoldLog } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
     // @pullboard-board-file locking: a separate real connection probes the same writer at the actual append.
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'post-commit', seat: 'web-1', item: 42 } });

@@ -16,7 +16,7 @@
     "pullboard": "bin/pullboard.js"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": "./apps/lib/index.js"
   },
   "files": [
     "bin",

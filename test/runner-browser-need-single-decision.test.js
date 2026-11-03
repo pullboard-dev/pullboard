@@ -50,10 +50,10 @@ test('review file sets from #2576 and #2521 take a browser lease on their first 
   const requests = join(box.dir, 'ssh-requests.jsonl');
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
-  for (const args of [['settings', 'gate.browserByLaunch', 'on'], ['runner', 'add', HOST, '--slots', '1', '--browser', '1']]) {
-    const result = cli(box.repo, box.env, ...args);
-    assert.equal(result.status, 0, result.context);
-  }
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gate: { browserByLaunch: true } }));
+  const added = cli(box.repo, box.env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
+  assert.equal(added.status, 0, added.context);
   const gate = pathToFileURL(join(box.repo, 'packages/gate/index.js')).href;
   const source = `import assert from 'node:assert/strict';
 import { privateCheckAdmission, testsNeedBrowser, withGateSlot, runProfiledShell } from ${JSON.stringify(gate)};

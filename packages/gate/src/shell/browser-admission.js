@@ -114,7 +114,7 @@ function explicitRunnerFiles(args) {
     }
     files.push(argument);
   }
-  return files.length && files.every(file => /^test\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
+  return files.length && files.every(file => /^(?:test|(?:packages|apps)\/[^/]+\/tests)\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
 }
 
 /** Resolve a command word through PATH using the same inherited environment as the check shell.

@@ -27,7 +27,7 @@ import { openSnapshotChrome } from './fixture.js';
 import { closeSnapshotChrome } from './fixture.js';
 import { press } from './fixture.js';
 import { serveFolder } from './fixture.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 
 /** Make one deterministic presenter-only usage history; it is not native provider data. */
 function pricedHistory() {
