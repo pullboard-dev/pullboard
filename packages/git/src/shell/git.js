@@ -775,7 +775,33 @@ function boundedRepoInfo(cwd, { env } = {}) {
 }
 
 /**
- * Read top level, worktree Git dir and shared Git dir in one process. With no inherited selector, the same process
+ * The repo around `cwd` read from Git's own files, with this command's HEAD and primary-checkout facts, or undefined
+ * when only Git can answer: a separate work tree or bare setting in the config, a reftable store, a cwd inside the Git
+ * directory, or any unreadable file. Why: every command asked Git for these three paths before doing anything.
+ */
+function fileRepoInfo(cwd) {
+  try {
+    const here = realpathSync.native(cwd);
+    let top = here;
+    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    const location = fileLocation(top);
+    if (!location) return undefined;
+    const gitDir = realpathSync.native(location.gitDir), commonDir = realpathSync.native(location.commonDir);
+    if (here === gitDir || here.startsWith(gitDir + sep) || here === commonDir || here.startsWith(commonDir + sep)) return undefined;
+    if (existsSync(join(gitDir, 'config.worktree'))) return undefined;
+    const config = readFileSync(join(commonDir, 'config'), 'utf8');
+    if (/^\s*worktree\s*=/imu.test(config) || /^\s*bare\s*=\s*(?:true|yes|on|1)\s*$/imu.test(config)) return undefined;
+    const head = checkoutHead(top), main = fileMainCheckout(top);
+    if (head === undefined || main === undefined) return undefined;
+    const facts = scopedFacts();
+    facts.set(`headCommit:${resolve(top)}`, head);
+    facts.set(`mainCheckout:${resolve(top)}`, main);
+    return { root: top, commonDir, gitDir, isMain: gitDir === commonDir };
+  } catch { return undefined; }
+}
+
+/**
+ * Read top level, worktree Git dir and shared Git dir, from Git's files when they can answer, else in one process. With no inherited selector, the same process
  * also reads this checkout's HEAD commit and the primary checkout's branch and commit, and keeps them as this
  * command's headCommit, mainCheckout and effective hook-path facts, preserving Git's own configuration resolution.
  *
@@ -784,6 +810,10 @@ function boundedRepoInfo(cwd, { env } = {}) {
  */
 function readRepoInfo(cwd, env) {
   const combined = !env && gitFacts.getStore()?.active && plainRepositoryEnvironment();
+  if (combined && !gitFacts.getStore().resumeSources) {
+    const files = fileRepoInfo(cwd);
+    if (files) return files;
+  }
   const resumeSources = combined && gitFacts.getStore().resumeSources;
   const optional = ['main-worktree/HEAD:pullboard.json', 'main-worktree/HEAD:DOCTRINE.md'];
   const primary = combined ? ['HEAD^{commit}', 'main-worktree/HEAD^{commit}', '--git-path', 'hooks',

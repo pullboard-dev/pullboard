@@ -6,14 +6,13 @@
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { connect } from 'node:net';
 import {
   chmodSync,
-  closeSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
-  openSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -251,32 +250,50 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
 });
 
-test('an idle resident process closes its board connections and exits [H24]', () => {
-  // Start one resident process directly at the board's socket with a short idle limit, after stopping any other.
+/** Ask a resident process to run its idle check now, and return its answer. */
+function tick(socket) {
+  return new Promise((resolve, reject) => {
+    const client = connect(socket);
+    let text = '';
+    client.setEncoding('utf8');
+    client.on('connect', () => client.write(JSON.stringify({ t: 'tick' }) + '\n'));
+    client.on('data', chunk => { text += chunk; });
+    client.on('error', reject);
+    client.on('close', () => resolve(JSON.parse(text.trim()).t));
+  });
+}
+
+test('an idle resident process closes its board connections and exits [H24]', async () => {
+  // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
   const bin = join(fx.code, 'bin', 'pullboard.js');
   const place = residentSocket(fx.repo, bin);
   const running = fx.residentPid();
   if (running && fx.alive(running)) process.kill(running, 'SIGKILL');
   rmSync(place.pid, { force: true });
   rmSync(place.socket, { force: true });
-  const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '1500' };
-  const log = join(fx.dir, 'resident-idle.log');
-  const output = openSync(log, 'w');
+  const clockFile = join(fx.dir, 'resident-clock');
+  const start = Date.parse('2026-11-03T00:00:00.000Z');
+  writeFileSync(clockFile, String(start));
+  const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '60000', PULLBOARD_RESIDENT_CLOCK: clockFile };
   const daemon = spawn(process.execPath, [join(fx.code, 'bin', 'resident-board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
-    { cwd: fx.repo, env, detached: true, stdio: ['ignore', output, output] });
-  closeSync(output);
-  daemon.unref();
-  // Each probe is a real child process, never a timer: wait for the pid file it writes once it listens. A loaded runner
-  // can take many seconds to load the CLI's modules before the process listens.
-  const deadline = performance.now() + 60_000;
-  while (fx.residentPid() !== daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-  assert.equal(fx.residentPid(), daemon.pid, `the resident process listens and records its pid: ${readFileSync(log, 'utf8')}`);
+    { cwd: fx.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  daemon.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
+  const exited = new Promise(resolve => daemon.once('exit', code => resolve(code)));
+  await new Promise((resolve, reject) => {
+    let stdout = '';
+    daemon.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; if (stdout.includes('listening\n')) resolve(); });
+    daemon.once('exit', code => reject(new Error(`the resident process exited ${code} before listening: ${stderr}`)));
+  });
   const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });
   assert.equal(served.status, 0, served.stderr);
   assert.ok(served.loaded.length < 20, 'the read ran in the resident process, on a connection it holds');
-  const retired = () => traceLines().some(line => line.pid === daemon.pid && line.event === 'retire:idle');
-  while (!retired() && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-  assert.ok(retired(), `the idle resident process retired as idle: ${JSON.stringify(traceLines().filter(line => line.pid === daemon.pid))}`);
-  while (fx.residentPid() === daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+  assert.equal(await tick(place.socket), 'busy', 'within the idle limit it keeps serving');
+  writeFileSync(clockFile, String(start + 60_001));
+  assert.equal(await tick(place.socket), 'retired', 'past the idle limit it retires');
+  assert.equal(await exited, 0, stderr);
+  const own = traceLines().filter(line => line.pid === daemon.pid);
+  assert.ok(own.some(line => line.event === 'retire:idle'), JSON.stringify(own));
+  assert.ok(own.some(line => line.event === 'close' && line.file.endsWith(join('.git', 'pullboard', 'board.sqlite'))), 'it closed the board connection it held');
   assert.notEqual(fx.residentPid(), daemon.pid, 'it removed its pid file on the way out');
 });

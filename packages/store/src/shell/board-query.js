@@ -166,10 +166,18 @@ export function listItems(board, { lane, all = false } = {}) {
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
-  const items = rows.map(({ imported_rehome: imported, review_family: family, expected_build: expected, ...item }) => ({
-    ...current(board, item, family),
-    ...((board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE || expected === null ? {} : { item_expected_build_minutes: JSON.parse(expected) }),
-    ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
+  // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
+  const at = now(board), expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
+  const items = rows.map(({ imported_rehome: imported, review_family: family, expected_build: expected, ...item }) => {
+    if (family !== null) item.item_review_family = family;
+    // A claim whose lease lapsed reads as open (B4), exactly as current() reads it.
+    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at)) {
+      item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
+    }
+    if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);
+    if (imported) item.item_rehome_import = JSON.parse(imported);
+    return item;
+  });
   // A held claim reads as open once its lease passes, so the remembered list lasts only until the first lease ends.
   const expires = items.filter(item => item.item_status === 'claimed' && item.item_lease_until).map(item => item.item_lease_until).sort()[0];
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
@@ -380,10 +388,20 @@ export function withModel(board, agent) {
  * @returns {any[]}
  */
 export function listAgents(board) {
-  return withSeatPresence(board, withDerivedFamilies(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
-    LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id
-    LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all()));
+  // Deriving every seat's family is the cost on a board of hundreds of seats; the same unchanged board reuses it.
+  const version = `${boardDataVersion(board)}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
+  let known = LISTED_AGENTS.get(board.db);
+  if (known?.version !== version) {
+    known = { version, rows: withDerivedFamilies(board, board.db.prepare(`SELECT agent.*, model.meta_value AS agent_model, parent.meta_value AS agent_parent_session FROM agent
+      LEFT JOIN board_meta model ON model.meta_key='agent_model:' || agent.agent_id
+      LEFT JOIN board_meta parent ON parent.meta_key='agent_parent_session:' || agent.agent_id ORDER BY agent.rowid`).all()) };
+    LISTED_AGENTS.set(board.db, known);
+  }
+  return withSeatPresence(board, known.rows.map(row => ({ ...row })));
 }
+
+/** Remembered seat lists with derived families, by connection and the board data version they read. */
+const LISTED_AGENTS = new WeakMap();
 
 
 import { factFromEvent } from "../../../state/src/core/fact-projection.js";

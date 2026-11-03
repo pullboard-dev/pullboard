@@ -35,14 +35,23 @@ process.emitWarning = (warning, ...rest) => {
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
 const MAX_AGE_MS = Number(process.env.PULLBOARD_RESIDENT_MAX_AGE_MS) || 60 * 60_000;
-const bornAt = Date.now();
+/**
+ * The process's clock: wall time, or the milliseconds in the file PULLBOARD_RESIDENT_CLOCK names, so a test can move
+ * idle and age time without waiting for it.
+ */
+function clock() {
+  const file = process.env.PULLBOARD_RESIDENT_CLOCK;
+  if (file) try { return Number(readFileSync(file, 'utf8')); } catch { /* Fall back to wall time. */ }
+  return Date.now();
+}
+const bornAt = clock();
 const baseEnv = process.env;
 /** The command running now, or null between commands. */
 let running = null;
 /** The tail of the queue of commands, each started when the one before it finishes. */
 let queue = Promise.resolve();
 const inFlight = new Set();
-let lastActive = Date.now();
+let lastActive = clock();
 let retired = false;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
@@ -150,7 +159,7 @@ function takeConnection(file) {
 
 /** Close every connection this process holds, when it retires. */
 function closeConnections() {
-  for (const idle of connections.values()) for (const entry of idle) closeConnection(entry);
+  for (const [file, idle] of connections) for (const entry of idle) { closeConnection(entry); trace('close', file); }
   connections.clear();
 }
 
@@ -195,14 +204,14 @@ function clientStream(store, frame, isTTY, columns) {
 /** Run one forwarded command and stream its output and exit code back. */
 async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
-  if (retired || request.code !== loadedCode || Date.now() - bornAt > MAX_AGE_MS) {
+  if (retired || request.code !== loadedCode || clock() - bornAt > MAX_AGE_MS) {
     retire(request.code !== loadedCode ? 'code' : 'age');
     return socket.end(JSON.stringify({ t: 'stale' }) + '\n', exitWhenDone);
   }
   const store = { env: { ...request.env }, cwd: request.cwd,
     send: (frame, chunk) => send({ t: frame, d: typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8') }) };
   inFlight.add(store);
-  lastActive = Date.now();
+  lastActive = clock();
   /** Run the command as the only one: its environment, directory and streams are the process's until it ends. */
   const run = async () => {
     running = store;
@@ -227,7 +236,7 @@ async function serve(socket, request) {
   try { status = await turn; }
   finally {
     inFlight.delete(store);
-    lastActive = Date.now();
+    lastActive = clock();
   }
   socket.end(JSON.stringify(status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 }) + '\n', exitWhenDone);
 }
@@ -243,6 +252,11 @@ const server = createServer((socket) => {
     socket.off('data', first);
     let request;
     try { request = JSON.parse(buffer.slice(0, newline)); } catch { return socket.destroy(); }
+    // A tick asks for the idle check now, so a test drives retirement by its clock rather than by waiting.
+    if (request.t === 'tick') {
+      const idle = checkIdle({ exit: false });
+      return socket.end(JSON.stringify({ t: idle ? 'retired' : 'busy' }) + '\n', exitWhenDone);
+    }
     void serve(socket, request);
   });
 });
@@ -259,9 +273,16 @@ process.on('unhandledRejection', failed);
 /** Listen at the board's socket path, unless a live resident process already does. */
 function listen(retry = true) {
   server.once('error', (error) => {
-    if (error.code !== 'EADDRINUSE' || !retry) process.exit(0);
+    if (error.code !== 'EADDRINUSE' || !retry) {
+      process.stderr.write(`pullboard resident: cannot listen at ${socketPath}: ${error.code ?? error.message}\n`);
+      process.exit(0);
+    }
     const probe = connect(socketPath);
-    probe.on('connect', () => { probe.destroy(); process.exit(0); });
+    probe.on('connect', () => {
+      probe.destroy();
+      process.stderr.write(`pullboard resident: another resident process already listens at ${socketPath}\n`);
+      process.exit(0);
+    });
     probe.on('error', () => {
       if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Raced with another. */ }
       listen(false);
@@ -271,17 +292,25 @@ function listen(retry = true) {
     if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
     try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* The pid file only helps people and tests find it. */ }
     // Idle time counts from when the process can serve, never from a slow start under load.
-    lastActive = Date.now();
+    lastActive = clock();
     watchIdle();
+    // A parent watching this process learns it serves from this line; a client-started one discards it.
+    process.stdout.write('listening\n');
   });
 }
 listen();
 
 /** Retire once nothing has run for the idle limit; the watch starts only when the process is listening. */
 function watchIdle() {
-  setInterval(() => {
-    if (!inFlight.size && Date.now() - lastActive > IDLE_MS) { retire('idle'); exitWhenDone(); }
-  }, Math.min(IDLE_MS, 30_000)).unref();
+  setInterval(checkIdle, Math.min(IDLE_MS, 30_000)).unref();
+}
+
+/** Retire when nothing has run for the idle limit; true when this check retired the process. */
+function checkIdle({ exit = true } = {}) {
+  if (retired || inFlight.size || clock() - lastActive <= IDLE_MS) return false;
+  retire('idle');
+  if (exit) exitWhenDone();
+  return true;
 }
 
 // Load each served command's modules now, so the first command after a start is warm too.
@@ -291,5 +320,5 @@ void (async () => {
   await loadNativeBoard();
   await loadProcessPorts();
   for (const name of RESIDENT_COMMANDS) await COMMANDS[name]?.().catch(() => {});
-  lastActive = Math.max(lastActive, Date.now());
+  lastActive = Math.max(lastActive, clock());
 })().catch(() => {});
