@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/relay-machine.js */
+/** @pullboard-test-loads packages/link/src/shell/relay-machine.js */
 /** Real private-board CLI and ordered-replay fixture controls [E11,E13,E14,E15,H16]. */
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync } from 'node:fs';
