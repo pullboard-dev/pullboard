@@ -48,9 +48,11 @@ import {
   itemLine,
   sayBrief,
 } from '../cli-read-context.js';
+import { whoAmI } from '../cli.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -95,8 +97,19 @@ export async function run(io, { first, values }) {
     io.result({ ...item, progress, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
+  // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
+  const callerId = ctx.info.isMain ? 'coordinator' : withBoardRead(ctx, (board) => {
+    try { return whoAmI(ctx, board).id; }
+    catch (error) {
+      if (error instanceof Refused && error.code === 'NOT_JOINED') return null;
+      throw error;
+    }
+  });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  if (item.item_status === 'claimed' && item.item_owner === callerId) {
+    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id} --wait`);
+  }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));
