@@ -45,7 +45,8 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
     guardLandingWrite(board, landingFence);
     const previous = landingBatches(board).find((entry) => entry.id === batch.id);
     if (previous?.flakeRatchet && (!batch.flakeRatchet || ['pushed', 'trunk'].includes(previous.state) && JSON.stringify(previous.flakeRatchet) !== JSON.stringify(batch.flakeRatchet))) throw new Refused('LAND_BATCH', 'preserve the published flake ratchet snapshot');
-    if (batch.flakeRatchet && JSON.stringify(previous?.flakeRatchet ?? null) !== JSON.stringify(batch.flakeRatchet)) {
+    if (batch.flakeRatchet && !(batch.state === 'trunk' && batch.owner === 'coordinator-train' && !previous)
+      && JSON.stringify(previous?.flakeRatchet ?? null) !== JSON.stringify(batch.flakeRatchet)) {
       const maxEvent = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
       if (batch.flakeRatchet.eventId > maxEvent) throw new Refused('LAND_BATCH', 'the flake ratchet event boundary must already exist');
       const changed = board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_kind IN

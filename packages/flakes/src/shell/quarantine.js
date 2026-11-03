@@ -85,13 +85,14 @@ export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines,
   const stamp = () => ({ version: board.db.prepare('PRAGMA data_version').get().data_version, changes: board.db.prepare('SELECT total_changes() AS n').get().n });
   const before = stamp();
   const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
-  const row = board.db.prepare(`SELECT event_id, event_detail FROM event WHERE event_kind='landing_batch'
-    AND json_valid(event_detail) AND json_extract(event_detail, '$.batch.state')='landed' ORDER BY event_id DESC LIMIT 1`).get();
+  const row = board.db.prepare(`SELECT event_id, event_kind, event_detail FROM event WHERE json_valid(event_detail) AND
+    (event_kind='landing_batch' AND json_extract(event_detail, '$.batch.state')='landed'
+      OR event_kind='merged' AND json_type(event_detail, '$.flakeRatchet')='object') ORDER BY event_id DESC LIMIT 1`).get();
   const runs = readRuns(board).filter(run => run.eventId <= eventId);
   let previous = null;
   if (row) {
-    const batch = JSON.parse(row.event_detail).batch;
-    previous = batch.flakeRatchet ?? null;
+    const detail = JSON.parse(row.event_detail);
+    previous = (row.event_kind === 'merged' ? detail.flakeRatchet : detail.batch.flakeRatchet) ?? null;
     if (!previous) {
       const events = board.db.prepare(`SELECT event_id, event_kind, item_id, event_detail FROM event
         WHERE event_id<=? AND event_kind IN ('test-quarantine','accept','reject','reopen','claim','submit','withdraw','merged') ORDER BY event_id`).all(row.event_id);

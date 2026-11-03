@@ -118,6 +118,21 @@ test('native ratchet refuses a concurrently changed board [C7,T12]', async t => 
   assert.throws(() => landingFlakeRatchet({ db }, readers), { code: 'BOARD_BUSY' });
 });
 
+/** A standalone merged receipt becomes the next baseline just like a landed batch. */
+test('a merged receipt advances the landing baseline [C7,T12]', t => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
+  const insert = (id, kind, detail) => db.prepare('INSERT INTO event VALUES (?, ?, NULL, ?)').run(id, kind, JSON.stringify(detail));
+  insert(1, 'landing_batch', { batch: { state: 'landed', flakeRatchet: { version: 1, eventId: 0, count: 0, quarantines: [] } } });
+  insert(2, 'merged', { flakeRatchet: { version: 1, eventId: 1, count: 1, quarantines: [{ file: 'test/a.test.js', name: 'case', item: 7 }] } });
+  insert(3, 'fact', {});
+  const result = landingFlakeRatchet({ db }, { readRuns: () => [], readLedger: () => [],
+    readQuarantines: () => [quarantine('test/a.test.js', 7, 1)] });
+  assert.equal(result.allowed, true, 'the count recorded after publication is the previous baseline');
+  assert.equal(result.snapshot.count, 1);
+});
+
 /** A landed repair clears older paired evidence, but never a later recurrence. */
 test('paired evidence respects the repair landing boundary [C7,T12]', t => {
   const db = new DatabaseSync(':memory:');
@@ -240,6 +255,34 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const next = box.run(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
+});
+
+/** A manual merged receipt records the count even if a current flake would block a fresh publication. */
+test('manual merged records quarantine count without refusing historical publication [C7,T12]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const fixtures = makeLandProjectFixtures(helpers);
+  const box = fixtures.landProject();
+  const item = fixtures.itemWorktree(box, 1);
+  fixtures.submitItem(box, item);
+  fixtures.acceptItem(box, item);
+  const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const board = openBoard(boardFile, undefined, { gitRoot: box.repo });
+  try {
+    const repair = addItem(board, { by: 'coordinator', lane: 'web', title: 'Repair fixture flake', route: 'strong' });
+    logEvent(board, 'coordinator', 'test-quarantine', repair, { engine: 1, file: 'test/old.test.js', name: 'old case', runs: [] });
+    for (const [id, passed] of [['receipt-red', false], ['receipt-green', true]]) {
+      logEvent(board, 'coordinator', 'gate-run', null, { run: { id, version: 1, tree: 'receipt-tree', kind: 'landing',
+        testOutcomes: [{ file: 'test/new.test.js', name: 'new case', passed, skipped: false }] } });
+    }
+  } finally { closeBoard(board); }
+  const result = box.run(box.repo, 'merged', String(item.item), item.commit, '--note', 'already published fixture');
+  assert.equal(result.code, 0, result.err + result.out);
+  const after = openBoard(boardFile, undefined, { gitRoot: box.repo });
+  try {
+    const receipt = events(after).filter(event => event.event_kind === 'merged' && event.item_id === item.item).at(-1);
+    assert.equal(JSON.parse(receipt.event_detail).flakeRatchet.count, 1);
+  } finally { closeBoard(after); }
 });
 
 /** The ordered writer rejects a stale snapshot before storing a batch, then seals publication. */
