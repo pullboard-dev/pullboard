@@ -68,3 +68,11 @@ export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTie
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
+
+export {
+  DEFAULT_TEST_FILE_TIMEOUT_MS,
+  TEST_CHILD_CLEANUP_FAILED,
+  testFileTimeoutMs,
+  activeHandleSummary,
+  installTestChildDrain,
+} from './src/shell/test-child-drain.js';
