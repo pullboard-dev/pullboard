@@ -106,6 +106,7 @@ test('a claim with a running queued gate survives the idle release and the lapse
   // The sentinel's idle release: 45 minutes with no commit or file change, lease still live.
   const idleAt = { now: () => new Date(Date.now() + 45 * MINUTE) };
   assert.ok(idleAt.now().toISOString() < claimed.item_lease_until, 'the idle case keeps a live lease');
+  assert.equal(read(box, box.gated).job.state, 'running', JSON.stringify(read(box, box.gated).job));
   const idleRows = maintain(box, idleAt);
   assert.ok(!idleRows.some(row => row.id === box.gated), 'the idle release never selects a claim whose gate is running');
   assert.equal(read(box, box.gated, idleAt).item.item_status, 'claimed');
@@ -114,8 +115,8 @@ test('a claim with a running queued gate survives the idle release and the lapse
   const lapsedAt = { now: () => new Date(Math.max(Date.parse(claimed.item_lease_until), Date.parse(other.item_lease_until)) + limit + MINUTE) };
   maintain(box, lapsedAt);
   const gated = read(box, box.gated, lapsedAt);
+  assert.equal(gated.job.state, 'running', JSON.stringify(gated.job));
   assert.equal(gated.item.item_status, 'claimed', 'the lapsed-lease sweep keeps a claim whose gate is running');
   assert.equal(gated.item.item_owner, claimed.item_owner);
-  assert.equal(gated.job.state, 'running');
   assert.equal(read(box, box.idle, lapsedAt).item.item_status, 'open', 'a claim with no gate still lapses');
 });
