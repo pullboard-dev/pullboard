@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "cells": {
+    "api": 2,
+    "config": 4,
+    "doctrine": 1,
+    "flakes": 4,
+    "gate": 43,
+    "git": 4,
+    "items": 15,
+    "keys": 1,
+    "landing": 5,
+    "lib": 6,
+    "link": 13,
+    "moves": 92,
+    "outbox": 1,
+    "runner": 6,
+    "runners": 25,
+    "sandbox": 2,
+    "seats": 7,
+    "sentinels": 1,
+    "spec": 5,
+    "state": 41,
+    "store": 114,
+    "sync": 1,
+    "temporary": 1,
+    "unmapped": 1,
+    "verify": 3
+  }
+}
