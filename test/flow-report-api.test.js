@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Stable API validation retains recorded flow facts and native clock boundaries [A2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */

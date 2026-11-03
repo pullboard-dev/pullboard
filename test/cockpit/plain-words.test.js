@@ -9,7 +9,7 @@ import * as store from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { recordGateRun } from '../../apps/lib/index.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
-import { activityWords } from '../../src/view/activity-words.js';
+import { activityWords } from '../../apps/view/index.js';
 import { runGate } from '../../packages/gate/index.js';
 import { runnerExecutionServices } from '../../src/runners.js';
 import { landingExecutionServices } from '../../src/landing-shards.js';

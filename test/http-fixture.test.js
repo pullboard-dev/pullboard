@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Fixture requests reach a live server even after the test blocked its own event loop past keep-alive [C7]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

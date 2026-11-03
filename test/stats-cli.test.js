@@ -1,6 +1,6 @@
 import { testTimeBudget } from '../packages/gate/index.js';
 import { coordinatorActions } from '../packages/stats/index.js';
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

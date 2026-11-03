@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Exact pipeline accounting over an imported native SQLite fixture [R1,R2,A1,A2,C7]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';

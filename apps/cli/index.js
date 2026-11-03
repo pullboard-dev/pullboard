@@ -8,6 +8,8 @@ export { CHECKOUT_LEASES as cli$CHECKOUT_LEASES, HELP as cli$HELP, MainSpecMerge
 export { cockpitPage as cockpit$cockpitPage } from "./src/shell/cockpit.js";
 export { COMMANDS, UNLISTED_COMMANDS } from "./src/shell/commands/index.js";
 export { nativeBoardRequired, run as commandsStatus$run } from "./src/shell/commands/status.js";
+export { run as commandsPatch$run } from "./src/shell/commands/patch.js";
+export { claimedItemRoot, itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/shell/item-folder-identity.js";
 export { run as commandsWorktree$run, worktreeFor } from "./src/shell/commands/worktree.js";
 export { HELP as help$HELP, SETTING_FORMS, VERSION as help$VERSION, buildHelp, commandPhrases } from "./src/core/help.js";
 export { ALL_HELP, HELP_SECTIONS } from "./src/core/help/sections.js";

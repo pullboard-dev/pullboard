@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real Git, SQLite and HTTP settings inventory proof [O5,O6]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

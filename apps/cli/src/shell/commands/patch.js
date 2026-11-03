@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { itemPolicy } from '../../../../../packages/sandbox/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
+import { claimedItemRoot } from '../item-folder-identity.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -126,7 +127,7 @@ export async function run(io, { first, second, rest, values }) {
         return 0;
       }
       validateItemPatchInput(board, policy.config, values.author, patch, policy.commit);
-      const builderPath = item.item_status === 'claimed' ? store.listAgents(board).find(agent => agent.agent_id === item.item_owner)?.agent_path : null;
+      const builderPath = item.item_status === 'claimed' ? claimedItemRoot(board, item) : null;
       const builderHead = builderPath ? headCommit(builderPath) : null;
       const source = values.source ?? (item.item_status === 'claimed' ? builderHead : item.item_commit);
       if (item.item_status === 'claimed' && (!source || builderHead && builderHead !== source)) {

@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real CLI and authenticated API review suggestions preserve explicit build and review intent [Q1,V15,A1,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

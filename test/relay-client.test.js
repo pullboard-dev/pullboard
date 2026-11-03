@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import { withApiCommandEnvironment } from './api-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
