@@ -29,7 +29,17 @@ export function ownerFor(plan, map) {
   }
   const entries = new Map();
   for (const entry of plan.entries ?? []) for (const file of [entry.path, mappedPath(map, entry.path)]) entries.set(file, entry.cell);
+  // An owned stay keeps its path but belongs to its owner cell, so a lower cell importing it imports that cell.
+  for (const stay of plan.stays ?? []) if (typeof stay?.owner === 'string' && !entries.has(stay.path)) entries.set(stay.path, stay.owner);
   return file => entries.get(file) ?? plan.cells.find(cell => file.startsWith(`${cell.root}/`))?.name ?? paths.get(file) ?? null;
+}
+
+/** Name each stay row whose owner is not an existing cell, or whose fields are not exactly path, reason and owner. */
+export function ownedStayProblems(plan) {
+  const names = new Set(plan.cells.map(cell => cell.name));
+  return (plan.stays ?? []).filter(stay => stay && Object.hasOwn(stay, 'owner'))
+    .filter(stay => Object.keys(stay).sort().join(',') !== 'owner,path,reason' || typeof stay.owner !== 'string' || !names.has(stay.owner))
+    .map(stay => `stay ${stay.path} names owner ${JSON.stringify(stay.owner)}, which is not a cell in the plan`);
 }
 
 /** Find a condition's matching parenthesis in lexed code, without interpreting quoted examples. */

@@ -16,7 +16,9 @@ import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
 function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project();
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
+  const box = helpers.project(undefined, sandbox);
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1, gate: { shortSlots: 1 } }));
   for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
@@ -27,8 +29,8 @@ function fixture(t) {
 async function runFixture(box, body) {
   const source = `import assert from 'node:assert/strict';
 import { takeResource, listResources, gateSlotEnvironment } from ${JSON.stringify(new URL('../../resources/index.js', import.meta.url).href)};
-import { withGateSlot } from ${JSON.stringify(new URL('../src/shell/gate.js', import.meta.url).href)};
-${executionServicesSource(new URL('../src/shell/gate.js', import.meta.url).href)}
+import { withGateSlot } from ${JSON.stringify(new URL('../index.js', import.meta.url).href)};
+${executionServicesSource(new URL('../index.js', import.meta.url).href)}
 const root = process.cwd();
 ${body}`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });

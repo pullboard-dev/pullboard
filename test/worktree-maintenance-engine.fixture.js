@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/worktree-maintenance.js src/worktree-maintenance-observation.js src/worktree-maintenance-archive.js */
+/** @pullboard-test-loads apps/cli/src/shell/worktree-maintenance.js apps/cli/src/shell/worktree-maintenance-observation.js apps/cli/src/shell/worktree-maintenance-archive.js */
 /** @pullboard-test-loads packages/state/index.js */
 /** Private Git/native-board integration cases for the owning maintenance test [B3,C7]. */
 import assert from 'node:assert/strict';
@@ -7,13 +7,16 @@ import fs from 'node:fs';
 import { test } from 'node:test';
 import { join, relative, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { closeBoard, openBoard } from '../src/native-board.js';
+import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { heartbeatSeat, withLocalSeatPresence } from '../packages/store/index.js';
 import { agentHandoff } from '../packages/state/index.js';
-import { cleanMaintenanceSeat, maintenanceHealth, runWorktreeMaintenance } from '../src/worktree-maintenance.js';
-import { maintenanceGit, maintenanceSnapshot } from '../src/worktree-maintenance-archive.js';
-import { writeMaintenanceState } from '../src/worktree-maintenance-observation.js';
+import { cleanMaintenanceSeat } from '../apps/cli/src/shell/worktree-maintenance.js';
+import { maintenanceHealth } from '../apps/cli/src/shell/worktree-maintenance.js';
+import { runWorktreeMaintenance } from '../apps/cli/src/shell/worktree-maintenance.js';
+import { maintenanceGit } from '../apps/cli/src/shell/worktree-maintenance-archive.js';
+import { maintenanceSnapshot } from '../apps/cli/src/shell/worktree-maintenance-archive.js';
+import { writeMaintenanceState } from '../apps/cli/src/shell/worktree-maintenance-observation.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

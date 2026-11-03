@@ -236,6 +236,14 @@
   ],
   "stays": [
     {
+      "path": "src/index.js",
+      "reason": "rule 6 shim (#2393): package.json exports '.' names this file, and its restricted public namespace differs from apps/lib/index.js"
+    },
+    {
+      "path": "src/native-board.js",
+      "reason": "rule 6 shim (#2393): released and linked installs load the board by this path (loadNativeBoard and copied-package fixtures), and link, app:view and app:cli importers would need a mechanical repoint"
+    },
+    {
       "path": "bin/cell-lints.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
@@ -377,11 +385,13 @@
     },
     {
       "path": "bin/runner-controller.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
     },
     {
       "path": "bin/timed-shell.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
     },
     {
       "path": "bin/update-docs.js",
@@ -1304,6 +1314,24 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "relay/Dockerfile",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
+    },
+    {
+      "path": "relay/server.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "relay/smoke.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "relay/README.md",
+      "reason": "Railway deploy checklist stays beside the deployed relay/Dockerfile (#1592)"
+    },
+    {
       "path": "src/reviews-first-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1357,6 +1385,99 @@
     },
     {
       "path": "src/flake-ratchet-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/changed-static.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/main-red-failure-lines-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-quality-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/strict-rename-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/live-release-placement-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/hook-composed.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "commits"
+    },
+    {
+      "path": "src/move-history/212.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/213.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/214.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/215.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/216.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/217.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/218.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/219.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/pinned-claim-lapse-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/empty-submit.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/dead-handoff-retry-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/220.json",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/221.json",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/222.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/verified-item-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/223.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

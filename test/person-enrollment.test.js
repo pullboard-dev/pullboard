@@ -6,15 +6,15 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createGitHubClient } from '../relay/github.js';
-import { createRelayAuth } from '../relay/auth.js';
-import { createRelayHandler } from '../relay/service.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../packages/keys/index.js';
 import { test } from 'node:test';
 import { createDeviceKeys } from '../packages/keys/index.js';
-import { createDeviceStore } from '../relay/device-store.js';
+import { createDeviceStore } from '../apps/relay/index.js';
 import { DatabaseSync } from 'node:sqlite';
 
 /** Load the independent verifier only after proving that the production capability exists. */

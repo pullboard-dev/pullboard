@@ -16,6 +16,9 @@ import {
   loadConfig,
 } from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { laneOf } from '../core/lane-of.js';
+
+export { laneOf };
 
 /**
  * Every lane name, the coordinator first.
@@ -36,28 +39,6 @@ export function laneNames(config) {
  */
 export function isLane(config, name) {
   return name === COORDINATOR || Object.hasOwn(config.lanes, name);
-}
-
-/**
- * The lane that owns a path: the longest matching prefix wins. Paths no lane owns are the
- * coordinator's.
- *
- * @param {any} config
- * @param {string} path
- * @returns {string}
- */
-export function laneOf(config, path) {
-  let owner = COORDINATOR;
-  let longest = 0;
-  for (const [name, lane] of Object.entries(config.lanes)) {
-    for (const prefix of lane.owns) {
-      if (path.startsWith(prefix) && prefix.length > longest) {
-        owner = name;
-        longest = prefix.length;
-      }
-    }
-  }
-  return owner;
 }
 
 /**

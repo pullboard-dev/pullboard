@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/native-board.js src/main-audit-state.js src/gate-run-receipt.js */
+/** @pullboard-module-loads apps/lib/index.js packages/gate/src/shell/main-audit-state.js packages/gate/src/shell/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -47,10 +47,10 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(join(repo,'test',name+'.test.js'),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
-  const { board: store }=await import(pathToFileURL(join(installed,'src/native-board.js')));
-  const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
-  const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'src/main-audit-state.js')));
-  const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'src/gate-run-receipt.js')));
+  const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));
+  const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
+  const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
+  const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
   function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);}}
@@ -107,7 +107,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   }
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
-    const module=pathToFileURL(join(installed,'src/gate.js')).href;
+    const module=pathToFileURL(join(installed,'packages/gate/index.js')).href;
     const code=`import {withGateSlot} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}await Promise.all([0,1].map(i=>withGateSlot(${JSON.stringify(repo)},async()=>{process.send({held:i});await new Promise(r=>process.once('message',r));},{ executionServices,remote:false,browser:false,agent:'fixture-slot-'+i})));process.disconnect();`;
     const child=spawn(process.execPath,['--input-type=module','-e',code],{cwd:repo,env,detached:true,stdio:['ignore','pipe','pipe','ipc']});children.push(child);child.stdout.resume();child.stderr.resume();const closed=once(child,'close');const held=new Set();child.on('message',m=>held.add(m.held));

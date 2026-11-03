@@ -1,5 +1,5 @@
 import { landingPorts } from './landing-ports-fixture.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
@@ -17,7 +17,7 @@ import {
   receiptStore,
 } from '../packages/gate/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../packages/landing/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';

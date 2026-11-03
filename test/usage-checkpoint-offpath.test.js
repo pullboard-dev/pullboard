@@ -112,7 +112,7 @@ function checkpointMs(box, id) {
   delete env.PULLBOARD_USAGE_CHECKPOINT;
   const module = (path) => JSON.stringify(new URL(path, import.meta.url).href);
   const code = `import {context,withBoard} from ${module('../src/cli-context.js')};
-    import {whoAmI} from ${module('../src/cli/join.js')};
+    import {whoAmI} from ${module('../apps/cli/index.js')};
     import {ordered} from ${module('../src/cli/claim.js')};
     import {checkpointAfterMove} from ${module('../packages/stats/index.js')};
     import {usageCheckpointWorkerEntrypoint} from ${module('../apps/lib/index.js')};

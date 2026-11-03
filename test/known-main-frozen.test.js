@@ -1,5 +1,5 @@
 /** A frozen-check case that fails identically on main at the base submits as a known main red [V4,B3]. */
-import '../src/cli.js'; // This test invokes the real CLI through its public executable.
+import '../apps/cli/index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 

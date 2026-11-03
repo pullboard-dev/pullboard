@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { importsIn } from '../packages/gate/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -18,8 +18,8 @@ const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
 function closure(read, identities) {
-  const pending = readdirSync(join(ROOT, 'src/moves')).filter(file => file.endsWith('.js'))
-    .map(file => `src/moves/${file}`);
+  const pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(ROOT, folder)).filter(file => file.endsWith('.js'))
+    .map(file => `${folder}/${file}`));
   const seen = new Set(), native = new Set();
   while (pending.length) {
     const file = pending.shift();

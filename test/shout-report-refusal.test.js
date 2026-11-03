@@ -1,12 +1,12 @@
-/** @pullboard-test-loads src/coordinator-shout-purpose.js src/commands/shout.js */
+/** @pullboard-test-loads apps/cli/src/core/coordinator-shout-purpose.js apps/cli/src/shell/commands/shout.js */
 /** A shout that only restates a submit or verdict the board recorded is refused, naming the event [C7]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { refuseRestatedReport } from '../src/coordinator-shout-purpose.js';
+import { openBoard } from '../apps/lib/index.js';
+import { refuseRestatedReport } from '../apps/cli/src/core/coordinator-shout-purpose.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);

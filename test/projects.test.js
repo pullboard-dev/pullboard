@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { projectRegistrationAllowed } from '../packages/seats/src/shell/project-registration.js';
-import { registerProject, registryFile } from '../src/projects.js';
+import { registerProject, registryFile } from '../packages/seats/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /** Change only fixture-owned environment keys and restore them after the test. */
@@ -81,10 +81,10 @@ test('init and opening a temporary board leave the person registry unchanged [I8
   assert.equal(init.status, 0, `${init.context}\n${init.stdout}`);
   assert.equal(readFileSync(registry, 'utf8'), before, 'init does not register the preview');
   const script = `import { main } from ${JSON.stringify(new URL('../src/cli.js', import.meta.url).href)};
-import { serveView } from ${JSON.stringify(new URL('../src/commands/view.js', import.meta.url).href)};
+import { serveView } from ${JSON.stringify(new URL('../apps/cli/src/shell/commands/view.js', import.meta.url).href)};
 const result = await main(['view','--no-open','--port','0'], {
   cwd: process.cwd(), stdout: { isTTY: true, write() {} }, stderr: process.stderr,
-  loadNativeBoard: () => import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)}),
+  loadNativeBoard: () => import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)}),
   serveView: async options => {
     const view = await serveView(options);
     setImmediate(() => setImmediate(() => process.emit('SIGINT')));

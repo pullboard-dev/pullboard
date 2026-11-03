@@ -215,6 +215,7 @@ async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   const request = await requestFor(root, command, options, ports);
   const deadline = ports.controllerCustody;
+  deadline?.job?.(request.spec.recovery);
   let removeAbort = () => {};
   let runnerWaitTimer;
   let jobWatch, heartbeatWatch, transport, receiptSeen = false, receiptTimer;

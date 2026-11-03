@@ -105,13 +105,13 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     await repeated.link();
     const before = repeated.calls.filter(call => call.method === 'PUT' && call.path.endsWith('/state')).length;
     const result = await repeated.script(`
-      const { syncRelay, relayOperation } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+      const { syncRelay, relayOperation } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
       const { withOutboxGuard } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { replay: replayConflictRecord } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
-      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { relayOrdering } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const diagnostics = [];
@@ -544,13 +544,13 @@ test('a refused later checkpoint names each distinct ordered move with the same 
   assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal);
   const before = box.moveAcks.length;
   const result = await box.script(`
-    const { relayOperation, syncRelay } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const { relayOperation, syncRelay } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const { withOutboxGuard } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
     const { replay: replayConflictRecord } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
-      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { relayOrdering } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
     const root = process.cwd();

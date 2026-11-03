@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { settingsInventory } from '../packages/config/index.js';
 import { describeSetting, SETTING_DESCRIPTIONS, CLI_SETTABLE } from '../packages/config/index.js';
-import { SETTING_FORMS } from '../src/help.js';
+import { SETTING_FORMS } from '../apps/cli/index.js';
 import { performanceCores } from '../packages/gate/index.js';
 import {
   defaultViewPort,

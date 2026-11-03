@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { awaitRoundTrip, phaseCounts, startToolingCli } from './runner-tooling-fixture.js';
@@ -18,7 +18,7 @@ function document(result) {
 /** Submit an immutable legacy fixture through the existing historical receipt helper. */
 function historicalSubmission(box, id, commit) {
   box.git(box.web, 'update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit);
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { submitFixture(board, id, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
   finally { store.closeBoard(board); }
 }
@@ -70,6 +70,7 @@ console.log('PRIVATE_CHECK_OBSERVATION ' + JSON.stringify({ head: execFileSync('
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   for (const host of [HOST, HOST + '-setup']) document(box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1', '--json'));
   document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
+  document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
   const expectedHosts = [HOST, HOST + '-setup'];
   for (const [index, suffix] of ['', ' large'].entries()) {
     const id = index + 1;
@@ -148,6 +149,7 @@ export async function privateReviewRunnerEdges(t, e2e) {
     for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
     document(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json'));
     document(box.run(box.repo, 'settings', 'gate.runnersFirst', 'on', '--json'));
+  document(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off', '--json'));
     const criterion = 'the private runner preserves trusted phase behavior' + (edge.guard ? '; guard: ' + edge.guard : '');
     document(box.run(box.repo, 'add', 'web', edge.name, '--criterion', criterion, '--check', edge.check, '--specs', 'G1', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));

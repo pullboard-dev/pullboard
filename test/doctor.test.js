@@ -1,5 +1,5 @@
 /** Integrity checks use throwaway git repositories and real board databases (A6). */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

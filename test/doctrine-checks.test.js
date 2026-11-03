@@ -184,7 +184,8 @@ test('a submit hold runs scoped checks only for affected paths or checker code [
   const mainCommit = box.git(box.repo, 'rev-parse', 'HEAD');
   const seen = [];
   const run = async () => holdDoctrineAsync(box.web, { mainCommit, commit: box.git(box.web, 'rev-parse', 'HEAD'),
-    runCheck: async (_commit, command) => { seen.push(command); return { problems: [], broken: '', seconds: 0 }; } });
+    // Main's own measure runs once per main commit (#2575); only the candidate's runs show the scoping.
+    runCheck: async (commit, command) => { if (commit !== mainCommit) seen.push(command); return { problems: [], broken: '', seconds: 0 }; } });
   commitWeb(box, { 'unrelated.txt': 'unrelated\n' }, 'feat(web): unrelated [G1]');
   await run();
   assert.deepEqual(seen, ['true']);
