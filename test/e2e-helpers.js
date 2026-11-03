@@ -269,7 +269,7 @@ function attackCommit(box, cwd) {
 /** Reopen the CLI's actual SQLite file to seed private integration data that later CLI processes read. */
 function withFixtureBoard(box, work) {
   // File-backed boundary: subsequent real CLI processes must read these exact persisted fixture rows.
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { return work(board); }
   finally { store.closeBoard(board); }
 }
