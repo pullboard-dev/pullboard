@@ -208,10 +208,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     lease.tracker?.mark('runAt');
-    /** Run the criterion with its own source context and receipt. */
-    const criterionRun = () => check
-      ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
-      : Promise.resolve({ isGreen: true, output: '', seconds: 0 });
+    /** Retain completed check evidence even when the later proof refuses its runner. */
+    const criterionRun = async () => {
+      const run = check
+        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+        : { isGreen: true, output: '', seconds: 0 };
+      if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
+      return run;
+    };
     // One remote lease holds one controller at a time. Local phases can still overlap; either way,
     // drain both phases even on rejection so their receipts and the admission lease stay accurate.
     const outcomes = lease.runner
@@ -227,7 +231,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const failure = outcomes.find(outcome => outcome.status === 'rejected');
     if (failure) throw failure.reason;
     const [criterion, proof] = outcomes.map(outcome => outcome.value);
-    if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
       ...(criterion.blockingVerdict ? { rawExitCode: criterion.exitCode, blockingVerdict: criterion.blockingVerdict } : {}),

@@ -2,6 +2,7 @@
 /** @pullboard-test-loads apps/cli/src/shell/cli.js */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
+import { redGateReleaseSource } from '../../../test/gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/shell/test-file-pool.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
@@ -1647,10 +1648,6 @@ test('[Q1] machine scope is shared, repo scope stays local, and board scope name
 
 test('[Q4] a red gate releases its lease before the same process starts another gate', async () => {
   const box = fixture();
-  const setting = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../bin/pullboard.js'), 'settings', 'gateSlots', '1'], {
-    cwd: box.first, env: box.env, encoding: 'utf8',
-  });
-  assert.equal(setting.status, 0, setting.stderr);
   const command = join(box.dir, 'red-then-green.cjs');
   const counter = join(box.dir, 'gate-count');
   const eventsFile = join(box.dir, 'gate-runs.log');
@@ -1663,13 +1660,7 @@ test('[Q4] a red gate releases its lease before the same process starts another 
     'process.exit(count === 0 ? 7 : 0);',
   ].join('\n'));
   const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
-  const worker = `
-    import { runGate } from ${JSON.stringify(GATE_MODULE)};
-${executionServicesSource(GATE_MODULE)}
-    const first = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
-    const second = await runGate(process.cwd(), { gate: process.argv[1] }, { executionServices });
-    console.log(JSON.stringify({ firstGreen: first.isGreen, secondGreen: second.isGreen }));
-  `;
+  const worker = redGateReleaseSource();
   const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
     cwd: box.first, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
   });

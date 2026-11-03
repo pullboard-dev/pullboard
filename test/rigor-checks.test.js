@@ -388,7 +388,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
       "import { readFileSync } from 'node:fs';",
       "import { resolve } from 'node:path';",
       "const ROOT = resolve(import.meta.dirname, '..');",
-      "const pending = [[resolve(ROOT, 'src/help.js')]];",
+      "const pending = [[resolve(ROOT, 'src/queued-walk-target.js')]];",
       'for (const file of pending.pop()) readFileSync(file, \'utf8\');',
       '',
     ].join('\n');
