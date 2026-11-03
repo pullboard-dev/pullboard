@@ -1,3 +1,4 @@
+import { privateCheckAdmission } from '../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../packages/verify/index.js';
 import { generateTestTiers } from '../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -86,7 +87,6 @@ import {
   checkImplies,
   parseImplies,
 } from '../../packages/state/index.js';
-import { checkNeedsGui } from '../../packages/gate/index.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
 import {
@@ -321,10 +321,9 @@ export async function verifyHere(ctx, id, { second, values }) {
           check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
-          const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item) || supplement, { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
-          const gui = await checkNeedsGui(root, frozenCheck(item) || supplement, { commit: checkedCommit });
-          // Exact command classifiers still govern local and remote private-check admission [C7,V4].
-          const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item) || supplement, { commit: checkedCommit }));
+          const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
+            commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
+            onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           try {
             check = await withGateSlot(root, async (lease) => {
               if (admitted) {

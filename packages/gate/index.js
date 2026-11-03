@@ -68,3 +68,5 @@ export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFil
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
+
+export { privateCheckAdmission } from './src/shell/private-check-admission.js';
