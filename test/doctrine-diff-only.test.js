@@ -1,10 +1,16 @@
 /** Submit's doctrine step reads only the changed files, in-process, and still refuses a rise [C7,D1,D3]. */
-import { holdDoctrineAsync, submitRulesNarrowable } from '../packages/doctrine/index.js';
+import { holdDoctrineAsync } from '../packages/doctrine/index.js';
+import { submitRulesNarrowable } from '../packages/doctrine/index.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { after } from 'node:test';
+import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 

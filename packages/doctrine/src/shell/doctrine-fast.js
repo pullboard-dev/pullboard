@@ -6,9 +6,15 @@
  * candidate decide it. One pass shares a single base checkout across every rule.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /** The process environment without git's repository variables, so a hook's GIT_DIR never redirects a child. */
