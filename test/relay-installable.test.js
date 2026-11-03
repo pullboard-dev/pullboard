@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { requestPairingPersistence } from '../apps/relay/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 
@@ -54,7 +55,6 @@ test('a paired phone page is installable and asks to keep its storage [H5,H15,C7
   })).status, 404, 'even an authenticated caller cannot fetch arbitrary filesystem paths');
 
   await t.test('persistence permission grants, refusals and unsupported browsers are handled [H5,H15]', async () => {
-    const { requestPairingPersistence } = await import('../apps/relay/index.js');
     let calls = 0;
     assert.equal(await requestPairingPersistence({ storage: { persist: async () => { calls += 1; return true; } } }), true);
     assert.equal(calls, 1);
