@@ -66,6 +66,14 @@ test('single and inline numbered clauses retain their shared checklist numbers [
   ]);
 });
 
+test('test evidence must name the clause its case covers [V4,B3]', t => {
+  const f = fixture(t, '1. The outcome is verified [test]');
+  tick(f, 'clause 1 [test]: test/page.test.js the page renders');
+  assert.match(problem(f).message, /needs a named test case citing clause 1/u);
+  tick(f, 'clause 1 [test]: test/page.test.js "clause 1: page renders" passes');
+  assert.equal(problem(f), null);
+});
+
 test('reasoning is flagged weakest and cannot stand in for a declared test or command [V4,B3]', t => {
   const f = fixture(t, THREE);
   tick(f, 'clause 1 [reasoning]: it obviously renders');
@@ -76,7 +84,7 @@ test('reasoning is flagged weakest and cannot stand in for a declared test or co
   assert.match(problem(f).message, /clause 3 .*needs screenshot evidence/u);
   tick(f, 'clause 3 [screenshot]: shots/375.png');
   assert.equal(problem(f), null, 'the latest matching tick for each clause stands');
-  const loose = fixture(t, '1. Explain design\n2. Explain result');
+  const loose = fixture(t, '1. Explain design [reasoning]\n2. Explain result [reasoning]');
   tick(loose, 'clause 1 [reasoning]: source argument');
   tick(loose, 'clause 2 [reasoning]: observed outcome');
   assert.match(clauseInspectionSummary(store.getItem(loose.board, loose.id), store.itemThread(loose.board, loose.id)), /2\. .*reasoning \(weakest evidence\)/u);

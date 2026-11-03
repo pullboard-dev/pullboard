@@ -7,13 +7,14 @@ const CLAUSE_MARKER = /(?:^|\s)(\d+)[.)]\s+/gu;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
-/** The clauses of a criterion, or [] when it is free text: one or more numbered clauses in order. */
-export function criterionClauses(criterion) {
+/** The clauses of a criterion, or [] when it is free text: sequential numbered outcomes. */
+export function criterionClauses(criterion, { single = false } = {}) {
   const source = String(criterion ?? '');
   const markers = [...source.matchAll(CLAUSE_MARKER)];
-  if (!markers.length || markers.some((match, index) => Number(match[1]) !== index + 1)) return [];
+  if (!markers.length || (!single && markers.some((match, index) => Number(match[1]) !== index + 1))) return [];
   const firstStart = markerStart(markers[0]);
-  if (markers.length === 1 && source.slice(0, firstStart).trim() && !source.slice(0, firstStart).trim().endsWith(':')) return [];
+  if (!single && markers.length === 1 && source.slice(0, firstStart).trim()
+    && !source.slice(0, firstStart).trim().endsWith(':')) return [];
   const clauses = markers.map((marker, index) => {
     const start = markerStart(marker);
     const header = /^\d+[.)]\s+/u.exec(source.slice(start));
