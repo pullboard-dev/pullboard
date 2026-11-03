@@ -587,7 +587,7 @@ export async function submitHere(ctx, id, infra) {
   const unownedMain = (criterionMatched ?? proofMatched)?.main;
   const redCriterion = criterionRed && !criterionMatched;
   const criterionNames = criterionKnown ? criterionKnown.failures : [];
-  let knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...criterionKnown.failures, ...proofKnown.failures] }
+  let knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...new Map([...criterionKnown.failures, ...proofKnown.failures].map(row => [`${row.file}\0${row.name}`, row])).values()] }
     : criterionKnown ?? proofKnown;
   if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
     const accountingNote = (checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '')
