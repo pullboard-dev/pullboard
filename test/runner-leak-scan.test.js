@@ -78,7 +78,7 @@ for (const kind of ['current-sentinel', 'historical-sentinel', 'historical-secre
     const commandScript = `const fs = require('node:fs'); const cp = require('node:child_process');
 fs.writeFileSync(${JSON.stringify(marker)}, cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());`;
     const command = `node -e ${shellQuote(commandScript)}`;
-    const runner = pathToFileURL(new URL('../src/runners.js', import.meta.url).pathname).href;
+    const runner = pathToFileURL(new URL('../packages/runners/src/shell/runners.js', import.meta.url).pathname).href;
     const script = `import { runOnRunnerAsync } from ${JSON.stringify(runner)};
 try { const run = await runOnRunnerAsync(process.argv[1], ${JSON.stringify(command)}, { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
 process.stdout.write(JSON.stringify({ code: 'COMPLETED', exitCode: run.exitCode, commit: run.executionSource.commit })); }

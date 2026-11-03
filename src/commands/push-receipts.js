@@ -6,7 +6,7 @@ import { getItem } from '../../packages/store/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
 import { checkNeedsBrowser } from '../../packages/gate/index.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { checkNeedsGui } from '../../packages/gate/index.js';
 import { runProfiledShellAsync } from '../../packages/gate/index.js';

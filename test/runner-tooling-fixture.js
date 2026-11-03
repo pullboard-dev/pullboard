@@ -1,4 +1,4 @@
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 /** Shared registered-runner test tooling and bounded round-trip helpers. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
