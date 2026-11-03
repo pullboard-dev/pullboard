@@ -111,6 +111,8 @@ test('only a declared pure entry fits cell anatomy and a real falling baseline k
   assert.ok(!report().metrics.strays.findings.some(row => row.key === CORE));
   const baseline = planCellLintBaseline(report());
   writeCellLintBaseline(root, baseline.baseline, { initialize: true });
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture records its cell lint baseline'); // A real baseline is committed before items compare with it.
   assert.deepEqual(problems(), [], 'a declared core entry passes with an actual recorded baseline');
   delete cell.pureFrontDoor;
   writePlan(root, plan);
