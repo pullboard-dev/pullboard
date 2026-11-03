@@ -6,7 +6,7 @@ import { boardReceiptStore } from '../../packages/gate/index.js';
 import { readGateReceipt } from '../../packages/gate/index.js';
 import { checkAtCommit } from '../../apps/runner/index.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   CONFIG_FILE,

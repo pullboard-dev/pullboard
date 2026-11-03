@@ -1,4 +1,4 @@
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 /** Final exact-head native receipt for opt-in native landings; floors retain their separate evidence [B3,C7]. */
 import { copyFileSync } from 'node:fs';

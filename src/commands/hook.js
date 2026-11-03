@@ -12,7 +12,7 @@ import { boardBusyError } from '../../packages/store/index.js';
 import { openBoardReadOnly } from '../../packages/store/index.js';
 import { rowDecisions } from '../../packages/spec/index.js';
 import { checkLoosening } from '../../packages/doctrine/index.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -92,7 +92,9 @@ export async function hookCommand(io, { first, second }) {
   }
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
-    applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
     const staticProblems = await stagedStaticProblems(info.root, ctx.config);
     if (staticProblems.length) {
       io.err(`pullboard ${first}: blocked\n${staticProblems.map(problem => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
@@ -187,7 +189,8 @@ export async function hookCommand(io, { first, second }) {
 async function stagedStaticProblems(root, config) {
   const shared = join(root, 'bin', 'checks', 'changed-static.js');
   if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || !existsSync(shared)) return [];
-  const staged = tryGit(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']).stdout.split('\0').filter(Boolean);
+  const merging = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']).status === 0;
+  const staged = tryGit(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])]).stdout.split('\0').filter(Boolean);
   if (!staged.length) return [];
   // The import-style check needs vm modules, which the hook process lacks, so the shared list runs in one small child.
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', shared, '--staged', ...staged], { cwd: root, encoding: 'utf8' });

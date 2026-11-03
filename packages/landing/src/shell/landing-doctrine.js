@@ -1,5 +1,5 @@
 /** Tighten held doctrine counts on the exact composed landing tree, before its gate [D1,D3,B3,R3]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import {
   readFileSync,

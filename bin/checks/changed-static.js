@@ -68,7 +68,8 @@ export function stagedHookFailures(root) {
   try { config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')); }
   catch { return []; }
   if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || config.fix?.length) return [];
-  const diff = spawnSync('git', ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' });
+  const merging = spawnSync('git', ['rev-parse', '--verify', 'MERGE_HEAD'], { cwd: root, stdio: 'ignore' }).status === 0;
+  const diff = spawnSync('git', ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])], { cwd: root, encoding: 'utf8' });
   if (diff.status !== 0) throw new Error('cannot enumerate staged files');
   return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true });
 }

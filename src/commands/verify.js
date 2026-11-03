@@ -34,7 +34,7 @@ import {
   withTestOutput,
 } from '../../packages/gate/index.js';
 import { checkAtCommit } from '../../apps/runner/index.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
 import { failureSignatures } from '../../packages/landing/index.js';
