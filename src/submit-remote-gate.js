@@ -13,7 +13,7 @@ import { runnerPhaseFields } from '../packages/gate/index.js';
 import { git } from './git.js';
 import { gitPath } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { privateCheckEnvelope } from './runner-private-mode.js';
+import { privateCheckEnvelope } from '../apps/runner/index.js';
 import { trunkRef } from '../packages/sandbox/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -79,6 +79,7 @@ const tools = dirname(fileURLToPath(import.meta.url));
 const root = process.argv[2];
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const selected = name => !input.parts || input.parts.includes(name);
 const step = async (name, work) => {
   const started = performance.now();
   try { return await work(); } finally { result.steps[name] = Math.round(performance.now() - started); }
@@ -91,21 +92,21 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
-  await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true }));
-  if (input.staticChecks) await step('static', () => {
+  if (selected('preflight')) await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true }));
+  if (selected('static') && input.staticChecks) await step('static', () => {
     const run = spawnSync('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
     const output = String(run.stdout ?? '') + String(run.stderr ?? '');
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
-  if (input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
-  result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
+  if (selected('preflight') && input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
+  if (selected('cells')) result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
     withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => input.cutRows,
     onInventory: mode => result.notes.push('submit cells inventory: ' + mode),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) }));
-  result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source }));
-  if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
+  if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source }));
+  if (selected('selection') && typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
   if (error?.name !== 'Refused') throw error;
@@ -183,13 +184,14 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    browserFreeChecks: request.browserFreeChecks === true, cutRows };
+    browserFreeChecks: request.browserFreeChecks === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   const { value, directory, sha256 } = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data }, lease, artifactDirectory);
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
   }
-  if (!value.cells || !value.plan || !Array.isArray(value.plan.proofFiles)) {
+  const parts = request.parts ?? ['preflight', 'static', 'cells', 'selection'];
+  if (parts.includes('cells') && !value.cells || parts.includes('selection') && (!value.plan || !Array.isArray(value.plan.proofFiles))) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   return { ...value, directory, sha256, runner: lease.runner.host };

@@ -13,11 +13,11 @@ import {
   runnerResourceStatus,
 } from '../../packages/resources/index.js';
 import { validateRunner } from '../../packages/config/index.js';
-import { probeRunnerTransport } from '../runner-transport.js';
+import { probeRunnerTransport } from '../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
-} from '../runner-slots.js';
+} from '../../packages/runners/index.js';
 
 /** Describe one runner's measured size and the slots the gate offers from it. */
 function sizeLine(runner, settings) {
@@ -85,9 +85,14 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     || slotsGiven && values.browser === undefined || !slotsGiven && values.browser !== undefined && Number(values.browser) !== 0) {
     throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] | pullboard runner measure [<ssh-host>]');
   }
+  const prior = (loadMachineSettings().runners ?? []).find(runner => runner.host === second);
+  const node = values.node ?? prior?.node;
+  const root = values.root ?? prior?.root;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
-    ...(values.node !== undefined ? { node: values.node } : {}), ...(values.root !== undefined ? { root: values.root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true });
+    ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined });
+  if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
+  if (node === undefined) probed.node = observation.nodePath;
   const measuredSize = observation.cores !== undefined ? { cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: new Date().toISOString() } : {};
   // Without --slots the runner's own measurement sets the count; a declared --slots is fixed and always wins.
   if (!slotsGiven && observation.cores === undefined) throw new Refused('RUNNER_NOT_MEASURED', `runner ${second} did not report its cores and memory (${observation.reason}); fix the SSH connection or declare --slots <n> --browser <n>`);

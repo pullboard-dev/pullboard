@@ -15,7 +15,7 @@ import { SPLIT_COUNTS } from '../packages/stats/index.js';
 import { sumUsage } from '../packages/stats/index.js';
 import { COST_ENGINE } from '../src/cost-engine.js';
 import { COST_INPUT_SPLIT_ENGINE } from '../src/cost-input-split-engine.js';
-import { MOVE_REGISTRY } from '../src/move-registry.js';
+import { MOVE_REGISTRY } from '../packages/moves/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 

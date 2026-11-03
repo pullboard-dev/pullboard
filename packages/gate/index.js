@@ -1,4 +1,5 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
+export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
@@ -8,7 +9,7 @@ export { withBrowserSourceFiles, browserSourceFiles, memoryBrowserSourceFiles, s
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/core/capacity-summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/core/check-baseline-format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/shell/check-baseline-worker.js";
-export { checkBaseline, baselineTestEvidence, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/shell/child-journal-preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/shell/chrome-clone-check.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/shell/cpu-load-admission.js";
@@ -68,3 +69,4 @@ export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFil
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 
 export { runGateStages } from "./src/core/gate-stages.js";
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';

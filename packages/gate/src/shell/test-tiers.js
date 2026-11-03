@@ -33,7 +33,7 @@ function tierImports(sources) {
 }
 
 /** Read optional cell placements so legacy front doors have their actual package ownership. */
-function cellOwners(files) {
+export function cellOwners(files) {
   const owners = new Map();
   const raw = files.get('bin/cells-plan.json');
   if (!raw) return owners;

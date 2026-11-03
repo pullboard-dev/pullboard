@@ -92,9 +92,12 @@ export async function borrowWarmCheckout({ directory, legacy, root, commit, hist
   if (!available.length) return null;
   const selected = available[0], checkout = join(selected.slot, 'checkout');
   directoryAt(checkout); directoryAt(join(checkout, '.git')); directoryAt(join(selected.slot, 'base.git'));
-  if (existsSync(join(checkout, '.git', 'objects', 'info', 'alternates'))
-    || await git(checkout, ['rev-parse', 'HEAD', 'HEAD^{tree}'], env) !== `${selected.commit}\n${selected.tree}`
-    || await git(checkout, ['status', '--porcelain=v1', '--untracked-files=all'], env)) throw new Error('warm checkout does not match its clean committed base');
+  if (existsSync(join(checkout, '.git', 'objects', 'info', 'alternates'))) throw new Error('warm checkout does not match its clean committed base');
+  // Both reads only inspect the idle checkout, so one process start covers them.
+  const [identity, status] = await Promise.allSettled([git(checkout, ['rev-parse', 'HEAD', 'HEAD^{tree}'], env),
+    git(checkout, ['status', '--porcelain=v1', '--untracked-files=all'], env)]);
+  for (const read of [identity, status]) if (read.status === 'rejected') throw read.reason;
+  if (identity.value !== `${selected.commit}\n${selected.tree}` || status.value) throw new Error('warm checkout does not match its clean committed base');
   directoryAt(root);
   rmdirSync(root); // The caller allocated an empty job root; never remove an existing user's tree.
   try { renameSync(checkout, root); }

@@ -8,6 +8,8 @@
  * Only code counts: a catch inside a string, a template's text or a comment is not one, and a
  * promise's `.catch(...)` method is not a catch clause. Every .js, .mjs and .cjs file under the
  * root is read (see scan.js for the walk). One problem per bare empty catch, at its `catch`.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { lex, lineAt, readText, runCheck, walk } from './scan.js';
 
