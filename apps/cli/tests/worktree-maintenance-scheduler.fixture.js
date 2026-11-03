@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { copyCommittedPackageFiles } from '../../../test/package-copy-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { isolateTestMachine } from '../../../packages/gate/index.js';
 import { processCensus } from '../../runner/index.js';
@@ -41,12 +42,7 @@ export function registerMaintenanceSchedulerTests() {
     sandbox.env.PULLBOARD_BACKGROUND_VIEW = '0';
     sandbox.env.PULLBOARD_BACKGROUND_RELAY = '0';
     const box = helpers.project('true', sandbox, { withWorktree: false });
-    const cli = pathToFileURL(resolve(import.meta.dirname, '../../../bin/pullboard.js')).href;
-    fs.mkdirSync(join(box.repo, 'bin'), { recursive: true });
-    fs.writeFileSync(join(box.repo, 'bin', 'pullboard.js'),
-      `import(${JSON.stringify(cli)}).catch(error => { console.error(error); process.exitCode = 1; });\n`);
-    box.git(box.repo, 'add', 'bin/pullboard.js');
-    box.git(box.repo, 'commit', '-qm', 'test: install the shipped CLI front door');
+    copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
     const common = fs.realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim());
     const directory = join(common, 'pullboard', 'worktree-maintenance'), marker = join(directory, 'timer.json');
     const configFile = join(box.repo, 'pullboard.json'), owned = new Map();
@@ -96,7 +92,7 @@ export function registerMaintenanceSchedulerTests() {
       helpers.cleanup();
     });
     policy(true);
-    const scheduler = pathToFileURL(resolve(import.meta.dirname, '../src/shell/worktree-maintenance-scheduler.js')).href;
+    const scheduler = pathToFileURL(join(box.repo, 'apps', 'cli', 'src', 'shell', 'worktree-maintenance-scheduler.js')).href;
     const ctx = { info: { root: box.repo, commonDir: common }, config: { worktreeMaintenance: { enabled: true } } };
     const program = `import {scheduleWorktreeMaintenance} from ${JSON.stringify(scheduler)};
 `
