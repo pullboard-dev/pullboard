@@ -108,8 +108,8 @@ test('the native item timeline reads as sentences with clamped notes and working
       await press(chrome, "document.querySelector('#detail [data-timeline-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .tl-note').classList.contains('expanded')"), false);
     }
-    await press(chrome, "document.querySelector('#detail .tl > li[data-timeline-kind=\"note\"] [data-timeline-more]')");
-    await press(chrome, "document.querySelector('#detail .tl > li[data-timeline-kind=\"note\"] .tl-body [data-code]')");
+    await press(chrome, "[...document.querySelectorAll('#detail .tl > li[data-timeline-kind=\"note\"]')].find(row => row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('[data-timeline-more]')");
+    await press(chrome, "[...document.querySelectorAll('#detail .tl > li[data-timeline-kind=\"note\"]')].find(row => row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('.tl-body [data-code]')");
     await chrome.waitFor("document.querySelector('#detail .tl .code-wrap')?.textContent.includes('timelineFixture')");
     assert.ok(await chrome.stable("document.querySelector('#detail .tl .code-wrap').getBoundingClientRect().height > 0"), 'the actual source preview is visible, not only present in hidden DOM');
     await press(chrome, "document.querySelector('#detail .tl [data-go=\"item:2\"]')");
