@@ -141,8 +141,11 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   if (!OID.test(source ?? '') || source.length !== main?.length) throw new TypeError('a trusted runner step needs a pinned candidate');
   const shell = trustedStepCommand({ main, entry, data, node: lease.runner.node ?? 'node' });
   const checkedSource = { commit: source, tree: git(root, ['rev-parse', `${source}^{tree}`]).trim() };
+  // The analysis reads data.trunk, the trunk the candidate merged; packing only main left the runner without its
+  // objects whenever main had moved, and every such gate stopped GIT_READ_INFRASTRUCTURE (#2839).
+  const trunkCommit = OID.test(data?.trunk ?? '') && data.trunk.length === main.length ? data.trunk : main;
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
-    policyCommit: main, trunk: { ref: trunkRef(root), commit: main } });
+    policyCommit: main, trunk: { ref: trunkRef(root), commit: trunkCommit } });
   const parent = artifactDirectory ? join(artifactDirectory, stage) : gitPath(root, `pullboard-${stage}-output`);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'remote-'));
