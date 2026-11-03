@@ -24,6 +24,8 @@ import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
+import { heldBatchEntries } from '../core/runner-source-hold.js';
+import { refusalRecord } from '../core/runner-source-hold.js';
 import { landingContext } from '../core/landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
@@ -173,6 +175,33 @@ async function dropLandedElsewhere(root, board, write, say, batch) {
   return true;
 }
 
+/**
+ * Retire an unpublished batch that carries a held item or one whose RUNNER_SOURCE retries are used up, keeping why.
+ * Why: adopting resumes the batch's recorded items without selection, so a hold or the retry limit never applied to
+ * it, and every wake retried the same refused batch (#2648).
+ */
+async function retireHeldBatch(board, write, say, batch) {
+  if (['pushed', 'trunk'].includes(batch.state)) return false;
+  const held = heldBatchEntries(store.landingBatches(board), batch, id => store.getItem(board, id));
+  if (!held.length) return false;
+  await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', blocked: [...(batch.blocked ?? []), ...held] }, revision: batch.revision }]);
+  for (const entry of held) say(`landing retires batch ${batch.id}: ${entry.code} #${entry.id}: ${entry.message}`);
+  return true;
+}
+
+/**
+ * Record a refusal on the batch and keep every earlier one; a batch whose items used up their RUNNER_SOURCE retries
+ * stops blocked with them held, so nothing adopts it again.
+ */
+async function recordRefusal(state, error) {
+  const record = refusalRecord(state.batch, error, state.board.clock.now().toISOString());
+  const next = { ...state.batch, ...record };
+  const batches = store.landingBatches(state.board).map(batch => (batch.id === next.id ? next : batch));
+  const held = record.refusal.code === 'RUNNER_SOURCE' ? heldBatchEntries(batches, next, id => store.getItem(state.board, id)) : [];
+  await save(state, { ...record, ...(held.length ? { state: 'blocked', blocked: [...(state.batch.blocked ?? []), ...held] } : {}) });
+  for (const entry of held) state.say(`${entry.code} #${entry.id}: ${entry.message}`);
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
@@ -238,6 +267,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', message: 'the recorded landing worktree is missing or unfinished', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
     batch = null;
   }
+  if (batch && await retireHeldBatch(board, write, say, batch)) batch = null;
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
@@ -313,7 +343,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     }
   } catch (error) {
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
-      try { await save(state, { refusal: { code: error.code ?? 'LAND_BATCH_REFUSED', message: String(error.message ?? '').replace(/\s+/gu, ' ').slice(0, 400), at: board.clock.now().toISOString() } }); }
+      try { await recordRefusal(state, error); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
     if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;

@@ -24,7 +24,14 @@ test('RUNNER_SOURCE retries at most three times, then the item is held with the 
   assert.equal(runnerSourceHold([refused(), refused()], ITEM, BASE), null, 'two refusals still retry');
   const held = runnerSourceHold([refused(), refused(), refused()], ITEM, BASE);
   assert.equal(held.code, 'LAND_RUNNER_SOURCE_HELD');
-  assert.match(held.message, /3 landing batches were refused RUNNER_SOURCE .*the runner checkout is not the queued candidate.*#2601 waits for a new head or a new main/u);
+  assert.match(held.message, /3 landing attempts were refused RUNNER_SOURCE .*the runner checkout is not the queued candidate.*#2601 waits for a new head or a new main/u);
+});
+
+test('resumed attempts on one batch count toward the three retries [C7]', () => {
+  const attempt = { code: 'RUNNER_SOURCE', message: 'the runner checkout is not the queued candidate', at: '2026-11-03T14:00:00.000Z' };
+  const resumed = { state: 'gating', base: BASE, candidates: [{ id: ITEM.item_id, commit: ITEM.item_commit }], refusal: null, refusals: [attempt, attempt] };
+  assert.equal(runnerSourceHold([resumed], ITEM, BASE), null, 'two attempts still retry');
+  assert.equal(runnerSourceHold([{ ...resumed, refusals: [attempt, attempt, attempt] }], ITEM, BASE).code, 'LAND_RUNNER_SOURCE_HELD');
 });
 
 test('a new main, a new head or another refusal code starts no hold [C7]', () => {
