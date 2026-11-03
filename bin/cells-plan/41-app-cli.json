@@ -1351,6 +1351,26 @@
       "rule"
     ],
     [
+      "src/cli-main/session.js",
+      "apps/cli/src/shell/cli-main/session.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/options.js",
+      "apps/cli/src/shell/cli-main/options.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/run-command.js",
+      "apps/cli/src/shell/cli-main/run-command.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/run-main.js",
+      "apps/cli/src/shell/cli-main/run-main.js",
+      "rule"
+    ],
+    [
       "src/submit-remote-gate.js",
       "apps/cli/src/shell/submit-remote-gate.js",
       "rule"

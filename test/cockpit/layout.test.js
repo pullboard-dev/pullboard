@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
+/** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/stage.css apps/view/src/shell/view/dashboard.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css apps/view/src/shell/view/item-panel.css apps/view/src/shell/view/item-rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';

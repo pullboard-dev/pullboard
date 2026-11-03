@@ -39,6 +39,13 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
+// The common version probe needs only the release metadata, not the command dispatcher.
+if (process.argv.length === 3 && process.argv[2] === '--version') {
+  const { default: packageData } = await import('../package.json', { with: { type: 'json' } });
+  process.stdout.write(`${packageData.version}\n`);
+  process.exit(0);
+}
+
 // A self-hosted pre-commit runs from the staged index with the item's companions applied, never the working tree (#2593).
 if (process.argv[2] === 'hook') {
   const composed = await (await import('./hook-composed.js')).runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });
@@ -50,9 +57,9 @@ const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1])
 if (handed !== null) process.exit(handed);
 
 // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-const { main, selectedToolEntry } = await import('../src/cli-main.js');
-// Promotion must remain reachable when the published build predates its replacement.
-if (process.argv[2] !== 'tool-build') {
+const { main, selectedToolEntry, asksVersion } = await import('../src/cli-main.js');
+// Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
+if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
     const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
     if (selected) {
