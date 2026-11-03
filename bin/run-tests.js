@@ -1340,7 +1340,9 @@ async function main(args) {
     if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
       const { landingShardCount } = await import('../src/test-concurrency.js');
       const count = landingShardCount(process.cwd());
-      if (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS) {
+      // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
+      const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
+      if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
         const files = actions.files ?? (fullSuite
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
           : explicitTestFiles(args));
