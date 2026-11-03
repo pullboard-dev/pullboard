@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { moveArgs } from '../../person/index.js';
 import { derivedFamily } from '../../items/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';

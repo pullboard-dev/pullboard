@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { compareMainFailures, comparisonExecutor } from '../packages/landing/index.js';
 import { executionEnvironment } from '../packages/sandbox/index.js';
-import { runProfiledShell } from '../src/gate-execution.js';
+import { runProfiledShell } from '../packages/gate/index.js';
 import { withGateSlot } from '../packages/gate/index.js';
 import { recordReceipt } from '../packages/gate/index.js';
 import { failureSignatures, matchingMainFailures } from '../packages/landing/index.js';

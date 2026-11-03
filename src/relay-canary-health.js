@@ -1,1 +1,0 @@
-export { claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from '../packages/link/index.js';

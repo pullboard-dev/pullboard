@@ -246,7 +246,7 @@ test('relay off keeps a board out of auto-link [H1,H7,H16]', async t => {
 
 /** Enroll one cryptographically authenticated phone through the production native and HTTP paths. */
 async function enrollDeletionPhone(box) {
-  const machineURL = new URL('../src/relay-machine.js', import.meta.url).href;
+  const machineURL = new URL('../packages/link/index.js', import.meta.url).href;
   const linked = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const pendingResult = await box.script(`
     const { beginDeviceEnrollment } = await import(${JSON.stringify(machineURL)});
@@ -449,7 +449,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
       if (error.message !== 'the private fixture interrupts deletion-marker persistence') throw error;
       cleanupError = error.message;
     } finally { fs.default.renameSync = rename; syncBuiltinESMExports(); }
-    const { localRecords } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const { localRecords } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const beforeCleanup = localRecords(openBoard, ${JSON.stringify(box.root)}, board => ({
       firstCount: board.db.prepare('SELECT COUNT(*) AS count FROM item WHERE item_title=?').get(${JSON.stringify(firstTitle)}).count,

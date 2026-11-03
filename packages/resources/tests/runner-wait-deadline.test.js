@@ -141,7 +141,7 @@ test('disabled local capacity and runner-only work refuse by name at the runner 
     const box = fixture();
     const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
     writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: runnerOnly ? 1 : 0, browserSlots: runnerOnly ? 1 : 0 }));
-    const module = pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href;
+    const module = pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href;
     const source = `import {withGateSlot} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}
 try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
@@ -335,7 +335,7 @@ test('a first runner freed after the queue deadline executes with its captured s
     const release = join(box.dir, 'release-runner'), released = join(box.dir, 'runner-released');
     try {
       const tooling = committedToolingSnapshot(join(import.meta.dirname, '../../..'), box.env);
-      const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
+      const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
       const command = 'node -e "console.log(\'LATE_FIRST_DISPATCH_EXECUTED\')"';
       const script = `import {writeFileSync,existsSync} from 'node:fs';
 import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
@@ -512,7 +512,7 @@ test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q
 
 test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
   const box = fixture({ dropFirst: false });
-  const gateUrl = pathToFileURL(join(process.cwd(), 'src/gate.js')).href;
+  const gateUrl = pathToFileURL(join(process.cwd(), 'packages/gate/index.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
 ${executionServicesSource(gateUrl)}
 let calls = 0;
