@@ -36,3 +36,10 @@ test('a forced ls-tree failure is an infrastructure error, never a builder refus
   assert.equal(thrown.retryable, true);
   assert.match(thrown.message, /presence could not be read from Git/);
 });
+
+test('a failed-then-successful trunk read repeats the queued analysis instead of refusing the builder [C7]', () => {
+  const run = spawnSync(process.execPath, ['--test', '--test-name-pattern=never refuses the builder', 'test/submit-remote-gate.test.js'],
+    { cwd: join(import.meta.dirname, '..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /# pass 1\b/u, 'the runner-retry fixture really ran');
+});
