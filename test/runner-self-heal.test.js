@@ -23,7 +23,7 @@ function machine(t) {
   const db = new DatabaseSync(join(dir, 'resources.sqlite'));
   db.exec(`CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);
     CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL);
-    CREATE TABLE holder(token TEXT PRIMARY KEY,name TEXT NOT NULL,runner TEXT NOT NULL DEFAULT '')`);
+    CREATE TABLE holder(token TEXT PRIMARY KEY,name TEXT NOT NULL,pid INTEGER NOT NULL DEFAULT 0,agent TEXT NOT NULL DEFAULT '',repo TEXT NOT NULL DEFAULT '',since TEXT NOT NULL DEFAULT '',heartbeat INTEGER NOT NULL DEFAULT 0,runner TEXT NOT NULL DEFAULT '')`);
   initializeRunnerRecovery(db);
   const leaked = [];
   t.after(() => { process.env.PATH = saved; for (const child of leaked) child.kill('SIGKILL'); db.close(); rmSync(dir, { recursive: true, force: true }); });
