@@ -1,6 +1,7 @@
 /** Pure source for the runner child journal preload [C7]. */
 import { join } from 'node:path';
 
+
 const PERL_START = `my $mib = pack('l4', 1, 14, 1, $ARGV[0]); my $buf = "\\0" x 1024; my $len = pack('Q', length $buf);
 exit 1 if syscall(202, $mib, 4, $buf, $len, 0, 0) != 0 || unpack('Q', $len) < 16;
 my ($sec, $usec) = unpack('q l', substr($buf, 0, 16)); printf("%d.%06d\\n", $sec, $usec);`;
@@ -39,8 +40,7 @@ import { closeSync, openSync, readFileSync, statSync, writeSync, writeFileSync }
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 const PERL_START = ${JSON.stringify(PERL_START)};
-${exactStartWith.toString()}
-function exactStart(pid) { return exactStartWith(pid, readFileSync, spawnSync); }
+${exactStartWith.toString().replace('exactStartWith(pid, readFileSync, spawnSync)', 'exactStart(pid)')}
 const directory = ${JSON.stringify(journalDirectory)};
 const overflowPath = ${JSON.stringify(overflowPath)};
 const instance = randomUUID();
