@@ -34,6 +34,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   isolated.env.PULLBOARD_MODEL = 'gpt-6-luna';
+  const check = 'node --test test/red-loop-gate.test.cjs';
   let box;
   try { box = { ...helpers.project('true', isolated), helpers }; }
   catch (error) { helpers.cleanup(); throw error; }
@@ -46,7 +47,9 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-  fs.writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true },
+  delete config.submitGate;
+  delete config.submitDeferAbove;
+  fs.writeFileSync(configFile, JSON.stringify({ ...config, gate: check, submit: { handoff: true },
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true } }, null, 2) + '\n');
   fs.mkdirSync(join(box.repo, 'test'), { recursive: true });
   fs.writeFileSync(join(box.repo, 'test/red-loop-gate.test.cjs'), [
@@ -62,10 +65,11 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const check = 'node --test test/red-loop-gate.test.cjs';
-  item = document(box.run(box.repo, 'add', 'web', 'Bound repeated red submissions', '--specs', 'G1',
+  const added = document(box.run(box.repo, 'add', 'web', 'Bound repeated red submissions', '--specs', 'G1',
     '--criterion', 'The source is correct when:\n1. the red input fails the test [test]\n2. the corrected input passes the test [test]',
-    '--check', check, '--wait', '--json')).item.item_id;
+    '--check', check, '--wait', '--json'));
+  item = added.item.item_id;
+  assert.equal(added.item.item_check, check, 'the frozen check executes the red-input test');
   document(box.run(box.web, 'claim', String(item), '--json'));
   document(box.run(box.web, 'fact', String(item), 'note', 'clause 1 [test]: the committed test observes the red input', '--json'));
   document(box.run(box.web, 'fact', String(item), 'note', 'clause 2 [test]: the same test observes the corrected input', '--json'));
