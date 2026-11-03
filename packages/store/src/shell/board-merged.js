@@ -13,7 +13,7 @@ import { setItem } from "./board.js";
  * @param {number} id
  * @param {{ agentId: string, commit: string, note?: string }} merge
  */
-export function merged(board, id, { agentId, commit, note = '' }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet }) {
   coordinatorOnly(agentId, 'records merges');
   atomic(board, () => {
     const item = itemById(board, id);
@@ -22,6 +22,7 @@ export function merged(board, id, { agentId, commit, note = '' }) {
     }
     requireOutsideOwner(board, item);
     setItem(board, id, { item_merged_commit: commit });
-    logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}) });
+    logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
+      ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
   });
 }
