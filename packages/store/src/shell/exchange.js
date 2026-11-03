@@ -3,6 +3,7 @@ import { suspendStoreGuards } from "./board-store-guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
+import { FAMILY_RECORD_PREFIX, warmFamilyProjection } from "../../../items/index.js";
 import { exportedMeta } from "../core/board-person-authority-schema.js";
 import { rebuildProofCounters } from "../../../verify/index.js";
 import { importSeatObservations } from "./seat-presence.js";
@@ -58,8 +59,8 @@ function columnsOf(db, table) {
 
 /** Read native rows without fetching large local proof projections into an export or digest. */
 function nativeRows(db, table) {
-  if (table === 'board_meta') return db.prepare('SELECT * FROM board_meta WHERE (meta_key < ? OR meta_key >= ?) AND meta_key NOT GLOB ? ORDER BY rowid')
-    .all(PROOF_COUNTER_PREFIX, 'local:proof-stats;', LANDING_LOCAL_PREFIX + '*');
+  if (table === 'board_meta') return db.prepare('SELECT * FROM board_meta WHERE (meta_key < ? OR meta_key >= ?) AND meta_key NOT GLOB ? AND meta_key NOT GLOB ? ORDER BY rowid')
+    .all(PROOF_COUNTER_PREFIX, 'local:proof-stats;', LANDING_LOCAL_PREFIX + '*', FAMILY_RECORD_PREFIX + '*');
   return db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all();
 }
 
@@ -107,7 +108,7 @@ export function semanticBoardDigest(document) {
     ...document,
     tables: {
       ...tables,
-      ...(Array.isArray(tables.board_meta) ? { board_meta: tables.board_meta.filter(row => !row.meta_key.startsWith(PROOF_COUNTER_PREFIX) && !row.meta_key.startsWith(LANDING_LOCAL_PREFIX)) } : {}),
+      ...(Array.isArray(tables.board_meta) ? { board_meta: tables.board_meta.filter(row => !row.meta_key.startsWith(PROOF_COUNTER_PREFIX) && !row.meta_key.startsWith(LANDING_LOCAL_PREFIX) && !row.meta_key.startsWith(FAMILY_RECORD_PREFIX)) } : {}),
       agent: tables.agent.map(({ agent_last_shout_id, ...row }) => row),
     },
   };
@@ -295,7 +296,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
       const insert = db.prepare(sql);
       for (const row of document.tables[table]) {
-        if (table === 'board_meta' && (row.meta_key.startsWith(PROOF_COUNTER_PREFIX) || row.meta_key.startsWith(LANDING_LOCAL_PREFIX))) continue;
+        if (table === 'board_meta' && (row.meta_key.startsWith(PROOF_COUNTER_PREFIX) || row.meta_key.startsWith(LANDING_LOCAL_PREFIX) || row.meta_key.startsWith(FAMILY_RECORD_PREFIX))) continue;
         let restored = row;
         if (replace && expectedNativeDigest !== null && table === 'agent' && localAgentCursors.has(row.agent_id)) {
           const localCursor = localAgentCursors.get(row.agent_id);
@@ -315,6 +316,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     const restoreLocal = db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)');
     for (const row of localLanding) restoreLocal.run(row.meta_key, row.meta_value);
     rebuildProofCounters(board);
+    warmFamilyProjection(board);
     restoreGuards();
     db.exec('COMMIT');
     released = true;

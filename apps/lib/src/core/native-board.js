@@ -14,7 +14,7 @@ import {
   localDependencyIds,
   dependencyLabel,
 } from '../../../../packages/items/index.js';
-import { itemFileCollisions } from '../../../../packages/items/index.js';
+import { itemFileCollisions, warmFamilyProjection } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
@@ -329,7 +329,7 @@ export function nativeBoardPorts() {
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, ensureHotIndexes, missingAdditiveIndexes,
       ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),

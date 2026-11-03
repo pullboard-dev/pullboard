@@ -86,7 +86,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   const runtimePorts = requireRuntimePorts(ports);
   if (!clock || typeof clock.now !== 'function') throw new Refused('NO_POLICY', 'Supply the native board clock before opening storage.');
   const { guardStore, refreshStoreDeclarations, storeTriggers } = runtimePorts.guards;
-  const { atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
+  const { atomic, ensureProofCounters, warmFamilyProjection, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
   const { sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
     boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion,
     migrateEventLogVersion } = runtimePorts.query;
@@ -159,7 +159,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     // Writable commands catch up old writers or missing local projections once. Read-only open
     // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
     // Proof warming also preserves the Rigor projection, including after a proof-cache rebuild.
-    if (warmCounters) atomic(board, () => ensureProofCounters(board), { reviewPolicy: false });
+    if (warmCounters) atomic(board, () => { ensureProofCounters(board); warmFamilyProjection?.(board); }, { reviewPolicy: false });
     return board;
   } catch (error) {
     try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }

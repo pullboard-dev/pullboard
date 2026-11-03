@@ -13,6 +13,7 @@ import { AGENT_SESSION_IDS } from "../../../kernel/src/core/discovery.js";
 import { PARENT_SESSION_ENGINE } from "../../../../src/parent-session-engine.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js";
 import { derivedFamily } from "./family-declaration.js";
+import { recordFamily, invalidateUnknownFamilies } from "./family-declaration.js";
 import { familyAliasesOf } from "../../core.js";
 import { familyName } from "../../core.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
@@ -58,6 +59,9 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
     throw new Refused('FAMILY_DECLARED', `${id} or its original session already declared vendor family ${declared}; a declared family is never changed`);
   }
   const first = naming && !declared;
+  // The join is where a seat's family is recorded once: the family it already had, or the one this join declares.
+  if (first) invalidateUnknownFamilies(board);
+  if (modern) recordFamily(board, id, declared ?? (first ? family : null));
   if (first) {
     // A seat with no declared family declares it once from its own worktree, whatever session joins; its recorded session stays as it was.
     board.db.exec('SAVEPOINT declare_family');
