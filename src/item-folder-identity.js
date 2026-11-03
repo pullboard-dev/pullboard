@@ -1,6 +1,6 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
 import { readFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
@@ -72,10 +72,20 @@ export function claimedItemRoot(board, item) {
   const agent = agentById(board, item.item_owner);
   if (!agent) return null;
   const path = itemFolderPath(agent.agent_path, item.item_id);
-  if (!existsSync(path)) return agent.agent_path;
+  try { lstatSync(path); }
+  catch (error) { if (error.code === 'ENOENT') return agent.agent_path; throw error; }
   const identity = itemFolderIdentity(board, path);
   if (identity?.agent.agent_id !== agent.agent_id || identity.item !== item.item_id) {
     throw new Refused('ITEM_PATCH_SOURCE', `item folder ${path} is not the claimed builder's verified worktree`);
+  }
+  const seatHead = tryGit(agent.agent_path, ['rev-parse', '--verify', 'HEAD']).stdout;
+  const itemHead = tryGit(path, ['rev-parse', '--verify', 'HEAD']).stdout;
+  if (!seatHead || !itemHead) throw new Refused('ITEM_PATCH_SOURCE', 'cannot read the builder checkout heads');
+  if (seatHead !== itemHead) {
+    if (tryGit(path, ['merge-base', '--is-ancestor', itemHead, seatHead]).status === 0) return agent.agent_path;
+    if (tryGit(path, ['merge-base', '--is-ancestor', seatHead, itemHead]).status !== 0) {
+      throw new Refused('ITEM_PATCH_SOURCE', 'the seat and item folder have diverged; reconcile their commits before attaching a companion');
+    }
   }
   return path;
 }

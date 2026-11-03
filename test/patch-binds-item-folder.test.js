@@ -36,8 +36,15 @@ test('attach and submit compose a companion against the item folder, not its old
   document(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'companion', '--author', seat);
   const attached = document(box, box.repo, 'patch', 'list', String(item));
   assert.equal(attached.patches[0].commit, head);
+  writeFileSync(join(folder, 'web/next.js'), 'export const next = true;\n');
+  box.git(folder, 'add', 'web/next.js');
+  box.git(folder, 'commit', '-m', 'feat(web): advance item fixture [G1]');
+  const advanced = box.git(folder, 'rev-parse', 'HEAD');
+  assert.notEqual(advanced, head);
   const submitted = document(box, folder, 'submit', String(item), '--no-next');
-  assert.notEqual(submitted.gate.companion.commit, head);
-  assert.equal(submitted.gate.companion.source, head);
+  assert.notEqual(submitted.gate.companion.commit, advanced);
+  assert.equal(submitted.gate.companion.source, advanced);
+  assert.equal(document(box, box.repo, 'patch', 'list', String(item)).patches[0].commit, advanced);
+
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), oldHead);
 });
