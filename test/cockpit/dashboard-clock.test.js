@@ -12,7 +12,7 @@ import { openBoard } from '../../apps/lib/index.js';
 import { serveApi } from '../../src/api.js';
 import { refusalDocument } from '../../src/next-step-words.js';
 import { main } from '../native-cli-fixture.js';
-import { exportBoard } from '../../src/exchange.js';
+import { exportBoard } from '../../packages/store/index.js';
 import { submitFixture } from '../board-submit-fixture.js';
 import { machine, project } from './fixture.js';
 

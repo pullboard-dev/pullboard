@@ -8,7 +8,7 @@ import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

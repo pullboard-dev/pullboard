@@ -2,7 +2,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';

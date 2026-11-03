@@ -7,16 +7,16 @@ import {
 } from './runner-recovery-fixture.js';
 import {
   copyPackageFiles,
-} from '../src/package-files.js';
+} from '../packages/runners/index.js';
 import {
   copyCommittedPackageFiles,
 } from './package-copy-fixture.js';
 import {
   runnerPackage,
-} from '../src/runner-package.js';
+} from '../packages/runners/index.js';
 import {
   packageFiles,
-} from '../src/package-files.js';
+} from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { PAIRED_RERUN_FIXTURE } from './runner-paired-tools.fixture.js';
 import { observe } from './runner-paired-tools.fixture.js';

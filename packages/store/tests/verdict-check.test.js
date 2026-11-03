@@ -3,6 +3,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { lex } from '../../kernel/index.js';
+import { AGENT_SHELL_MARKERS } from '../../kernel/src/core/discovery.js';
+import { SSH_SHELL_MARKERS } from '../../kernel/src/core/discovery.js';
 import { styleSources } from '../../codemap/index.js';
 import { readEngineLeaves } from '../../../src/engine-numbers.js';
 import { gateJudgmentPath } from '../../verify/index.js';
@@ -56,6 +58,8 @@ function sandbox() {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   });
   delete env.NODE_TEST_CONTEXT; // A fixture CLI/compiler child is a normal process, not its parent's Node test worker.
+  // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
+  for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   mkdirSync(env.HOME);
   /** Run isolated Git commands for this fixture. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });

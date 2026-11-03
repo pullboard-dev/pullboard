@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readGateReceipt, receiptFields, receiptStore } from '../packages/gate/index.js';

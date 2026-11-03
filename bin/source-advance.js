@@ -4,7 +4,7 @@ import * as nativeBoard from '../apps/lib/index.js';
 const { openBoardForRead } = nativeBoard;
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
-import { runnerExecutionServices } from '../src/runners.js';
+import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 import { isAbsolute } from 'node:path';
 import { runSourceAdvances } from '../packages/sandbox/index.js';
