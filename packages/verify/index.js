@@ -28,6 +28,7 @@ export { cachedVerdictStates, captureVerdictReview, staleVerdictRefusal, verdict
 export { retryReviewCommit } from './src/core/verdict-retry.js';
 export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/core/verdict-reviews.js';
 export { judgeTrunkMove } from './src/shell/verdict-trunk.js';
+export { itemTrunkMove } from './src/shell/verdict-trunk.js';
 export { checkOptions, verdictWithdrawalTarget, verdictWithdrawals } from './src/shell/verdict-withdrawal.js';
 export { finishVerdict, rejectionClauseDetail, rejectionClauseProblem, sharpenRepeatedClause } from './src/shell/reject-clause.js';
 export { classifiedStrict, gateJudgmentItem, gateJudgmentPath, reviewTierFloor } from './src/shell/review-tier.js';
