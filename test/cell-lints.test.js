@@ -297,7 +297,10 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   box.put('packages/sample/index.js', 'export const value = 1;\n');
   box.remove('packages/other');
   box.remove(TRANSITION_FILE);
-  box.git('add', '-A'); box.git('commit', '-qm', 'test: delete the marker after the migration');
+  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: main deletes the marker after the migration');
+  // The candidate's rise stays uncommitted: --check compares it with main counted now [C7].
+  box.put('apps/demo/index.js', "import { value } from '../../packages/sample/index.js'; console.log(value);\n");
   assert.equal(box.report().transition.active, false);
   assert.ok(cellLintGrowth(box.report(), baseline, { enforcedOnly: true }).some(row => row.metric === 'boundaries' && !row.advisory));
   assert.notEqual(run('--check').status, 0, 'deleting the marker restores strict identity growth');
@@ -498,7 +501,8 @@ test('the pre-cell transition reports size, files and edges while keeping baseli
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' }, 'advisory debt never raises the stored ratchet');
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   assert.equal(box.report().transition.active, true, 'an uncommitted path map is not accepted source evidence');
-  box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
+  // Main accepts only the map; the helper change stays the uncommitted candidate --check compares with main [C7].
+  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration');
   const after = box.report();
   assert.equal(after.transition.active, false, 'the exact committed package migration closes the transition');
   assert.deepEqual(after.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
@@ -650,13 +654,13 @@ test('hard file cap excludes data and Markdown while preserving their advisory d
 test('an export used only through a literal dynamic import of a shim is reachable; a non-literal dynamic import is named unknown [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export const value = 1, lazy = 2, destructured = 3, other = 4;\n');
-  box.put('src/sync.js', "export { lazy, destructured } from '../packages/sample/index.js';\n");
-  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconsole.log((await import('../../src/sync.js')).lazy);\nconst { destructured: renamed } = await import('../../src/sync.js'); console.log(renamed);\n");
+  box.put('src/shim-sample.js', "export { lazy, destructured } from '../packages/sample/index.js';\n");
+  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconsole.log((await import('../../src/shim-sample.js')).lazy);\nconst { destructured: renamed } = await import('../../src/shim-sample.js'); console.log(renamed);\n");
   const keys = report => report.metrics.unreachableExports.findings.map(row => row.key);
   const literal = box.report();
   assert.ok(!keys(literal).includes('packages/sample/index.js#lazy'), 'member read through the shim reaches the moved export');
   assert.ok(!keys(literal).includes('packages/sample/index.js#destructured'), 'destructured read through the shim reaches the moved export');
-  assert.ok(!keys(literal).includes('src/sync.js#lazy'));
+  assert.ok(!keys(literal).includes('src/shim-sample.js#lazy'));
   assert.ok(keys(literal).includes('packages/sample/index.js#other'), 'unrelated exports stay debt');
   box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconst name = process.env.TARGET; console.log((await import(name)).lazy);\n");
   const computed = box.report();

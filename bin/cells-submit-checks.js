@@ -21,8 +21,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
-import { readCellLintBaseline } from '../packages/codemap/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -98,8 +97,22 @@ function refuse(problems) {
   if (problems.length) throw new Refused('CELLS_SUBMIT', problems.join('; '));
 }
 
+/**
+ * An accepted row may leave its cell as a plan stay only when the item's frozen criterion, written by the coordinator,
+ * names it exactly as `plan stay <path>`, the file still sits at its old path and nothing occupies its old target.
+ * The candidate's own stays list never authorizes itself (#2446).
+ */
+function approvedStay(after, row, candidateRoot, criterion) {
+  const [from, to] = row;
+  // The path ends at whitespace, the text end, or one of , ; . before them: relay/x.js.map, x.js+copy and x.jsé never approve relay/x.js.
+  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
+  if (!named.test(criterion) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
+  try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
+  return !existsSync(join(candidateRoot, to));
+}
+
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
-function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot) {
+function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
   const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
   problems.push(...engineStays.problems);
@@ -139,7 +152,7 @@ function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainR
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
       const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
-      if (!current && !retired && !engineStays.rows.has(row[0])) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
+      if (!current && !retired && !engineStays.rows.has(row[0]) && !approvedStay(after, row, candidateRoot, criterion)) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
       if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
     }
   }
@@ -277,7 +290,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const reorg = cellsReorgReason({ title, criterion, changed, added, deleted, before, after, beforeMap: mainMap, afterMap: candidateMap,
     readData: file => ({ before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) }) });
   const warnings = [];
-  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot);
+  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot, criterion);
   const unplaced = unplanned(candidateRoot, after);
   if (reorg && unplaced.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${unplaced.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
   warnings.push(...unplaced.map(file => warning(file, 1, 'no cells-plan placement', `node bin/cells-plan.js --place ${file} --cell <cell> (or --stay), then commit the plan`)));
@@ -301,8 +314,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
   newReport.transition = oldReport.transition;
-  const baseline = existsSync(join(mainRoot, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(mainRoot) : null;
-  if (!baseline) throw new Refused('CELLS_SUBMIT', 'accepted main lacks a complete cell lint baseline');
+  // The ratchet compares with main's own debt computed now; a committed snapshot that drifted never refuses an item [C7].
+  const baseline = cellLintBaseline(oldReport);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);

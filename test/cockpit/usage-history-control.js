@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
-import { lifecycleEvent, lifecycleMove } from '../../src/item-list.js';
+import { lifecycleEvent, lifecycleMove } from '../../packages/items/index.js';
 import { replayItem } from '../../src/view/pipeline-model.js';
 import { timelineHtml } from '../../src/view/timeline-render.js';
 import { activityModel } from '../../src/view/activity-model.js';

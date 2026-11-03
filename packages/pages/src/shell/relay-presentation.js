@@ -18,7 +18,7 @@ import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import { cachedVerdictStates } from "../../../verify/index.js";
 import { compareFlowWindows } from "../../../stats/index.js";
-import { claimWorktrees } from "../../../activity/index.js";
+import { recordedClaimWorktrees } from "../../../activity/index.js";
 import { claimOverlaps } from "../../../items/index.js";
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
@@ -53,7 +53,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     const items = store.listItems(board);
-    const overlaps = claimOverlaps(items, claimWorktrees(items, store.listAgents(board)));
+    const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     const overlapState = Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
