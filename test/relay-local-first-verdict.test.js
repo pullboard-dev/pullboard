@@ -89,7 +89,7 @@ test('a queued accept for an old head is refused after a peer resubmission on bo
   const nextCommit = box.git(box.web, 'rev-parse', 'HEAD');
   const nextTree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   // Only this replacement submission is synthetic: its descriptor explicitly declares that it ran no gate.
-  const submission = prepareEngineMove(online, 'submit', [1, { agentId: item.item_built_by, commit: nextCommit,
+  const submission = prepareEngineMove(online, 'submit', [1, { agentId: item.item_built_by, commit: nextCommit, policyCommit: trunk,
     tree: nextTree, submissionProof: { version: 1, files: [], full: false, deferred: true,
       reason: 'synthetic resubmission for replay semantics; no gate execution' } }],
   { id: 'peer-submits-new-head', actor: item.item_built_by });
