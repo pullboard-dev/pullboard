@@ -1388,6 +1388,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/changed-static.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/main-red-failure-lines-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
