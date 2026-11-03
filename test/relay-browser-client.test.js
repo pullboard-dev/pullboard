@@ -301,11 +301,11 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   await press(chrome, "document.querySelector('[data-tab=items]')");
   try { await chrome.waitFor('document.querySelector("[data-pane=items]") && !document.querySelector("[data-pane=items]").hidden && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
   catch (error) {
-    const state = await chrome.evaluate('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
+    const state = await chrome.stable('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
     error.message += '; fixture browser state: ' + JSON.stringify(state);
     throw error;
   }
-  const checkpointItems = await chrome.evaluate(`Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') }))`);
+  const checkpointItems = await chrome.stable(`Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') }))`);
   assert.ok(checkpointItems.some(item => item.title === initialTitle), 'the initial checkpoint exposes the added item alongside fixture seeds');
   const loadsBefore = box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
 
@@ -321,7 +321,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     await postAndApplyMove(box, link, key, checkpointN + index + 1, move);
   }
   await chrome.waitFor(pendingTitles.map(title => 'document.querySelector("#relay-notice")?.textContent.includes(' + JSON.stringify(title) + ')').join(' && '));
-  const pendingView = await chrome.evaluate(`(() => ({
+  const pendingView = await chrome.stable(`(() => ({
     items: Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') })),
     activity: document.querySelector('#relay-notice')?.textContent ?? '',
     pending: Array.from(document.querySelectorAll('#relay-notice p')).filter(row => row.textContent.startsWith('Pending event #')).length,
@@ -351,7 +351,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     assert.equal(published.status, 200, 'the private relay accepts checkpoint N+3');
   } else await publishApi2Checkpoint(box, link.board, checkpointN + 3);
   await chrome.waitFor(pendingTitles.map(title => 'document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(title) + ')').join(' && '));
-  const settledView = await chrome.evaluate(`(() => ({
+  const settledView = await chrome.stable(`(() => ({
     items: Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') })),
     activity: document.querySelector('#relay-notice')?.textContent ?? '',
     pending: Array.from(document.querySelectorAll('#relay-notice p')).filter(row => row.textContent.startsWith('Pending event #')).length,
