@@ -598,7 +598,7 @@ export async function submitHere(ctx, id, infra) {
     { name: 'preflight', run: async () => {
       if (remoteMode) return runRemotePart('preflight');
       return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
-        code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
+        code: [fileURLToPath(new URL('../../../../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
       () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
     } },
     ...(remoteMode ? [{ name: 'selection', run: () => runRemotePart('selection') }] : []),
@@ -643,7 +643,7 @@ export async function submitHere(ctx, id, infra) {
       try {
         if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
           await withItemPatchSubmit(root, companion, async gateRoot => {
-            const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+            const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
             const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
               source: companion?.commit ?? commit, code: [checker] }, () => {
               const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
