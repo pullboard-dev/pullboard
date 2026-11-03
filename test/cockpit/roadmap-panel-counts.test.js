@@ -53,9 +53,9 @@ test('the roadmap panel counts the next release by stage [N26]', {
     return {next:document.querySelector('#roadmap-list > .milestone > .release-header .release-name').textContent,
       counts:[...document.querySelectorAll('#roadmap .roadmap-desktop-shipping [data-shipping-stage]')].filter(e=>e.getBoundingClientRect().height>0).map(e=>[e.dataset.shippingStage,e.querySelector('dd').textContent]),
       shipped:last ? [...last.children].map(e=>e.textContent) : null,
-      panel:rect(card),desktop:rect(card.querySelector('.roadmap-desktop-shipping')),mobile:rect(document.querySelector('.roadmap-list .roadmap-summary')),
+      panel:rect(card),desktop:rect(card.querySelector('.roadmap-desktop-shipping')),mobile:rect(document.querySelector('.roadmap-list .roadmap-mobile-shipping')),
       heading:rect(document.querySelector('#roadmap-list > .milestone > .release-header .release-name')),
-      mobileCounts:rect(document.querySelector('#roadmap-list > .milestone > .roadmap-summary .roadmap-summary-legend')),
+      mobileCounts:rect(document.querySelector('#roadmap-list > .milestone > .roadmap-mobile-shipping .roadmap-stage-counts')),
       headerCounts:[...document.querySelector('#roadmap-list > .milestone').querySelectorAll('[data-summary-state]')].map(e=>[e.dataset.summaryState,e.querySelector('b').textContent]),
       documentWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth,viewportHeight:document.documentElement.clientHeight};
   })())`));
