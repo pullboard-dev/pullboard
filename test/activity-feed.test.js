@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard, draftSpecRow, nativeBoardPorts } from '../src/native-board.js';
+import { openBoard, draftSpecRow, nativeBoardPorts } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';

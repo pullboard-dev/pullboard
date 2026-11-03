@@ -74,7 +74,9 @@ let cancelDropWait = () => {};
 if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`)} && host !== ${JSON.stringify(`${HOST}-setup`)}) {
   record({ refused: true, stdinBytes }); process.exit(255);
 }
-if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) {
+// Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
+const workerCommand = remoteCommand.includes(' --input-type=module -e ');
+if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }

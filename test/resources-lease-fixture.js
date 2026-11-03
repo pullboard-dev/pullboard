@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
@@ -304,8 +304,8 @@ function inheritedAdmissionProof(box) {
   const program = `
 import assert from 'node:assert/strict';
 import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href)};
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)}
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href)}
 const root = process.cwd();
 const lease = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', root, agent: 'inherited-admission-control' });
 Object.assign(process.env, gateSlotEnvironment(lease));

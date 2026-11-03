@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { awaitRoundTrip, phaseCounts, startToolingCli } from './runner-tooling-fixture.js';
