@@ -1000,6 +1000,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           // Node 22.13 leaves ordinary/file completions untyped; newer versions label them as tests.
           if (file && details?.passed === false && (details.type === undefined || details.type === 'test') && !firstFailure) {
             if (hungFiles.has(file)) return;
+            // Once this shard stops, its in-flight files end aborted: interrupted by the stop, never its first failure.
+            if (controller.signal.aborted || details.error?.failureType === 'testAborted') return;
             // A failure a live person waiver covers does not stop the run; every other file still runs.
             if (landingFailureWaived(waivers, file, name)) { waivedFiles.set(file, waivedFiles.get(file) ?? true); return; }
             // A file or suite failing only through its tests was decided by those tests already.
@@ -1016,6 +1018,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           if (data.success === false) successful = false;
           if (data.file) {
             startedFiles.add(data.file);
+            // A file cancelled by this shard's stop did not complete; it is reported as interrupted, not failed.
+            if (data.success === false && controller.signal.aborted) return;
             completedFiles.add(data.file);
             if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true && !hungFiles.has(data.file)) {
               firstFailure = { file: data.file, name: 'test file failed before a test completed' };
