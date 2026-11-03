@@ -100,7 +100,10 @@ async function remoteCells(encoded) {
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
     const entry = join(directory, 'trusted-cells-entry.mjs');
     writeFileSync(entry, `import { requireSubmitCells } from '../../../../src/bin/cells-submit-checks.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../../../../src/packages/gate/index.js';
+import { importsIn } from '../../../../src/packages/gate/index.js';
+import { commonJsIn } from '../../../../src/packages/gate/index.js';
+import { withImportParseCache } from '../../../../src/packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../src/packages/gate/index.js';
 import { withMainCheckout } from '../../../../src/packages/landing/index.js';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,

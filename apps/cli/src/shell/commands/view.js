@@ -2,7 +2,7 @@
 import {
   launchBackgroundView,
   reportView,
-} from '../../../../../src/background-view.js';
+} from '../../../../view/index.js';
 import {
   CONFIG_FILE,
   loadConfig,
@@ -26,7 +26,7 @@ import {
 import {
   exportView as exportProvidedView,
   serveView as serveProvidedView,
-} from '../../../../../src/serve.js';
+} from '../../../../view/index.js';
 import {
   defaultViewPort,
 } from '../../../../../packages/config/index.js';
@@ -35,7 +35,7 @@ import {
   forgetView,
   rememberView,
   runningView,
-} from '../../../../../src/view-session.js';
+} from '../../../../view/index.js';
 import {
   spawn,
 } from 'node:child_process';

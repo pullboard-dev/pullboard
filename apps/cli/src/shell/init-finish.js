@@ -46,7 +46,7 @@ import {
   relayOfferAtInit,
 } from './init.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { HOSTED_ORIGIN } from '../../../../src/serve.js';
+import { HOSTED_ORIGIN } from '../../../view/index.js';
 
 export const SETUP_COMMIT_QUESTION = 'Commit Pullboard setup now? [Y/n] ';
 export const SETUP_COMMIT_LATER = "To commit Pullboard's files: pullboard init --yes";

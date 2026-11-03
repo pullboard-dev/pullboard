@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { archiveMaintenanceWorktree, maintenanceArchiveMatches, maintenanceGit, maintenanceSnapshot } from '../src/shell/worktree-maintenance-archive.js';
+import { archiveMaintenanceWorktree } from '../src/shell/worktree-maintenance-archive.js';
+import { maintenanceArchiveMatches } from '../src/shell/worktree-maintenance-archive.js';
+import { maintenanceGit } from '../src/shell/worktree-maintenance-archive.js';
+import { maintenanceSnapshot } from '../src/shell/worktree-maintenance-archive.js';
 
 function project(t) {
   const directory = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-archive-fixture-')));

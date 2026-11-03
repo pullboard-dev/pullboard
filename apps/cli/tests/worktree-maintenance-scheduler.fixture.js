@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
@@ -18,7 +19,8 @@ import { runFixtureChild } from '../../../test/fixture-child.js';
 import { isolateTestMachine } from '../../../packages/gate/index.js';
 import { processCensus } from '../../runner/index.js';
 import { maintenanceGit } from '../src/shell/worktree-maintenance-archive.js';
-import { scheduleWorktreeMaintenance, runScheduledMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
+import { scheduleWorktreeMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
+import { runScheduledMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
 
 function project(t, enabled) {
   const root = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-timer-fixture-')));

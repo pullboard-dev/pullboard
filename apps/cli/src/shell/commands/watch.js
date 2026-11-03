@@ -1,7 +1,7 @@
-import { viewApiPorts } from '../../../../../src/view-api-ports.js';
+import { viewApiPorts } from '../../../../view/index.js';
 /** The pullboard watch command, in its own module so an item adding another command never edits these lines. */
 import { nativeBoardOpeners } from '../cli-context.js';
-import { runningView } from '../../../../../src/view-session.js';
+import { runningView } from '../../../../view/index.js';
 import { refusalDocument } from '../../core/next-step-words.js';
 import {
   watchCommand,
