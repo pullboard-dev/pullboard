@@ -2,7 +2,7 @@
 import {
   itemSummary,
   withListFields,
-} from "../../../../src/item-list.js";
+} from "../../../items/core.js";
 import { encodePagedSnapshot } from "./relay-page-layout.js";
 
 /** Project current list fields without pulling the native lifecycle implementation into phone readers. */
