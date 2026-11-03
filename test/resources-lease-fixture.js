@@ -1,5 +1,6 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
+import { checkBaseline } from '../packages/gate/index.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -197,10 +198,12 @@ function itemLeaseFixture(t, helpers) {
     const folder = join(box.dir, `item-gate-${number}`);
     mkdirSync(folder);
     const gate = helpers.holdingGate({ dir: folder });
-    const added = clockedCli(box, box.repo, 'add', 'web', `Queued lease ${number}`, '--specs', 'G1',
-      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--wait', '--json');
-    assert.notEqual(added.item.item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
-    const id = added.item.item_id;
+    // Baseline measurement is setup, not the queued CLI under test. Measure it directly to avoid
+    // four additional CLI/worker startups while preserving a real completed baseline for each item.
+    const baseline = checkBaseline(box.repo, gate.command, { main: box.git(box.repo, 'rev-parse', 'main') });
+    const id = store.addItem(box.board, { by: 'coordinator', lane: 'web', title: `Queued lease ${number}`,
+      specIds: ['G1'], criterion: 'The queued command retains only its own live item lease.', check: gate.command, checkBaseline: baseline });
+    assert.notEqual(store.getItem(box.board, id).item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
       // Each item has independent ancestry: a pending review cannot be another submit's base.
