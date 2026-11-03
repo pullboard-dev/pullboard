@@ -2,6 +2,7 @@
   "version": 1,
   "cells": {
     "api": 2,
+    "cli": 27,
     "config": 4,
     "doctrine": 1,
     "gate": 43,
@@ -22,7 +23,6 @@
     "state": 41,
     "store": 114,
     "temporary": 1,
-    "unmapped": 1,
-    "verify": 3
+    "verify": 2
   }
 }
