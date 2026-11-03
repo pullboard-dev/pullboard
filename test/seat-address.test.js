@@ -55,8 +55,6 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.ok(!document(await second.cliAt(sender.path, 'inbox')).shouts.some(row => row.shout_id === sent.id), 'the sender is not the addressee');
   assert.equal(document(await box.cliAt(recipient.path, 'whoami')).address, initial.address, 'pairing and synchronization do not rename a seat');
 
-  const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
-
   const foreign = initial.address.replace(/^pullboard:[0-9a-f]{32}:/u, 'pullboard:ffffffffffffffffffffffffffffffff:');
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
   assert.notEqual(ungranted.code, 0);
@@ -87,6 +85,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const denied = await second.cliAt(sender.path, 'shout', initial.address, 'After known revocation');
   assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
+  const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
   assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
