@@ -8,7 +8,7 @@ import {
   mainRedBuildRouting,
 } from '../../../store/index.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   dispatchWork,
 } from '../../../store/index.js';
@@ -81,6 +81,9 @@ export async function nextTake(ctx, values = {}, services) {
     const picked = selected(ctx, board, values, services);
     const me = whoAmI(ctx, board);
     if (picked.buildOffer || picked.releaseRequest || picked.held && !picked.review || !picked.item) return picked;
+    if (!picked.review && (picked.item.item_lane !== me.lane || !store.ROUTES.includes(me.route)
+      || !store.ROUTES.includes(picked.item.item_route) || !store.canTake(me.route, picked.item.item_route)))
+      return { reasons: [`#${picked.item.item_id} is available in ${picked.item.item_lane} on the ${picked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
     ctx.io.nextPhase?.(picked.review ? 'review reservation' : 'claim', picked.item.item_id);
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {

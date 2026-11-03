@@ -85,7 +85,7 @@ async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
-  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
+  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
