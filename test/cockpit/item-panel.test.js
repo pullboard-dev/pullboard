@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { addItem } from '../../src/board.js';
 import { closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { machine } from './fixture.js';
 import { project } from './fixture.js';
 import { build } from './fixture.js';

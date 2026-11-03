@@ -1,8 +1,8 @@
 /** Review wording, metadata and prepared links are plain renderer inputs [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { verdictHtml } from '../../src/view/verdict-render.js';
-import { visibleVerdictNote } from '../../src/view/verdict-render.js';
+import { verdictHtml } from '../../apps/view/src/core/view/verdict-render.js';
+import { visibleVerdictNote } from '../../apps/view/src/core/view/verdict-render.js';
 
 test('verdict presentation keeps prepared note links and escapes every plain metadata field [N26,C7]', () => {
   const accepted = verdictHtml({ verdict: { decision: 'ACCEPT', reason: 'PASS & <safe>', commit: 'abcdef1234567890' },

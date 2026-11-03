@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/runners/src/shell/runner-dispatch.js */
 /** @pullboard-test-loads packages/runners/src/shell/runner-health.js */
-/** @pullboard-test-loads src/runner-transport.js */
+/** @pullboard-test-loads packages/runners/index.js */
 /** @pullboard-test-loads src/runner-worker.js */
 /** @pullboard-test-loads bin/runner-controller.js */
 /** @pullboard-test-loads packages/gate/src/shell/gate.js */
@@ -54,7 +54,7 @@ function transport(t, mode) {
   const probeReplies = join(box.dir, 'job-probe-replies.jsonl');
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   renameSync(ssh, join(bin, 'ssh-delegate'));
-  const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('src/runner-transport.js'))};
+  const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('packages/runners/index.js'))};
 import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const [root,encoded]=process.argv.slice(1), recovery=JSON.parse(encoded);
 if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery,processCensus))process.exit(2);

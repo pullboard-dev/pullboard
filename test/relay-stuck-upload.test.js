@@ -111,7 +111,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
       const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
-      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { relayOrdering } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const diagnostics = [];
@@ -550,7 +550,7 @@ test('a refused later checkpoint names each distinct ordered move with the same 
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
-      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+      const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
       const { relayOrdering } = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
     const root = process.cwd();
