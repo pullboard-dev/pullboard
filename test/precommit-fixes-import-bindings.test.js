@@ -140,3 +140,9 @@ test('a staged source symlink never makes the fixer rewrite its target [C7]', t 
   assert.equal(box.git('show', ':src/link.js'), staged);
   assert.equal(box.git('diff', '--name-only'), '');
 });
+
+
+test('a method named import is ordinary executable code and never an import-binding block [C7]', () => {
+  const source = 'class Values {\n  import() {\n    first, second;\n  }\n}\n';
+  assert.deepEqual(splitImportBindings(source), { source, changed: false });
+});

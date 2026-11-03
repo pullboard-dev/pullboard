@@ -62,7 +62,7 @@ export function splitImportBindings(source) {
     }
     // Fixture strings, template text, regular expressions and comments have no import tokens here.
     if (!/^\s*import\b/u.test(tokens)) { out.push(line); continue; }
-    if (/^\s*import\b[^'";{}]*\{\s*$/u.test(line)) { inBlock = true; out.push(line); continue; }
+    if (/^\s*import\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?\{\s*$/u.test(tokens)) { inBlock = true; out.push(line); continue; }
     out.push(...(splitLine(line) ?? [line]));
   }
   const rewritten = out.join('\n');
