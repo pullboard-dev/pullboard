@@ -725,6 +725,12 @@ globalThis.fetch = function tracedFetch(input, init) {
   assert.equal(runFixtureChild('git', ['add', 'README.md'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   assert.equal(runFixtureChild('git', ['commit', '-q', '-m', 'fixture base'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'fixture clone starts from a committed project');
   assert.equal((await cli('init')).code, 0);
+  // Waiver signing is guarded by committed coordinator policy before it reaches the person-signing check [E22].
+  const policyPath = join(root, 'pullboard.json');
+  const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
+  writeFileSync(policyPath, JSON.stringify({ ...policy, landing: { ...policy.landing, manualOverride: true } }, null, 2) + '\n');
+  assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'initialized coordinator policy is staged');
+  assert.equal(runFixtureChild('git', ['commit', '-q', '-m', 'commit initialized coordinator policy'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'initialized coordinator policy is committed');
   assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
   assert.equal((await cli('add', lane, 'private cleanup fixture item')).code, 0);
