@@ -2,7 +2,7 @@ import { seatFamily } from '../../../../src/family-declaration.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
 import * as store from '../../../../src/board.js';
 import { withPrivateBoard } from '../../../../src/projects.js';
-import { originRepository } from '../../../../src/github-origin.js';
+import { originRepository } from '../../../seats/index.js';
 import { relayMachineOwner } from '../../../../src/relay-machine.js';
 import { relayMachineContext } from '../../../../src/relay.js';
 import { Refused } from '../../../kernel/index.js';

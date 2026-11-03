@@ -1,4 +1,5 @@
 import { nextIdleChanged } from '../../packages/store/index.js';
+import { sayQueuedReds } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { claimWorktrees } from '../../packages/activity/index.js';
@@ -24,7 +25,7 @@ import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { seatLeadLine } from '../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
@@ -82,6 +83,7 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
@@ -141,7 +143,7 @@ async function nextWithProgress(io, values, progress) {
         else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
       } else {
-        if (found.seat && found.seat.path !== origin) io.say(seatCheckout.seatLeadLine(found.seat, item, found.held));
+        if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);

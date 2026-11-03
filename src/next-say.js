@@ -13,14 +13,15 @@ import { Refused } from '../packages/kernel/index.js';
 export function sayReviewOffer(ctx, found) {
   const command = `pullboard next --verify ${found.item.item_id}${ctx.info.isMain ? ' --as coordinator' : ''}`;
   const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
-  ctx.io.result?.({ item: found.item, review: true, held: Boolean(found.offer.held), shared: [], offer, build: found.build });
+  ctx.io.result?.({ item: found.item, review: true, held: Boolean(found.offer.held), shared: [], offer, build: found.build, ...(found.buildHeld ? { buildHeld: true } : {}) });
   ctx.io.say(found.offer.urgent === 'held-review' ? `${reviewQueueLine(ctx, offer.queue, span)}; resume the review already reserved by this seat`
     : found.offer.urgent === 'main-red' ? `${reviewQueueLine(ctx, offer.queue, span)}; this review repairs a failure on current main`
     : found.offer.urgent ? `${reviewQueueLine(ctx, offer.queue, span)}; this submission has waited over ${found.offer.starveMinutes ?? 10} minutes without a reviewer`
     : `${reviewQueueLine(ctx, offer.queue, span)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);
   const agents = withBoardRead(ctx, (board) => store.listAgents(board));
   ctx.io.say(`review offered: #${found.item.item_id} ${found.item.item_title}, built by ${agentDisplayName(agents, ctx.config, found.item.item_built_by)}; reserve it explicitly: ${command}`);
-  if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
+  if (found.buildHeld) ctx.io.say(`build #${found.build.item_id} stays held with its lease and folder; after the verdict, pullboard next resumes it`);
+  else if (found.build) ctx.io.say(`build available: #${found.build.item_id} ${found.build.item_title}; claim it explicitly: pullboard next --build`);
   else ctx.io.say('no build is currently free in your lane; this review is available');
 }
 

@@ -14,7 +14,7 @@ import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 // CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.
 test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', async t => {
-  const { agentCpuFindings } = await import('../src/sentinel-cpu.js');
+  const { agentCpuFindings } = await import('../packages/sentinels/index.js');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-'));
   const root = join(directory, 'repo'), work = join(directory, 'core');
   mkdirSync(root); mkdirSync(work);

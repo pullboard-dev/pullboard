@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { workQueue } from '../packages/items/index.js';
+import { refreshCodeMap } from '../packages/codemap/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../packages/state/index.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
@@ -24,7 +25,9 @@ import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
@@ -449,7 +452,7 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
   orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
-  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'a main-red priority takes precedence over an explicit coordinator rank');
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
@@ -1032,4 +1035,44 @@ test('blocked release --on records and coordinator edit --after none clears the 
   box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
   box.json(box.run(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json'));
   box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+});
+
+
+test('next does not hand out an item whose functions overlap work in progress [N2,N20,C7]', t => {
+  const helpers = createE2eHelpers(), box = helpers.sandbox();
+  const root = join(box.dir, 'function-queue');
+  for (const dir of ['src', 'bin', 'test', 'packages', 'apps']) mkdirSync(join(root, dir), { recursive: true });
+  writeFileSync(join(root, 'src/shared.js'), 'export function alpha() { return 1; }\nexport function beta() { return 2; }\nexport function gamma() { return alpha(); }\n');
+  writeFileSync(join(root, 'test/shared.test.js'), "import '../src/shared.js';\n");
+  writeFileSync(join(root, 'bin/record-args.js'), "require('node:fs').writeFileSync('ran.json', JSON.stringify(process.argv.slice(2)));\n");
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', 'src', 'bin', 'test');
+  box.git(root, 'commit', '-qm', 'seed function map');
+  refreshCodeMap(root, box.git(root, 'rev-parse', 'HEAD').trim());
+  const board = openBoard(join(root, 'board.sqlite'), undefined, { gitRoot: root });
+  t.after(() => { store.closeBoard(board); helpers.cleanup(); });
+  store.register(board, { lane: 'coordinator', path: root });
+  const busy = store.register(board, { lane: 'core', path: join(root, 'busy'), route: 'strong' });
+  const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong' });
+  const add = title => store.addItem(board, { by: 'coordinator', lane: 'core', title, brief: 'Files: src/shared.js' });
+  const active = add('Change alpha()');
+  store.claim(board, active, { agentId: busy, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const conflict = add('Improve alpha()');
+  const independent = add('Improve beta()');
+  const picked = store.nextFor(board, { agentId: builder, lane: 'core' });
+  assert.equal(picked.item.item_id, independent, 'the same function waits, but a distinct function in the same file may proceed');
+  assert.ok(picked.reasons.some(reason => reason.includes(`#${conflict}`) && reason.includes('alpha')));
+  store.claim(board, independent, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const third = store.register(board, { lane: 'core', path: join(root, 'third'), route: 'strong' });
+  const adjacent = add('Improve gamma()');
+  const next = store.nextFor(board, { agentId: third, lane: 'core' });
+  assert.equal(next.item.item_id, adjacent);
+  assert.ok(next.reasons.some(reason => reason.includes('call-adjacent') && reason.includes('test/shared.test.js')));
+  assert.deepEqual(next.crossRunTests, ['test/shared.test.js']);
+  const main = box.git(root, 'rev-parse', 'HEAD').trim();
+  const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node bin/record-args.js', submitGate: 'landing', submitInvariants: [], registryGuards: [] },
+    { base: main, trunk: main, changed: [], check: null, crossRunTests: next.crossRunTests });
+  const run = spawnSync('/bin/sh', ['-c', plan.proofCommand], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.ok(JSON.parse(readFileSync(join(root, 'ran.json'), 'utf8')).includes('./test/shared.test.js'), 'the selected cross-run test actually reaches the proof command');
 });

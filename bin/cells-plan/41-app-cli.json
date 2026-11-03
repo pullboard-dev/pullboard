@@ -1369,6 +1369,11 @@
       "src/cli-main/run-main.js",
       "apps/cli/src/shell/cli-main/run-main.js",
       "rule"
+    ],
+    [
+      "src/submit-remote-gate.js",
+      "apps/cli/src/shell/submit-remote-gate.js",
+      "rule"
     ]
   ],
   "reexports": [

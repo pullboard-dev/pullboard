@@ -22,7 +22,7 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   }
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion;
   const cutRows = readCutItems();
-  const shell = submitCellsRemoteCommand({ main, source, criterion, cutRows, node: lease.runner.node ?? 'node' });
+  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, node: lease.runner.node ?? 'node' });
   const tree = git(root, ['rev-parse', `${source}^{tree}`]).trim();
   const checkedSource = { commit: source, tree };
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell,
@@ -61,12 +61,12 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
 }
 
 /** Construct a data-only request to run the accepted-main checker in a private runner checkout. */
-export function submitCellsRemoteCommand({ main, source, criterion, cutRows, node = 'node' }) {
+export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, node = 'node' }) {
   if (![main, source].every(value => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value))
     || main.length !== source.length || typeof criterion !== 'string' || !Array.isArray(cutRows) || typeof node !== 'string' || !node) {
     throw new TypeError('cell analysis needs pinned commits, criterion and cut rows');
   }
-  const data = Buffer.from(JSON.stringify({ main, source, criterion, cutRows })).toString('base64');
+  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows })).toString('base64');
   const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => { console.error(error?.stack ?? String(error)); process.exitCode = 1; });`;
   return `${shellWord(node)} --input-type=module -e ${shellWord(script)}`;
 }
@@ -104,7 +104,7 @@ import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from 
 import { withMainCheckout } from './packages/landing/index.js';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
-  { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
+  { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
     cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => input.cutRows,
   });

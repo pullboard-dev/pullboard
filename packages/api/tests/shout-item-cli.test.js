@@ -5,9 +5,14 @@ import {
   test,
 } from 'node:test';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
 import { moveArgs } from '../../person/index.js';
+import { derivedFamily } from '../../items/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const fixtures = createE2eHelpers();
@@ -64,4 +69,95 @@ test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2
       assert.deepEqual(store.events(board), before, 'refused news appends no native event');
     }
   } finally { store.closeBoard(board); }
+});
+
+test('an unchanged inbox read never waits on the board write lock while another seat holds a claim [R2,N26,B3]', () => {
+  const box = fixtures.project('true');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  for (const [lane, title] of [['web', 'Quiet inbox'], ['api', 'Busy neighbour']]) {
+    const added = box.run(box.repo, 'add', lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', 'inbox stays read-only');
+    assert.equal(added.code, 0, added.err);
+  }
+  const neighbour = join(box.dir, 'api-seat');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/neighbour', neighbour, 'main');
+  for (const [root, args] of [[neighbour, ['join', 'api']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
+    const done = box.run(root, ...args);
+    assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
+  }
+  // Another writer holds the board for the whole read: a read that takes no write answers at once instead of
+  // queueing behind it for the busy timeout, as every agent's inbox did behind lapsed-claim maintenance (#2421).
+  const writer = new DatabaseSync(file);
+  try {
+    writer.exec('BEGIN IMMEDIATE');
+    const started = Date.now();
+    const read = box.run(box.web, 'inbox', '--json');
+    const waited = Date.now() - started;
+    writer.exec('ROLLBACK');
+    assert.equal(read.code, 0, read.err || read.out);
+    assert.ok(waited < store.BOARD_BUSY_TIMEOUT_MS, `a repeat inbox with nothing new waited ${waited} ms for the board write lock`);
+    const sent = box.run(box.repo, 'shout', 'web', 'something new for the web lane');
+    assert.equal(sent.code, 0, sent.err);
+    const delivered = JSON.parse(box.run(box.web, 'inbox', '--json').out);
+    assert.ok(delivered.shouts.some(shout => shout.shout_text === 'something new for the web lane'), 'new shouts are still delivered');
+  } finally { writer.close(); }
+});
+
+test('a seat whose session spans many seats derives its family without a per-seat event scan [R2,N26]', () => {
+  const box = fixtures.project('true');
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const seat = store.agentAt(board, box.web).agent_id;
+    const family = derivedFamily(board, seat);
+    const session = `fixture-session-${seat}`;
+    const meta = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value');
+    meta.run(`agent_session:${seat}`, session);
+    for (let peer = 0; peer < 40; peer++) meta.run(`agent_session:fixture-peer-${peer}`, session);
+    const prepared = [];
+    const prepare = board.db.prepare.bind(board.db);
+    board.db.prepare = sql => { prepared.push(sql); return prepare(sql); };
+    try { assert.equal(derivedFamily(board, seat), family, 'peers with no family records leave the derived family unchanged'); }
+    finally { delete board.db.prepare; }
+    assert.deepEqual(prepared.filter(sql => /event_by=\?/u.test(sql)), [], 'no query reads one seat\'s events at a time');
+  } finally { store.closeBoard(board); }
+});
+
+test('a repeat inbox with nothing new never scans the event, shout, seat or metadata tables [R2,N26]', () => {
+  const box = fixtures.project('true');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const added = box.run(box.repo, 'add', 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
+  assert.equal(added.code, 0, added.err);
+  for (const args of [['claim', '1'], ['inbox']]) {
+    const done = box.run(box.web, ...args);
+    assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
+  }
+  // Record every statement the quiet read prepares, in the real CLI process, then ask SQLite how it would run each.
+  const log = join(box.dir, 'inbox-sql.jsonl'), preload = join(box.dir, 'record-sql.mjs');
+  writeFileSync(preload, [
+    "import { DatabaseSync } from 'node:sqlite'; import { appendFileSync } from 'node:fs';",
+    'const prepare = DatabaseSync.prototype.prepare;',
+    `DatabaseSync.prototype.prepare = function (sql) { appendFileSync(${JSON.stringify(log)}, JSON.stringify(sql) + '\\n'); return prepare.call(this, sql); };`,
+  ].join('\n'));
+  const read = box.run(box.web, 'inbox', '--json');
+  assert.equal(read.code, 0, read.err || read.out);
+  const inherited = box.env.NODE_OPTIONS;
+  box.env.NODE_OPTIONS = [inherited, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
+  const quiet = box.run(box.web, 'inbox', '--json');
+  if (inherited === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = inherited;
+  assert.equal(quiet.code, 0, quiet.err || quiet.out);
+  assert.deepEqual(JSON.parse(quiet.out).shouts, [], 'the measured read had nothing new');
+  const statements = [...new Set(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)))]
+    .filter(sql => /^\s*(?:SELECT|WITH)\b/iu.test(sql));
+  assert.ok(statements.length > 0, 'the preload observed the quiet read');
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    // Item rows stay readable: activity interests walk the dependency and file graph of the items on the board.
+    const scans = statements.flatMap(sql => {
+      let plan;
+      // The same process also reads its machine-local sidecars; only statements over the board's own tables count.
+      try { plan = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail).join(' | '); }
+      catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
+      return /\bSCAN (?:event|shout|agent|board_meta)\b/u.test(plan) ? [`${plan} <- ${sql.replace(/\s+/gu, ' ').slice(0, 160)}`] : [];
+    });
+    assert.deepEqual(scans, [], 'a quiet inbox reads the event log, shouts, seats and metadata only by index');
+  } finally { db.close(); }
 });

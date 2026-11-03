@@ -38,12 +38,50 @@ function plainPatchRefusal() {
   throw new Refused('ITEM_PATCH_FORMAT', 'plain companions need matching safe --- a/path and +++ b/path headers with complete text hunks; use an ordinary unified diff without renames or binary data');
 }
 
+/** Remove only one Git mail envelope and its out-of-hunk signature; hunk content remains exact. */
+function formatPatchBody(patch) {
+  if (!/^From [a-f0-9]{40,64} Mon Sep 17 00:00:00 2001\n/u.test(patch)) return patch;
+  const start = patch.indexOf('\ndiff --git ');
+  const envelope = start < 0 ? '' : patch.slice(0, start);
+  if (start < 0 || !/^From: .+/mu.test(envelope) || !/^Subject: .+/mu.test(envelope)
+      || !/^Date: .+/mu.test(envelope)) plainPatchRefusal();
+  const body = patch.slice(start + 1), lines = body.split('\n');
+  let before = 0, after = 0;
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n];
+    if (before || after) {
+      if (line === '\\ No newline at end of file') continue;
+      if (![' ', '-', '+'].includes(line[0])) plainPatchRefusal();
+      if (line[0] !== '+') before--;
+      if (line[0] !== '-') after--;
+      if (before < 0 || after < 0) plainPatchRefusal();
+      continue;
+    }
+    if (line === '-- ') return lines.slice(0, n).join('\n') + '\n';
+    const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@(?: .*)?$/u.exec(line);
+    if (hunk) { before = Number(hunk[1] ?? 1); after = Number(hunk[2] ?? 1); }
+    if (/^From [a-f0-9]{40,64} Mon Sep 17 /u.test(line)) plainPatchRefusal();
+  }
+  if (before || after) plainPatchRefusal();
+  return body;
+}
+
+/** Split validated native records at file boundaries, preserving every hunk and its ordering. */
+export function itemPatchParts(patch) {
+  const normalized = normalizeItemPatch(patch);
+  itemPatchPaths(normalized);
+  return normalized.split(/(?=^diff --git )/mu).filter(Boolean).map(part => ({
+    paths: [...itemPatchPaths(part)], patch: part,
+  }));
+}
+
 /**
  * Add only Git file headers to a complete plain unified text diff at CLI intake.
  * Native Git-format records retain their exact bytes; hunk counts distinguish content from file headers.
  */
 export function normalizeItemPatch(patch) {
   if (typeof patch !== 'string' || !patch || patch.includes('\0') || Buffer.byteLength(patch, 'utf8') > 8 * 1024 * 1024) plainPatchRefusal();
+  patch = formatPatchBody(patch);
   if (patch.startsWith('diff --git ')) return patch;
   const lines = patch.split('\n'), output = [];
   let cursor = 0;

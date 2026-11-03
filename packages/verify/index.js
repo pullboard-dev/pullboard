@@ -44,3 +44,5 @@ export { compareVerification, comparisonCommand, renderVerificationComparison, r
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
+
+export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
