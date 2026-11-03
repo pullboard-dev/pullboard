@@ -95,9 +95,12 @@ function deadWorker(worker, job) {
   return Boolean(worker.started && observed && observed !== worker.started);
 }
 
-/** Recover only this authenticated builder's still-queued job, outside the native writer. */
+/**
+ * Recover only this authenticated builder's unfinished job, queued or running, outside the native writer. Why running
+ * too: a worker that died mid-gate (#2469, ITEM_LEASE_LOST) left its job running forever, refusing every resubmit.
+ */
 async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
-  if (observed?.agentId !== actor || observed.state !== 'queued') return;
+  if (observed?.agentId !== actor || !['queued', 'running'].includes(observed.state)) return;
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, observed));
   return withFileLock(join(directory, 'recovery.guard.sqlite'), () => recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory));
 }
@@ -112,10 +115,12 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
     const job = submitHandoff(board, itemId);
     return item?.item_status === 'claimed' && item.item_owner === actor && item.item_frozen_digest === observed.digest
-      && job?.id === observed.id && job.state === 'queued' ? job : null;
+      && job?.id === observed.id && job.state === observed.state ? job : null;
   });
   if (!current) return;
   try {
+    // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
+    if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
@@ -129,16 +134,25 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     return;
   } catch (error) {
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
-      `queued submit worker is dead and cannot be relaunched: ${error.message}; read its worker.log, then claim and resubmit the captured source`), { caller: 'seat' }) };
+      `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; read its worker.log, then claim and resubmit the captured source`), { caller: 'seat' }) };
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
       { agentId: actor, job: current.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
   }
 }
 
-/** Next may recover this seat's queued claims, never another seat or an already-running gate. */
+/** Next may recover this seat's queued or running claims whose worker is gone, never another seat's or a live gate. */
 export async function recoverOwnSubmitHandoffs(ctx, actor) {
   const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT item_id FROM item WHERE item_status='claimed' AND item_owner=?").all(actor)
-    .map(row => ({ itemId: row.item_id, job: submitHandoff(board, row.item_id) })).filter(row => row.job?.state === 'queued'));
+    .map(row => ({ itemId: row.item_id, job: submitHandoff(board, row.item_id) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
   for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, actor, job);
+}
+
+/**
+ * Before a submit compares sources, retire this seat's own handoff for the item when its worker is gone, so a dead
+ * job never refuses the next submit with SUBMIT_HANDOFF_PENDING; a live worker is left alone.
+ */
+export async function recoverItemSubmitHandoff(ctx, itemId, actor) {
+  const job = withBoardRead(ctx, board => submitHandoff(board, itemId));
+  await recoverSubmitHandoff(ctx, itemId, actor, job);
 }

@@ -14,6 +14,8 @@ import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { registerMaintenanceSchedulerTests } from './worktree-maintenance-scheduler.fixture.js';
 import { maintenanceTimerHealth } from '../src/shell/worktree-maintenance-scheduler.js';
 
+// These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
+delete process.env.PULLBOARD_RUNNER_JOB;
 registerMaintenanceSchedulerTests();
 
 /** Enable accepted maintenance only after the fixture's ordinary initialization and commits. */

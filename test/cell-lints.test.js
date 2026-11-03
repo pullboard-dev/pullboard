@@ -297,7 +297,10 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   box.put('packages/sample/index.js', 'export const value = 1;\n');
   box.remove('packages/other');
   box.remove(TRANSITION_FILE);
-  box.git('add', '-A'); box.git('commit', '-qm', 'test: delete the marker after the migration');
+  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
+  box.git('add', '-A'); box.git('commit', '-qm', 'test: main deletes the marker after the migration');
+  // The candidate's rise stays uncommitted: --check compares it with main counted now [C7].
+  box.put('apps/demo/index.js', "import { value } from '../../packages/sample/index.js'; console.log(value);\n");
   assert.equal(box.report().transition.active, false);
   assert.ok(cellLintGrowth(box.report(), baseline, { enforcedOnly: true }).some(row => row.metric === 'boundaries' && !row.advisory));
   assert.notEqual(run('--check').status, 0, 'deleting the marker restores strict identity growth');
@@ -498,7 +501,8 @@ test('the pre-cell transition reports size, files and edges while keeping baseli
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' }, 'advisory debt never raises the stored ratchet');
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   assert.equal(box.report().transition.active, true, 'an uncommitted path map is not accepted source evidence');
-  box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
+  // Main accepts only the map; the helper change stays the uncommitted candidate --check compares with main [C7].
+  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration');
   const after = box.report();
   assert.equal(after.transition.active, false, 'the exact committed package migration closes the transition');
   assert.deepEqual(after.transition.witness, ['src/previous.js', 'packages/sample/index.js']);

@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
-/** @pullboard-test-loads src/move-registry.js src/moves/*.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
+/** @pullboard-test-loads src/move-registry.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
 import './typed-request-registry.test.js';
@@ -23,9 +23,9 @@ import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { MOVE_REGISTRY } from '../src/move-registry.js';
+import { MOVE_REGISTRY } from '../packages/moves/index.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../apps/cli/index.js';
@@ -33,7 +33,7 @@ import { REGISTRY_AT } from './move-registry-fixture.js';
 import { registryFixtureBoard } from './move-registry-fixture.js';
 import { importsIn } from '../packages/gate/index.js';
 import { readdirSync } from 'node:fs';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../src/private-rehome-engine.js';
 import { registryProblems } from './move-registry-invariants.js';
@@ -189,7 +189,7 @@ if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta
   try {
     const forbidden=new Set(['src/board.js','src/engine.js','src/board-engine-ports.js','src/next-step-words.js','src/move-registry.js','src/git.js']);
     const seen=new Set();
-    let pending=['src/moves','packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
+    let pending=['packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
     while(pending.length) {
       const level=[...new Set(pending)].filter(file=>!seen.has(file));pending=[];
       for(const file of level) {
@@ -259,8 +259,8 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
   const forbidden = new Set(['src/board.js', 'src/engine.js', 'src/board-engine-ports.js', 'src/next-step-words.js', 'src/move-registry.js', 'src/git.js']);
   for (const [identity, path] of readPathMap(root)) if (forbidden.has(identity)) forbidden.add(path);
   const seen = new Set();
-  let pending = readdirSync(join(root, 'src/moves')).filter(file => file.endsWith('.js'))
-    .map(file => pathToFileURL(join(root, 'src/moves', file)).href);
+  let pending = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => readdirSync(join(root, folder)).filter(file => file.endsWith('.js'))
+    .map(file => pathToFileURL(join(root, folder, file)).href));
   while (pending.length) {
     const level = [...new Set(pending)].filter(file => !seen.has(file));
     pending = [];

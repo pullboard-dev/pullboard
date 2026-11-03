@@ -9,6 +9,7 @@ import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
+import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,
@@ -59,6 +60,8 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const prices = loadMachineSettings().costPrices;
   const id = idArg(first);
+  // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
+  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
   const { item, queuedSubmit, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const job = submitHandoff(board, id);

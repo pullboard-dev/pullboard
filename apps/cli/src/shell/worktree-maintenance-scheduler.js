@@ -143,6 +143,8 @@ function workerEnvironment(root) {
 /** Return immediately when disabled; a live or unknown existing timer is never replaced or signalled. */
 export async function scheduleWorktreeMaintenance(ctx) {
   if (ctx.config.worktreeMaintenance?.enabled !== true) return { scheduled: false, reason: 'disabled' };
+  // A runner job's processes die with the job; a detached timer would outlive it in the job's checkout (#2513).
+  if (process.env.PULLBOARD_RUNNER_JOB) return { scheduled: false, reason: 'runner-job' };
   let stage = 'lookup';
   try {
     const current = await canonical(ctx);

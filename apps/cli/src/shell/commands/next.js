@@ -22,6 +22,7 @@ import {
 import {
   refuseNextIdle,
 } from '../next-steps.js';
+import { reviewPacketLines } from '../../../../../packages/verify/index.js';
 import { reviewQueueLine } from '../../../../../packages/verify/index.js';
 import {
   Refused,
@@ -153,6 +154,8 @@ async function nextWithProgress(io, values, progress) {
         if (found.companions) io.say(`review tree checked out at ${found.companions.commit}; patch-set digest: ${found.companions.digest}; companions: ${found.companions.keys.join(', ')}`);
         else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
+        // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
+        for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);

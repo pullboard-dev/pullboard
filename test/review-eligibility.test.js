@@ -22,7 +22,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { familyIndex } from '../packages/verify/index.js';
 import { FAMILY_ALIAS_ENGINE } from '../src/family-alias-engine.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';

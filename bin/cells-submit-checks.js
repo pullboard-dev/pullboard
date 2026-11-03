@@ -21,8 +21,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
-import { readCellLintBaseline } from '../packages/codemap/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -315,8 +314,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
   newReport.transition = oldReport.transition;
-  const baseline = existsSync(join(mainRoot, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(mainRoot) : null;
-  if (!baseline) throw new Refused('CELLS_SUBMIT', 'accepted main lacks a complete cell lint baseline');
+  // The ratchet compares with main's own debt computed now; a committed snapshot that drifted never refuses an item [C7].
+  const baseline = cellLintBaseline(oldReport);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
