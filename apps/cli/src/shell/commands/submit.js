@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
+import { redGateReport } from '../../../../../packages/gate/index.js';
 import { runGateStages } from '../../../../../packages/gate/index.js';
 import { gateWaitReporter } from '../../../../../packages/gate/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
@@ -645,7 +646,7 @@ export async function submitHere(ctx, id, infra) {
   if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
     const accountingNote = (checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '')
       + (ambiguous.length ? `\nknown main with several candidate owners (these never fail the gate; the failure is elsewhere): ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}` : '');
-    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gate.testTiers ? displayedReport.replace(scope, testTierReport(gate.testTiers, { names: false })) : displayedReport}${accountingNote}${criterionProblem}`;
+    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${redGateReport(gate, summary, { registry, sections: [quarantineReport, mechanicalFlag] })}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);
