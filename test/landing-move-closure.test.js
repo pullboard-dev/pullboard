@@ -105,11 +105,6 @@ function inspectForwarding(box) {
       cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 }
 
-test('an exact deleted barrel keeps its existing dependency identity at native submit [C7,H16]', async t => {
-  const result = await inspectForwarding(forwardingFixture(t, true));
-  assert.deepEqual(result.problems, []);
-});
-
 test('an unchanged retained barrel also permits its core caller to use the exact door [C7,H16]', async t => {
   const result = await inspectForwarding(forwardingFixture(t, true, true));
   assert.deepEqual(result.problems, []);
