@@ -1327,7 +1327,7 @@ async function main(args) {
             process.exitCode = 1;
           }
         }
-      } finally { rmSync(sandbox, { recursive: true, force: true }); }
+      } finally { (await import('../packages/gate/index.js')).removeTestSandbox(sandbox); }
     }
   };
   try {
