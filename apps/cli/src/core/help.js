@@ -2,8 +2,6 @@
 import { VERSION } from '../../../../packages/config/index.js';
 import { ALL_HELP } from './help/sections.js';
 export { VERSION };
-
-
 const HELP_GROUPS = [
   ['Start', ['tour', 'init', 'worktree']],
   ['Work', ['add', 'list', 'claim']],
@@ -231,6 +229,8 @@ export function buildHelp(commandNames = []) {
 
 /** Browser consumers read pure help declarations without initializing the CLI or server. */
 export const HELP = buildHelp();
+/** Initialize the catalog only after its help data, so renderer re-exports never read an unfinished module. */
+export const PULLBOARD_COMMANDS = Object.freeze(commandPhrases().sort((left, right) => right.split(' ').length - left.split(' ').length));
 
 /** Replace help placeholders with ordinary values so every command receives a usable example. */
 function exampleFor(name, usage) {
