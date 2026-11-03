@@ -1,13 +1,48 @@
 /** Every landing runs the candidate's help, init, add, list, show, claim, next and status on a scratch board before main moves [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { runCommitCliSmoke, runLandingCliSmoke } from '../packages/landing/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { makeLandProjectFixtures } from './land-project-fixture.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+
+/** A project CLI that answers every command until an item's file asks it to break, as an import cycle would. */
+const BREAKABLE_CLI = [
+  "const fs = require('node:fs'); const path = require('node:path');",
+  "const file = path.join(__dirname, '..', 'web', 'land-1.test.js');",
+  "if (fs.existsSync(file) && fs.readFileSync(file, 'utf8').includes('BREAK')) throw new Error('import cycle in the command catalog');",
+].join('\n') + '\n';
+
+/**
+ * Land one accepted item whose merged tree breaks the project's own CLI through the ordinary, non-parallel path, and
+ * return main and origin before and after. `separate` takes the local-trunk path instead of the inline batch gate.
+ */
+function landBrokenCli({ separate }) {
+  const box = landProject();
+  const path = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  assert.notEqual(config.landing?.parallel, true, 'the fixture lands through the ordinary, non-parallel path');
+  if (separate) writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, publish: 'separate' } }, null, 2));
+  mkdirSync(join(box.repo, 'bin'));
+  writeFileSync(join(box.repo, 'bin', 'pullboard.js'), BREAKABLE_CLI);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: ship a project CLI');
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
+  const entry = itemWorktree(box, 1);
+  submitItem(box, entry, 'BREAK PASS\n');
+  acceptItem(box, entry);
+  const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.remote, 'rev-parse', 'main');
+  const landed = box.run(box.repo, 'land');
+  return { landed, main, origin, mainAfter: box.git(box.repo, 'rev-parse', 'main'), originAfter: box.git(box.remote, 'rev-parse', 'main') };
+}
 
 /** A candidate tree whose CLI entry throws on import, committed in a throwaway repository. */
 function brokenCandidate(t) {
@@ -43,4 +78,20 @@ test('a candidate that ships no CLI entry has nothing to smoke [C7]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-smoke-none-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   assert.deepEqual(runLandingCliSmoke(dir), { ran: [] });
+});
+
+test('a non-parallel inline landing whose candidate help throws is refused before main moves, naming the command [C7]', { timeout: 180_000 }, () => {
+  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: false });
+  assert.notEqual(landed.code, 0, landed.out);
+  assert.match(landed.err, /LAND_CLI_SMOKE/u);
+  assert.match(landed.err, /pullboard help/u);
+  assert.equal(mainAfter, main, 'main did not move');
+  assert.equal(originAfter, origin, 'origin did not move');
+});
+
+test('a local-trunk landing whose candidate help throws lands nothing, naming the command [C7]', { timeout: 180_000 }, () => {
+  const { landed, main, origin, mainAfter, originAfter } = landBrokenCli({ separate: true });
+  assert.match(`${landed.out}\n${landed.err}`, /nothing landed: .*pullboard help/u);
+  assert.equal(mainAfter, main, 'main did not move');
+  assert.equal(originAfter, origin, 'origin did not move');
 });

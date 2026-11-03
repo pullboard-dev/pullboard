@@ -112,9 +112,22 @@ export function landingRunObserver(state, config, commit) {
     } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
 }
 
+/**
+ * Smoke the candidate's own CLI on a scratch board once per tree, before its gate [C7].
+ * Why here: every automatic landing (inline, local trunk, parallel candidate, and their bisections) gates its final
+ * tree through gateGroup before publication, so this one boundary covers them all with no skip list.
+ */
+function smokeTree(state, tree) {
+  state.smoked ??= new Set();
+  if (state.smoked.has(tree)) return;
+  runLandingCliSmoke(state.batch.root);
+  state.smoked.add(tree);
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 export async function gateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
+  smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
   const { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
@@ -186,8 +199,6 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   await save(state, { ...build });
   // A conflicting prefix is not its requested composition. Never test the smaller accidental tree.
   if (build.conflicts.length || !build.items.length) return { batch: state.batch, gate: null };
-  // The candidate's own CLI must run on a scratch board before anything of it can reach main; no skip list applies [C7].
-  runLandingCliSmoke(batch.root);
   const tree = headTree(batch.root);
   const claimed = await claimGate(tree, batchGatePlan(state).affectedGate);
   if (claimed.previous) state.gates.set(tree, claimed.previous);
