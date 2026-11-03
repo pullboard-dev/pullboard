@@ -1,7 +1,20 @@
 /** Prepare a fresh private attempt from captured tools; a crashed job's dirty source and artifacts stay intact [C7,V4]. */
 import { randomUUID } from 'node:crypto';
-import { cpSync, constants, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import {
+  cpSync,
+  constants,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/index.js';
 
