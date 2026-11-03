@@ -21,7 +21,7 @@ test('shared row variants retain their layout and the default row expands in pla
   const item = sharedRowHtml({ id: '#27', title: 'A long item title that must stay on one line '.repeat(10), meta: 'view · N26',
     time: '9:12 PM', chip: 'view-213', state: 'open', attributes: { id: 'item-row', 'data-item': 27 },
     detailHtml: '<p id="expanded-content">The item expands here.</p>' });
-  const css = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8'));
+  const css = readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url), 'utf8').replace('/* @pullboard-items-row-styles */', readFileSync(new URL("../../apps/view/src/shell/view/item-rows.css", import.meta.url), 'utf8'));
   const html = '<!doctype html><meta charset="utf-8"><style>' + css + '\n#component-rows{width:min(32rem,90vw);list-style:none}</style>'
     + '<ol id="component-rows">' + needs + activity + item + '</ol>';
   const server = createServer((_request, response) => response.writeHead(200, { 'content-type': 'text/html' }).end(html));

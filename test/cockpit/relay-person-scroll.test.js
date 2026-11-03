@@ -49,7 +49,7 @@ test('a person request never moves the reading position under a 6× CPU throttle
       .end(cockpitPage('', { readOnly: true, requests: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
     if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-      .end(readFileSync(resolve(import.meta.dirname, '../../src/view.css')));
+      .end(readFileSync(resolve(import.meta.dirname, "../../apps/view/src/shell/view.css")));
     if (url.pathname === '/intent' && request.method === 'POST') {
       const receivedAt = Date.now();
       const chunks = [];

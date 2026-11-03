@@ -1,4 +1,5 @@
 import { spawnCaptured } from '../../../sandbox/index.js';
+import { withPathMapMoves } from './doctrine-path-map.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
@@ -410,7 +411,7 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
   const changed = diff.split('\0').filter(Boolean);
   const candidateTree = (gitOut(root, ['rev-parse', `${commit}^{tree}`]) ?? '').trim();
   const canFingerprint = cleanTree(root) === candidateTree;
-  const origins = renamedOrigins(root, base, commit);
+  const origins = withPathMapMoves(renamedOrigins(root, base, commit), root, base, commit, changed); // Git's renames and the cells path map's moves.
   const results = [];
   const refusals = [];
   const uncounted = [];
@@ -432,8 +433,7 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
     // A composed candidate exists only as Git objects, so it runs at its commit like main, never in this checkout.
     const run = yield { commit, command: rule.command, timeoutMs, candidate: commit === submitted, scope };
     const name = `${rule.id} ${rule.text}`;
-    // A broken check never passes, whatever its mode.
-    if (run.broken) {
+    if (run.broken) { // A broken check never passes, whatever its mode.
       results.push({ id: rule.id, text: rule.text, command: rule.command, count: 0, committed, holds: false, state: 'uncounted', mode: rule.mode, runs: rule.runs, problems: [], broken: run.broken });
       uncounted.push(`${name} cannot count: its check ${run.broken}`);
       continue;

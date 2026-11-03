@@ -35,7 +35,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as native from '../src/native-board.js';
+import * as native from '../apps/lib/index.js';
 import * as legacy from '../src/board.js';
 import { board as library } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';

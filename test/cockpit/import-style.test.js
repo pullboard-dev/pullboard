@@ -1,8 +1,9 @@
+/** @pullboard-test-input source-tree */
 /** View-owned import formatting follows the lane's two module declarations [C7]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../fixture-child.js';
 
@@ -82,8 +83,10 @@ process.stdout.write(JSON.stringify(JSON.parse(readFileSync(process.argv[1], 'ut
 }
 
 test('the view files import one name per line [C7]', { timeout: TEST_DEADLINE_MS }, () => {
-  const root = resolve(import.meta.dirname, '../..');
-  const sources = ['src/cockpit.js', 'src/serve.js'].map((file) => ({ file, source: readFileSync(join(root, file), 'utf8') }));
+  const sources = [
+    { file: 'src/cockpit.js', source: readFileSync(new URL('../../src/cockpit.js', import.meta.url), 'utf8') },
+    { file: 'apps/view/src/shell/serve.js', source: readFileSync(new URL('../../apps/view/src/shell/serve.js', import.meta.url), 'utf8') },
+  ];
   assert.deepEqual(importsSharingLines(sources), [], 'both View-owned files import one binding per line');
   const fixtures = [
     { file: 'same-line', source: "import { first, second as alias } from 'module';" },

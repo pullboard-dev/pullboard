@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { register } from '../../src/board.js';
 import { BIN } from './fixture.js';
 import { machine } from './fixture.js';
