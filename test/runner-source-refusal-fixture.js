@@ -62,7 +62,7 @@ try {
 }
 
 /** Prove four committed-source refusals happen before SSH, using a fresh real Git repository each. */
-export async function runnerSourceRefusalCases(t, runnerModule = resolve(import.meta.dirname, '../src/runners.js')) {
+export async function runnerSourceRefusalCases(t, runnerModule = resolve(import.meta.dirname, '../packages/runners/src/shell/runners.js')) {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-refusal-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const cases = [

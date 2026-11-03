@@ -7,7 +7,7 @@ import { runFixtureGit } from './fixture-child.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
