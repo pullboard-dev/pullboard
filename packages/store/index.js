@@ -33,7 +33,7 @@ export { dispatchWork } from './src/shell/dispatch-eligibility.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/shell/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/shell/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline } from './src/shell/item-check-baseline.js';
-export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds } from './src/core/known-main-reworks.js';
+export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds } from './src/core/known-main-reworks.js';
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/shell/local-state.js';
 export { mainRedBuildRouting } from './src/shell/main-red-build-routing.js';
 export { memoryHeldRuns } from './src/shell/memory-held.js';

@@ -220,25 +220,27 @@ test('merging an unaccepted branch never authorizes foreign changes [L3]', (t) =
   assert.ok(preCommitProblems({ ...box.context, approvedRowPorts }).some((problem) => problem.includes('view/file')));
 });
 
-test('installed pre-commit refuses tag-based foreign revert and deletion shortcuts [L3]', (t) => {
-  const reverted = nativeFixture(t);
-  writeFileSync(join(reverted.lane, 'core', 'file'), 'lane core\n');
-  let result = reverted.git(reverted.lane, 'add', '-A');
+// Since #2040 a lane may stage a foreign file exactly as accepted main or the merge base has it (a squash of main), so
+// these cases stage foreign content that neither has: only a real merge could authorize it, and a tag is not one.
+test('installed pre-commit refuses tag-based foreign edit and deletion shortcuts [L3]', (t) => {
+  const edited = nativeFixture(t);
+  writeFileSync(join(edited.lane, 'core', 'file'), 'lane core\n');
+  let result = edited.git(edited.lane, 'add', '-A');
   assert.equal(result.status, 0);
-  result = nativeCommit(reverted, reverted.lane);
+  result = nativeCommit(edited, edited.lane);
   assert.equal(result.status, 0, result.stderr);
-  writeFileSync(join(reverted.main, 'view', 'file'), 'accepted view\n');
-  result = reverted.git(reverted.main, 'add', '-A');
+  writeFileSync(join(edited.main, 'view', 'file'), 'accepted view\n');
+  result = edited.git(edited.main, 'add', '-A');
   assert.equal(result.status, 0);
-  result = nativeCommit(reverted, reverted.main);
+  result = nativeCommit(edited, edited.main);
   assert.equal(result.status, 0, result.stderr);
-  result = reverted.git(reverted.lane, 'tag', 'MERGE_HEAD', 'main');
+  result = edited.git(edited.lane, 'tag', 'MERGE_HEAD', 'main');
   assert.equal(result.status, 0);
-  writeFileSync(join(reverted.lane, 'view', 'file'), 'accepted view\n');
-  result = reverted.git(reverted.lane, 'add', '-A');
+  writeFileSync(join(edited.lane, 'view', 'file'), 'builder view\n');
+  result = edited.git(edited.lane, 'add', '-A');
   assert.equal(result.status, 0);
-  result = nativeCommit(reverted, reverted.lane);
-  assert.notEqual(result.status, 0, 'a tag cannot authorize an accepted-main revert');
+  result = nativeCommit(edited, edited.lane);
+  assert.notEqual(result.status, 0, 'a tag cannot authorize a foreign edit');
   assert.match(result.stderr, /outside the core lane: view\/file/u);
 
   const deleted = nativeFixture(t);
@@ -247,7 +249,7 @@ test('installed pre-commit refuses tag-based foreign revert and deletion shortcu
   assert.equal(result.status, 0);
   result = nativeCommit(deleted, deleted.lane);
   assert.equal(result.status, 0, result.stderr);
-  unlinkSync(join(deleted.main, 'view', 'file'));
+  writeFileSync(join(deleted.main, 'view', 'file'), 'accepted view\n');
   result = deleted.git(deleted.main, 'add', '-A');
   assert.equal(result.status, 0);
   result = nativeCommit(deleted, deleted.main);

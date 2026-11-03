@@ -106,6 +106,9 @@ export function assignEngineNumbers(root) {
   return { files, assigned };
 }
 
+/** Folders that hold move declarations: the src/moves shims while they last, then the moves cell's bodies [C7]. */
+const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves']);
+
 /**
  * Freeze source metadata at allocation, without importing or executing the candidate tree.
  * The legacy record opts Pullboard itself into this format; unrelated projects are untouched.
@@ -114,12 +117,16 @@ export function assignEngineNumbers(root) {
 function appendRegistryHistory(root, engine, leaves) {
   const directory = join(root, 'src', 'move-history');
   if (!existsSync(join(directory, 'legacy.json'))) return [];
-  const moves = join(root, 'src', 'moves');
-  if (![join(root, 'src'), directory, moves].every(path => lstatSync(path).isDirectory())
+  const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => existsSync(path));
+  if (!folders.length || ![join(root, 'src'), directory, ...folders].every(path => lstatSync(path).isDirectory())
       || !lstatSync(join(directory, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
-  const moveFiles = discovered(readdirSync(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move');
-  for (const file of moveFiles) if (!lstatSync(join(moves, file)).isFile()) throw new Error(`${file} must be a regular move declaration, never a source symlink`);
-  const declarations = Object.fromEntries(moveFiles.map(file => [file, readFileSync(join(moves, file), 'utf8')]));
+  // A packaged body replaces its src/moves shim of the same name, so the record is the same with or without the shims.
+  const sources = new Map();
+  for (const moves of folders) for (const file of discovered(readdirSync(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move')) {
+    if (!lstatSync(join(moves, file)).isFile()) throw new Error(`${file} must be a regular move declaration, never a source symlink`);
+    sources.set(file, join(moves, file));
+  }
+  const declarations = Object.fromEntries([...sources.keys()].sort().map(file => [file, readFileSync(sources.get(file), 'utf8')]));
   const record = { version: 1, engine: engine.number, name: engine.name,
     engines: leaves.filter(leaf => leaf.number !== null).map(({ file, name, number }) => ({ file, name, number })), declarations };
   const relative = `src/move-history/${engine.number}.json`;
