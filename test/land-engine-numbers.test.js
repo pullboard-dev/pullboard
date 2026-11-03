@@ -14,7 +14,7 @@ import { runFixtureChild } from './fixture-child.js';
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 
 /** Build an actual two-parent item merge with a new engine leaf and the production canonical plan tool. */
-function fixture(t) {
+function fixture(t, { deleteMoves = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-land-engine-plan-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   /** Write a synthetic source input, never a replacement for the production placement implementation. */
@@ -26,12 +26,14 @@ function fixture(t) {
   put('src/base-engine.js', 'export const BASE_ENGINE = 80;\n');
   put('src/engine-next.js', 'export const unassignedEngine = () => 81;\n');
   put('src/moves/example.js', 'export default { operation: "fixture", engine: 80 };\n');
+  // The moves cell holds the body; the item may delete the src/moves shim folder, as #1704 does.
+  put('packages/moves/src/core/moves/example.js', 'export default { operation: "fixture", engine: 80 };\n');
   put('src/move-history/legacy.json', '{"version":1}\n');
   // The fixture launcher delegates unchanged arguments to the actual canonical CLI, with this repository as cwd.
   put('bin/cells-plan.js', `import { spawnSync } from 'node:child_process';\nconst result = spawnSync(process.execPath, [${JSON.stringify(BIN)}, ...process.argv.slice(2)], { stdio: 'inherit' });\nprocess.exitCode = result.status ?? 1;\n`);
   put('bin/cells-plan/seed.json', JSON.stringify({ source: 'synthetic landing input', sha256: 'none',
     order: ['state', 'app:cli'], cells: { state: ['src/base-engine.js', 'src/engine-next.js',
-      'src/moves/example.js', 'src/move-history/legacy.json'], 'app:cli': ['bin/cells-plan.js'] }, tests: {} }));
+      'src/moves/example.js', 'packages/moves/src/core/moves/example.js', 'src/move-history/legacy.json'], 'app:cli': ['bin/cells-plan.js'] }, tests: {} }));
   for (const args of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'Landing fixture'], ['config', 'user.email', 'landing@example.invalid'], ['add', '-A'], ['commit', '-q', '-m', 'fixture base']])
     git(root, ...args);
   writePlan(root, computePlan(root));
@@ -41,6 +43,7 @@ function fixture(t) {
   put('src/feature-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const FEATURE_ENGINE = unassignedEngine();\n");
   git(root, 'add', 'src/feature-engine.js');
   placePath(root, 'src/feature-engine.js', { cell: 'state' });
+  if (deleteMoves) git(root, 'rm', '-rq', 'src/moves');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture item');
   git(root, 'checkout', '-q', 'main');
@@ -78,4 +81,12 @@ test('a canonical placement failure refuses before an unplaced history can be co
   assert.throws(() => amendLandingEngines(root), error => error.code === 'LAND_MERGE' && /src\/move-history\/81\.json/u.test(error.message));
   assert.equal(git(root, 'rev-parse', 'HEAD'), merge, 'the original merge was not amended after a failed placement');
   assert.notEqual(runFixtureChild('git', ['cat-file', '-e', `${merge}:src/move-history/81.json`], { cwd: root, encoding: 'utf8' }).status, 0, 'unplaced allocation never entered committed history');
+});
+
+test('landing a candidate that deletes src/moves numbers its engine from the moves cell [C7,H16]', t => {
+  const { root } = fixture(t, { deleteMoves: true });
+  const engines = amendLandingEngines(root);
+  assert.deepEqual(engines.assigned, [{ name: 'FEATURE_ENGINE', number: 81 }]);
+  const record = JSON.parse(git(root, 'show', 'HEAD:src/move-history/81.json'));
+  assert.deepEqual(Object.keys(record.declarations), ['example.js'], 'the history freezes the packaged body');
 });
