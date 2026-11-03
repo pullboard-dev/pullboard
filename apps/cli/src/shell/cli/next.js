@@ -100,7 +100,7 @@ export async function nextOnce(ctx, values) {
     if (picked.autoReview) return { retry: true, retryDetail: { phase: 'first-review reservation', item: picked.autoReview.item_id, code: 'REVIEW_BECAME_MANDATORY' } };
     if (!picked.claim) return picked;
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
-    const { me: holder, item, held, shared, reasons, reviewSkipped } = picked;
+    const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = picked;
     const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
@@ -111,7 +111,8 @@ export async function nextOnce(ctx, values) {
       throw error;
     }
     const itemFolder = await openNextFolder(target, board, holder, item.item_id);
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
+      ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
 }
 
