@@ -8,4 +8,5 @@ export { conditionalHoldFloor } from './src/core/stale-state-floor.js';
 export { staleStateSnapshot } from './src/core/stale-state-query.js';
 
 export { captureLapsedClaims, pinClaimHandoff } from './src/shell/stale-state-capture.js';
+export { sweepClaims } from './src/shell/claim-sweep.js';
 export { landingFailureFindings, landingFailureObservation } from './src/shell/landing-failure.js';
