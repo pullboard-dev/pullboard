@@ -10,7 +10,9 @@ import { submitFixture } from './board-submit-fixture.js';
 /** Bind native SQLite moves to real private Git history and hold the clock fixed throughout rejection and takeover. */
 function fixture(t, { engine = REJECT_OPEN_ENGINE, returnRejectedWork = true, reworkSameFamily = false } = {}) {
   const e2e = createE2eHelpers();
-  const box = e2e.project('true');
+  const isolated = e2e.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Reject takeover fixture';
+  const box = e2e.project('true', isolated);
   t.after(e2e.cleanup);
   const at = Date.parse('2026-11-03T12:00:00.000Z');
   const board = openBoard(':memory:', { now: () => new Date(at) }, { gitRoot: box.repo });
