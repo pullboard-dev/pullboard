@@ -3,8 +3,8 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { serveRunnerController } from '../src/runners.js';
-import { privateCheckEnvelope } from '../apps/runner/index.js';
-import { privateCheckPhases } from '../apps/runner/index.js';
+import { privateCheckEnvelope } from '../src/runner-private-mode.js';
+import { privateCheckPhases } from '../src/runner-private-mode.js';
 import { runnerItemState } from '../packages/resources/index.js';
 import { controllerDeadline } from '../packages/resources/index.js';
 import { probeRunnerJob } from '../src/runners.js';
