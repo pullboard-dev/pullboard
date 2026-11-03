@@ -11,6 +11,10 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
 const selected = new AsyncLocalStorage();
+const immutableViews = new WeakSet();
+
+/** Only internally captured source views may be read ahead. */
+export function hasImmutableBrowserSourceFiles() { return immutableViews.has(browserSourceFiles()); }
 export const realBrowserSourceFiles = Object.freeze({
   /** Read exact source bytes through the ordinary filesystem. */
   readFile(path, encoding) { return fs.readFile(path, encoding); },
@@ -66,7 +70,7 @@ export function memoryBrowserSourceFiles(entries) {
     if (!nodes.has(current)) throw refused('ENOENT', path);
     return current;
   }
-  return Object.freeze({
+  const view = Object.freeze({
     /** Return a fresh byte buffer so graph readers cannot mutate the captured source. */
     async readFile(path, encoding) {
       const node = nodes.get(canonical(path));
@@ -82,6 +86,8 @@ export function memoryBrowserSourceFiles(entries) {
       return { isFile: () => node.kind === 'file', isDirectory: () => node.kind === 'directory' };
     },
   });
+  immutableViews.add(view);
+  return view;
 }
 
 /** Capture actual tracked bytes and symlink targets once; missing facts stay missing, never guessed. */

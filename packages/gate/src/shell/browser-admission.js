@@ -29,6 +29,7 @@ import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
+import { hasImmutableBrowserSourceFiles } from './browser-source-files.js';
 
 const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
 const CHROME_FIXTURE = 'test/chrome-fixture.js';
@@ -720,6 +721,24 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const launchFree = new Map();
     const safeChildImports = new Map();
     const sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map();
+    // A captured source view is immutable. Batch V8's initial parses instead of starting a parser per test file.
+    if (hasImmutableBrowserSourceFiles()) {
+      for (let start = 0; start < files.length; start += 40) {
+        const sources = [];
+        for (const file of files.slice(start, start + 40)) {
+          const path = repositoryPath(root, file);
+          if (!path || path === JOURNEYS_TEST || path.startsWith('test/cockpit/') || /\.(?:cjs|cts|json)$/u.test(path)) continue;
+          try {
+            const absolute = resolve(root, ...path.split('/'));
+            if (!(await staysInside(root, absolute, true))) continue;
+            const source = await browserSourceFiles().readFile(absolute, 'utf8');
+            sourceMemo.set(path, source);
+            sources.push(source);
+          } catch { /* The ordinary per-file walk preserves a missing or unreadable source's fallback. */ }
+        }
+        try { parsedSources(sources, memo); } catch { /* Retry each source in the ordinary conservative walk. */ }
+      }
+    }
     const bound = [];
     for (const file of files) {
       if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, targetMemo)) bound.push(file);
