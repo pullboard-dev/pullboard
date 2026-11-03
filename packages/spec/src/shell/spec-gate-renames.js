@@ -1,12 +1,12 @@
 /** Real Git rename hints for approved requirements whose gate disappeared [B23,N39]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
 
 /** Follow recorded renames in chronological order; never guess a replacement from similar names. */
 export function renamedGatePath(root, file) {
-  const result = spawnSync('git', ['log', '--reverse', '--format=', '--name-status', '-z', '--find-renames', '--diff-filter=R', 'HEAD'],
+  const result = gitSpawnSync(['log', '--reverse', '--format=', '--name-status', '-z', '--find-renames', '--diff-filter=R', 'HEAD'],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (result.status !== 0) return null;
   const parts = result.stdout.split('\0');
@@ -31,10 +31,10 @@ export function revisionGateCommand(row, gate, from, to) {
 /** Only an exact-content Git rename may defer its gate repoint to landing [B23,N39]. */
 export function preservedGateRename(root, from, to) {
   const options = { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' };
-  const removed = spawnSync('git', ['log', '-1', '--format=%H', '--diff-filter=D', '--no-renames', 'HEAD', '--', from], options);
+  const removed = gitSpawnSync(['log', '-1', '--format=%H', '--diff-filter=D', '--no-renames', 'HEAD', '--', from], options);
   const commit = removed.status === 0 ? removed.stdout.trim() : '';
   if (!/^[a-f0-9]{40}$/u.test(commit)) return false;
-  const diff = spawnSync('git', ['diff', '--find-renames', '--name-status', '-z', `${commit}^`, 'HEAD'], options);
+  const diff = gitSpawnSync(['diff', '--find-renames', '--name-status', '-z', `${commit}^`, 'HEAD'], options);
   if (diff.status !== 0) return false;
   const fields = diff.stdout.split('\0');
   let matched = false;
@@ -46,7 +46,7 @@ export function preservedGateRename(root, from, to) {
     }
   }
   if (!matched) return false;
-  const before = spawnSync('git', ['rev-parse', `${commit}^:${from}`], options);
-  const after = spawnSync('git', ['rev-parse', `HEAD:${to}`], options);
+  const before = gitSpawnSync(['rev-parse', `${commit}^:${from}`], options);
+  const after = gitSpawnSync(['rev-parse', `HEAD:${to}`], options);
   return before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim();
 }
