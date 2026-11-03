@@ -3,7 +3,7 @@ import { gateWaitReporter } from '../git-wait-reporter.js';
 import { submitHandoffActor } from '../submit-handoff-origin.js';
 /** Shared board access every command uses: the caller's board, its person mode and its queue seat. Split from src/cli.js, which re-exports it [C7]. */
 import { createQueuedItemLease } from '../../packages/git/index.js';
-import * as personIdentity from '../person.js';
+import { requirePersonChannel } from '../../packages/person/index.js';
 import { barActorForCommand as commandBarActor } from '../../packages/verify/index.js';
 import * as store from '../board.js';
 import { personCommandContext } from '../cli-context.js';
@@ -23,7 +23,7 @@ import { claimFreezer } from './claim.js';
 
 /** Preserve the public command facade while supplying actual query and person-channel capabilities. */
 export function barActorForCommand(ctx, board, options = {}) {
-  return commandBarActor(ctx, board, options, { agentAt: seatAt, requirePersonChannel: personIdentity.requirePersonChannel });
+  return commandBarActor(ctx, board, options, { agentAt: seatAt, requirePersonChannel: requirePersonChannel });
 }
 /**
  * Select the person actor only through the main checkout's explicit person mode (B26).

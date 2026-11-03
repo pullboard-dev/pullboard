@@ -52,6 +52,7 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
     const pathMapMetadata = /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file);
     const cellBaselineMetadata = /^bin\/cell-lint-baselines\/cells\/[a-z][a-z0-9-]*\.json$/u.test(file);
     const transitionMetadata = file === TRANSITION_FILE;
+    const shimBaselineMetadata = file === 'bin/cell-lint-baselines/shim-counts.json';
     const cell = cellOf(file), tail = cell ? file.slice(cell.length + 1) : null;
     if (file.startsWith('src/')) add('legacySource', file);
     if (cell) {
@@ -61,7 +62,7 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
         || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, 'outside accepted cell anatomy');
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);
       if (!testFile(file)) graph.set(cell, graph.get(cell) ?? new Set());
-    } else if (!pathMapMetadata && !cellBaselineMetadata && !transitionMetadata && !ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
+    } else if (!pathMapMetadata && !cellBaselineMetadata && !shimBaselineMetadata && !transitionMetadata && !ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
     const source = files.get(file).toString('utf8');
     if (!files.get(file).includes(0) && Buffer.from(source).equals(files.get(file))) {
       const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
@@ -86,7 +87,7 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
     reachable.add(file);
     for (const { target } of edges.get(file) ?? []) if (!testFile(target)) pending.push(target);
   }
-  for (const file of files.keys()) if (file !== TRANSITION_FILE && !/^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file)
+  for (const file of files.keys()) if (file !== TRANSITION_FILE && file !== 'bin/cell-lint-baselines/shim-counts.json' && !/^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(file)
     && !/^bin\/cell-lint-baselines\/cells\/[a-z][a-z0-9-]*\.json$/u.test(file)
     && (cellOf(file) || /^(?:src|bin|relay)\//u.test(file)) && !testFile(file) && !reachable.has(file)) add('unreachable', file, 1, 'not reached from an app front door by known production imports');
   const packages = new Set([...files.keys()].map(cellOf).filter(cell => cell?.startsWith('packages/')));
@@ -105,5 +106,5 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
   const transition = marker.active
     ? { item: 1781, until: 1770, active: true, witness: TRANSITION_FILE }
     : { item: 1527, until: 1395, active: !marker.present && witness === null, witness };
-  return { version: 1, metrics, unknown, transition, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
+  return { version: 1, metrics, unknown, transition, shimTargets: Object.fromEntries(metrics.shims.findings.map(row => [row.key, edges.get(row.key)?.[0]?.target ?? row.key])), shimBaseline: files.has('bin/cell-lint-baselines/shim-counts.json') ? JSON.parse(files.get('bin/cell-lint-baselines/shim-counts.json').toString('utf8')) : null, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
 }

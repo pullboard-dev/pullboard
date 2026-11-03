@@ -14,7 +14,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { sweepChromeClones } from '../src/chrome-clone-cleanup.js';
+import { sweepChromeClones } from '../apps/runner/src/shell/chrome-clone-cleanup.js';
 import { startFixtureChild } from './fixture-child.js';
 
 /** Keep every fixture and observation inside a unique private directory. */

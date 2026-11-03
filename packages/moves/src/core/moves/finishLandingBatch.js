@@ -1,3 +1,4 @@
+import { FLAKE_RATCHET_ENGINE } from '../../../../../src/flake-ratchet-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { quarantineBatchGates } from "../../../../verify/src/core/quarantine-verdict.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -35,7 +36,7 @@ function existingEngine(args, board, at) {
 /** A computed batch cannot be finished by a receiver that would ignore its event-bound authority. */
 function minimumEngine(args, board, at) {
   const batch = board && landingBatches(board).find(row => row.id === args[0]?.id);
-  return Math.max(existingEngine(args, board, at), batch && (quarantineBatchGates(batch).length
+  return Math.max(batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), batch && (quarantineBatchGates(batch).length
     || Object.hasOwn(batch.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
 

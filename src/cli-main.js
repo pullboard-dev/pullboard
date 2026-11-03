@@ -445,9 +445,9 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...preflightRelay, relayStatus: root => preflightRelay.relayStatus(root, io),
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('../packages/person/index.js')).personMovesSigned(io.cwd, io, { ...preflightRelay, relayStatus: root => preflightRelay.relayStatus(root, io),
             openBoard: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
-        (await import('./person.js')).requirePersonChannel(io.personChannel);
+        (await import('../packages/person/index.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
@@ -494,7 +494,7 @@ async function runMain(argv, streams) {
       automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../packages/person/index.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
