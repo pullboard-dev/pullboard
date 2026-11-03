@@ -129,7 +129,7 @@ test('landing cleanup failure stops named under runner-only and retains opt-out 
     writeFileSync(file, JSON.stringify({ ...settings, runners: [{ host: 'private-lost-runner', slots: 1, browser: 1, gui: true }],
       gate: { ...settings.gate, runnersFirst: true, memoryFloorMB: 0 } }));
     const module = name => JSON.stringify(pathToFileURL(join(SOURCE, name)).href);
-    const script = `import { runLandingShards } from ${module('src/landing-shards.js')};
+    const script = `import { runLandingShards } from ${module('packages/landing/index.js')};
 import { parseProcessCensus } from ${module('packages/kernel/src/core/process-census.js')};
 import { Refused } from ${module('packages/kernel/index.js')};
 import { listResources } from ${module('packages/resources/index.js')};
@@ -164,7 +164,7 @@ test('runner-only release refuses its captured local placement before acquiring 
   const script = `import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { runGate } from ${module('src/gate.js')};
-import { runLandingShards, releaseExecutors, LANDING_COLLECT_ALL_ENV } from ${module('src/landing-shards.js')};
+import { runLandingShards, releaseExecutors, LANDING_COLLECT_ALL_ENV } from ${module('packages/landing/index.js')};
 import { RELEASE_EXECUTORS_ENV } from ${module('src/gate-run-receipt.js')};
 import { parseProcessCensus } from ${module('packages/kernel/src/core/process-census.js')};
 import { listResources } from ${module('packages/resources/index.js')};
