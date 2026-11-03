@@ -1,7 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './affected-graph-cache.js';
-import { documentationInputs } from './affected-doc-inputs.js';
+import { DOCS_TREE_INPUT, documentationInputs } from './affected-doc-inputs.js';
 import { unknownRootTests } from './affected-unknown-roots.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,6 @@ const DOC = /^docs\/.+\.md$/u;
 // A scanner declares this header rather than executing code while the graph is read.
 const TEST_TREE_INPUT = '/** @pullboard-test-input test-tree */';
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
-const DOCS_TREE_INPUT = '/** @pullboard-test-input docs-tree */';
 // A computed-import test may declare the repository modules it can load, in its leading comment header only.
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;

@@ -1,6 +1,9 @@
 /** Find the documentation files a module can read, conservatively and without running it [V4,C7]. */
 import { posix } from 'node:path';
 
+/** A scanner declares this header when it reads the whole documentation tree. */
+export const DOCS_TREE_INPUT = '/** @pullboard-test-input docs-tree */';
+
 /**
  * Find literal documentation inputs without executing repository code. File references are resolved
  * both from the repository and from the reader; directory references deliberately overselect their
