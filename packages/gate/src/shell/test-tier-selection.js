@@ -134,9 +134,13 @@ export function testTierCheckCommand(check, plan) {
   return [check, units].filter(Boolean).map(command => `(\n${command}\n)`).join(' && ');
 }
 
-/** Show exactly which units run and which journeys await the landing batch. */
-export function testTierReport(plan) {
-  return `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}\nT3 journeys deferred to the landing batch (${plan.journeys.length})`;
+/**
+ * Show exactly which units run and which journeys await the landing batch. A red refusal passes `names: false`:
+ * it counts the units and lets the failing cases, each with its first error line, be the only tests it names.
+ */
+export function testTierReport(plan, { names = true } = {}) {
+  const units = names ? `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}` : `T1 unit tests: ${plan.units.length} ran; the failing cases follow, the rest are in the full log`;
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})`;
 }
 
 /** A green exit with no observed test account cannot prove a selected unit or journey. */

@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { recoveryIdentity } from '../../../resources/index.js';
-import { DatabaseSync } from 'node:sqlite';
+import { openPoolReadOnly } from '../../../resources/index.js';
 import { mkdirSync } from 'node:fs';
 import { linkSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -367,7 +367,7 @@ export function runnerIdleReply(root, request, processCensus) {
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (resourceFile) {
       if (!resourceFile.isFile()) return { ...base, reason: 'runner resource location is not a file' };
-      const db = new DatabaseSync(file, { readOnly: true });
+      const db = openPoolReadOnly(file, 1_000);
       try {
         if (db.prepare("SELECT 1 FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%' LIMIT 1").get())
           return { ...base, reason: 'runner resource lease is active' };
