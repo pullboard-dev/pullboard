@@ -33,6 +33,7 @@ import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
+import { runLandingCliSmoke } from './landing-cli-smoke.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
@@ -185,6 +186,8 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   await save(state, { ...build });
   // A conflicting prefix is not its requested composition. Never test the smaller accidental tree.
   if (build.conflicts.length || !build.items.length) return { batch: state.batch, gate: null };
+  // The candidate's own CLI must run on a scratch board before anything of it can reach main; no skip list applies [C7].
+  runLandingCliSmoke(batch.root);
   const tree = headTree(batch.root);
   const claimed = await claimGate(tree, batchGatePlan(state).affectedGate);
   if (claimed.previous) state.gates.set(tree, claimed.previous);
