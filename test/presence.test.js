@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** Seat identity survives heartbeat-based presence changes on a real SQLite board [B3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -590,7 +590,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../packages/state/index.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { nativeBoardPorts } = await import('../src/native-board.js');
+  const { nativeBoardPorts } = await import('../apps/lib/index.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const f = goneClaimFixture(t);

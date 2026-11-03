@@ -5,7 +5,7 @@ import { appendFact } from '../packages/store/index.js';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { events } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { register } from '../packages/store/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
 import { eventCounts } from '../packages/stats/index.js';

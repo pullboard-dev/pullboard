@@ -7,7 +7,7 @@ import { submitGatePlan } from '../packages/gate/index.js';
 import { submitGateConfig } from '../packages/gate/index.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import * as store from '../src/board.js';
 import { closeBoard } from '../packages/store/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';

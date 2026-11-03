@@ -5,7 +5,7 @@ import { moveItem } from "../shell/board.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/core.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
+import { ROUTES } from "../../../seats/core.js";
 
 /**
  * Hand an item one tier up (B15): its builder could not get it green, so it goes back open, routed
