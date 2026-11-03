@@ -90,7 +90,6 @@ export { CAUSE_ENGINE } from "../../src/engine-metadata.js";
 export { VERDICT_REVIEW_ENGINE } from "../../src/engine-metadata.js";
 export { MILESTONE_RANK_ENGINE } from "../../src/engine-metadata.js";
 export { AUTO_ESCALATE_ENGINE } from "../../src/auto-escalate-engine.js";
-export { ROUTE_CALIBRATION_ENGINE } from "../../src/route-calibration-engine.js";
 export { ROW_DRAFT_ENGINE } from "../../src/row-draft-engine.js";
 export { STRONG_REJECTION_NOTICE_ENGINE } from "../../src/strong-rejection-notice-engine.js";
 export { SUBMITTED_CONFLICT_ENGINE } from "../../src/submitted-conflict-engine.js";

@@ -3,7 +3,6 @@ import { COORDINATOR } from '../../../queue/core.js';
 import { AUTO_ESCALATE_ENGINE } from '../../../../src/auto-escalate-engine.js';
 import { STRONG_REJECTION_NOTICE_ENGINE } from '../../../../src/strong-rejection-notice-engine.js';
 import { verdictRows } from './verdict-rows.js';
-import { ROUTE_CALIBRATION_ENGINE } from '../../../../src/route-calibration-engine.js';
 
 /**
  * Who can take an item (B13), as tiers in order of the model an item needs: `light` is work a small
@@ -84,8 +83,8 @@ export function rejectedItemEscalation(board, id, engine, route) {
 }
 
 /** Finish the rejection's route action atomically; old engines retain ceiling escalation [B15,H16]. */
-export function recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent }) {
-  if (engine >= ROUTE_CALIBRATION_ENGINE) {
+export function recordRejectedItemRoute(board, id, engine, item, { escalate, shout, logEvent, routeCalibrationEngine }) {
+  if (routeCalibrationEngine && engine >= routeCalibrationEngine) {
     const latest = verdictRows(board, id).at(-1);
     const seatRoute = latest && board.db.prepare('SELECT agent_route FROM agent WHERE agent_id=?').get(latest.verdict_by)?.agent_route;
     if (latest?.verdict_decision === 'REJECT' && latest.verdict_reason === 'TEST_FAILURE' && seatRoute === item.item_route) {

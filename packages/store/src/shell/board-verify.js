@@ -38,6 +38,7 @@ import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-
 import { holdItem } from "./board-hold-item.js";
 import { persistShout } from "./board-shout.js";
 import { shout } from "./board-shout.js";
+import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
 
 /**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
@@ -130,7 +131,10 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb, knownMainFailures: proofKnown }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
-      shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications });
+      shout, tellFirstRefusal, persistShout,
+      recordRejectedItemRoute: (target, itemId, moveEngine, item, dependencies) => recordRejectedItemRoute(target, itemId, moveEngine, item,
+        { ...dependencies, routeCalibrationEngine: ROUTE_CALIBRATION_ENGINE }),
+      escalate, tellVerdictImplications });
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
