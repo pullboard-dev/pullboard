@@ -1,3 +1,4 @@
+import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -86,7 +87,6 @@ import {
   checkImplies,
   parseImplies,
 } from '../../../../../packages/state/index.js';
-import { checkNeedsGui } from '../../../../../packages/gate/index.js';
 import * as itemSessions from '../../../../../packages/items/index.js';
 import { itemAuthors } from '../../../../../packages/items/index.js';
 import {
@@ -103,6 +103,7 @@ import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   gateRunnerAdmission,
+  loadMachineSettings,
 } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
@@ -332,10 +333,9 @@ export async function verifyHere(ctx, id, { second, values }) {
           check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
-          const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item) || supplement, { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
-          const gui = await checkNeedsGui(root, frozenCheck(item) || supplement, { commit: checkedCommit });
-          // Exact command classifiers still govern local and remote private-check admission [C7,V4].
-          const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item) || supplement, { commit: checkedCommit }));
+          const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
+            commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
+            onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           try {
             check = await withGateSlot(root, async (lease) => {
               if (admitted) {
@@ -470,8 +470,7 @@ export async function verifyHere(ctx, id, { second, values }) {
 export async function run(io, args) {
   const { first, values } = args;
   const id = idArg(first);
-  const verdictResult = {};
-  const ctx = { ...context(io), verdictResult };
+  const ctx = { ...context(io), verdictResult: {} };
   if (values.compare) {
     if (args.second) throw new Refused('USAGE', 'use pullboard verify <id> --compare without an accept or reject verdict');
     const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -483,7 +482,7 @@ export async function run(io, args) {
     }
     let compared;
     try {
-      compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
+      compared = await compareVerification(ctx.info.root, item, { main: policy.commit, runnerAvailable: () => executionServices.runners.effectiveRunners(loadMachineSettings()).length > 0,
         selectTests: async (root, pair) => {
           const selected = selectAffectedTests(root, pair);
           const tiered = selectTestTiers(root, pair);
@@ -514,7 +513,7 @@ export async function run(io, args) {
     return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
 }
 

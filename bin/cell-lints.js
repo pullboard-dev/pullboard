@@ -14,6 +14,7 @@ import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
+import { strayNextStep } from '../packages/codemap/index.js';
 import { mainCommit } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
 import { lowerCellLintBaseline } from '../packages/codemap/index.js';
@@ -52,7 +53,7 @@ withCellLintParser(compile => {
       // Advisory transition authority comes only from main, as in the submit check.
       current.transition = base.report.transition;
       const problems = cellLintGrowth(current, base.baseline);
-      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}`);
+      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
       return problems.some(row => !row.advisory) ? 1 : 0;
     }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../packages/codemap/src/shell/main-cell-lints.js', import.meta.url))] });
   }

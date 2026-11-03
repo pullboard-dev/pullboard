@@ -22,7 +22,7 @@ function writeIdentity(key) {
 
 /** The only approved in-transaction I/O boundaries: holder accuracy and live policy races. */
 export const BOARD_WRITE_IO_EXCEPTIONS = Object.freeze({
-  policy: 'src/cli-read-context.js#writePolicySignature',
+  policy: 'apps/cli/src/shell/cli-read-context.js#writePolicySignature',
 });
 
 // Only the transaction kernel can call these after release; callers inside work are not exempt.
@@ -186,7 +186,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
         if (writeIdentity(chain[0]) === 'packages/store/src/shell/board-event-log.js#atomic'
           && chain.some(value => writeIdentity(value) === 'src/board-write-lock.js#finishBoardWrite')
           && POST_RELEASE.get(owner)?.has(target.builtin + '#' + target.name)) continue;
-        if (chain[0] === BOARD_WRITE_IO_EXCEPTIONS.policy && chain.at(-1) === 'src/cli-read-context.js#policyRefBytes'
+        if (chain[0] === BOARD_WRITE_IO_EXCEPTIONS.policy && chain.at(-1) === 'apps/cli/src/shell/cli-read-context.js#policyRefBytes'
           && target.builtin === 'node:fs' && target.name === 'readFileSync') continue;
         const firstArgument = argumentsAt(model.code, start + call.open)?.[0];
         if (writeIdentity(chain.at(-1)) === 'packages/store/src/shell/board-event-log.js#atomic' && target.builtin === 'node:fs'
@@ -242,7 +242,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     }
   }
   // The policy provider is installed dynamically, so audit its exact named witness explicitly.
-  const policy = modules.get('src/cli-read-context.js');
+  const policy = modules.get('apps/cli/src/shell/cli-read-context.js');
   const witness = policy?.functions.get('writePolicySignature');
   if (witness) inspect(policy.file, witness.bodyStart, witness.end,
     [BOARD_WRITE_IO_EXCEPTIONS.policy], new Set([BOARD_WRITE_IO_EXCEPTIONS.policy]));

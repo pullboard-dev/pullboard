@@ -1,3 +1,4 @@
+import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
 import {
   boardWriteSnapshot,
   requireBoardWriteSnapshot,
@@ -165,6 +166,9 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       || typeof result.error.message !== 'string' || typeof result.error.next !== 'string') {
       throw new Refused('BAD_SUBMIT_HANDOFF', 'retain the exact canonical refusal document before completing this queued gate');
     }
+    if (result.error.code === 'SUBMIT_HANDOFF_DEAD' && (board.executionEngineVersion ?? ENGINE_VERSION) >= DEAD_HANDOFF_RETRY_ENGINE) {
+      return endDeadHandoff(board, id, item, job, result.error, options.retryJob);
+    }
     if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
       // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
       insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
@@ -198,4 +202,22 @@ function returnToBuilder(board, id, job, error) {
   logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
+}
+
+/** End a crashed incarnation before atomically deriving a bounded successor from its immutable candidate [C7,V4]. */
+function endDeadHandoff(board, id, item, job, error, retryJob) {
+  if (retryJob !== undefined && (!JOB.test(retryJob) || retryJob === job.id)) throw new Refused('BAD_SUBMIT_HANDOFF', 'a recovery needs a fresh job identity');
+  const ended = record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board) });
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run('submit_handoff_ended:' + job.id, JSON.stringify(ended));
+  const retries = job.recoveryRetries ?? 0;
+  if (!retryJob || retries >= 3 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
+    || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
+    || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return ended;
+  // Copy source identity, not caller-supplied candidate fields. A new id revokes every old worker's write authority.
+  const next = { version: job.version, id: retryJob, agentId: job.agentId, commit: job.commit, tree: job.tree,
+    main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree, digest: job.digest,
+    companionDigest: job.companionDigest, leaseMs: job.leaseMs, state: 'queued', at: now(board),
+    recoveryRetries: retries + 1, retryOf: job.id };
+  return record(board, id, next);
 }

@@ -74,7 +74,9 @@ let cancelDropWait = () => {};
 if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`)} && host !== ${JSON.stringify(`${HOST}-setup`)}) {
   record({ refused: true, stdinBytes }); process.exit(255);
 }
-if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) {
+// Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
+const workerCommand = remoteCommand.includes(' --input-type=module -e ');
+if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
@@ -115,7 +117,19 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
-  child.stderr.pipe(process.stderr);
+  // READY and ordinary results stream; only a held-return fault withholds its receipt.
+  let pendingStderr = '', receipt = '';
+  child.stderr.on('data', part => {
+    pendingStderr += part.toString();
+    for (;;) {
+      const newline = pendingStderr.indexOf('\\n');
+      if (newline < 0) break;
+      const line = pendingStderr.slice(0, newline + 1);
+      pendingStderr = pendingStderr.slice(newline + 1);
+      if (hold === 'return' && line.startsWith('PULLBOARD_RUNNER_RESULT ')) receipt += line;
+      else process.stderr.write(line);
+    }
+  });
 ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
     child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
     process.stdin.resume();
@@ -143,6 +157,8 @@ ${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
       localHeldMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_HELD'),
       localTokenMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_TOKEN'),
       localMachineHomeInSshEnv: Object.hasOwn(process.env, 'PULLBOARD_MACHINE_HOME') });
+    if (pendingStderr) process.stderr.write(pendingStderr);
+    if (hold !== 'return' && receipt) process.stderr.write(receipt);
     process.exitCode = signal ? 128 : (code ?? 255);
   });
 }
