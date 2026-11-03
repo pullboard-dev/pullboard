@@ -38,7 +38,8 @@ function commit(box, root) {
 
 /** Capture asynchronous CLI completion without a throughput deadline or synthetic CLI replacement. */
 function launch(box, ...args) {
-  const child = startFixtureChild(process.execPath, [BIN, ...args, '--json'], {
+  const wait = args[0] === 'submit' ? ['--wait'] : [];
+  const child = startFixtureChild(process.execPath, [BIN, ...args, ...wait, '--json'], {
     cwd: box.builder, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -250,6 +251,6 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   const before = events(box).length;
   const receiptCount = mainReceipts(box).length;
   await assertRed(box, launch(box, 'submit', String(box.item)));
-  assert.equal(events(box).length, before + 3, 'each later red submission retains fresh exact-main runner observations');
-  assert.equal(mainReceipts(box).length, receiptCount + 3, 'pinned comparison evidence is retained as native receipts, not generic cache rows');
+  assert.equal(events(box).length, before, 'the identical red resubmit does not rerun the completed main comparisons');
+  assert.equal(mainReceipts(box).length, receiptCount, 'the identical red resubmit reuses completed exact-main results');
 });
