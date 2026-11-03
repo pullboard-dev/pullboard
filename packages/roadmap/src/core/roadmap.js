@@ -8,7 +8,6 @@ import {
   codeIsFromMain,
   repoInfo,
 } from "../../../../src/git.js";
-import { listApiProjects } from "../../../seats/index.js";
 import { workProgress } from './work-progress.js';
 import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";

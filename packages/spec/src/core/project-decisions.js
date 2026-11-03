@@ -10,7 +10,6 @@ import {
 } from 'node:path';
 import { loadConfig } from '../../../config/index.js';
 import { repoInfo } from '../../../../src/git.js';
-import { listApiProjects } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 /**
