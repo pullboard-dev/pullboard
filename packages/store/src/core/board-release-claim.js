@@ -40,7 +40,8 @@ function goneRelease(board, item, actor, observation) {
 /** Only a holder's structured quality release counts; OTHER has no reliable provenance. */
 function chosenQualityRelease(board, id, row, detail) {
   if (!['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(detail.reasonCode)
-    || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim) return false;
+    || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim
+    || detail.untouchedAutoClaim || detail.exitHandoff) return false;
   const previous = board.db.prepare(`SELECT event_kind, event_by FROM event WHERE item_id=? AND event_id<?
     AND event_kind IN ('claim','release','submit','withdraw','merged','reopen') ORDER BY event_id DESC LIMIT 1`).get(id, row.event_id);
   return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
@@ -116,7 +117,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
     // Preserve historic replay while new moves count only the holder's chosen quality releases.
     const qualityHolds = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_QUALITY_HOLD_ENGINE;
-    const currentEligible = qualityHolds ? !stale && !gone && item.item_status === 'claimed' && item.item_owner === agentId
+    const currentEligible = qualityHolds ? !stale && !gone && !exitHandoff && !untouchedAutoClaim && item.item_status === 'claimed' && item.item_owner === agentId
       && ['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(reasonCode) : !stale && !gone && !exitHandoff && reasonCode;
     if (currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {

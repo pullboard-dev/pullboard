@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
 import { addItem } from '../packages/store/index.js';
 import { claim } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
@@ -15,6 +16,10 @@ import { getItem } from '../packages/store/index.js';
 import { maintainStaleState } from '../packages/store/index.js';
 import { register } from '../packages/store/index.js';
 import { release } from '../packages/store/index.js';
+import { exitClaim } from '../packages/store/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
+import { recordExitProgress } from '../packages/store/index.js';
+import { fixtureBoard } from './board-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';
@@ -46,7 +51,7 @@ function fixture(t) {
   const first = seat('first', '1'), second = seat('second', '2'), helper = seat('helper', '3');
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Work', criterion: 'Real proof', route: 'strong' });
   /** Claim under the real item transition with a frozen criterion. */
-  const take = agentId => claim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000, head: base,
+  const take = (agentId, options = {}) => claim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000, head: base, ...options,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, rows: [], policy: { version: 1, commit: base, verify: { policy: 'any', family: 'off' } } }), digest: 'bar' }) });
   /** Advance past the stale interval and apply the native captured maintenance move. */
   const sweep = () => {
@@ -55,7 +60,7 @@ function fixture(t) {
     assert.ok(snapshot, 'the board captured idle claim evidence');
     maintainStaleState(board, { agentId: helper, snapshot, health: {}, claimsOnly: true });
   };
-  return { board, id, first, second, take, sweep };
+  return { board, id, first, second, take, sweep, base };
 }
 
 test('an idle sweep followed by one blocked builder release does not hold work [C7]', t => {
@@ -83,4 +88,28 @@ test('old-engine replay keeps its original released-twice semantics [H16]', t =>
   f.take(f.first); release(f.board, f.id, f.first, 'redirect', 'ROUTED_ELSEWHERE');
   f.take(f.second); release(f.board, f.id, f.second, 'blocked', 'BLOCKED');
   assert.match(getItem(f.board, f.id).item_hold_reason, /Released twice/u);
+});
+
+
+test('an untouched automatic claim release does not count toward the hold [C7]', t => {
+  const f = fixture(t), digest = 'c'.repeat(64);
+  f.take(f.first, { autoNext: true, autoNextSnapshot: { head: f.base, digest } });
+  release(f.board, f.id, f.first, 'untouched', { worktreeSnapshot: { head: f.base, digest } }, 'BLOCKED');
+  f.take(f.second); release(f.board, f.id, f.second, 'one actual blocker', 'BLOCKED');
+  assert.equal(getItem(f.board, f.id).item_hold_reason, null);
+});
+
+test('a budget exit handoff does not count toward the hold [C7]', t => {
+  const board = fixtureBoard(t), policy = { enabled: true, tokens: 100, calls: 3 };
+  register(board, { id: 'coordinator', lane: 'coordinator', path: '/exit-fixture/main', session: 'fixture-coordinator', model: 'Fixture coordinator' });
+  register(board, { id: 'core-1', lane: 'core', path: '/exit-fixture/one', family: 'openai', session: 'fixture-first', model: 'Fixture model' });
+  register(board, { id: 'core-2', lane: 'core', path: '/exit-fixture/two', family: 'openai', session: 'fixture-fresh', model: 'Fixture model' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Exit handoff', criterion: 'Retain the handoff.' });
+  claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: 'bar' }), exitRules: policy, exitClaimKey: randomUUID() });
+  recordExitProgress(board, { agentId: 'core-1', item: id, claim: exitClaim(board, id, 'core-1').key, tokens: 100, calls: 1 });
+  release(board, id, 'core-1', 'Done: saved work; Failed: none; Next: continue the item', 'BUDGET');
+  heartbeatSeat(board, 'core-2');
+  claim(board, id, { agentId: 'core-2', lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: 'bar' }) });
+  release(board, id, 'core-2', 'one actual blocker', 'BLOCKED');
+  assert.equal(getItem(board, id).item_hold_reason, null);
 });
