@@ -189,7 +189,8 @@ test('concurrent ledger writers count each observation once without losing incre
   const runs = [0, 1, 2, 3].map(worker => runFixtureChildAsync(process.execPath, ['--input-type=module', '-e',
     `import {countTrialGate} from ${JSON.stringify(module)};for(let index=0;index<25;index++){const options={file:${JSON.stringify(box.file)},id:${worker}+':'+index};countTrialGate('.',options);countTrialGate('.',options);}`],
   { env, encoding: 'utf8', signal: t.signal }));
-  const results = await Promise.all(runs.map(run => awaitNestedRun(run)));
+  const results = [];
+  for (const run of runs) results.push(await awaitNestedRun(run));
   for (const result of results) assert.equal(result.status, 0, result.stdout + result.stderr);
   const ledger = JSON.parse(readFileSync(box.file, 'utf8'));
   assert.equal(ledger.gates, 100);
