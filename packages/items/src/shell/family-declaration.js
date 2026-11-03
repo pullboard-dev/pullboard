@@ -244,14 +244,20 @@ const SCOPED_ROWS = 512;
 /** The snapshot shape familySnapshot returns, holding only these rows' seats, their sessions and their session peers. */
 function scopedSnapshot(board, rows) {
   const sessions = new Map(), peers = new Map(), ids = new Set();
+  const requested = [...new Set(rows.map(row => row?.agent_id).filter(Boolean))];
+  for (let offset = 0; offset < requested.length; offset += 500) {
+    const chunk = requested.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
+    for (const row of board.db.prepare(`SELECT meta_key, meta_value FROM board_meta WHERE meta_key IN (${marks})`).all(...chunk.map(id => 'agent_session:' + id))) {
+      sessions.set(row.meta_key.slice('agent_session:'.length), row.meta_value);
+    }
+  }
   const members = board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`);
   for (const row of rows) {
     const id = row?.agent_id;
     if (!id) continue;
     ids.add(id);
-    const original = originalSession(board, id);
+    const original = sessions.get(id);
     if (!original) continue;
-    sessions.set(id, original);
     if (!peers.has(original)) peers.set(original, members.all(original).map(entry => entry.meta_key.slice('agent_session:'.length)));
     for (const peer of peers.get(original)) ids.add(peer);
   }
