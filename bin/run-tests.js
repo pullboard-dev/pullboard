@@ -29,11 +29,7 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
-import {
-  isLandingWorkerIdentityTimeout,
-  landingWorkerIdentityQuery,
-  parseLandingWorkerIdentity,
-} from '../packages/landing/index.js';
+import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
 import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js';
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
 import { optionTakesValue } from '../src/test-file-dispatch.js';
@@ -736,8 +732,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
-  const { landingFailureReport } = await import('../packages/landing/index.js');
-  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../packages/landing/index.js');
+  const { landingFailureReport } = await import('../src/landing-failure-report.js');
+  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
   let testOutcomes = null;
