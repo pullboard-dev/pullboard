@@ -40,6 +40,9 @@ export async function runnerFirstPolicyCase(e2e) {
   mkdirSync(probeBin);
   installRegistrationProbeStandIn({ bin: probeBin });
   box.env.PATH = `${probeBin}:${box.env.PATH}`;
+  // This case proves durable rotation, independently of the live-load ranking policy.
+  const rotation = box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off');
+  assert.equal(rotation.code, 0, rotation.err);
   const hosts = ['a51', 'a52', 'a53'];
   for (const host of hosts) {
     const added = box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1');
@@ -135,7 +138,7 @@ export async function runnerFirstPolicyCase(e2e) {
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
   const added = integrated.run(integrated.repo, 'add', 'web', 'Runner-first public submit', '--specs', 'G1',
-    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--json');
+    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(integrated.run(integrated.web, 'claim', String(id)).code, 0);
@@ -153,6 +156,9 @@ export async function runnerFirstPolicyCase(e2e) {
   assert.equal(submitProofProfile.executionSource?.commit, submittedCommit, 'the worker receipt binds the submitted proof');
   assert.equal(submitProofProfile.receipt?.runner?.id, runner, 'the submit proof records the actual runner admission receipt');
 
+  const submitRequests = readFileSync(requests, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+  assert.equal(submitRequests.length, 3, 'remote cell analysis, criterion and proof each make one actual SSH worker request');
+
   const landingGate = integrated.run(integrated.repo, 'gate', '--landing', '--json');
   assert.equal(landingGate.code, 0, `${landingGate.out}\n${landingGate.err}`);
   const landingProfile = JSON.parse(readFileSync(join(integrated.repo, '.git', 'pullboard-gate.log.profile.json'), 'utf8'));
@@ -161,7 +167,7 @@ export async function runnerFirstPolicyCase(e2e) {
     'the landing-gate worker receipt binds the exact main source it checked');
   assert.equal(landingProfile.receipt?.runner?.id, runner, 'the landing gate records the actual runner admission receipt');
   const requestsMade = readFileSync(requests, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
-  assert.equal(requestsMade.length, 3, 'the two submit stages and landing gate each make one actual SSH worker request');
-  assert.deepEqual(requestsMade.map(entry => entry.host), [runner, runner, runner]);
+  assert.equal(requestsMade.length, 4, 'remote cell analysis, the two submit checks and landing each make one actual SSH worker request');
+  assert.deepEqual(requestsMade.map(entry => entry.host), [runner, runner, runner, runner]);
   assert.ok(requestsMade.every(entry => entry.workerStarted && !entry.remoteHasSecret), 'every request executes the worker and keeps fixture secrets local');
 }
