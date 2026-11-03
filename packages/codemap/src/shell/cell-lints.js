@@ -9,9 +9,10 @@ import { committedCellTransition } from './cell-lint-inventory.js';
 import { cycleEdges } from './cell-lint-inventory.js';
 import { testFile } from './cell-lint-inventory.js';
 import { lex } from '../../../kernel/index.js';
+import { rootAllowed } from '../core/root-allowlist.js';
+import { strayNextStep } from '../core/root-allowlist.js';
 
 export const CELL_METRICS = Object.freeze(['boundaries', 'cycles', 'shims', 'legacySource', 'fileSize', 'strays', 'documents', 'unreachable', 'unreachablePackages', 'unreachableExports', 'unknown']);
-const ROOT_FILES = new Set(['package.json', 'jsconfig.json', 'path-map.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SPEC.md', 'DOCTRINE.md', 'AGENTS.md', '.gitignore', '.gitattributes', '.npmignore', '.nvmrc']);
 const TRANSITION_FILE = 'bin/cells-plan/transition.json';
 
 /** Recognize only an exact package core entry declared by its indexed plan shard; malformed metadata grants nothing. */
@@ -59,10 +60,10 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
       const top = tail.split('/')[0];
       if ((!['index.js', 'src', 'tests', 'contract'].includes(top) && !pureEntries.has(file))
         || top === 'index.js' && tail !== 'index.js'
-        || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, 'outside accepted cell anatomy');
+        || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, `outside accepted cell anatomy; next: ${strayNextStep(file)}`);
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);
       if (!testFile(file)) graph.set(cell, graph.get(cell) ?? new Set());
-    } else if (!pathMapMetadata && !cellBaselineMetadata && !shimBaselineMetadata && !transitionMetadata && !ROOT_FILES.has(file) && !/^(?:docs|\.github|src)\//u.test(file)) add('strays', file, 1, 'outside cells and explicit root allowlist');
+    } else if (!pathMapMetadata && !cellBaselineMetadata && !shimBaselineMetadata && !transitionMetadata && !rootAllowed(file)) add('strays', file, 1, `outside cells and the root allowlist; next: ${strayNextStep(file)}`);
     const source = files.get(file).toString('utf8');
     if (!files.get(file).includes(0) && Buffer.from(source).equals(files.get(file))) {
       const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);

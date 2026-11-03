@@ -263,11 +263,18 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const lines = readFileSync(log, 'utf8').split('\n');
   assert.equal(lines.length, 502);
   assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
-  const added = await fixtureCommand(box, box.repo, 'add', 'coordinator', 'Coordinator work', '--wait');
+  const web = join(box.dir, 'digest-builder');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/digest', web, 'main');
+  const joined = await fixtureCommand(box, web, 'join', 'web');
+  assert.equal(joined.code, 0, joined.err);
+  const added = await fixtureCommand(box, box.repo, 'add', 'web', 'Noisy checked work', '--specs', 'G1',
+    '--criterion', 'The noisy gate passes.', '--check', 'node gate.cjs', '--wait');
   assert.equal(added.code, 0, added.err);
-  const claimed = await fixtureCommand(box, box.repo, 'claim', '1');
+  const claimed = await fixtureCommand(box, web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  const refused = await fixtureCommand(box, box.repo, 'submit', '1', '--wait', '--no-next');
+  const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
+  assert.equal(built.status, 0, built.stderr);
+  const refused = await fixtureCommand(box, web, 'submit', '1', '--wait', '--no-next');
   // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
   assert.equal(refused.code, 1, refused.err);
   assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
