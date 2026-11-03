@@ -23,3 +23,11 @@ test('the runner worker closure holds the same gate modules after the move, with
   assert.deepEqual(gate.sort(), [...bodies, 'packages/gate/core.js'].sort(), 'no other gate module enters the closure');
   assert.ok(!files.includes('packages/gate/index.js'), 'the worker does not load the gate front door');
 });
+
+/** The store body replaces only its old forwarding shim in the runner closure [C7]. */
+test('runner reads the native user directory body without widening its closure [C7]', () => {
+  const files = Object.keys(runnerPackage(ROOT).files);
+  assert.ok(files.includes('packages/store/src/shell/native-user-directory.js'));
+  assert.deepEqual(files.filter(file => file.endsWith('native-user-directory.js')), ['packages/store/src/shell/native-user-directory.js']);
+  assert.ok(!files.includes('packages/store/index.js'));
+});
