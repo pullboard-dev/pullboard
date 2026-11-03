@@ -4,8 +4,11 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { board as store, closeBoard, openBoard } from '../apps/lib/index.js';
-import { activateMainAudits, saveMainAudit } from '../packages/gate/index.js';
+import { board as store } from '../apps/lib/index.js';
+import { closeBoard } from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/index.js';
+import { activateMainAudits } from '../packages/gate/index.js';
+import { saveMainAudit } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
 import { main } from './native-cli-fixture.js';
@@ -17,7 +20,9 @@ import { main } from './native-cli-fixture.js';
 async function fixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Main audit fixture model';
+  const box = helpers.project('true', isolated);
   const nudges = [];
   /** Record the nudge the CLI would launch; the real worker would run the whole suite. */
   const nudgeMainAudit = async (root, workerUrl) => { nudges.push({ root, worker: fileURLToPath(workerUrl) }); return null; };

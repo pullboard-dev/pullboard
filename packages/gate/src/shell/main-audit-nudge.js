@@ -3,10 +3,10 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { codeIsFromMain } from '../../../../src/git.js';
+import { codeIsFromMain } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
-import { gitChildEnv } from '../../../../src/git.js';
-import { repoInfo } from '../../../../src/git.js';
+import { gitChildEnv } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
 import { mainAuditDirectory } from './main-audit-state.js';
 import { readMainAudit } from './main-audit-state.js';
 
