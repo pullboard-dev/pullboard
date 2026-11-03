@@ -82,7 +82,7 @@ export async function run(io, args) {
     const authors = referenceAuthors(ctx.info.root, change.brief, { githubPullClient });
     if (authors.length) change.referenceAuthors = authors;
   }
-  const { item, next, command, widened } = store.validateItemEdit(board, id, change);
+  const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
@@ -92,7 +92,8 @@ export async function run(io, args) {
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
   if (change.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, change.checkBaseline);
-  io.result?.({ item: store.getItem(board, id) });
+  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
+  for (const warning of evidenceWarnings) io.err(warning.message);
   io.say(`edited #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;

@@ -1,3 +1,5 @@
+import { requireLandingCompanions } from '../../../../../packages/landing/index.js';
+import { requireLandingModuleResolution } from '../../../../../packages/landing/index.js';
 /** The pullboard merged command, in its own module so an item adding another command never edits these lines. */
 import { warnMainMoved } from '../../../../../packages/merge/index.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -88,6 +90,10 @@ export async function run(io, { first, second, values }) {
   const note = (textArg(io, values, 'note') ?? '').trim();
   const item = store.getItem(board, id);
   if (item.item_status === 'verified') {
+    requireLandingCompanions(ctx.info.root, board, [item], commit);
+    const moduleBase = tryGit(ctx.info.root, ['rev-parse', '--verify', `${commit}^`]);
+    if (moduleBase.status !== 0) throw new Refused('LAND_MODULE_SOURCE', 'restore the landing parent before recording its source checks');
+    await requireLandingModuleResolution(ctx.info.root, moduleBase.stdout, commit);
     const trunk = mainCheckout(ctx.info.root);
     const itemCommit = item.item_commit;
     const itemOnCandidate = contains(ctx.info.root, itemCommit, commit);

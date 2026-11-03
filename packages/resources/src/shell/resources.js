@@ -1046,7 +1046,7 @@ export async function takeResource(options) {
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
-  // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
+  // Capture once per admission attempt; an infrastructure requeue explicitly starts a fresh attempt.
   let runnerDeadlineAt = resume?.runnerDeadlineAt ?? options.runnerDeadlineAt ?? 0;
   let runnerDispatched = resume?.runnerDispatched === true;
   let readinessFailover = resume?.readinessFailover === true;
@@ -1289,6 +1289,8 @@ export async function takeResource(options) {
           clearInterval(heartbeat);
           let requeueTicket = acquired.ticket;
           let requeueOpportunity = acquired.queueTicket;
+          // A failed host's pin describes the old attempt, not the replacement executor.
+          const retryRestriction = quarantine && restriction?.kind === 'ssh' ? undefined : restriction;
           try {
             update(db, () => {
               const holderName = runnerResourceName(acquired.runner.host);
@@ -1313,7 +1315,7 @@ export async function takeResource(options) {
               db.prepare('DELETE FROM holder WHERE token = ?').run(token);
               db.prepare('INSERT INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 .run(requeueTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote && (!local || runnerOnly)), marker, 1, boardKey, releaseRank, requeueOpportunity, Number(shortEligible), Number(gui), Number(timing), 1);
-              db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
+              db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
             });
           } catch (error) {
             transferred = false;
@@ -1324,8 +1326,8 @@ export async function takeResource(options) {
             startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
           }
           db.close();
-          const retryingInfrastructure = infrastructureRetryCount > 0 && reason !== 'worker-unresponsive';
-          return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
+          const retryingInfrastructure = quarantine || infrastructureRetryCount > 0;
+          return takeResource({ ...options, requiredExecutor: retryRestriction ?? undefined, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
             runnerDispatched: retryingInfrastructure ? false : runnerDispatched,
