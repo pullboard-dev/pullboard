@@ -15,8 +15,11 @@ import { repositoryImport } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { importsIn } from './module-imports.js';
 import { ownerOf } from './test-tiers.js';
+import { cellOwners } from './test-tiers.js';
 
 const MODULE = /\.[cm]?js$/u;
+// The committed cell plan and its shards declare which cell owns each legacy path.
+const CELL_PLAN = /^bin\/cells-plan(?:\.json|\/[^/]+\.json)$/u;
 const SEAL_FILE = 'seals.sqlite';
 
 /** Run one Git read at a fixed revision; a failure names the revision so the caller can fix it. */
@@ -74,7 +77,7 @@ function importsOf(sources) {
  */
 export function packageHashesAt(root, revs) {
   const trees = revs.map(rev => treeAt(root, rev));
-  const ids = [...new Set(trees.flatMap(tree => [...tree].filter(([file]) => MODULE.test(file) || file === 'package.json').map(([, id]) => id)))].sort();
+  const ids = [...new Set(trees.flatMap(tree => [...tree].filter(([file]) => MODULE.test(file) || file === 'package.json' || CELL_PLAN.test(file)).map(([, id]) => id)))].sort();
   const texts = readBlobs(root, ids);
   const jsIds = [...new Set(trees.flatMap(tree => [...tree].filter(([file]) => MODULE.test(file)).map(([, id]) => id)))].sort();
   const parsed = new Map();
@@ -83,8 +86,10 @@ export function packageHashesAt(root, revs) {
   return trees.map(tree => {
     let imports = {};
     try { imports = JSON.parse(texts.get(tree.get('package.json')) ?? '{}').imports ?? {}; } catch { /* no import map */ }
+    // Cells are read from this revision's committed plan, so a declared cell owns its legacy paths here.
+    const declared = cellOwners({ get: path => (tree.has(path) ? Buffer.from(texts.get(tree.get(path)) ?? '') : undefined) });
     const owners = new Map(), owner = file => {
-      if (!owners.has(file)) owners.set(file, ownerOf(file, tree, new Map()));
+      if (!owners.has(file)) owners.set(file, ownerOf(file, tree, declared));
       return owners.get(file);
     };
     const rows = new Map();

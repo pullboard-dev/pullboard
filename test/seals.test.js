@@ -112,3 +112,23 @@ test('control: a selection that hides a real change from its run fails, so skip 
   const hidden = [...kept, unsealed.find(row => row.package === 'packages/user').package];
   assert.throws(() => checkSkippedSeals(root, { rev: head, skipped: hidden, store }), { code: 'SEAL_STALE', message: /packages\/user/u });
 });
+
+test('a committed cell plan owns its legacy paths: changing one unseals the declared cell, and unrelated packages keep their seals [C7,CD44]', t => {
+  const { root, store } = fixture(t);
+  const planned = commit(root, {
+    'bin/cells-plan.json': JSON.stringify({ version: 1, cells: [{ order: 1, name: 'legacy', file: 'bin/cells-plan/01-legacy.json' }] }),
+    'bin/cells-plan/01-legacy.json': JSON.stringify({ name: 'legacy', root: 'packages/legacy', frontDoor: 'packages/legacy/index.js',
+      paths: [['src/old.js', 'packages/legacy/src/core/old.js', 'seed']] }),
+    'packages/legacy/index.js': 'export { old } from "../../src/old.js";\n',
+    'src/old.js': 'export const old = 1;\n',
+  });
+  sealAll(root, store, planned);
+  const head = commit(root, { 'src/old.js': 'export const old = 2;\n' });
+  const { unsealed, kept } = unsealedPackages(root, { base: planned, head });
+  assert.deepEqual(unsealed.map(row => row.package), ['packages/legacy']);
+  assert.deepEqual(kept, ['.', 'packages/alone', 'packages/base', 'packages/user']);
+  const status = new Map(sealStatus(root, { rev: head, store }).map(row => [row.package, row.seal]));
+  assert.equal(status.get('packages/legacy'), null);
+  for (const name of kept) assert.deepEqual(status.get(name).receipts, [`receipt-${name}`], name);
+  assert.throws(() => checkSkippedSeals(root, { rev: head, skipped: [...kept, 'packages/legacy'], store }), { code: 'SEAL_STALE' });
+});
