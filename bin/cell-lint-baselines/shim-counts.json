@@ -22,6 +22,7 @@
     "store": 103,
     "temporary": 1,
     "unmapped": 1,
-    "verify": 3
+    "verify": 3,
+    "view": 80
   }
 }
