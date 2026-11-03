@@ -1,4 +1,5 @@
 /** Classify whether selected tests may launch Chrome; uncertainty keeps browser coverage enabled. */
+import { createHash } from 'node:crypto';
 import {
   accessSync,
   constants,
@@ -650,6 +651,10 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       for (let index = 0; index < imports.length; index += 1) {
         for (const request of imports[index]) {
           if (byLaunch && PROCESS_STARTERS.has(request)) { starts[index] = true; continue; }
+          // This exact guard only wraps launches; a changed guard loses the exception.
+          const reviewedGuard = paths[index] === 'packages/gate/src/shell/browser-slot-guard.js'
+            && createHash('sha256').update(sources[index]).digest('hex') === 'c62c476197859e93b5fad4a7c9fbc3649dc17beebbd2870dff0548ce790a70fe';
+          if (reviewedGuard && (request === 'node:child_process' || request === 'node:module')) continue;
           if (request === 'node:child_process') {
             const policy = SAFE_CHILD_PROCESS_MODULES.get(paths[index]);
             if (!policy || paths[index] === 'packages/gate/src/shell/affected-tests.js' && !safeSelectionGit(sources[index]))

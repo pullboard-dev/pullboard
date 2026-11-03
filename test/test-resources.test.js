@@ -190,6 +190,11 @@ test('module launchers and dynamic builtins keep browser admission conservative 
   assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
   assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
+  const guard = join(root, 'packages/gate/src/shell/browser-slot-guard.js');
+  const originalGuard = readFileSync(guard, 'utf8');
+  writeFileSync(guard, originalGuard + '\n// changed');
+  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js']), true, 'a changed guard fails closed');
+  writeFileSync(guard, originalGuard);
   const selector = join(root, 'packages/gate/src/shell/affected-tests.js');
   const originalSelector = readFileSync(selector, 'utf8');
   writeFileSync(selector, originalSelector.replace("spawnSync('git',", "spawnSync('node',"));
