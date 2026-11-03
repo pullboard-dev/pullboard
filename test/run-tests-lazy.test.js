@@ -8,14 +8,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { selectAffectedTests, testClosures } from '../packages/gate/index.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
-const HEAVY = ['src/gate.js', 'src/board.js', 'src/machine.js'];
+const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
 function moduleObserver(box) {
@@ -108,7 +109,7 @@ test('a plain test run loads no gate board or machine modules through its runner
   assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
-  assert.ok(urls.includes(pathToFileURL(join(ROOT, 'src/gate-slot.js')).href), 'ordinary admission actually ran');
+  assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/shell/gate-slot.js')).href), 'ordinary admission actually ran');
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
 });
 
@@ -120,7 +121,7 @@ test('a plain run retains lazy modules with current-release-first queue policy e
   assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
   assert.match(child.stdout, /# pass 1\b/u);
   assert.ok(urls.includes(pathToFileURL(RUNNER).href), 'the actual candidate runner was observed');
-  assert.ok(urls.includes(pathToFileURL(join(ROOT, 'src/gate-slot.js')).href), 'ordinary policy-enabled admission actually ran');
+  assert.ok(urls.includes(pathToFileURL(join(ROOT, 'packages/gate/src/shell/gate-slot.js')).href), 'ordinary policy-enabled admission actually ran');
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy with currentReleaseFirst on`);
 });
 
@@ -141,7 +142,7 @@ test('the actual test-file preload loads no gate board or machine modules [C7,V4
 test('the full gate still loads its proof modules and executes its configured check [C7,V4]', { timeout: 90_000 }, // budget: one real private full gate; no performance assertion.
 () => {
   const box = fixture();
-  const gate = pathToFileURL(join(ROOT, 'src/gate.js')).href;
+  const gate = pathToFileURL(join(ROOT, 'packages/gate/index.js')).href;
   const source = `const { runGate } = await import(${JSON.stringify(gate)});
 ${executionServicesSource(gate)} const result = await runGate(process.cwd(), {gate:'node --test --test-reporter=tap web/plain.test.js'}, { executionServices,trustStamp:false}); if (!result.isGreen) throw new Error(result.output); console.log('FULL_GATE_EXECUTED');`;
   const { child, urls } = observed(box, ['--input-type=module', '-e', source]);
