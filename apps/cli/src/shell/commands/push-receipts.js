@@ -14,7 +14,6 @@ import { withGateSlot } from '../../../../../packages/gate/index.js';
 /** Additive receipt check; the existing pre-push hook remains the only active hook [C7]. */
 import {
   context,
-  gateWaitReporter,
   resourceAgent,
   withBoardRead,
 } from '../cli.js';
@@ -47,7 +46,7 @@ export async function run(io) {
     for (const problem of problems) io.err(problem);
     return 1;
   }
-  const smoke = await runPushReceiptSmoke(root, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) },
+  const smoke = await runPushReceiptSmoke(root, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) },
     { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot });
   if (headCommit(root) !== head || headTree(root) !== tree || !isClean(root)
     || mainPolicy(root).commit !== policy.commit || smoke.policyCommit !== policy.commit) {
