@@ -12,13 +12,15 @@ test('next and show give the holding seat its continuation step without suggesti
   const next = box.runAs(box.session, holder.root, 'next', '--build');
   assert.equal(next.code, 0, next.out + next.err);
   assert.match(next.out, new RegExp(`you hold #${item}\\b`, 'u'));
-  assert.match(next.out, new RegExp(`pullboard submit ${item} --wait`, 'u'));
+  assert.match(next.out, new RegExp(`pullboard submit ${item}(?:\\s|$)`, 'u'));
+  assert.doesNotMatch(next.out, new RegExp(`pullboard submit ${item} --wait`, 'u'));
   assert.doesNotMatch(next.out, new RegExp(`pullboard claim ${item}`, 'u'));
 
   const ownShow = box.runAs(box.session, holder.root, 'show', String(item));
   assert.equal(ownShow.code, 0, ownShow.out + ownShow.err);
   assert.match(ownShow.out, new RegExp(`you hold #${item}\\b`, 'u'));
-  assert.match(ownShow.out, new RegExp(`pullboard submit ${item} --wait`, 'u'));
+  assert.match(ownShow.out, new RegExp(`pullboard submit ${item}(?:\\s|$)`, 'u'));
+  assert.doesNotMatch(ownShow.out, new RegExp(`pullboard submit ${item} --wait`, 'u'));
   assert.doesNotMatch(ownShow.out, new RegExp(`pullboard claim ${item}`, 'u'));
 
   const peerShow = box.runAs(box.session, peer.root, 'show', String(item));

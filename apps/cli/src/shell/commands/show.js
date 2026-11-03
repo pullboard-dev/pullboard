@@ -44,11 +44,11 @@ import {
   agentDisplayName,
   context,
   firstLineOf,
+  identifyCaller,
   idArg,
   itemLine,
   sayBrief,
 } from '../cli-read-context.js';
-import { whoAmI } from '../cli.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
@@ -98,8 +98,11 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const callerId = ctx.info.isMain ? 'coordinator' : withBoardRead(ctx, (board) => {
-    try { return whoAmI(ctx, board).id; }
+  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
+  const callerId = ctx.info.isMain ? 'coordinator' : withBoardRead(ctx, (board, readers) => {
+    try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
+      relayLinked: () => false }, readers).id; }
     catch (error) {
       if (error instanceof Refused && error.code === 'NOT_JOINED') return null;
       throw error;
@@ -108,7 +111,7 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
-    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id} --wait`);
+    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
