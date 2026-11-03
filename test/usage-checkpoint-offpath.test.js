@@ -54,7 +54,7 @@ function bigLog(file, bytes) {
   writeFileSync(file, chunk.join(''));
 }
 
-/** A joined fixture seat with one claimable item and a native session log of `bytes` (50 MB by default). */
+/** A joined fixture seat with one claimable item and a native session log of `bytes` (50 MB by default; 0 writes no log). */
 function fixture(bytes = LOG_BYTES) {
   const box = helpers.project('true');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -69,7 +69,7 @@ function fixture(bytes = LOG_BYTES) {
   const directory = join(box.dir, 'claude', 'projects', 'private-fixture');
   mkdirSync(directory, { recursive: true });
   const log = join(directory, `${SESSION}.jsonl`);
-  bigLog(log, bytes);
+  if (bytes) bigLog(log, bytes);
   return { box, id, log, common: join(box.repo, '.git') };
 }
 
@@ -103,6 +103,34 @@ function holdWorker(common) {
   return due;
 }
 
+/**
+ * Milliseconds the claim's own post-move usage step takes for this seat, in a real CLI context: the fastest of three.
+ * Why: the bar bounds only the usage share of a claim; the rest of a claim's time belongs to other items.
+ */
+function checkpointMs(box, id) {
+  const env = { ...box.env, CLAUDE_CONFIG_DIR: join(box.dir, 'claude'), CLAUDE_CODE_SESSION_ID: SESSION };
+  delete env.PULLBOARD_USAGE_CHECKPOINT;
+  const module = (path) => JSON.stringify(new URL(path, import.meta.url).href);
+  const code = `import {context,withBoard} from ${module('../src/cli-context.js')};
+    import {whoAmI} from ${module('../src/cli/join.js')};
+    import {ordered} from ${module('../src/cli/claim.js')};
+    import {checkpointAfterMove} from ${module('../packages/stats/index.js')};
+    import {usageCheckpointWorkerEntrypoint} from ${module('../apps/lib/index.js')};
+    const nativeBoard=await import(${module('../apps/lib/src/core/native-board.js')});
+    const ctx=context({cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}});
+    const times=[];
+    for (let run=0;run<3;run++) await withBoard(ctx,async board=>{
+      const request={agent:whoAmI(ctx,board).id,item:${id},operation:'claim'};
+      const started=performance.now();
+      await checkpointAfterMove(ctx,board,request,{ordered,worker:usageCheckpointWorkerEntrypoint()});
+      times.push(performance.now()-started);
+    });
+    process.stdout.write(String(Math.min(...times)));`;
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', code], { cwd: box.web, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return Number(result.stdout);
+}
+
 /** Public numeric usage for one item, without its elapsed time. */
 function usage(box, id) {
   const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage;
@@ -110,22 +138,16 @@ function usage(box, id) {
     cacheReadInputTokens: shown.cacheReadInputTokens, cacheWriteInputTokens: shown.cacheWriteInputTokens, models: shown.models, unknownReasons: shown.unknownReasons };
 }
 
-test('50 MB of session logs add under 1 s to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
+test('50 MB of session logs add under 50 ms of usage work to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
   const inline = fixture();
   journey(inline.box, inline.id, inline.log, 'inline');
   const expected = usage(inline.box, inline.id);
   assert.equal(expected.inputTokens, 105, 'the in-line checkpoint attributes only post-claim spend, once per streamed message');
   assert.equal(expected.outputTokens, 11);
 
-  // The same deferred claim with a one-row log is this runner's baseline: what remains is what log size adds.
-  const small = fixture(1);
-  holdWorker(small.common);
-  const baselineMs = seat(small.box, ['claim', String(small.id)], 'background');
   const deferred = fixture();
   const due = holdWorker(deferred.common);
-  const claimMs = journey(deferred.box, deferred.id, deferred.log, 'background');
-  const addedMs = claimMs - baselineMs;
-  assert.ok(addedMs < 1000, `50 MB of session logs added ${Math.round(addedMs)} ms to the claim`); // budget: the bar's 1 s ceiling over a measured baseline claim
+  journey(deferred.box, deferred.id, deferred.log, 'background');
   const requests = readdirSync(due).filter((name) => name.endsWith('.json'));
   assert.equal(requests.length, 2, 'claim and release each recorded one due checkpoint');
   assert.equal(existsSync(join(deferred.common, 'pullboard', 'cost-ledger.json')), false, 'no command did usage work');
@@ -139,6 +161,16 @@ test('50 MB of session logs add under 1 s to a claim and the detached checkpoint
   assert.equal(worker.status, 0, worker.stdout + worker.stderr);
   assert.deepEqual(readdirSync(due).filter((name) => name.endsWith('.json')), [], 'the worker drained every due checkpoint');
   assert.deepEqual(usage(deferred.box, deferred.id), expected, 'the detached checkpoint records the in-line totals');
+
+  // The usage step a claim runs after its move, for the 50 MB seat against a seat with no logs; a live worker holds the queue.
+  const empty = fixture(0);
+  holdWorker(empty.common);
+  holdWorker(deferred.common);
+  const withoutLogsMs = checkpointMs(empty.box, empty.id);
+  const withLogsMs = checkpointMs(deferred.box, deferred.id);
+  const addedMs = withLogsMs - withoutLogsMs;
+  assert.ok(addedMs < 50, `50 MB of session logs added ${addedMs.toFixed(1)} ms to the claim's usage step`); // budget: the bar's 50 ms ceiling over a measured baseline seat with no logs
+  assert.equal(existsSync(join(empty.common, 'pullboard', 'cost-ledger.json')), false, 'the usage step only marks a checkpoint due');
 });
 
 test('a checkpoint reads only the log bytes added since its last offset [N2]', () => {
