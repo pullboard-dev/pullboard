@@ -48,6 +48,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;

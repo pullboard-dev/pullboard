@@ -15,7 +15,7 @@ import {
 import {
   conflictCause,
   reopenConflictEvidence,
-} from "../../../../src/reopen-cause.js";
+} from "../../../items/core.js";
 
 /** The kinds of cause key and their shapes, in the order help and refusals name them. */
 export const CAUSE_FORMS = Object.freeze(['test:<file>::<title>', 'refusal:<CODE>', 'row:<id>', 'doctrine:<id>', 'sentinel:<name>', 'conflict:<file>', 'instruction:<kind>']);
