@@ -100,7 +100,7 @@ export async function run(io, { first, values }) {
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
   const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
-  const callerId = ctx.info.isMain ? 'coordinator' : withBoardRead(ctx, (board, readers) => {
+  const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: () => false }, readers).id; }
     catch (error) {
