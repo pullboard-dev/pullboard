@@ -13,7 +13,6 @@ import {
 } from '../../../../../packages/config/index.js';
 import { setHere } from '../../../../../packages/gate/index.js';
 import {
-  gateWaitReporter,
 } from '../../../../../packages/gate/index.js';
 import {
   gateReport,
@@ -84,7 +83,7 @@ export async function run(io, { first, second, rest, values }) {
   const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board, { quarantineWaivers })) : [];
   const needsReceipt = values.landing && (values.receipt || config.landing?.requireReceipts === true);
   const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, runnerOnly: values['runner-only'] === true, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers, quarantines,
+  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, runnerOnly: values['runner-only'] === true, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io), stages: Boolean(values.landing), waivers, quarantines,
     onFailure: flakeObserver(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   // Recording diagnostics is best effort; granting an exception always rechecks current authority.
   if (gate.blockingVerdict) withBoard(ctx, board => {

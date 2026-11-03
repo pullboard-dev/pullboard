@@ -28,7 +28,6 @@ import {
   COORDINATOR,
 } from '../../../../../packages/config/index.js';
 import {
-  gateWaitReporter,
 } from '../../../../../packages/gate/index.js';
 import {
   land,
@@ -87,7 +86,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../../../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
-    maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: gateWaitReporter(io) });
+    maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;

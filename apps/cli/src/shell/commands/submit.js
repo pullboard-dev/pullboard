@@ -101,7 +101,6 @@ import * as gateReceipt from '../../../../../packages/gate/index.js';
 import { recordNativeProof } from '../../../../../packages/verify/index.js';
 import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import {
-  gateWaitReporter,
 } from '../../../../../packages/gate/index.js';
 import {
   deferredSelectionNote,
@@ -509,7 +508,7 @@ export async function submitHere(ctx, id, infra) {
   const criterionCases = criterionRed && mainFailureBase && !companion ? failureSignatures(criterionRed, root) : null;
   if (criterionCases) {
     try {
-      comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+      comparison = await compareMainFailures(root, criterionRed.profile, ctx.io.gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
         recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
       rememberComparison(comparison);
@@ -564,7 +563,7 @@ export async function submitHere(ctx, id, infra) {
   const failures = !gate.isGreen && checkAccepted && !waived ? failureSignatures(gate, root) : null;
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
-      comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+      comparison = await compareMainFailures(root, gate.profile, ctx.io.gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
         recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       rememberComparison(comparison);
@@ -601,7 +600,7 @@ export async function submitHere(ctx, id, infra) {
     CHECKOUT_LEASES.delete(ctx.io);
     comparison ??= { main: null, files: [], unavailable: 'main comparison could not be completed' };
     if (!failures && mainFailureBase && !companion) {
-      try { comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, onMeasuredReceipt, runnerAdmission }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
+      try { comparison = await compareMainFailures(root, gate.profile, ctx.io.gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, onMeasuredReceipt, runnerAdmission }); } catch { /* Keep the original gate refusal if main evidence is unavailable. */ }
     }
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });

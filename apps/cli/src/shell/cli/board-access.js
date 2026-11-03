@@ -1,5 +1,4 @@
 import { seatAt } from '../item-folder-identity.js';
-import { gateWaitReporter } from '../../../../../packages/gate/index.js';
 import { submitHandoffActor } from '../submit-handoff-origin.js';
 /** Shared board access every command uses: the caller's board, its person mode and its queue seat. Split from src/cli.js, which re-exports it [C7]. */
 import { createQueuedItemLease } from '../../../../../packages/git/index.js';
@@ -56,7 +55,7 @@ export function resourceAgent(ctx) {
 
 /** Keep the public queue adapter while its lease protocol lives in a bounded module. */
 export function queuedItemLease(ctx, initial, agentId, kind, admission = null) {
-  const report = createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer, gateWaitReporter });
+  const report = createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer, gateWaitReporter: io => io.gateWaitReporter(io) });
   let finish;
   return async state => {
     if (!state.admitted && !finish) {

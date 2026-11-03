@@ -10,7 +10,6 @@ import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
 import {
   context,
-  gateWaitReporter,
   resourceAgent,
   withBoardRead,
 } from '../cli.js';
@@ -29,7 +28,7 @@ export async function run(io, { first, second, rest, values }) {
   const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
   const agent = resourceAgent(ctx) ?? `pid-${process.pid}`;
   const item = claimedItem(ctx, agent);
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, agent, item, onWait: gateWaitReporter(io) });
+  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, agent, item, onWait: io.gateWaitReporter(io) });
   result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
   const covered = new Set(result.mainFailures.map(row => row.file));

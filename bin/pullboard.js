@@ -83,6 +83,12 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../apps/lib/index.js'),
+  /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
+  gateWaitReporter: (io) => {
+    let report;
+    const ready = import('../packages/gate/index.js').then(({ gateWaitReporter }) => { report = gateWaitReporter(io); });
+    return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
+  },
   /** Compose process-only capabilities after a command actually requests them. */
   loadProcessPorts: () => Promise.all([import('node:url'), import('../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,

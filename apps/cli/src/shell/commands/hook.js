@@ -25,7 +25,6 @@ import {
   readStdin,
 } from '../cli-support.js';
 import {
-  gateWaitReporter,
 } from '../../../../../packages/gate/index.js';
 import {
   gateReport,
@@ -158,7 +157,7 @@ export async function hookCommand(io, { first, second }) {
       else if (knownMain && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree red only in cases red on main in batch ${knownMain.id}: ${knownMain.proof.knownMain.map((row) => `${row.file} :: ${row.name}`).join('; ')}`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
-        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });
+        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
         if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
         if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
       }
