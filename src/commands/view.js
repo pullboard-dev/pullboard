@@ -2,7 +2,7 @@
 import {
   launchBackgroundView,
   reportView,
-} from '../background-view.js';
+} from '../../apps/view/index.js';
 import {
   CONFIG_FILE,
   loadConfig,
@@ -35,7 +35,7 @@ import {
   forgetView,
   rememberView,
   runningView,
-} from '../view-session.js';
+} from '../../apps/view/index.js';
 import {
   spawn,
 } from 'node:child_process';

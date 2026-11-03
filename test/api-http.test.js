@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';

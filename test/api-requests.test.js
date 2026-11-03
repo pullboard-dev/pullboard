@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Person requests stay open until answered and their messages enter the event log (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 

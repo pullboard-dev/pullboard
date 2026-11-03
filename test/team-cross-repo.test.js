@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import * as linkStore from '../packages/store/index.js';

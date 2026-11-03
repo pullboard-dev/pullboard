@@ -94,15 +94,7 @@
   ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
  "reexports": [
-  "src/background-view.js",
-  "src/badge.js",
-  "src/help/setup.js",
-  "src/needs-state.js",
-  "src/needs-summary.js",
-  "src/resume-needs.js",
   "src/serve.js",
-  "src/view-session.js",
-  "src/view.js",
   "src/view/agent-approval.js",
   "src/view/dashboard-model.js",
   "src/view/dashboard-render.js",

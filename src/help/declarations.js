@@ -1,7 +1,7 @@
 /** Ordered command-group declarations; separators remain part of their original text. */
 import { introHelp } from './intro.js';
 import { outsideHelp } from './outside.js';
-import { setupHelp } from './setup.js';
+import { setupHelp } from '../../apps/view/index.js';
 import { workHelp } from './work.js';
 import { coordinatorHelp } from './coordinator.js';
 import { receiptsHelp } from './receipts.js';

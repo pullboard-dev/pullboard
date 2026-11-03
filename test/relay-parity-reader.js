@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Complete authenticated HTTP and pinned API2 reader oracle [H5,H16,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

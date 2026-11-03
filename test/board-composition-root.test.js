@@ -21,8 +21,8 @@ import { projectFit as presentation_projectFit } from '../packages/blueprints/in
 import { projectState as presentation_projectState } from '../src/serve.js';
 import { personRequestStatuses as presentation_personRequestStatuses } from '../packages/link/index.js';
 import { personSigningPresentation as presentation_personSigningPresentation } from '../packages/person/index.js';
-import { activeViewAgents as presentation_activeViewAgents } from '../src/view-state-summary.js';
-import { viewProofSummary as presentation_viewProofSummary } from '../src/view-state-summary.js';
+import { activeViewAgents as presentation_activeViewAgents } from '../apps/view/index.js';
+import { viewProofSummary as presentation_viewProofSummary } from '../apps/view/index.js';
 import { fitFile as presentation_fitFile } from '../packages/blueprints/index.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 import { validPresence } from '../packages/person/index.js';
