@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -104,4 +105,16 @@ test('[B3,B5,C7] a folder on another branch or repository is left alone', t => {
   assert.equal(run.inspections.length, 1, `only the worktree list runs: ${run.inspections.join(' | ')}`);
   assert.equal(existsSync(path), true);
   assert.equal(existsSync(stranger), true);
+});
+
+test('[B3,B5,C7] a dangling item-folder link is skipped without throwing or a per-folder Git inspection', t => {
+  const f = fixture(t);
+  const dangling = f.folder(f.ids[7]);
+  symlinkSync(join(dangling, '..', 'missing-target'), dangling);
+  const kept = f.open(f.ids[8]);
+  writeFileSync(join(kept, 'draft.txt'), 'keep me\n');
+  const run = counted(f);
+  assert.equal(run.inspections.filter(args => args.includes('status')).length, 1, `only the real folder gets a status: ${run.inspections.join(' | ')}`);
+  assert.equal(run.inspections.length, 2, 'one worktree list and one status');
+  assert.equal(existsSync(kept), true);
 });

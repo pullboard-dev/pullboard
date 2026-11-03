@@ -28,6 +28,11 @@ function seatFolderIds(root) {
   return names.filter(name => name.startsWith(prefix) && /^[1-9]\d*$/u.test(name.slice(prefix.length))).map(name => Number(name.slice(prefix.length)));
 }
 
+/** The real path of a folder, or null when it vanished or is a dangling link, so cleanup skips it. */
+function canonical(path) {
+  try { return realpathSync(path); } catch { return null; }
+}
+
 /** Map each registered worktree path to its branch, from one Git launch for the whole repository. */
 function worktreeBranches(root) {
   const branches = new Map();
@@ -55,7 +60,7 @@ export function cleanItemFolders(ctx, board, me) {
     if (!item || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') continue;
     const path = itemFolderPath(root, id), ref = branch(me.lane, id);
     branches ??= worktreeBranches(ctx.info.root);
-    if ((branches.get(path) ?? branches.get(realpathSync(path))) !== ref) continue;
+    if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) continue;
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
