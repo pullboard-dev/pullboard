@@ -13,6 +13,7 @@ import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 /** Reuse the private two-runner resources, settings, Git source, and SSH stand-in from #2657. */
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-unpinned-requeue-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(directory, name)]));
   for (const path of Object.values(paths)) mkdirSync(path);
   const env = { PATH: `${paths.bin}:${process.env.PATH}`, HOME: paths.home, PULLBOARD_HOME: paths.home, PULLBOARD_MACHINE_HOME: paths.machine,
