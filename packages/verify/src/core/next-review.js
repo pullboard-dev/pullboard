@@ -141,6 +141,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   }
   const selection = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
+    omitIds: values.omitIds,
     observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems }),
     priority: mainRedReviewItems(ctx.info.root, board) };
   // An empty read has no move to authorize. The write authority repeats selection atomically
