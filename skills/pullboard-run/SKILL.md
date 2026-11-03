@@ -12,13 +12,9 @@ You are the coordinator: the agent in the repo's main checkout. You talk with th
 1. **Spec, with the person.** If SPEC.md has no rows for what they want, follow the pullboard-decompose skill: one question at a time, rows as drafts. Only the person approves a row. A yes relayed by another agent is not theirs.
 2. **Lanes.** Builders can only commit inside their lane's folders. If `pullboard lanes` shows nothing that fits the work, propose lanes in pullboard.json to the person, plus a `review` lane that owns no folders. Commit them once agreed.
 3. **Plan.** Follow the pullboard-plan skill, or give it to a subagent: one item per verifiable piece, in the lane that owns its files. Each has a criterion a stranger could check, and `--after` where one waits on another.
-4. **Build: one builder subagent per lane.** A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes; `pullboard worktree` refuses until they are. For each lane with open items, run `pullboard worktree <lane>` here in the main checkout. It makes the lane's worktree and prints the opening lines for its builder. Start a subagent with those lines and this task: "Run pullboard next. Build the item inside your lane's folders, commit citing its rows, and run pullboard submit. Repeat until pullboard next finds nothing. Report every refusal word for word." Lanes run side by side. A builder waiting on another lane takes other work, or waits with `pullboard next --wait 9`.
+4. **Build: one builder subagent per lane.** A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes; `pullboard worktree` refuses until they are. For each lane with open items, run `pullboard worktree <lane>` here in the main checkout. It makes the lane's worktree and prints the opening lines for its builder. Start a subagent with those lines and this task: "Run pullboard next. Build the item inside your lane's folders, commit citing its rows, and run pullboard submit. Repeat until pullboard next finds nothing. Report every refusal word for word." Lanes run side by side. A builder never waits: it submits, runs `pullboard next` at once and builds the next item. Submit queues the gate and returns; a new submit replaces the old gate. Submit runs from the folder that holds the item's commits.
 5. **Verify: a subagent that built nothing.** Run `pullboard worktree review` once and start a subagent with its opening lines and this task: "Follow the pullboard-verify skill. Run pullboard next --verify, check out the commit it names, and prove or disprove the frozen criterion. Record the verdict. Repeat until nothing is left to verify." If another model family is available, such as Codex, let it verify: different families miss different things.
-6. **Merge what is verified.** For each verified item, in the order verified:
-   - run `git merge --no-edit <its commit>` here;
-   - run the gate;
-   - record it with `pullboard merged <id> <merge commit>`.
-   Never merge a commit whose history holds another item's commit that is not yet verified. A builder who stacked work on a rejected commit waits for that commit's fix.
+6. **Land what is verified.** Run `pullboard land --dry-run`, then `pullboard land --max N`. Land merges accepted items in the order accepted, runs the gate and records each one. Do not merge by hand. It sets aside a commit that stacks on unverified work. If an item conflicts with main, the builder merges main into its branch, diffs the conflicted files against main, keeps main's logic and resubmits.
 7. **Sent back.** A rejected item reopens in its lane. Keep its builder running until the lane's items are verified, not just submitted.
 8. **Ask, never guess.** Anything only the person can decide goes to them: a row, a cut, a lane, a trade-off. Ask in this conversation. A builder that needs a decision shouts it with `--decision`, and `pullboard decisions` lists what is still open.
 9. **Report.** When `pullboard status` shows nothing open, claimed or awaiting a verdict, tell the person what was built, which rows it meets, and what verifiers sent back on the way.
@@ -30,26 +26,20 @@ pullboard resume
 pullboard worktree web                 # prints the web builder's opening lines
 pullboard worktree review              # prints the verifier's opening lines
 pullboard gate set "npm test"          # a board with no gate: set the repo's test command
-git merge --no-edit <commit> && pullboard gate && pullboard merged 3 $(git rev-parse HEAD)
+pullboard land --dry-run && pullboard land --max 5
 pullboard status
 pullboard queue                        # the work queue in pull order: releases, then route, lane and holder
 ```
 
 ## Listen
 
-Keep one listener running for the whole session under your agent client's background monitor, so a shout or a stuck item wakes you between cycles. The listener built for this is `pullboard watch --to coordinator`, which arrives with item #544. On main today `pullboard watch` answers `no command "watch"`, so run this loop under the monitor instead:
+Keep one listener running for the whole session under your agent client's background monitor, so a shout or a stuck item wakes you between cycles. Follow the board with `pullboard watch --to coordinator`. Keep it running under your agent client's background monitor so a shout or a stuck item wakes you between cycles. Run `pullboard health` each cycle as well.
 
-```
-while :; do pullboard inbox | grep -v '^no new shouts$'; pullboard health | grep -v '^nothing is stuck$'; sleep 300; done
-```
-
-Every line it prints is something to act on. `pullboard inbox` marks what it prints as read, so act on each shout when it arrives. A monitor ends with its session or its time limit: re-arm it at the start of every session, and again as soon as it reports that it stopped.
+Every line it prints is something to act on. A monitor ends with its session or its time limit: re-arm it at the start of every session, and again as soon as it reports that it stopped.
 
 Agents addressing the coordinator must declare `--kind question|blocker|decision|exception|idea`; record routine progress and results with `pullboard fact <item> note "..."`. Decision requests use `--kind question --decision`; person-origin and coordinator-origin shouts are exempt from the kind requirement.
 
 ## Keep the board moving
-
-Run `pullboard public-split` to inventory internal items and shouts before making a board public; with the person's approval, `pullboard public-split --to ~owner/handle` moves eligible items. Internal shouts remain in the source history and are filtered from the public projection; this command does not erase history.
 
 `pullboard health` lists every stuck item: why, since when, the next step and who takes it. It changes nothing, and it exits 1 while something is stuck. A clear board prints `nothing is stuck`. Each finding is one line that ends in its next step:
 
@@ -57,7 +47,7 @@ Run `pullboard public-split` to inventory internal items and shouts before makin
 #12 claim lapsed, since 2026-10-17 09:14 (2h): web-3's lease ran out and nobody is building it. Next, web-3 (builder): renew it with pullboard claim 12.
 ```
 
-Close each finding with its next step in the same cycle. When the step belongs to someone else, shout it to them with the line itself. The thresholds live in pullboard.json under `health`: `stuck` (default 1h), `holds` (1d) and `release` (1d). Item #772 adds a sentinel that posts each new finding to the feed once; until it lands, the listener's loop is where findings arrive.
+Close each finding with its next step in the same cycle. When the step belongs to someone else, shout it to them with the line itself. The thresholds live in pullboard.json under `health`: `stuck` (default 1h), `holds` (1d) and `release` (1d).
 
 A recurring job that runs on a cadence, such as a listener loop or a sentinel, records each run with `pullboard loop ran <name>`, and `pullboard health` flags one that stays silent for 1.5 cadences. The coordinator declares the cadence with `pullboard loop declare <name> --every 10m --owner <seat or lane>`; `pullboard loop` lists the jobs and their last runs.
 
@@ -75,9 +65,9 @@ After `blueprint add` or `init --blueprint`, record a fit proposal for each draf
 
 `pullboard roadmap` lists the milestones in order. `pullboard milestone order <name> <ids>` ranks those items inside their milestone, so `pullboard next` hands them out in that order; an unranked item follows the ranked ones, oldest first. Work the current release's open items first. Within it, take repairs before new work: rework a verifier sent back, and anything health reports, comes ahead of a new build. Reviews come before new builds, so a submission never waits while a builder starts something else. `pullboard health` sets rework planned for a later release apart under `waiting for a later release`.
 
-## Look up and record rulings
+## Record rulings
 
-Before deciding a repeated matter, run `pullboard rulings <key>` for its reason category. Use exactly one of these fixed keys; an unknown key is refused:
+Every decision answer needs a reason category. Use exactly one of these keys; an unknown key is refused:
 
 | Key | Reason category |
 | --- | --- |
@@ -89,14 +79,13 @@ Before deciding a repeated matter, run `pullboard rulings <key>` for its reason 
 | `person-authority` | The person's authority |
 | `tool-defect` | Other and tool defects |
 
-Every modern decision answer needs its category: `pullboard answer <id> <text> --cause <key>`. For example:
+Answer with `pullboard answer <id> <text> --cause <key>`. For example:
 
 ```sh
-pullboard rulings bar-ambiguity
 pullboard answer 12 "The criterion requires both totals." --cause bar-ambiguity
 ```
 
-The answer records its ruling as a durable native fact. Read the precedent's source, author and provenance; recording or finding a ruling gives nobody additional authority. An authenticated person answer uses the existing person channel and confirmation. A coordinator relaying the person's words uses `--origin person-relayed`; that records the coordinator as relayer, not an authenticated person decision. A relayed yes never approves a row or replaces the person's confirmation.
+The answer records its ruling as a durable native fact. An authenticated person answer uses the existing person channel and confirmation. A coordinator relaying the person's words uses `--origin person-relayed`; that records the coordinator as relayer, not an authenticated person decision. A relayed yes never approves a row or replaces the person's confirmation.
 
 For a sourced standing-rule proposal, use `pullboard spec draft "<rule>" --doctrine --source "<where it was said>" --cause <key>`. For example:
 
@@ -148,7 +137,7 @@ When the board requires ready bars (the coordinator turns this on with `pullboar
 
 
 Proof is what the board records (doctrine T11): the frozen check, the gate and the verdict. Keep no evidence folders, packets, manifests or custody rules of your own; cite the board's receipts and facts. When the board's runs cannot decide an item, ask the coordinator to sharpen its bar.
-When the same cause fails work twice, turn it into a draft row in the same session, with its proof: the item ids and the failure each one hit. Rigor drafts rows and only the person approves them. `pullboard rigor draft <key>` does this from a Rigor notice once items #713 and #714 land. On main today, write the draft with `pullboard spec draft "<the rule>" --section D` and put the proof in the shout that asks the person to review it.
+When the same cause fails work twice, turn it into a draft row in the same session, with its proof: the item ids and the failure each one hit. Rigor drafts rows and only the person approves them. Write the draft with `pullboard spec draft "<the rule>" --section D` and put the proof in the shout that asks the person to review it.
 
 ## Land in batches
 
