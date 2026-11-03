@@ -9,7 +9,7 @@ import { VERDICT_WITHDRAW_ENGINE } from "../../../../../src/verdict-withdraw-eng
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../../src/merge-only-verdict-engine.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by reopen, discovered without a shared registry edit [C7,V4,H16]. */
-import { itemById } from "../../../../../src/board-item-read.js";
+import { itemById } from "../../../../store/core.js";
 import {
   CAUSE_ENGINE,
   QUOTED_LANDING_FAILURE_ENGINE,

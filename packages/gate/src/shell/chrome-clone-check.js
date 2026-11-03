@@ -1,5 +1,5 @@
 /** Observe macOS Chrome clone growth without deleting or attributing directories [C7]. */
-import { nativeUserDirectory } from '../../../../src/native-user-directory.js';
+import { nativeUserDirectory } from '../../../store/src/shell/native-user-directory.js';
 import {
   lstatSync,
   readdirSync,

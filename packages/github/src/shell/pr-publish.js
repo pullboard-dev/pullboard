@@ -1,5 +1,5 @@
 /** Publish proven GitHub proposal branches without pushing or merging the protected trunk [B3,R3]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../../../landing/index.js';
 import {
   createHash,

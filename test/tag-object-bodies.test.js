@@ -1,7 +1,7 @@
 /** Exact Git batch framing protects annotated source-tag custody [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { tagObjectBodies } from '../src/runner-overhead.js';
+import { tagObjectBodies } from '../packages/runners/index.js';
 
 const A = 'a'.repeat(40), B = 'b'.repeat(40);
 /** Encode the actual Git batch wire format using byte lengths, not JavaScript character lengths. */

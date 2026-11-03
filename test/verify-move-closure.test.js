@@ -10,7 +10,7 @@ import { importsIn } from '../packages/gate/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { MOVE_CANDIDATE, MOVE_FILE, discovered } from '../packages/kernel/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));

@@ -1,4 +1,4 @@
-import { shellWord } from './runner-remote-tooling.js';
+import { shellWord } from '../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,

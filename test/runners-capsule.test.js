@@ -6,8 +6,8 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
-import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 import {
   assert,
   dirname,
