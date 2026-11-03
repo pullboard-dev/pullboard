@@ -85,6 +85,7 @@ const ROWS = [
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],
   ['itemSizeBudget', 'Item size budget', 'Changed lines an item may carry before submit notes it as oversize.', 'Checks', 'lines'],
+  ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
@@ -131,6 +132,7 @@ const ROWS = [
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.route.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.returnRejectedWork', 'Return rejected work', 'Rejected work goes to its builder first; after 30 minutes another lane seat may claim it.', 'Line', 'on/off'],
+  ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.order', 'Board-controlled order', 'The board sets queue order itself.', 'Line', 'on/off'],
   ['line.focusMilestone', 'Focus milestone', 'The milestone whose work is offered first.', 'Line', 'text'],
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],

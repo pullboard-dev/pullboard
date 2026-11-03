@@ -74,7 +74,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { importSeatObservations } = await import('../packages/store/index.js');
   const { dispatchWork } = await import('../packages/store/index.js');
-  const { dispatchHealth } = await import('../src/dispatch-health.js');
+  const { dispatchHealth } = await import('../packages/sentinels/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -664,7 +664,7 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
 test('gone maintenance leaves unknown imported holders and submitted reviews alone [B3,V1,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { releaseGoneClaims } = await import('../src/gone-claims.js');
+  const { releaseGoneClaims } = await import('../packages/sentinels/index.js');
   const { submitFixture } = await import('./board-submit-fixture.js');
   const f = goneClaimFixture(t);
   const id = f.claim();
