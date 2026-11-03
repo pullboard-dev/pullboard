@@ -66,7 +66,7 @@ function rows(file, sql, parameters = []) {
 /** Read complete append-only comparison observations. */
 function events(box) {
   if (!existsSync(box.events)) return [];
-  return readFileSync(box.events, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  return readFileSync(join(box.directory, 'events.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
 }
 
 /** Release every comparison before waiting for children and removing this fixture. */
@@ -207,7 +207,7 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   }
   assert.equal(maximum, 1, 'one submit leaves the other machine slot available');
   assert.equal(active, 0);
-  const cached = JSON.parse(readFileSync(box.cache, 'utf8')).entries[box.main];
+  const cached = JSON.parse(readFileSync(join(box.root, '.git/pullboard/main-red.json'), 'utf8')).entries[box.main];
   assert.deepEqual(Object.fromEntries(Object.entries(cached).map(([file, row]) => [file, { result: row.result }])), {
     'test/a.test.js': { result: 'green' }, 'test/b.test.js': { result: 'red' }, 'test/c.test.js': { result: 'green' },
   });
