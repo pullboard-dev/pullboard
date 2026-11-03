@@ -170,7 +170,7 @@ test('native review records sealed citations and reuses the actual submit execut
   const reviewed = await cli(reviewer, 'verify', String(id), 'accept', '--no-next',
     '--note', 'Read the frozen positive-value change and its native proof.', '--json');
   assert.equal(reviewed.code, 0, reviewed.err + reviewed.out);
-  assert.equal(readFileSync(baseRuns, 'utf8'), count, 'review adds no second execution to the proven item');
+  assert.equal(readFileSync(baseRuns, 'utf8'), count, 'review adds no second execution to the proven item: ' + reviewed.out + reviewed.err);
   assert.equal(existsSync(aloneRuns), false, 'review cites the sealed package without executing it');
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {

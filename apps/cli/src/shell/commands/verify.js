@@ -4,7 +4,7 @@ import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
-import { reusableSubmitProof } from '../../../../../src/submit-proof-reuse.js';
+import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
@@ -324,7 +324,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           try {
             const config = submitGateConfig(ctx.config, policyAt(root, trunk.commit).config);
             const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: trunk.commit, commit: checkedCommit, check: frozenCheck(item) });
-            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand };
+            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
