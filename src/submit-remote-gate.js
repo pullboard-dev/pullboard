@@ -1,6 +1,6 @@
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
-import { shellWord } from './runner-remote-tooling.js';
-import { effectiveRunners } from './runner-slots.js';
+import { effectiveRunners } from '../packages/runners/index.js';
+import { shellWord } from '../packages/runners/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';

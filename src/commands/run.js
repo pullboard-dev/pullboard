@@ -1,9 +1,9 @@
 /** The pullboard run command, in its own module so an item adding another command never edits these lines. */
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   runItems,
-} from '../run.js';
+} from '../../packages/runners/index.js';
 import { scaleWorkers } from '../worker-scale.js';
 import { workerBudget } from '../../packages/config/index.js';
 import { worktreeFor } from './worktree.js';

@@ -21,7 +21,7 @@ import {
   runFixtureGit,
 } from '../../../test/fixture-child.js';
 import { copyPackageSubset } from '../../../test/package-copy-fixture.js';
-import { copyPackageFiles } from '../../../src/package-files.js';
+import { copyPackageFiles } from '../../runners/index.js';
 
 const SOURCE = new URL('../../../src/', import.meta.url);
 
