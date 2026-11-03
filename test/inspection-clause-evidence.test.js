@@ -87,7 +87,9 @@ test('historical engine replay accepts old untagged criteria and unrelated edits
 test('real CLI refuses add/edit before starting the check and exposes reasoning warnings [C7]', t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
-  const box = e2e.project();
+  const isolated = e2e.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Inspection evidence fixture';
+  const box = e2e.project('true', isolated);
   const marker = join(box.repo, 'should-not-execute');
   const check = `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)},"ran")'`;
   const bad = box.run(box.repo, 'add', 'web', 'Invalid evidence', '--criterion', '1. returns zero', '--check', check,
