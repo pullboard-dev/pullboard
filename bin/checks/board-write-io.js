@@ -10,9 +10,7 @@ const PURE_NETWORK_CALLS = new Set(['net#isIP', 'net#isIPv4', 'net#isIPv6',
 // Exact relocation identities; permission names and I/O sets remain unchanged.
 const STORE_WRITE_IDENTITIES = new Map([
   ['packages/store/src/shell/board-write-lock.js', 'src/board-write-lock.js'],
-  ['packages/store/src/shell/board-event-log.js', 'src/board-event-log.js'],
   ['packages/store/src/shell/proof-receipts.js', 'src/proof-receipts.js'],
-  ['packages/store/src/shell/seat-presence.js', 'src/seat-presence.js'],
   ['src/gate-run-receipt.js', 'packages/gate/src/shell/gate-run-receipt.js'],
 ]);
 
@@ -185,13 +183,13 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
         if (PURE_NETWORK_CALLS.has(target.builtin.replace(/^node:/u, '') + '#' + target.name)) continue;
         const owner = writeIdentity(chain.at(-1));
-        if (writeIdentity(chain[0]) === 'src/board-event-log.js#atomic'
+        if (writeIdentity(chain[0]) === 'packages/store/src/shell/board-event-log.js#atomic'
           && chain.some(value => writeIdentity(value) === 'src/board-write-lock.js#finishBoardWrite')
           && POST_RELEASE.get(owner)?.has(target.builtin + '#' + target.name)) continue;
         if (chain[0] === BOARD_WRITE_IO_EXCEPTIONS.policy && chain.at(-1) === 'src/cli-read-context.js#policyRefBytes'
           && target.builtin === 'node:fs' && target.name === 'readFileSync') continue;
         const firstArgument = argumentsAt(model.code, start + call.open)?.[0];
-        if (writeIdentity(chain.at(-1)) === 'src/board-event-log.js#atomic' && target.builtin === 'node:fs'
+        if (writeIdentity(chain.at(-1)) === 'packages/store/src/shell/board-event-log.js#atomic' && target.builtin === 'node:fs'
             && target.name === 'writeSync' && firstArgument
             && model.code.slice(...firstArgument).trim() === '2') continue; // Existing stderr-only cleanup diagnostic.
 
@@ -199,7 +197,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
           call: target.builtin + '#' + target.name, chain };
         problems.set(chain[0] + ':' + detail.file + ':' + detail.line + ':' + detail.call, detail);
       } else if (target.file && !visited.has(key) && !pendingRepair(key, chain)
-          && writeIdentity(key) !== 'src/board-event-log.js#atomic') {
+          && writeIdentity(key) !== 'packages/store/src/shell/board-event-log.js#atomic') {
         const next = modules.get(target.file), fn = next?.functions.get(target.name);
         if (fn) inspect(target.file, fn.bodyStart, fn.end, [...chain, key], new Set([...visited, key]));
       }
@@ -208,7 +206,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   for (const model of modules.values()) {
     const atomicNames = new Set([...model.imports].filter(([, value]) => value.imported === 'atomic').map(([name]) => name));
     for (const call of calls(model.code, model.source).filter(call => atomicNames.has(call.name) || call.name.endsWith('.atomic')
-      || targets(model.file, call.name).some(target => writeIdentity(target.file + '#' + target.name) === 'src/board-event-log.js#atomic'))) {
+      || targets(model.file, call.name).some(target => writeIdentity(target.file + '#' + target.name) === 'packages/store/src/shell/board-event-log.js#atomic'))) {
       const owner = [...model.functions.values()].filter(fn => fn.start <= call.at && fn.end > call.at).sort((a, b) => b.start - a.start)[0];
       if (owner && pendingRepair(model.file + '#' + owner.name, [model.file + '#' + owner.name])) continue;
       const args = argumentsAt(model.code, call.open);
@@ -231,7 +229,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   }
   // Call-site callbacks do not include the transaction implementation's own post-acquisition work.
   // Its process identity preparation intentionally stays before BEGIN, outside this held-lock range.
-  for (const transaction of [modules.get('src/board-event-log.js'), modules.get('packages/store/src/shell/board-event-log.js')]) {
+  for (const transaction of [modules.get('packages/store/src/shell/board-event-log.js')]) {
     const implementation = transaction?.functions.get('atomic');
     if (implementation) {
       const body = transaction.code.slice(implementation.bodyStart, implementation.end);

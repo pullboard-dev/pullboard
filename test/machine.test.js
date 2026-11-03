@@ -151,7 +151,7 @@ const CAUGHT = {
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
-  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
