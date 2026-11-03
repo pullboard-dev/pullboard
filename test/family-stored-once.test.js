@@ -43,7 +43,8 @@ function fortySeats(t) {
     }
   }
   const lone = register(board, { lane: 'core', path: join(dir, 'lone'), model: 'test-model', session: 'fixture-lone' });
-  return { board, seats, lone };
+  const unrelated = register(board, { lane: 'core', path: join(dir, 'unrelated'), model: 'test-model', session: 'fixture-unrelated' });
+  return { board, seats, lone, unrelated };
 }
 
 /** The family record the board holds for one seat, parsed, or undefined. */
@@ -114,9 +115,12 @@ test('existing and rebuilt boards backfill old seats once without changing their
 });
 
 
-test('a later first declaration invalidates unknown session peers [H24]', t => {
-  const { board, lone } = fortySeats(t);
+test('a later first declaration refreshes only its unknown session peers [H24]', t => {
+  const { board, lone, unrelated } = fortySeats(t);
   assert.equal(seatFamily(board, lone), null);
+  assert.equal(record(board, unrelated)?.family, null);
   register(board, { lane: 'core', path: '/later-family-peer', session: 'fixture-lone', family: 'openai' });
   assert.equal(seatFamily(board, lone), 'openai');
+  assert.equal(record(board, lone)?.family, 'openai', 'the affected peer projection is restored in the declaring transaction');
+  assert.equal(record(board, unrelated)?.family, null, 'unrelated unknown projections remain recorded while the warm marker stays valid');
 });

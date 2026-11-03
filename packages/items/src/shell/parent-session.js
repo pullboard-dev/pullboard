@@ -61,7 +61,6 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
   }
   const first = naming && !declared;
   // The join is where a seat's family is recorded once: the family it already had, or the one this join declares.
-  if (first) invalidateUnknownFamilies(board);
   if (modern) recordFamily(board, id, declared ?? (first ? family : null));
   if (first) {
     // A seat with no declared family declares it once from its own worktree, whatever session joins; its recorded session stays as it was.
@@ -69,6 +68,7 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
     try {
       if (recordedParent) saveAgentParent(board, id, recordedParent);
       if (recordedSession) saveAgentSession(board, id, recordedSession);
+      for (const peer of invalidateUnknownFamilies(board, recordedSession)) recordFamily(board, peer, family);
       board.db.exec('RELEASE declare_family');
     } catch (error) {
       board.db.exec('ROLLBACK TO declare_family');

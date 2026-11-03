@@ -185,10 +185,15 @@ export function recordFamily(board, id, family) {
   } catch { /* A read-only or busy board records it on a later write. */ }
 }
 
-/** Forget unknown projections when a first declaration may resolve seats of the same session. */
-export function invalidateUnknownFamilies(board) {
-  board.db.prepare(`DELETE FROM board_meta WHERE meta_key GLOB ? AND json_valid(meta_value)
-    AND json_type(meta_value, '$.family') = 'null'`).run(FAMILY_RECORD_PREFIX + '*');
+/** Forget only unresolved projections in the session whose first family was just declared. */
+export function invalidateUnknownFamilies(board, session) {
+  if (!session) return [];
+  const ids = board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY}
+    AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`).all(session)
+    .map(row => row.meta_key.slice('agent_session:'.length));
+  const remove = board.db.prepare(`DELETE FROM board_meta WHERE meta_key=? AND json_valid(meta_value)
+    AND json_type(meta_value, '$.family') = 'null'`);
+  return ids.filter(id => Number(remove.run(FAMILY_RECORD_PREFIX + id).changes) > 0);
 }
 
 /**
