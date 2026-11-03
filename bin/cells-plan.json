@@ -236,6 +236,14 @@
   ],
   "stays": [
     {
+      "path": "src/index.js",
+      "reason": "rule 6 shim (#2393): package.json exports '.' names this file, and its restricted public namespace differs from apps/lib/index.js"
+    },
+    {
+      "path": "src/native-board.js",
+      "reason": "rule 6 shim (#2393): released and linked installs load the board by this path (loadNativeBoard and copied-package fixtures), and link, app:view and app:cli importers would need a mechanical repoint"
+    },
+    {
       "path": "bin/cell-lints.js",
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
@@ -1748,10 +1756,6 @@
   ],
   "entries": [
     {
-      "path": "src/relay-checkpoint-worker.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/check-baseline.js",
       "cell": "app:lib"
     },
@@ -1777,18 +1781,6 @@
     },
     {
       "path": "bin/update-docs.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/cli-hook-work.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/relay-sender-main.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/submit-handoff-worker.js",
       "cell": "app:lib"
     },
     {
