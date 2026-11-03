@@ -28,6 +28,9 @@ import * as store from '../src/board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
+import { runCliInProcess } from './cli-in-process-fixture.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
+import { once } from 'node:events';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -41,6 +44,11 @@ function withoutAction(text, action = 'pullboard next --wait 1') {
   const footer = `next: ${action}\n`;
   assert.ok(text.endsWith('\n' + footer), 'the intended final action is present');
   return text.slice(0, -footer.length);
+}
+
+/** Await real production CLI dispatch without repeating cold process startup for fixture state moves. */
+function fixtureCommand(box, cwd, ...args) {
+  return runCliInProcess(args, { cwd, env: box.env });
 }
 
 test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', () => {
@@ -225,8 +233,8 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(Test Model\), web lane/);
 });
 
-test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', () => {
-  const box = project();
+test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async () => {
+  const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
     "const { writeSync } = require('node:fs');",
@@ -238,7 +246,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: a noisy gate');
   const log = join(box.repo, box.git(box.repo, 'rev-parse', '--git-path', 'pullboard-gate.log'));
-  const green = box.run(box.repo, 'gate');
+  const green = await fixtureCommand(box, box.repo, 'gate');
   assert.equal(green.code, 0, green.err);
   const greenBody = withoutAction(green.out);
   assert.match(greenBody, /^gate green in \d+s; timing \(node\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: [^\n]+\n$/);
@@ -247,7 +255,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
-  const red = box.run(box.repo, 'gate');
+  const red = await fixtureCommand(box, box.repo, 'gate');
   assert.equal(red.code, 1);
   assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
   assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
@@ -255,9 +263,11 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   const lines = readFileSync(log, 'utf8').split('\n');
   assert.equal(lines.length, 502);
   assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
-  box.run(box.repo, 'add', 'coordinator', 'Coordinator work');
-  box.run(box.repo, 'claim', '1');
-  const refused = box.run(box.repo, 'submit', '1');
+  const added = await fixtureCommand(box, box.repo, 'add', 'coordinator', 'Coordinator work', '--wait');
+  assert.equal(added.code, 0, added.err);
+  const claimed = await fixtureCommand(box, box.repo, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.err);
+  const refused = await fixtureCommand(box, box.repo, 'submit', '1', '--wait', '--no-next');
   // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
   assert.equal(refused.code, 1, refused.err);
   assert.match(refused.err, /GATE_RED[\s\S]*the page renders a heading/);
@@ -384,13 +394,18 @@ test('the help keeps every command description apart from its usage [N37]', () =
 });
 
 test('output into a reader that stops early ends quietly [N24]', async () => {
-  const box = project();
-  for (let n = 0; n < 40; n++) box.run(box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1');
+  const box = project(undefined, sandbox(), { withWorktree: false });
+  for (let n = 0; n < 40; n++) {
+    const added = await fixtureCommand(box, box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1', '--wait');
+    assert.equal(added.code, 0, added.err);
+  }
   const child = spawn(process.execPath, [BIN, 'list', '--all'], { cwd: box.repo, env: box.env });
+  const closed = once(child, 'close');
+  closed.child = child;
   child.stdout.destroy();
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
-  const code = await new Promise((done) => child.on('close', done));
+  const [code] = await awaitNestedRun(closed);
   assert.equal(stderr, '');
   assert.equal(code, 0);
 });
@@ -414,31 +429,42 @@ test('every wait pullboard suggests names its unit and fits one ten-minute tool 
   assert.doesNotMatch(agents, /--wait 30/);
 });
 
-test('submit names the item and the way out when a cited row was retired after the claim [V11]', () => {
-  const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
-  box.run(box.web, 'claim', '1');
+test('submit names the item and the way out when a cited row was retired after the claim [V11]', async () => {
+  const box = project(undefined, sandbox(), { withWorktree: false });
+  box.web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
+  const joined = await fixtureCommand(box, box.web, 'join', 'web');
+  assert.equal(joined.code, 0, joined.err);
+  assert.match(joined.out, /joined as web-1/);
+  const added = await fixtureCommand(box, box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--wait');
+  assert.equal(added.code, 0, added.err);
+  const claimed = await fixtureCommand(box, box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.err);
+  const built = commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  assert.equal(built.status, 0, built.stderr);
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('- G1 [approved, must] The page renders. | gate: web test', '- G1 [retired] The page renders.'));
   box.git(box.repo, 'commit', '-qam', 'docs(spec): retire G1');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page');
-  const refused = box.run(box.web, 'submit', '1');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  const refused = await fixtureCommand(box, box.web, 'submit', '1', '--wait', '--no-next');
   assert.equal(refused.code, 1);
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed \(G1 is retired\), so no verifier could judge it; the coordinator either restores the row and runs pullboard refreeze 1, or withdraws #1/);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_status, 'claimed');
+  assert.equal(JSON.parse((await fixtureCommand(box, box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', () => {
+test('worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', async () => {
   const box = sandbox();
   const repo = join(box.dir, "my app's $PULLBOARD_PATH_PROBE");
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  box.run(repo, 'init');
+  const initialized = await fixtureCommand(box, repo, 'init');
+  assert.equal(initialized.code, 0, initialized.err);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
-  const made = box.run(repo, 'worktree', 'web').out;
+  const created = await fixtureCommand(box, repo, 'worktree', 'web');
+  assert.equal(created.code, 0, created.err);
+  const made = created.out;
   const folder = join(box.dir, "my app's $PULLBOARD_PATH_PROBE-web-1");
   const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
   assert.match(made, /For a subagent working here, begin its prompt with:\n/);
