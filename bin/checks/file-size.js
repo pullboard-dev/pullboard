@@ -11,6 +11,8 @@
  * `src/cli.js:1601: lines 1601-1700 are over the 1500-line cap`. Why per block: a doctrine count
  * only falls, and one line per file would let an over-cap file grow forever without the count
  * moving. With one per block, adding 100 lines to an over-cap file raises the count by one.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { readText, runCheck, walk } from './scan.js';
 

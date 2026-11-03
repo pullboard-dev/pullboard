@@ -8,7 +8,7 @@ process.emitWarning = (warning, ...rest) => {
 };
 const [root, rawId, request] = process.argv.slice(2);
 if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? '')) {
-  const { openBoard, nativeBoardPorts } = await import('../src/native-board.js');
+  const { openBoard, nativeBoardPorts } = await import('../apps/lib/index.js');
   const { withOutboxGuard } = await import('../packages/outbox/index.js');
   const { replay: replayConflictRecord } = await import('../packages/outbox/index.js');
   const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import('../packages/outbox/index.js');
@@ -17,7 +17,7 @@ if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? 
   const { relayOrdering } = await import('../packages/outbox/index.js');
   const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import('../packages/outbox/index.js');
   const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
-  const { runCheckBaselineWorker } = await import('../src/check-baseline-worker.js');
+  const { runCheckBaselineWorker } = await import('../packages/gate/index.js');
   try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;

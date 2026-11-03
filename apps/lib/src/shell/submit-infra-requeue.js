@@ -3,12 +3,14 @@
  *
  * Why: on 2 Nov about a third of queued gates bounced red to their builders because a runner dropped, a cleanup
  * timed out, a runner wait ran out or the board was briefly locked. None of those says anything about the builder's
- * work, so the queued worker runs the same candidate again, on whichever runner is healthy, for as long as one is.
+ * work, so the queued worker runs the same candidate again, up to 3 times, preferring another runner; after that the
+ * item shows an infrastructure stop for the coordinator, never a red for the builder.
  */
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { probeRunnerTransport } from '../../../../packages/runners/index.js';
 import { withAvoidedRunners } from '../../../../packages/gate/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Refusal codes that name the machinery, never the candidate: a rerun of the same source can go green. */
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
@@ -19,6 +21,10 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
 const PAUSE_MS = 5_000;
 const NO_RUNNER_PAUSE_MS = 30_000;
+/** Reruns of the same candidate after its first infrastructure failure. */
+export const INFRA_RETRIES = 3;
+/** Health waits before an attempt counts as exhausted: about 10 minutes with the default pause. */
+const HEALTH_WAITS = 20;
 
 /**
  * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule).
@@ -56,36 +62,48 @@ function pause(ms) {
 }
 
 /**
- * Run one queued submit attempt, and run the same candidate again after every infrastructure failure, with no retry
- * limit while any executor is healthy; with none healthy it waits for one. Every runner that failed is avoided by
- * the later attempts, so the candidate moves to another runner; only when no other runner is configured does it go
- * back to the full pool, after the health wait, because the failed host may be the only one left. A real result, green or red, and any
- * other refusal return or throw on the attempt that produced it, so only a test or check failure reaches the builder.
+ * Run one queued submit attempt, and after an infrastructure failure run the same candidate again, up to
+ * INFRA_RETRIES times. Each rerun avoids only the hosts the previous attempt failed on, so it moves to another runner
+ * when one is configured, while a host that failed earlier and has since recovered can take it again. With no healthy
+ * executor a rerun waits a bounded time for one. When the retries are spent the attempt ends GATE_INFRA_EXHAUSTED,
+ * which the board records as an infrastructure stop for the coordinator, not a red for the builder. A real result,
+ * green or red, and any other refusal return or throw on the attempt that produced it.
  *
- * @param {(attempt: number) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number }} [options]
+ * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
+ * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES } = {}) {
   const attempts = [];
-  const avoided = new Set();
+  let avoided = new Set();
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const result = await withAvoidedRunners(avoided, () => run(attempt));
+      const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
       return { result, attempts, avoided: [...avoided] };
     } catch (error) {
-      const code = infrastructureFailure(error);
+      const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
       const hosts = [...new Set(failedHosts(error))];
-      for (const host of hosts) avoided.add(host);
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
+      if (attempt > retries) throw exhausted(attempts, error);
+      // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
+      avoided = new Set(hosts);
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
       say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
+      let waits = 0;
       while (!(await healthy())) {
+        if (++waits > HEALTH_WAITS) throw exhausted(attempts, error);
         say(`no healthy runner or local gate slot yet; the candidate waits in the queue and retries in ${Math.round(noRunnerPauseMs / 1000)} s`);
         await wait(noRunnerPauseMs);
       }
       await wait(Math.min(pauseMs * attempt, 6 * pauseMs));
     }
   }
+}
+
+/** The infrastructure stop after the retries are spent: the coordinator's to resolve, never the builder's red. */
+function exhausted(attempts, cause) {
+  const last = attempts.at(-1);
+  return Object.assign(new Refused('GATE_INFRA_EXHAUSTED', `the gate stopped on infrastructure ${attempts.length} times (last ${last.code}${last.hosts.length ? ` on ${last.hosts.join(', ')}` : ''}); nothing is wrong with the candidate`,
+    'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'), { attempts, cause });
 }

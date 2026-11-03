@@ -6,7 +6,8 @@ import { dirname, join, posix } from 'node:path';
 import { test } from 'node:test';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { canonicalCopierPaths } from '../bin/cells-move-mentions.js';
-import { copyPackageFiles, shimTargets, toolSourcePath } from '../src/package-files.js';
+import { copyPackageFiles, shimTargets } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 
 const BODY = 'export const answer = 42;\n';
 const MOVES = [['src/foo.js', 'packages/foo/src/shell/foo.js']];
@@ -64,7 +65,7 @@ test('a shim that forwards to nothing shipped, or to several modules, is refused
   assert.throws(() => toolSourcePath(many, '../outside.js'), /unsafe package files entry/u);
 });
 
-const PREFIX = "import { copyFileSync, readFileSync } from 'node:fs'; import { join, resolve } from 'node:path'; import { pathToFileURL, fileURLToPath } from 'node:url';\nimport { toolSourcePath } from '../src/package-files.js';\n";
+const PREFIX = "import { copyFileSync, readFileSync } from 'node:fs'; import { join, resolve } from 'node:path'; import { pathToFileURL, fileURLToPath } from 'node:url';\nimport { toolSourcePath } from '../packages/runners/index.js';\n";
 const options = { file: 'test/some.test.js', moves: MOVES, readSource: () => null, mentionsOnly: true };
 
 /** Analyze a fixture body under the plan's file-level gate. */
@@ -158,15 +159,27 @@ test('the copier is also accepted at the cells-plan target of src/package-files.
   assert.ok(wrongPackage.edits.length + wrongPackage.problems.length > 0);
 });
 
+test('the copier is also accepted through the front door of the cell that owns it, and through no other [C7]', () => {
+  assert.ok(canonicalCopierPaths().has('packages/runners/index.js'), 'the runners front door forwards toolSourcePath from the body');
+  const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
+  const as = specifier => fixtureSourceEdits(
+    `import { readFileSync } from 'node:fs';\nimport { toolSourcePath } from '${specifier}';\n${read}`, { ...options, file: 'test/a.test.js' });
+  assert.deepEqual(as('../packages/runners/index.js'), { edits: [], problems: [] });
+  for (const lookalike of ['../packages/config/index.js', '../packages/runners/other.js', '../apps/runner/index.js']) {
+    const refused = as(lookalike);
+    assert.ok(refused.edits.length + refused.problems.length > 0, `${lookalike} is not the copier`);
+  }
+});
+
 test('only real import declarations make a copier; quoted text and comments never do [C7]', () => {
   const head = "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nimport { toolSourcePath } from './private/package-files.js';\n";
   const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
-  const fake = "import { toolSourcePath } from '../src/package-files.js'";
+  const fake = "import { toolSourcePath } from '../packages/runners/index.js'";
   for (const decoy of [`const text = "${fake}";\n`, `const text = '${fake}';\n`, `const text = \`${fake}\`;\n`, `// ${fake}\n`, `/* ${fake} */\n`]) {
     const result = fixtureSourceEdits(head + decoy + read, options);
     assert.ok(result.edits.length + result.problems.length > 0, decoy);
   }
-  const real = fixtureSourceEdits("import { readFileSync } from 'node:fs';\nimport { toolSourcePath as copy } from '../src/package-files.js';\n"
+  const real = fixtureSourceEdits("import { readFileSync } from 'node:fs';\nimport { toolSourcePath as copy } from '../packages/runners/index.js';\n"
     + "const a = readFileSync(copy(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n", options);
   assert.deepEqual(real, { edits: [], problems: [] }, 'a real aliased import still counts');
 });

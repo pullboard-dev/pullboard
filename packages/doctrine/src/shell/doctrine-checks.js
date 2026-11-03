@@ -1,6 +1,7 @@
 import { spawnCaptured } from '../../../sandbox/index.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
 import { checkCommandDefinition } from '../../../git/index.js';
 import { cleanTree } from '../../../git/index.js';
 import { readCheckReceipt } from '../../../git/index.js';
@@ -16,10 +17,16 @@ import { receiptLine } from '../../../git/index.js';
  */
 import { spawnSync } from 'node:child_process';
 import {
+  mkdirSync,
   mkdtempSync,
+  readFileSync,
+  renameSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
@@ -31,7 +38,10 @@ import {
   invalidateGitFacts,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
+import { createFastPass } from './doctrine-fast.js';
+import { fastCheckScript } from './doctrine-fast.js';
 import { lex } from '../../../kernel/index.js';
+import { machineHome } from '../../../resources/index.js';
 import {
   checkFieldFindings,
   parseSpec,
@@ -274,6 +284,11 @@ export function hasSubmitRules(root, mainCommit, practice) {
   return checkRulesAt(root, mainCommit, practice).some((rule) => rule.runs === 'submit');
 }
 
+/** True when every submit rule is file-local, so the hold can run in-process over the changed files with no runner. */
+export function submitRulesNarrowable(root, mainCommit, practice) {
+  return checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit').every((rule) => fastCheckScript(root, rule.command));
+}
+
 /** Run a check at an exact commit in a private shared clone, leaving every live worktree alone. */
 function* checkAtCommitExecution(root, commit, command, timeoutMs) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-doctrine-base-'));
@@ -308,9 +323,61 @@ async function runAtCommitAsync(root, commit, command, timeoutMs) {
 }
 
 /**
+ * The main a hold judges against: the primary checkout's commit whenever the candidate contains it, including a
+ * candidate that is exactly that main; the handed accepted main only when the primary checkout is behind it, or when the
+ * hold runs in the primary checkout itself, whose HEAD is the candidate rather than independent evidence of main.
+ * Why: a queued or handed-off submit carries the main it saw first, while current main may be newer (#2575). A candidate
+ * that does not contain current main is refused, never measured against an older main.
+ */
+function currentMain(root, mainCommit, commit) {
+  let tip = null;
+  try { tip = mainCheckout(root)?.commit ?? null; } catch { return mainCommit; }
+  if (!tip || tip === mainCommit) return mainCommit;
+  const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
+  const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
+  if (gitDir && gitDir === commonDir) return mainCommit;
+  const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
+  if (ancestor(tip, commit)) return tip;
+  if (ancestor(tip, mainCommit)) return mainCommit;
+  throw new Refused('MAIN_NOT_COMPOSED', `the candidate ${commit.slice(0, 12)} does not contain current main ${tip.slice(0, 12)}, so the doctrine hold cannot count against it; merge current main, commit, and submit again`);
+}
+
+/** The machine-wide file caching one rule's measured problems at one main tree. */
+function mainMeasureFile(tree, command, timeoutMs) {
+  const key = createHash('sha256').update(JSON.stringify([1, tree, command, timeoutMs])).digest('hex');
+  return join(machineHome(), 'doctrine-main', `${key}.json`);
+}
+
+/**
+ * Main's measured problems for one rule, run once per main tree and cached machine-wide; a broken run is never cached.
+ * Why: the ratchet judges an item against what main holds now, never its frozen base or main's declared count (#2575).
+ */
+function* measuredMain(root, mainCommit, command, timeoutMs) {
+  const tree = (gitOut(root, ['rev-parse', `${mainCommit}^{tree}`]) ?? '').trim();
+  const file = tree ? mainMeasureFile(tree, command, timeoutMs) : null;
+  if (file) {
+    try {
+      const saved = JSON.parse(readFileSync(file, 'utf8'));
+      if (Array.isArray(saved.problems) && saved.problems.every(line => typeof line === 'string')) return { problems: saved.problems, broken: '' };
+    } catch { /* A missing or damaged entry is a miss. */ }
+  }
+  const run = yield { commit: mainCommit, command, timeoutMs, candidate: false, main: true };
+  if (file && !run.broken && !run.partial) {
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      const temp = `${file}.${process.pid}.tmp`;
+      writeFileSync(temp, JSON.stringify({ problems: run.problems }));
+      renameSync(temp, file);
+    } catch { /* A failed save only costs the next check a rerun. */ }
+  }
+  return run;
+}
+
+/**
  * Hold the doctrine's counts for a submission. Rules, commands and modes come from accepted main;
  * the submitted commit may only lower a count. Each touched rule runs at the clean submitted
- * checkout; a changed file's problems are compared with the merge base only when it has any.
+ * checkout; its total and each changed file's problems are compared with current main's measured problems, which run
+ * once per main commit and are cached machine-wide, never with the item's frozen base or main's declared count.
  * Refuses RATCHET_ROSE with the rule, its counts and the new problem lines.
  *
  * @param {string} root - The clean submitting checkout, at `commit`.
@@ -318,6 +385,8 @@ async function runAtCommitAsync(root, commit, command, timeoutMs) {
  * @returns {ReturnType<typeof doctrineReport>}
  */
 function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
+  // Current main is resolved first, so a rule added or changed on main since the frozen base applies.
+  mainCommit = currentMain(root, mainCommit, commit);
   const rules = checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit');
   if (!rules.length) return [];
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
@@ -339,31 +408,45 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
       const globalInputs = [practice, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, 'pullboard.json', 'package.json'];
       if (inputs && !changed.some(path => globalInputs.includes(path) || inputs.some(input => input.path === `project:${path}`))) continue;
     }
-    const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
-    const run = yield { commit, command: rule.command, timeoutMs, candidate: true };
-    const count = run.problems.length;
-    const state = ruleState(rule, count, committed, run.broken);
-    const result = { id: rule.id, text: rule.text, command: rule.command, count, committed,
-      holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: run.broken };
-    results.push(result);
+    // Main's measured total is the baseline, never its declared count; an item that lowers its declaration is held below it.
+    const main = rule.mode === 'watch' ? { problems: [], broken: '' } : yield* measuredMain(root, mainCommit, rule.command, timeoutMs);
+    const declared = lowered.get(rule.id) ?? rule.count;
+    const measured = main.broken || rule.mode === 'watch' ? rule.count : main.problems.length;
+    const committed = declared < rule.count ? Math.min(declared, measured) : measured;
+    // A clean checkout lets a file-local rule look only at the changed paths (and the moved paths' origins).
+    const scope = canFingerprint ? changed.filter((path) => inScope(rule.files, path)) : undefined;
+    const run = yield { commit, command: rule.command, timeoutMs, candidate: true, scope };
     const name = `${rule.id} ${rule.text}`;
     // A broken check never passes, whatever its mode.
     if (run.broken) {
+      results.push({ id: rule.id, text: rule.text, command: rule.command, count: 0, committed, holds: false, state: 'uncounted', mode: rule.mode, runs: rule.runs, problems: [], broken: run.broken });
       uncounted.push(`${name} cannot count: its check ${run.broken}`);
       continue;
     }
-    if (rule.mode === 'watch') continue;
     const touched = changed.filter((path) => run.problems.some((line) => namesFile(line, path)));
-    const ran = touched.length ? yield { commit: base, command: rule.command, timeoutMs, candidate: false } : { problems: [], broken: '' };
+    // A narrowed run saw only changed files, so it always compares them with the base.
+    const seen = run.partial ? [...new Set([...scope, ...origins.values()])] : null;
+    const ran = run.partial && rule.mode !== 'watch' ? { ...main, problems: main.problems.filter((line) => seen.some((path) => namesFile(line, path))) }
+      : touched.length && rule.mode !== 'watch' ? main : { problems: [], broken: '' };
     // A renamed file is compared with its origin: the origin's problems are carried to the new path.
     const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
-    if (count > committed) {
-      const fresh = newLines(before.broken ? [] : before.problems, run.problems);
+    // Only changed files can differ from main, so a narrowed count is accepted main's count moved by them; a lowered declaration never lowers the measure.
+    const count = run.partial ? Math.max(0, (main.broken ? rule.count : main.problems.length) + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
+    const state = ruleState(rule, count, committed, false);
+    results.push({ id: rule.id, text: rule.text, command: rule.command, count, committed,
+      holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: '' });
+    if (rule.mode === 'watch') continue;
+    if (count > committed && !before.broken) {
+      const fresh = newLines(before.problems, run.problems);
       refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${(fresh.length ? fresh : run.problems).map((line) => `  ${line}`).join('\n')}`);
       continue;
     }
+    if (count > committed) {
+      refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${run.problems.map((line) => `  ${line}`).join('\n')}`);
+      continue;
+    }
     if (before.broken) {
-      uncounted.push(`${name} cannot count at the base ${base.slice(0, 12)}: its check ${before.broken}`);
+      uncounted.push(`${name} cannot count at main ${mainCommit.slice(0, 12)}: its check ${before.broken}`);
       continue;
     }
     for (const path of touched) {
@@ -403,12 +486,14 @@ export function holdDoctrine(root, options) {
 /** Await each actual rule and base comparison without blocking other admitted work or changing ratchet decisions. */
 export async function holdDoctrineAsync(root, options) {
   const execution = doctrineHoldExecution(root, options);
+  const pass = options.fast ? createFastPass(root) : null;
   try {
     let step = execution.next();
     while (!step.done) {
       const request = step.value;
-      let run;
-      if (options.runCheck) {
+      let run = pass ? await pass.answer(request) : null;
+      // A narrowed rule is answered in-process over the changed files; the rest follow the established paths.
+      if (!run && options.runCheck) {
         // Remote checks share the same per-tree receipts as local rule checks, but only when
         // this clean checkout describes the exact tree requested from the runner.
         const key = checkReceiptKey(root, { kind: 'doctrine', definition: request.command, config: { timeoutMs: request.timeoutMs }, code: [fileURLToPath(import.meta.url)] });
@@ -422,11 +507,11 @@ export async function holdDoctrineAsync(root, options) {
           run = await options.runCheck(request.commit, request.command, request.timeoutMs);
           if (!run.broken) writeCheckReceipt(root, matching, { result: run });
         }
-      } else run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
+      } else if (!run) run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
       step = execution.next(run);
     }
     return step.value;
-  } finally { execution.return(); }
+  } finally { execution.return(); pass?.close(); }
 }
 
 /** Reuse a complete successful hold before admitting any runner work. */

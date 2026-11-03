@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard, openBoardForRead } from '../src/native-board.js';
+import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { refreshLandedCodeMap } from '../packages/landing/index.js';
 import { mainMovedWarnings } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

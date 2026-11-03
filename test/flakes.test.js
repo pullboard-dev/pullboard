@@ -5,10 +5,10 @@ import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import './quarantine-core-cases.js';
 import { landingPorts } from './landing-ports-fixture.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -20,8 +20,8 @@ import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { flakeSource, observeNativeFailure } from '../packages/flakes/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 import { land } from '../packages/landing/index.js';
 import { nudgeMainAudit } from '../packages/gate/index.js';
 import { nudgeSourceAdvances } from '../packages/git/index.js';

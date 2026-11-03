@@ -9,7 +9,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { closeBoard, openBoard } from '../src/native-board.js';
+import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { workingDirectories } from '../packages/landing/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { startFixtureChild } from './fixture-child.js';

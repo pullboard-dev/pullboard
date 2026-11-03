@@ -10,6 +10,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { infrastructureFailure, submitUntilSettled } from '../apps/lib/index.js';
 import { Refused } from '../packages/kernel/index.js';
+import { preferOtherRunners } from '../packages/gate/index.js';
 
 const url = file => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', file)).href);
 
@@ -68,19 +69,23 @@ try {
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
 
-test('a gate whose runner drops (transport lost, cleanup timeout, wait deadline) reruns on a healthy runner and reports that result; the builder sees no red [C7]', t => {
+test('a gate whose runner drops twice, then succeeds, ends green with no red reported [C7]', t => {
   const box = fixture(t);
-  const result = scenario(box, ['transport', 'cleanup', 'deadline', 'transport', 'cleanup']);
+  const result = scenario(box, ['transport', 'cleanup']);
   assert.equal(result.refused, undefined, `no refusal reaches the builder: ${JSON.stringify(result)}`);
   assert.equal(result.green, true, 'the healthy rerun reports its own result');
   assert.equal(result.output, 'REQUEUE_OK');
-  assert.equal(result.calls, 6, 'every infrastructure failure ran the same candidate again; no retry limit');
-  assert.ok(result.seen.every(host => host === box.runner.host), 'every attempt ran on the healthy runner');
-  assert.ok(result.attempts.length >= 2, 'more than the old single retry was requeued');
-  assert.ok(result.attempts.every(row => ['RUNNER_INFRA_RETRY_EXHAUSTED', 'RUNNER_WAIT_DEADLINE', 'RUNNER_CLEANUP_TIMEOUT', 'TRANSPORT_LOST'].includes(row.code)), JSON.stringify(result.attempts));
-  assert.ok(result.attempts.some(row => row.code === 'RUNNER_WAIT_DEADLINE'), 'a wait deadline requeued');
+  assert.equal(result.calls, 3, 'the same candidate ran again after each drop');
+  assert.ok(result.attempts.length <= 3, 'within the bounded retries');
   assert.ok(result.said.every(line => /requeueing the same candidate(?:, avoiding [^,]+)?, not a red$/u.test(line)), result.said.join('\n'));
   assert.ok(readFileSync(box.requests, 'utf8').includes(box.runner.host), 'the attempts used only the private stand-in');
+});
+
+test('after 3 retries a runner that keeps dropping ends as an infrastructure stop, never a red [C7]', t => {
+  const box = fixture(t);
+  const result = scenario(box, Array(20).fill('transport'));
+  assert.equal(result.refused, 'GATE_INFRA_EXHAUSTED', JSON.stringify(result));
+  assert.ok(result.calls <= 8, `bounded: ${result.calls} runs`);
 });
 
 for (const kind of ['transport', 'cleanup', 'deadline']) {
@@ -131,4 +136,29 @@ test('infrastructure failures are named by code, a dropped runner or a locked bo
   assert.equal(calls, 2);
   assert.deepEqual(attempts.map(row => row.code), ['RUNNER_UNAVAILABLE']);
   assert.equal(waits, 3, 'two waits for a healthy executor, then the requeue pause');
+});
+
+test('the requeue is bounded at 3 retries and ends GATE_INFRA_EXHAUSTED for the coordinator [C7]', async () => {
+  let calls = 0;
+  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('RUNNER_UNAVAILABLE', 'fixture: down'); },
+    { healthy: async () => true, wait: async () => {} }), error => error.code === 'GATE_INFRA_EXHAUSTED' && error.attempts.length === 4);
+  assert.equal(calls, 4, 'the first attempt and exactly 3 retries');
+  let waited = 0;
+  await assert.rejects(submitUntilSettled(async () => { throw new Refused('RUNNER_UNAVAILABLE', 'fixture: down'); },
+    { healthy: async () => false, wait: async () => { waited += 1; } }), { code: 'GATE_INFRA_EXHAUSTED' });
+  assert.ok(waited > 0 && waited <= 20, 'waiting for a healthy executor is bounded too');
+});
+
+test('a runner that failed earlier and recovered takes the rerun when the other stays unreachable [C7]', async () => {
+  const pool = [{ host: 'runner-a' }, { host: 'runner-b' }];
+  const used = [];
+  const { result } = await submitUntilSettled(async (attempt, avoided) => {
+    const host = preferOtherRunners(pool, avoided)[0].host;
+    used.push(host);
+    if (attempt === 1) throw Object.assign(new Refused('RUNNER_JOB_LOST', 'fixture: runner a dropped'), { runnerHost: 'runner-a' });
+    if (host === 'runner-b') throw new Refused('RUNNER_WAIT_DEADLINE', 'fixture: runner b never answered');
+    return `GREEN on ${host}`;
+  }, { healthy: async () => true, wait: async () => {} });
+  assert.deepEqual(used, ['runner-a', 'runner-b', 'runner-a'], 'a, now recovered, re-enters the pool after b fails');
+  assert.equal(result, 'GREEN on runner-a');
 });

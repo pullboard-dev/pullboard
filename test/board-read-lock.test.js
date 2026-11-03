@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/cli-context.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard, openBoardForRead } from '../src/native-board.js';
+import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import * as nativeBoard from '../src/native-board.js';
 import { withBoard } from '../src/cli-context.js';
 import { withBoardRead } from '../src/cli-context.js';
@@ -68,9 +68,9 @@ async function timed(box, cwd, ...argv) {
   const startedAt = performance.now();
   try {
     const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'src', 'native-board.js')).href),
-      hookWorker: join(box.release, 'src', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'src', 'submit-handoff-worker.js'),
+      hookWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'),
       /** Launch only the released sender actually requested by this command. */
-      launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'src', 'relay-sender-main.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
+      launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'apps', 'lib', 'index.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };
   } finally {
     HOMES.forEach((name, index) => { if (saved[index] === undefined) delete process.env[name]; else process.env[name] = saved[index]; });
