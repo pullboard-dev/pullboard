@@ -13,7 +13,7 @@ import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
 
 const fixtures = createE2eHelpers();

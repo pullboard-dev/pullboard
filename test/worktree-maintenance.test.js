@@ -7,6 +7,8 @@ import { registerMaintenanceEngineTests } from './worktree-maintenance-engine.fi
 import { registerMaintenanceCliTests } from './worktree-maintenance-cli.fixture.js';
 import { registerMaintenanceCliLifecycleTests } from './worktree-maintenance-cli-lifecycle.fixture.js';
 import { registerMaintenanceRetentionTests } from '../apps/cli/tests/worktree-maintenance-retention.fixture.js';
+// These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
+delete process.env.PULLBOARD_RUNNER_JOB;
 registerMaintenanceArchiveTests();
 registerMaintenanceConfigTests();
 registerMaintenanceClassificationTests();
