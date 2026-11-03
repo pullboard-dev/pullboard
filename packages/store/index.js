@@ -81,6 +81,7 @@ export { checkedSubmitOutcome } from './src/shell/submit-outcome.js';
 export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
 export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
+export { submitGateInFlight } from './src/core/red-return-lease.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
