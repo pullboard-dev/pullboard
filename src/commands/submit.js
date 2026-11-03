@@ -59,7 +59,7 @@ import { quarantineWaivers } from '../../packages/flakes/index.js';
 import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
-import { checkAtCommit } from '../runner-private-check.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { submitGateConfig } from '../../packages/gate/index.js';
@@ -94,6 +94,7 @@ import {
 import {
   hasSubmitRules,
   holdDoctrineAsync,
+  submitRulesNarrowable,
   ruleLine,
 } from '../../packages/doctrine/index.js';
 import { receiptLine as gateReceiptLine } from '../../packages/gate/index.js';
@@ -456,7 +457,9 @@ export async function submitHere(ctx, id, infra) {
   let doctrine;
   const doctrineStart = performance.now();
   try { doctrine = await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
+    ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
+      ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
+      : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
       const remoteDoctrine = gateAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
       try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }

@@ -77,7 +77,7 @@ import {proofCounts} from './packages/verify/index.js';
 import {failureSignatures,MAIN_FAILURE_SIGNATURE_VERSION} from './packages/landing/index.js';
 import {fullGateRun,recordRun} from './packages/gate/index.js';
 import {accountedFailures} from './packages/landing/index.js';
-import {checkAtCommit} from './src/runner-private-check.js';
+import {checkAtCommit} from './apps/runner/index.js';
 import * as store from './src/board.js';
 import * as nativeBoard from './src/native-board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));

@@ -13,7 +13,7 @@ import { runnerPhaseFields } from '../packages/gate/index.js';
 import { git } from './git.js';
 import { gitPath } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { privateCheckEnvelope } from './runner-private-mode.js';
+import { privateCheckEnvelope } from '../apps/runner/index.js';
 import { trunkRef } from '../packages/sandbox/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;

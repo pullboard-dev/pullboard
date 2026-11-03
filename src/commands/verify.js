@@ -33,7 +33,7 @@ import {
   renderTestSummary,
   withTestOutput,
 } from '../../packages/gate/index.js';
-import { checkAtCommit } from '../runner-private-check.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
