@@ -13,8 +13,7 @@ import { runCliInProcess } from './cli-in-process-fixture.js';
 import { copyFixtureRunner } from './fixture-runner-copy.js';
 import { writeTestTiers } from '../packages/gate/index.js';
 import { requireTestTierAccount } from '../packages/gate/index.js';
-import { loadConfig } from '../packages/config/index.js';
-import { frozenCheckCeilingMs } from '../packages/config/index.js';
+import { waitForCondition } from './runner-fixture-state.js';
 
 /** Commit real fixture source through its ordinary installed hooks. */
 function commit(box, cwd, message) {
@@ -33,16 +32,7 @@ async function json(box, cwd, ...args) {
 test('a green dot-reporter gate records both selected files and accepts with its native test account [C7,V4]', async t => {
   const helpers = createE2eHelpers();
   let box;
-  t.after(async () => {
-    if (box) {
-      const directory = join(box.repo, '.git/pullboard/review-comparisons');
-      const jobs = existsSync(directory) ? readdirSync(directory).map(job => join(directory, job)) : [];
-      // The worker writes this terminal result only after its real comparison CLI child has closed.
-      await helpers.waitFor(() => jobs.every(job => existsSync(join(job, 'result.json'))),
-        'owned automatic comparison to finish before cleanup', frozenCheckCeilingMs(loadConfig(box.repo)));
-    }
-    helpers.cleanup();
-  });
+  t.after(() => helpers.cleanup());
   box = helpers.project('true');
   const runner = 'node bin/run-tests.js --test-reporter=dot';
   const check = `node -e "if (!require('node:fs').readFileSync('packages/alpha/index.js', 'utf8').includes('value = 2')) process.exit(1)"`;
@@ -74,6 +64,13 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   assert.deepEqual(submitted.gate.files, files);
   const account = JSON.parse(readFileSync(submitted.gate.profilePath, 'utf8'));
   assert.deepEqual([...new Set(account.testOutcomes.map(row => row.file))].sort(), files);
+
+  // Finish the detached diagnostic while this case still owns its active-test budget.
+  // An after hook otherwise waits after Node announces test completion, hitting the file-exit guard.
+  const comparisons = join(box.repo, '.git/pullboard/review-comparisons');
+  const jobs = existsSync(comparisons) ? readdirSync(comparisons).map(job => join(comparisons, job)) : [];
+  await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
+    'owned automatic comparison to finish before advancing main', { signal: t.signal });
 
   // Changing accepted main requires a private review run instead of sealed submit-proof reuse.
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
