@@ -5,7 +5,7 @@ import { homedir, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { projectRegistrationAllowed } from '../packages/seats/src/shell/project-registration.js';
-import { registerProject, registryFile } from '../src/projects.js';
+import { registerProject, registryFile } from '../packages/seats/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /** Change only fixture-owned environment keys and restore them after the test. */

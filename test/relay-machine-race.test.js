@@ -18,7 +18,7 @@ const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js
 const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
-const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
+const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href;
 
 /** Read one real SQLite person-request receipt without opening a transport or changing the board. */
 function requestRecord(root, id) {
