@@ -484,6 +484,9 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api'], { cwd: review, env: box.env, encoding: 'utf8' });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
+  // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
+  const moved = spawnSync('git', ['commit', '-q', '--allow-empty', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(moved.status, 0, moved.stderr);
   writeFileSync(box.events, '');
   const verifyRelease = join(box.dir, 'release-verify-holder');
   const verifyHolderRoot = gateRepo(box, 'verify-holder', 0.1, verifyRelease);
