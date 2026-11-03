@@ -65,3 +65,10 @@ test('a second change to the same refusal starts a fresh twenty-gate trial [C7]'
   for (let number = 1; number <= 20; number++) assert.equal(box.gate('GATE_RED', second), 'passed');
   assert.equal(box.gate('GATE_RED', second), 'GATE_RED');
 });
+
+test('a new refusal with changed rule content restarts its trial [C7]', t => {
+  const box = fixture(t);
+  for (let number = 1; number <= 20; number++) assert.equal(box.gate('FIXTURE_NEW_RULE', { rule: 'initial rule source' }), 'passed');
+  assert.equal(box.gate('FIXTURE_NEW_RULE', { rule: 'initial rule source' }), 'FIXTURE_NEW_RULE');
+  assert.equal(box.gate('FIXTURE_NEW_RULE', { rule: 'updated rule source' }), 'passed');
+});

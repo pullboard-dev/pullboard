@@ -50,8 +50,8 @@ function writeLedger(file, ledger) {
 }
 
 /** Whether a code is on trial: changed since the list was frozen, or not on it at all. */
-function onTrial(code, { enforced = ENFORCED_REFUSALS, changed = CHANGED_REFUSALS } = {}) {
-  return Object.hasOwn(changed, code) || !enforced.has(code);
+function onTrial(code, { enforced = ENFORCED_REFUSALS, changed = CHANGED_REFUSALS, rule } = {}) {
+  return rule !== undefined || Object.hasOwn(changed, code) || !enforced.has(code);
 }
 
 /** Bind a trial to the actual changed-rule content supplied by its owner, not merely its refusal code. */
