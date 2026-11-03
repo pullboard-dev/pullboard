@@ -274,8 +274,12 @@ function ensureReportCounters(board, until) {
   }
 }
 
-/** Rebuild from authoritative history inside the caller's existing write transaction. */
-export function rebuildProofCounters(board) {
+/**
+ * Rebuild from authoritative history inside the caller's existing write transaction.
+ * refresh: false leaves the capacity forecast to background maintenance, so a rebuild
+ * under the write lock never runs the forecast (#2578).
+ */
+export function rebuildProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
   const keepNewer = reportIsNewer(board);
   clearProofCounters(board);
@@ -284,7 +288,7 @@ export function rebuildProofCounters(board) {
   if (!keepNewer) resetReportCounters(board);
   replayProofTail(board, 0);
   ensureCapacityCounters(board, proofCounter(board, 'summary').last);
-  refreshCapacityCache(board, { force: true });
+  if (refresh) refreshCapacityCache(board, { force: true });
 }
 
 /** Catch up an older writer once; ordinary current-writer appends then decode only their new event. */
@@ -292,7 +296,7 @@ export function ensureProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
   ensureRigorCounters(board);
   const summary = proofCounter(board, 'summary');
-  if (!summary) { rebuildProofCounters(board); return; }
+  if (!summary) { rebuildProofCounters(board, { refresh }); return; }
   ensureReportCounters(board, summary.last);
   ensureCapacityCounters(board, summary.last);
   replayProofTail(board, summary.last);

@@ -9,6 +9,8 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../packages/store/index.js';
 import { checkpointBoard } from '../packages/store/index.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { refreshCapacityOutsideWrite } from '../packages/verify/index.js';
 
@@ -71,4 +73,19 @@ test('a checkpoint never blocks a reader, during or after it [C7]', t => {
   t.after(() => fresh.close());
   fresh.exec('PRAGMA busy_timeout = 0');
   assert.equal(fresh.prepare('SELECT count(*) AS n FROM item').get().n, seen + 20, 'a new reader sees every write with no wait');
+});
+
+test('a counter rebuild on open and a board import derive no capacity forecast under the write lock [C7]', t => {
+  const { dir, file, board } = fileBoard(t);
+  const snapshot = exportBoard(board);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key IN (?, ?)').run('local:proof-stats:v2:summary', 'local:proof-stats:v2:capacity-snapshot');
+  const reopened = openBoard(file);
+  t.after(() => store.closeBoard(reopened));
+  assert.notEqual(derived(reopened, 'summary'), null, 'opening rebuilt the missing counters');
+  assert.equal(derived(reopened, 'capacity-snapshot'), null, 'the rebuild on open left the forecast to background maintenance');
+  const replica = openBoard(join(dir, 'replica.sqlite'));
+  t.after(() => store.closeBoard(replica));
+  importBoard(replica, snapshot);
+  assert.notEqual(derived(replica, 'summary'), null, 'the import rebuilt its counters');
+  assert.equal(derived(replica, 'capacity-snapshot'), null, 'the import left the forecast to background maintenance');
 });
