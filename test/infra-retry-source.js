@@ -19,7 +19,7 @@ console.log(JSON.stringify({green:result.isGreen,output:result.output,receipts,p
 export function lateTransportRetrySource(gateUrl, runner, servicesSource) {
   return `import { withGateSlot } from ${JSON.stringify(gateUrl)};
 ${servicesSource}
-import { RunnerDropped } from ${JSON.stringify(new URL('../src/gate-policy-load.js', import.meta.url).href)};
+import { RunnerDropped } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 const expectedRunner = ${JSON.stringify(runner.host)};let calls=0;const receipts=[];
 const result=await withGateSlot(process.cwd(),async lease=>{calls++;if(lease.runner?.host!==expectedRunner)throw new Error('retry changed executor without evidence');if(calls===1){await new Promise(done=>setTimeout(done,260));throw new RunnerDropped(lease.runner.host,{reason:'fixture-late-transport',phase:'ready'});}return {isGreen:true,output:'LATE_RETRY_OK'};},
   {executionServices,remote:true,runnerWaitMs:200,itemCheck:true,agent:'infra-late-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});

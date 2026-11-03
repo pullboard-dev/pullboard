@@ -32,7 +32,7 @@ test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t)
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
   const admission = new URL('../src/browser-admission.js', import.meta.url).href;
-  const gate = new URL('../src/gate.js', import.meta.url).href;
+  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const commands = [
     ['browser', 'out=$(node bin/run-tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
     ['unknown', 'eval "$CHECK"', true],

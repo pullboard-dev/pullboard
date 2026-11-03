@@ -11,7 +11,7 @@ import { ACCESS_WINDOW_MS } from '../relay/auth.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../packages/store/index.js';
-import { SENDER_WORKER } from '../src/relay-sender-main.js';
+import { SENDER_WORKER } from '../apps/lib/index.js';
 import { outboxGuardFile } from '../packages/outbox/index.js';
 import { undoQueued } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
