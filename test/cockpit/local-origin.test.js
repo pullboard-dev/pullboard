@@ -12,13 +12,20 @@ import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/in
 import { help$VERSION as VERSION } from '../../apps/cli/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
-import { BIN, machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, styleOf, proofShot } from './fixture.js';
+import { BIN, machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, styleOf, proofShot, press } from './fixture.js';
 import {
   chromeHealth,
   networkServicePids,
 } from './chrome-health.js';
 
 const HOSTED = 'https://app.pullboard.dev';
+
+/** Navigate to the real Items pane after the hosted page is ready, where its board rows are rendered. */
+async function showItemChain(chrome, ready, title, timeout = 30_000) {
+  await chrome.waitFor(ready, timeout);
+  await press(chrome, "document.querySelector('[data-tab=items]')");
+  await chrome.waitFor(`document.querySelector('[data-tab=items].on') && document.querySelector('#chain')?.textContent.includes(${JSON.stringify(title)})`, timeout);
+}
 
 /** What the hosted page showed, for a wait that failed: its address, state, rows, detail and sessions (#908). */
 const HOSTED_FACTS = `JSON.stringify({ origin: location.origin, search: location.search,
@@ -261,7 +268,7 @@ test('a pullboard.dev page reads the local board [N26,A2]', { timeout: 120_000 }
     view = await viewAt(box, port);
     local.target = view.base;
     await chrome.send('Page.navigate', { url: HOSTED + '/' });
-    await chrome.waitFor("location.origin === 'https://app.pullboard.dev' && document.querySelector('#chain')?.textContent.includes('A board that stays on this machine')", 30_000); // budget: hang ceiling for the discovery, one top-level round trip and the first board read.
+    await showItemChain(chrome, `location.origin === ${JSON.stringify(HOSTED)} && localSession && connection.base === ${JSON.stringify(view.base)}`, 'A board that stays on this machine'); // budget: hang ceiling for the discovery, one top-level round trip and the first board read.
     const shown = JSON.parse(await chrome.stable(`JSON.stringify({ address: location.href, base: connection.base, readOnly, transportModule, kept: sessionStorage.getItem('pullboard.local.session'), lasting: Object.keys(localStorage).map((name) => localStorage.getItem(name)).join(' '), log: window.__localFetches })`));
     assert.ok(!shown.address.includes('pullboard-local') && !shown.address.includes(view.key), 'the secret is gone from the address bar');
     assert.equal(shown.base, view.base, 'the page reads the local view the round trip named');
@@ -295,7 +302,7 @@ test('a pullboard.dev page reads the local board [N26,A2]', { timeout: 120_000 }
     const modulesBefore = relayModule();
     const metadataBefore = chrome.requests.filter((entry) => entry.url === HOSTED + '/api/v1/boards').length;
     await chrome.send('Page.navigate', { url: HOSTED + '/?relay' });
-    await chrome.waitFor("location.search === '?relay' && document.querySelector('#chain')?.textContent.includes('A board that stays on this machine')", 20_000); // budget: hang ceiling for a tab-session read and empty linked-board metadata.
+    await showItemChain(chrome, `location.search === '?relay' && localSession && connection.base === ${JSON.stringify(view.base)}`, 'A board that stays on this machine', 20_000); // budget: hang ceiling for a tab-session read and empty linked-board metadata.
     await chrome.waitFor("(window.__localFetches || []).some((entry) => entry.url === '/api/v1/boards')", 10_000); // budget: hang ceiling for the same-origin metadata request.
     assert.equal(await chrome.stable('transportModule'), null, 'an empty linked list leaves the relay transport unloaded even when signed in');
     assert.equal(relayModule(), modulesBefore, 'a local-only signed-in page does not request the relay module');
@@ -320,7 +327,7 @@ test('a pullboard.dev page reads the local board [N26,A2]', { timeout: 120_000 }
     })()` });
     assert.equal(await chrome.stable("(() => { sessionStorage.setItem('pullboard.test.fail-local-list', '1'); return true; })()"), true, 'the next load meets one failed local read');
     await chrome.send('Page.navigate', { url: HOSTED + '/?relay' });
-    await chrome.waitFor("location.search === '?relay' && window.__localListFailed === true && document.querySelector('#chain')?.textContent.includes('A board that stays on this machine')", 20_000); // budget: hang ceiling for one failed read and the next timed refresh.
+    await showItemChain(chrome, `location.search === '?relay' && window.__localListFailed === true && localSession && connection.base === ${JSON.stringify(view.base)}`, 'A board that stays on this machine', 20_000); // budget: hang ceiling for one failed read and the next timed refresh.
     await chrome.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: failOnce });
     assert.equal(relayModule(), modulesBefore, 'a failed local read on a local-only signed-in page does not request the relay module');
     assert.equal(await chrome.stable('transportModule'), null, 'and the relay transport stays unloaded');
@@ -415,7 +422,7 @@ async function howFarBehind(t, { linked }) {
       const installed = await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__releaseVisit = ${marker}; window.__releaseFetches = []; const pageFetch = window.fetch; window.fetch = function (input, init) { window.__releaseFetches.push(String(input?.url ?? input)); return pageFetch.call(this, input, init); };` });
       visitPreload = installed.identifier;
       await chrome.send('Page.navigate', { url: HOSTED + '/' });
-      await chrome.waitFor(`window.__releaseVisit === ${marker} && document.readyState === 'complete' && data?.project?.releaseNotes?.version === ${JSON.stringify(local.versionOverride)} && document.querySelector('#chain')?.textContent.includes('A board on an older Pullboard release')`, 25_000); // budget: hang ceiling for this navigation to finish the local state read before the next visit; no throughput claim.
+      await showItemChain(chrome, `window.__releaseVisit === ${marker} && document.readyState === 'complete' && data?.project?.releaseNotes?.version === ${JSON.stringify(local.versionOverride)}`, 'A board on an older Pullboard release', 25_000); // budget: hang ceiling for this navigation to finish the local state read before the next visit; no throughput claim.
     };
 
     // 0.8.21 is a shipped release in CHANGELOG.md, one actual release after the local 0.8.20 install.
@@ -587,7 +594,7 @@ test('the hosted relay never treats a remote board version as this machine\'s ve
     }, await styleOf(view), { own: view.base, target: null, relayTarget: view.base, versionOverride: '0.8.20' });
     const relayVisit = '?relay-release-visit=1';
     await chrome.send('Page.navigate', { url: HOSTED + '/' + relayVisit });
-    await chrome.waitFor(`location.search === ${JSON.stringify(relayVisit)} && document.readyState === 'complete' && data?.project?.releaseNotes?.version === '0.8.20' && document.querySelector('#chain')?.textContent.includes('A board read through the relay transport')`, 25_000); // budget: hang ceiling for this navigation to finish the relayed state read; no throughput claim.
+    await showItemChain(chrome, `location.search === ${JSON.stringify(relayVisit)} && document.readyState === 'complete' && data?.project?.releaseNotes?.version === '0.8.20'`, 'A board read through the relay transport', 25_000); // budget: hang ceiling for this navigation to finish the relayed state read; no throughput claim.
     assert.equal(await chrome.stable("data.project.releaseNotes.version"), '0.8.20', 'the relayed API state carries its simulated remote install version');
     assert.equal(await chrome.stable("hosted.local && !localSession && connection.base === '' && !!transport && transportModule === '/relay/client.js' && localConfirmed === false"), true,
       'local discovery failed, so the board remains on the relay transport without a confirmed local session');
@@ -910,6 +917,8 @@ test('every hosted page state says what it is and what to do next [N26,H5]', { t
     assert.equal(outdated.heading, 'Where are your projects?', 'a view too old to answer reads as none');
     stand.local = view.base;
     await chrome.send('Page.navigate', { url: HOSTED + '/?list' });
+    await showItemChain(chrome, `location.search === '?list' && localConfirmed === true && connection.base === ${JSON.stringify(view.base)}`, 'A board the hosted page lists');
+    await press(chrome, "document.querySelector('#chain .row')");
     // The opened item's detail is its own round trip after the list (#834): until it lands, #detail says Loading and has no actions.
     try {
       await chrome.waitFor("location.origin === 'https://app.pullboard.dev' && document.querySelector('#chain')?.textContent.includes('A board the hosted page lists') && document.querySelectorAll('#detail button[data-shout], #detail button[data-new]').length === 2", 30_000); // budget: hang ceiling for the discovery, one round trip, the first board read and the opened item's detail.
