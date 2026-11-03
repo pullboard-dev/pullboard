@@ -110,11 +110,14 @@ export async function withGateSlot(root, action, options = {}) {
 }
 
 /**
- * The gate's live-load dispatch policy: on unless gate.loadAwareDispatch is explicitly off (#2509).
- * refreshRunnerMeasurements reads the same rule, so the gate measures what it dispatches by.
+ * The gate's live-load dispatch policy (#2509): on when gate.loadAwareDispatch is on, and by default for any
+ * fleet with a measured runner (its cores are known, so 1.5x cores means something); off only when set off.
+ * refreshRunnerMeasurements reads the same rule, so the gate measures exactly what it dispatches by.
  */
 export function gateRunnerLoadPolicy(settings) {
-  return { enabled: settings?.gate?.loadAwareDispatch !== false, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
+  const setting = settings?.gate?.loadAwareDispatch;
+  const measured = (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
+  return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */

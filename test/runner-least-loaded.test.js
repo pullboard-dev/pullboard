@@ -131,18 +131,20 @@ test('a busy runner records its live load reading instead of being refused as bu
   } finally { lease.release(); }
 });
 
-test('default machine settings dispatch by live load, measured before admission; only an explicit off disables it [C7]', async t => {
+test('a measured fleet with default settings dispatches by live load, measured before admission; only an explicit off disables it [C7]', async t => {
   const project = box(t);
-  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  const measured = { host: 'unread-host', slots: 9, browser: 6, cores: 10, memoryMB: 16384 };
+  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, runners: [measured] }));
   const settings = loadMachineSettings();
   assert.equal(settings.gate?.loadAwareDispatch, undefined, 'nothing is configured');
-  assert.equal(gateRunnerLoadPolicy(settings).enabled, true);
-  assert.equal(gateRunnerLoadPolicy({ gate: { loadAwareDispatch: false } }).enabled, false);
+  assert.equal(gateRunnerLoadPolicy(settings).enabled, true, 'a measured fleet balances by load by default');
+  assert.equal(gateRunnerLoadPolicy({ ...settings, gate: { loadAwareDispatch: false } }).enabled, false);
+  assert.equal(gateRunnerLoadPolicy({ runners: [{ host: 'unmeasured', slots: 1, browser: 0 }] }).enabled, false, 'no cores, no 1.5x-cores rule');
   const lease = await acquire(project, [runner('overloaded-host', 108), runner('idle-host', 1.4)],
     { runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(loadMachineSettings()) });
   try { assert.equal(lease.runner.host, 'idle-host'); } finally { lease.release(); }
   const probes = [];
-  await refreshRunnerMeasurements({ ...settings, runners: [{ host: 'unread-host', slots: 9, browser: 6 }] }, {
+  await refreshRunnerMeasurements(settings, {
     measure: async (destination, options) => { probes.push(options); return { healthy: false }; }, record: () => {},
   });
   assert.equal(probes[0]?.observeLoad, true, 'the gate reads live load before admission under default settings');
