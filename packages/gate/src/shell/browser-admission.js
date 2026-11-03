@@ -722,7 +722,8 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const safeChildImports = new Map();
     const sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map();
     // A captured source view is immutable. Batch V8's initial parses instead of starting a parser per test file.
-    if (hasImmutableBrowserSourceFiles()) {
+    const immutable = hasImmutableBrowserSourceFiles();
+    if (immutable) {
       for (let start = 0; start < files.length; start += 40) {
         const sources = [];
         for (const file of files.slice(start, start + 40)) {
@@ -741,7 +742,7 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     }
     const bound = [];
     for (const file of files) {
-      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, targetMemo)) bound.push(file);
+      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, immutable ? targetMemo : new Map())) bound.push(file);
     }
     return bound;
   });
