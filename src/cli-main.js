@@ -167,7 +167,7 @@ const OPTIONS = {
   outcome: { type: 'string' },
   item: { type: 'string' },
   for: { type: 'string' },
-  kinds: { type: 'string' }, to: { type: 'string' }, work: { type: 'string' }, 'review-wait': { type: 'string' },
+  kinds: { type: 'string' }, to: { type: 'string' }, work: { type: 'string' }, 'review-wait': { type: 'string' }, review: { type: 'boolean' }, read: { type: 'string' },
   commit: { type: 'string' },
   ref: { type: 'string' },
   supersedes: { type: 'string' },

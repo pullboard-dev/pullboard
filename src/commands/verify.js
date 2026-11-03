@@ -47,6 +47,7 @@ import { agentSessionDigest } from '../../packages/person/index.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../packages/verify/index.js';
+import { reviewPacketReadNote } from '../../packages/verify/index.js';
 import { twoTierReviews } from '../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../packages/items/index.js';
@@ -87,7 +88,10 @@ import {
 import { checkNeedsGui } from '../../packages/gate/index.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
-import * as nativeFlakes from '../native-flake-cli.js';
+import {
+  recordMainComparison,
+  verify as flakeVerify,
+} from '../../packages/flakes/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -322,7 +326,7 @@ export async function verifyHere(ctx, id, { second, values }) {
                 // Release this slot and classify the actual composition before running anything.
                 if (checkedCommit !== selected) throw reselection;
               }
-              const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
+              const ran = await flakeVerify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
               return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
             }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
           } catch (error) {
@@ -348,7 +352,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
             items: () => store.listItems(board, { all: true }), runnerAdmission,
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
-            onMeasuredReceipt: receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
+            onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
           if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         }
@@ -398,7 +402,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
