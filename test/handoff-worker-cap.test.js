@@ -80,6 +80,13 @@ test('the worker cap defaults to 4 from cores and honors an override [C7]', () =
   assert.throws(() => handoffWorkerCapacity({ env: { PULLBOARD_HANDOFF_WORKERS: '0' } }), error => error.code === 'BAD_HANDOFF_WORKER_CAP');
 });
 
+test('registered runner slots raise the worker cap to one per five slots, and the override still wins [C7]', () => {
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 54 }), 10);
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 9 }), 4);
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 2, runnerSlots: 0 }), 2);
+  assert.equal(handoffWorkerCapacity({ env: { PULLBOARD_HANDOFF_WORKERS: '3' }, cores: 10, runnerSlots: 54 }), 3);
+});
+
 test('a burst of 20 submits with inverted completion and same-clock ids starts in reserved order; nothing spawns until the dispatcher runs, then runs at most N at once in submit order [C7]', async t => {
   const box = fixture(20);
   try {
