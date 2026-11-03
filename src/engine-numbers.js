@@ -18,14 +18,14 @@ import {
 import { join } from 'node:path';
 import {
   ENGINE_CANDIDATE,
+  ENGINE_LINE,
+  UNASSIGNED_IMPORT,
+  engineLeafDeclaration,
   ENGINE_FILE,
   discovered,
 } from '../packages/kernel/index.js';
 
-/** The one declaration a leaf holds: a landed number, or the placeholder a branch carries until it lands. */
-export const ENGINE_LINE = /^export const ([A-Z][A-Z0-9_]*_ENGINE) = (?:(\d+)|unassignedEngine\(\));$/u;
-/** The import a placeholder leaf needs, removed when the leaf gets its number. */
-export const UNASSIGNED_IMPORT = "import { unassignedEngine } from './engine-next.js';";
+export { ENGINE_LINE, UNASSIGNED_IMPORT };
 
 /**
  * Read every engine leaf in a directory.
@@ -66,14 +66,7 @@ export function assignEngineNumbers(root) {
   // src/*-engine.js files that follow none of these rules; they are never read as leaves, so a land never fails on them.
   const texts = readdirSync(directory).filter((file) => ENGINE_CANDIDATE.test(file)).sort()
     .map((file) => ({ file, text: readFileSync(join(directory, file), 'utf8') }));
-  const leaves = texts.map(({ file, text }) => {
-    const lines = text.split('\n').filter((line) => /^export const /u.test(line));
-    const match = lines.length === 1 ? ENGINE_LINE.exec(lines[0]) : null;
-    if (!match) return null;
-    const number = match[2] === undefined ? null : Number(match[2]);
-    if (number === null && !text.split('\n').includes(UNASSIGNED_IMPORT)) return null;
-    return { file, name: match[1], number };
-  }).filter(Boolean);
+  const leaves = texts.map(({ file, text }) => engineLeafDeclaration(file, text)).filter(Boolean);
   const unlanded = leaves.filter((leaf) => leaf.number === null);
   if (!unlanded.length) return { files: [], assigned: [] };
   let next = nextEngineNumber(leaves) - 1;

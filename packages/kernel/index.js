@@ -8,3 +8,9 @@ export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/core/pi
 export { decodedProofEvent, proofEventDetail } from './src/core/event-detail.js';
 
 export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
+
+export {
+  ENGINE_LINE,
+  UNASSIGNED_IMPORT,
+  engineLeafDeclaration,
+} from './src/core/engine-leaf.js';
