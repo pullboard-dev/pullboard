@@ -111,3 +111,42 @@ export function splitAmbiguousMainReds(known, items, exclude) {
   const clear = { ...known, failures: known.failures.filter(failure => !ambiguous.some(row => row.file === failure.file && row.name === failure.name)) };
   return { clear, ambiguous };
 }
+
+/** Whether a recorded check baseline names the cases its check fails at exactly this main commit. */
+function namesCasesAt(baseline, main) {
+  return baseline?.main === main && (baseline.result === 'green'
+    || baseline.result === 'red' && Array.isArray(baseline.testEvidence?.failed) && baseline.testEvidence.failed.length > 0);
+}
+
+/**
+ * Open Main red repairs whose check names one of the files and whose recorded check baseline cannot say which cases
+ * fail on this main: none recorded, taken on another main, or red with no case names (#2594). Each is re-taken first.
+ */
+export function mainRedBaselinesToRetake(items, files, exclude, main) {
+  return items.filter(item => files.some(file => covers(item, file, exclude)) && !namesCasesAt(item.item_check_baseline, main));
+}
+
+/**
+ * Split failures into those an open Main red repair's check fails on this main, by its current baseline, and the rest.
+ * A case such a repair already fails on main is known main and never fails another item's check (#2594).
+ *
+ * @param {{ file: string, name: string }[]} failures
+ * @param {object[]} items
+ * @param {number} exclude
+ * @param {string} main
+ * @param {Map<number, object>} [baselines] - Baselines re-taken on this main, by item id; they replace the recorded ones.
+ */
+export function mainRedItemCases(failures, items, exclude, main, baselines = new Map()) {
+  const owned = [], rest = [];
+  for (const failure of failures) {
+    const titles = [failure.name, failure.name.replace(/\s*\[[^\]]*\]\s*$/u, '')];
+    const owner = items.filter(item => covers(item, failure.file, exclude)).find(item => {
+      const baseline = baselines.get(item.item_id) ?? item.item_check_baseline;
+      return namesCasesAt(baseline, main) && baseline.result === 'red'
+        && baseline.testEvidence.failed.some(name => titles.includes(name) || titles.includes(name.replace(/\s*\[[^\]]*\]\s*$/u, '')));
+    });
+    if (owner) owned.push({ ...failure, item: owner.item_id });
+    else rest.push(failure);
+  }
+  return { owned, rest };
+}
