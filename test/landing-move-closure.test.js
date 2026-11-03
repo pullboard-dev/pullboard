@@ -1,51 +1,126 @@
 /** @pullboard-test-input source-tree */
-/** The landing history alias preserves the native move registry's exact bounded source [C7,H16]. */
+/** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../packages/runners/index.js';
-import { packageFiles } from '../packages/runners/index.js';
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { executionServicesSource } from './gate-execution-fixture.js';
+import { copyPackageFiles, packageFiles, runnerExecutionServices } from '../packages/runners/index.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
 import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { fixture as planFixture, git, acceptedCutItems } from './cells-plan-fixture.js';
+import { computePlan, writePlan } from '../bin/cells-plan.js';
+import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
+import { withMainCheckout, landingExecutionServices } from '../packages/landing/index.js';
+import { landingBatches as pureLandingBatches } from '../packages/git/core.js';
+import { landingBatches } from '../packages/landing/index.js';
 
-test('landing history move keeps every move-closure body and refuses the expanded barrel [C7,H16]', t => {
+const parsers = { importsIn, commonJsIn };
+
+test('landing history uses its existing pure port without growing any move closure [C7,H16]', t => {
   const root = join(import.meta.dirname, '..');
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-landing-closure-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
-  const files = packageFiles(root);
-  copyPackageFiles(root, fixture, { files });
+  const old = 'src/landing-batch-history.js';
+  const files = [...new Set([...packageFiles(root), old])];
+  copyPackageFiles(root, fixture, { files: files.filter(file => file !== old) });
   runFixtureGit(['init', '-q'], { cwd: fixture });
   runFixtureGit(['add', 'package.json', 'bin/cells-plan/path-map'], { cwd: fixture });
   runFixtureGit(['-c', 'user.name=Closure fixture', '-c', 'user.email=closure@example.invalid',
     '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Pin the copied source map'], { cwd: fixture });
-  const old = 'src/landing-batch-history.js';
-  const moved = 'packages/landing/src/core/landing-batch-history.js';
-  /** Read exact working bytes through the canonical committed-map inventory, then select the real bounded closure. */
+  const callers = ['recordLandingBatch', 'finishLandingBatch'].map(name => `packages/moves/src/core/moves/${name}.js`);
+  /** Read the actual copied working bytes through the bounded source inventory. */
+  const sources = () => new Map(workingSourceInventory(fixture, sourceDirectories(files)).map(({ file, body }) => [file, body]));
+  const initial = sources();
+  const current = new Map(callers.map(file => [file, initial.get(file).toString('utf8')]));
+  /** Read the real complete finite registry graph, never an invented dependency count. */
   const closure = () => {
-    const reached = moveDeclarationFiles(fixture, { files, importsIn, commonJsIn });
-    return Object.fromEntries(workingSourceInventory(fixture, sourceDirectories(files))
-      .filter(row => reached.has(row.file)).map(row => [row.file, row.body.toString('utf8')]));
+    const reached = moveDeclarationFiles(fixture, { files, ...parsers }), bodies = sources();
+    return new Map([...reached].map(file => {
+      assert.ok(bodies.has(file), `the actual working inventory contains ${file}`);
+      return [file, bodies.get(file)];
+    }));
   };
-  const after = closure();
-  const alias = after[old];
-  const body = after[moved];
-  assert.match(body, /from '\.\.\/\.\.\/\.\.\/\.\.\/src\/git-landing-batches\.js'/u);
-  assert.ok(Object.hasOwn(after, old), 'the shipped compatibility entry remains in the real registry closure');
-  assert.equal(after[moved], body, 'the exact relocated body is reachable');
-  writeFileSync(join(fixture, old), body.replace('../../../../src/git-landing-batches.js', './git-landing-batches.js'));
+  /** Restore only the former forwarding layout around the same canonical provider. */
+  const oldCallers = () => {
+    for (const [file, source] of current) writeFileSync(join(fixture, file), source.replace('../../../../git/core.js', posix.relative(posix.dirname(file), old)));
+  };
+  oldCallers();
+  writeFileSync(join(fixture, old), "export { landingBatches } from '../packages/landing/src/core/landing-batch-history.js';\n");
   const before = closure();
-  assert.equal(Object.hasOwn(before, moved), false, 'the pre-move layout does not reach the relocated provider');
-  const expected = { ...before, [old]: alias, [moved]: body };
-  assert.deepEqual(after, expected, 'only the alias and relocation change; every other source byte remains identical');
+  for (const [file, source] of current) writeFileSync(join(fixture, file), source);
+  rmSync(join(fixture, old));
+  const after = closure();
+  assert.equal(landingBatches, pureLandingBatches, 'the public Landing binding is the same pure Git projection');
+  assert.ok(after.has('packages/git/core.js'));
+  assert.equal([...after.keys()].filter(file => file.startsWith('packages/landing/')).length, 0);
+  assert.ok(after.size < before.size, 'removing forwards reduces the real registry module count');
+  assert.ok([...after.values()].reduce((sum, bytes) => sum + bytes.length, 0)
+    <= [...before.values()].reduce((sum, bytes) => sum + bytes.length, 0), 'actual source bytes do not grow');
+  for (const [file, bytes] of after) {
+    assert.ok(before.has(file), `${file} was already in the original closure`);
+    if (!current.has(file)) assert.deepEqual(bytes, before.get(file), `${file} retains its exact body`);
+  }
+  oldCallers();
   writeFileSync(join(fixture, old), 'export * from "../packages/landing/index.js";\n');
-  assert.throws(closure, /move closure exceeds source bounds/u,
-    'the full barrel loses the bounded registry closure and cannot receive this exact-file exception');
+  assert.throws(closure, /move closure exceeds source bounds/u, 'the full Landing door remains forbidden in Moves');
+});
+
+/** Commit an existing higher-cell dependency, choosing an actual barrel or a narrower provider. */
+function forwardingFixture(t, fullBarrel, retain = false) {
+  const box = planFixture(t);
+  box.put('package.json', JSON.stringify({ type: 'module', bin: 'src/cli.js' }));
+  box.put('src/refused.js', "import { flow } from './stats-flow.js'; export class Refused extends Error {}\n");
+  box.put('packages/stats/index.js', "export { flow } from './src/core/stats-flow.js';\n");
+  box.put('packages/stats/src/core/stats-flow.js', 'export const flow = 1;\n');
+  box.put('src/stats-flow.js', fullBarrel ? "export * from '../packages/stats/index.js';\n"
+    : "export { flow } from '../packages/stats/src/core/stats-flow.js';\n");
+  box.put('bin/cells-plan/path-map/stats.json', JSON.stringify({ 'src/stats-flow.js': 'packages/stats/src/core/stats-flow.js' }));
+  box.put('bin/cells-plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
+  writePlan(box.root, computePlan(box.root));
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-qm', 'accepted exact forwarding fixture');
+  writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, parsers)), { initialize: true });
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-qm', 'accepted forwarding baseline');
+  const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  box.put('src/refused.js', "import { flow } from '../packages/stats/index.js'; export class Refused extends Error {}\n");
+  box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from '../packages/stats/index.js';\nconsole.log(stats, flow);\n");
+  if (!retain) rmSync(join(box.root, 'src/stats-flow.js'));
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-qm', 'replace the old alias with an explicit binding');
+  const commit = git(box.root, 'rev-parse', 'HEAD').trim();
+  return { ...box, main, commit };
+}
+
+/** Exercise the trusted immutable native submit guard with actual accepted source and its real import inventory. */
+function inspectForwarding(box) {
+  return requireSubmitCells(box.root, box.main, box.commit, { item_frozen: JSON.stringify({ criterion: 'Remove the exact forwarding alias.' }) },
+    { withMainCheckout, parsers, withImportParseCache, readCutItems: () => acceptedCutItems(box.root, box.main),
+      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+}
+
+test('an unchanged retained barrel also permits its core caller to use the exact door [C7,H16]', async t => {
+  const result = await inspectForwarding(forwardingFixture(t, true, true));
+  assert.deepEqual(result.problems, []);
+});
+
+test('a narrow body cannot expand into a higher barrel through the alias cut [C7,H16]', async t => {
+  await assert.rejects(inspectForwarding(forwardingFixture(t, false)), error => error.code === 'CELLS_SUBMIT'
+    && /kernel still imports later stats/u.test(error.message));
+});
+
+
+test('generated landing bindings keep the actual provider for legacy and canonical gate entries [C7,H16]', async () => {
+  for (const entry of ['src/gate.js', 'src/gate-submit.js', 'src/gate-slot.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
+    const source = executionServicesSource(new URL('../' + entry, import.meta.url).href);
+    const loaded = await import('data:text/javascript,' + encodeURIComponent(source + '\nexport { executionServices };'));
+    assert.equal(loaded.executionServices.runners.runOnRunner, runnerExecutionServices().runOnRunner, entry);
+    assert.equal(loaded.executionServices.landing.releaseExecutors, landingExecutionServices().releaseExecutors, entry);
+  }
 });
