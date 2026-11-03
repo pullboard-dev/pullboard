@@ -15,6 +15,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 
@@ -109,9 +110,17 @@ function words(text) {
     .map(word => word.replace(/(?:es|s)$/u, '')));
 }
 
-/** The test names a file declares, read from its source at the head. */
-function testNames(source) {
-  return [...source.matchAll(/\b(?:test|it)\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/gu)].map(match => match[2]);
+/**
+ * The per-test outcomes the gate observed for one receipt, read from the gate's own receipt file at this head.
+ * Only executed tests count: a declared test the run skipped, or a run with no per-test record, maps to no run.
+ */
+function receiptOutcomes(commonDir, receipt, head) {
+  if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
+  try {
+    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${receipt.id}.json`), 'utf8'));
+    if (stored.id !== receipt.id || stored.head !== head) return [];
+    return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => !row.skipped);
+  } catch { return []; }
 }
 
 /** Test-like paths named in a shell command or clause, in order. */
@@ -171,7 +180,7 @@ function cellsAt(root, commit) {
  * Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never starts a test.
  * It returns rather than refuses because submit and verify reach it; only show names the refusal.
  */
-function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = new Date() } = {}) {
+function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = new Date(), commonDir = null, errors = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
   if (!submit || submit.gateGreen !== true || !SHA.test(head ?? '')) return null;
@@ -186,8 +195,9 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
   const checkText = frozenBar(item).check || wording(item.item_check);
   const checkFiles = namedTestFiles(checkText);
   const proofFiles = Array.isArray(proof.files) ? proof.files : [];
+  const runOf = receipt => ({ receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null });
   const runs = receipts.flatMap((receipt, index) => receiptFiles(receipt, index, { checkFiles, proofFiles }).map(file => ({
-    receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null, file, result: fileResult(receipt, file),
+    ...runOf(receipt), file, result: fileResult(receipt, file),
   })));
   const ranFiles = [...new Set(runs.map(run => run.file))];
   // The submit gate's own proof runs, one row per receipt: a full-suite clause cites these, not one file.
@@ -195,24 +205,22 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     .map(receipt => ({ receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null,
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
-  // Test names are read for files this item changed or its check names: those are the tests written for this bar.
+  // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
   const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file)));
-  const sources = readBlobs(root, candidates.map(file => `${head}:${file}`));
-  const named = candidates.map(file => ({ file, names: testNames(sources.get(`${head}:${file}`) ?? '') }));
+  // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
+  const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
+    .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
-    const covers = [];
-    for (const { file, names } of named) {
-      if (clause.text.includes(file)) { covers.push({ file, test: null, why: 'clause names the file' }); continue; }
-      for (const name of names) {
-        const cited = [...name.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
-          || (clause.id && [...name.matchAll(/\[([^\]]+)\]/gu)].some(match => match[1].split(',').map(part => part.trim()).includes(clause.id)));
-        const testWords = words(name);
-        const shared = [...testWords].filter(word => clauseWords.has(word)).length;
-        if (cited || (shared >= 3 && shared * 2 >= testWords.size)) covers.push({ file, test: name, why: cited ? 'test cites the clause' : `${shared} shared words` });
-      }
+    let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    for (const run of executed) {
+      if (clause.text.includes(run.file)) continue;
+      const cited = [...run.test.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
+        || (clause.id && [...run.test.matchAll(/\[([^\]]+)\]/gu)].some(match => match[1].split(',').map(part => part.trim()).includes(clause.id)));
+      const testWords = words(run.test);
+      const shared = [...testWords].filter(word => clauseWords.has(word)).length;
+      if (cited || (shared >= 3 && shared * 2 >= testWords.size)) evidence.push({ ...run, why: cited ? 'test cites the clause' : `${shared} shared words` });
     }
-    let evidence = covers.flatMap(cover => runs.filter(run => run.file === cover.file).map(run => ({ ...run, test: cover.test, why: cover.why })));
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {
       if (proof.deferred === true) gap = `no recorded run: the submit gate deferred the full suite${proof.reason ? ` (${proof.reason})` : ''}`;
@@ -223,7 +231,9 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
   const seen = new Set();
   const failures = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
     .filter(failure => !seen.has(`${failure.file}\0${failure.name}`) && seen.add(`${failure.file}\0${failure.name}`))
-    .map(failure => ({ file: failure.file, name: failure.name, receipt: failure.receipt, ...mainStatus(failure, { known: proof.knownMainFailures, baseline }) }));
+    .map(failure => ({ file: failure.file, name: failure.name, receipt: failure.receipt,
+      error: errors.find(row => row?.name === failure.name && (!row.file || row.file === failure.file))?.error ?? null,
+      ...mainStatus(failure, { known: proof.knownMainFailures, baseline }) }));
   const cellsBefore = cellsAt(root, base);
   const cellsAfter = cellsAt(root, head);
   const touched = [...new Set(changed.map(file => /^(?:apps|packages)\/[^/]+/u.exec(file)?.[0]).filter(Boolean))].sort();
@@ -259,7 +269,8 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   }
   lines.push(packet.failures.length ? 'failures at head:' : 'failures at head: none');
   for (const failure of packet.failures) {
-    lines.push(`  ${failure.file} :: ${failure.name}: ${failure.alsoRedOnMain ? `also red on main ${short(failure.main)}${failure.repair ? `, repair #${failure.repair}` : ''}` : `not red on main ${short(failure.main)}`}`);
+    lines.push(`  ${failure.file} :: ${failure.name}: ${failure.alsoRedOnMain ? `also red on main ${short(failure.main)}${failure.repair ? `, repair #${failure.repair}` : ''}` : `not red on main ${short(failure.main)}`}`,
+      `     first error: ${failure.error ?? 'no error line recorded'}`);
   }
   const { cells } = packet;
   lines.push(`cells: ${cells.before} before, ${cells.after} after${cells.added.length ? `; added ${cells.added.join(', ')}` : ''}${cells.removed.length ? `; removed ${cells.removed.join(', ')}` : ''}; touched ${cells.touched.join(', ') || 'none'}`);
@@ -279,16 +290,19 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
 function loadReviewPacket(root, commonDir, inputs) {
   const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit);
   if (stored) return stored;
-  const packet = buildReviewPacket(root, inputs);
+  const packet = buildReviewPacket(root, inputs, { commonDir });
   if (packet) storeReviewPacket(commonDir, packet);
   return packet;
 }
 
-/** Store the packet right after a submit whose gate went green; a failure never fails the submit. */
-export async function recordReviewPacket(ctx, id, readBoard) {
+/**
+ * Store the packet right after a submit whose gate went green; a failure never fails the submit.
+ * `errors` are the gate summary's failed cases, so each failure at head carries its first error line.
+ */
+export async function recordReviewPacket(ctx, id, readBoard, { errors = [] } = {}) {
   try {
     const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-    const packet = buildReviewPacket(ctx.info.root, inputs);
+    const packet = buildReviewPacket(ctx.info.root, inputs, { commonDir: ctx.info.commonDir, errors });
     return packet && storeReviewPacket(ctx.info.commonDir, packet);
   } catch (error) {
     ctx.io.err(`review packet for #${id} was not stored (${error.message}); pullboard show ${id} --review builds it`);

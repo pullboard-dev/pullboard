@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
+import { testTierReport } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 // A green submit starts the detached verification comparison, which can still be writing the board directory.
@@ -43,23 +45,48 @@ function loggingGit(box) {
   return { bin, log };
 }
 
+/**
+ * A fixture reporter that prints TAP and the gate's native per-test outcome frames, the way the repo's own runner
+ * does, so the gate's receipt records which tests executed, passed or were skipped.
+ */
+function outcomeReporter(box) {
+  writeFileSync(join(box.repo, 'web/outcome-reporter.js'), `import { tap } from 'node:test/reporters';
+import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+export default async function* report(events) {
+  const collector = testOutcomeCollector(process.cwd());
+  let count = null;
+  async function* observe() {
+    for await (const event of events) {
+      collector.observe(event);
+      if (event.type === 'test:summary') count = event.data.counts.tests;
+      yield event;
+    }
+  }
+  for await (const chunk of tap(observe())) yield chunk;
+  yield formatTestOutcomes(process.env[${JSON.stringify(TIMING_RUN_ID_ENV)}], collector.finish(count !== null, count));
+}
+`);
+}
+
+const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 const CRITERION = 'The page shows a greeting. The greeting names the visitor by first name. Old browsers fall back to plain text. The full suite passes as run by the submit gate.';
 
 test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
-  config.affectedTests = 'node --test';
+  config.affectedTests = RUN;
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'));
   writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n");
+  outcomeReporter(box);
   commit(box, box.repo, 'chore: seed review packet fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   ok(box, builder, 'join', 'web');
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', CRITERION,
-    '--check', 'node --test web/packet.test.js', '--json').out);
+    '--check', `${RUN} web/packet.test.js`, '--json').out);
   const id = added.item.item_id;
   ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
@@ -69,6 +96,8 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
     "import { greet } from './greet.js';",
     "test('the page shows a greeting [G1]', () => assert.match(greet('Ada Lovelace'), /^Hello/u));",
     "test('clause 2: the visitor is named [G1]', () => assert.equal(greet('Ada Lovelace'), 'Hello, Ada'));",
+    // Declared and citing clause 3, but skipped: the gate never ran it, so clause 3 has no recorded run.
+    "test('clause 3: Old browsers fall back to plain text [G1]', { skip: true }, () => assert.fail('not implemented'));",
     '',
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
@@ -111,7 +140,8 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
     }
   }
   assert.equal(packet.clauses[1].runs[0].test, 'clause 2: the visitor is named [G1]');
-  assert.deepEqual(packet.clauses[2].runs, []);
+  assert.deepEqual(packet.clauses[2].runs, [], 'a skipped test that cites the clause is not a recorded run');
+  assert.ok(packet.clauses.every(clause => clause.runs.every(run => run.test !== 'clause 3: Old browsers fall back to plain text [G1]')));
   assert.equal(packet.clauses[2].gap, 'no recorded run');
   if (packet.proof.deferred) assert.match(packet.clauses[3].gap, /deferred the full suite/u, 'a deferred full suite is not a recorded run');
   else assert.ok(packet.proof.full && packet.clauses[3].runs.every(run => receiptIds.has(run.receipt) && run.file === '(submit gate)'),
@@ -139,4 +169,13 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(verdict.verdict_decision, 'ACCEPT');
   assert.match(verdict.verdict_note, new RegExp(`review packet ${head.slice(0, 12)}: read clauses 1, 2, 3; no recorded run: ${rerun.join(', ')}$`, 'mu'),
     'the accept records which clauses it read');
+});
+
+test('a red refusal counts the T1 units and names only the failing cases [V4,C7]', () => {
+  const plan = { units: ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'], journeys: ['test/j.test.js'] };
+  assert.match(testTierReport(plan), /^T1 unit tests \(3\): test\/a\.test\.js, test\/b\.test\.js, test\/c\.test\.js$/mu);
+  const red = testTierReport(plan, { names: false });
+  assert.doesNotMatch(red, /test\/[abc]\.test\.js/u, 'the red message does not list every unit that ran');
+  assert.match(red, /^T1 unit tests: 3 ran; the failing cases follow/mu);
+  assert.match(red, /^T3 journeys deferred to the landing batch \(1\)$/mu);
 });

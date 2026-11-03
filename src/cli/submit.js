@@ -88,7 +88,7 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
     ctx.io.err(`submitted #${id}, but its activity delivery failed: ${error.message}; read pullboard inbox to retry delivery`);
   }
   // A green gate stores the review packet for this head now, from what the gate just recorded (#2451).
-  if (gate.green) await recordReviewPacket(ctx, id, (work) => withBoard(ctx, (board) => work(board, store)));
+  if (gate.green) await recordReviewPacket(ctx, id, (work) => withBoard(ctx, (board) => work(board, store)), { errors: gate.failures ?? [] });
   ctx.io.result?.(submission);
   ctx.io.say(`submitted #${id} at ${commit.slice(0, 12)}; ${gate.report}`);
   ctx.io.say(`pinned as ${pin}, so this work can't be lost; keep your worktree until it is merged`);
