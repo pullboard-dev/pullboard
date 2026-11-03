@@ -190,7 +190,7 @@ function recommendation(stage, { activeAgents, queues, openByLane, accepted, cou
 }
 
 /** Compile immutable lifecycle facts once so API cache hits only need a time-specific projection. */
-export function prepareFlowHistory(history, { window: traceWindow = false, comparisonWindows } = {}) {
+export function prepareFlowHistory(history, { window: traceWindow = false, comparisonWindows, agentIds } = {}) {
   const items = new Map();
   const actors = new Map();
   const dailyEvents = [];
@@ -199,7 +199,7 @@ export function prepareFlowHistory(history, { window: traceWindow = false, compa
     const detail = proofEventDetail(event);
     const at = Date.parse(event.event_at);
     const id = event.event_by;
-    if (!['board', 'person', 'clock'].includes(id)) {
+    if (agentIds ? agentIds.has(id) : !['board', 'person', 'clock'].includes(id)) {
       if (!actors.has(id)) actors.set(id, { id, lane: 'unknown', role: 'unknown', lastAt: at });
       const actor = actors.get(id);
       if (event.event_kind === 'join' && detail.lane) actor.lane = detail.lane;
@@ -295,7 +295,7 @@ export function projectFlowStats(prepared, boundary, now, counts, { windowMinute
 
 /** Derive flow from an immutable history with an injectable observation time for fixtures. */
 export function flowStats(history, boundary, now, counts, options = {}) {
-  return projectFlowStats(prepareFlowHistory(history, { window: options.windowMinutes !== undefined }), boundary, now, counts, options);
+  return projectFlowStats(prepareFlowHistory(history, { window: options.windowMinutes !== undefined, agentIds: options.agentIds }), boundary, now, counts, options);
 }
 
 /** Format elapsed minutes in rounded human units while JSON retains its original numeric precision. */

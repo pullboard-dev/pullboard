@@ -1,2 +1,0 @@
-/** Compatibility entry preserving this module's public names [C7]. */
-export { localAuthority, pinAuthority, attestAuthority, authorityAttested, authorityNeeded, offPending, personSigning, stampSigningFormat, setPersonSigning, personProposals, proposePersonMove, requestPresence, passkeyConfirmed, signedRefusal, signedMoveProblem, guardRestore, verifiedPasskeyRowDecision, exportedMeta } from '../packages/person/index.js';

@@ -1,9 +1,9 @@
 import { processCensus } from './runner-custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
-import { runnerPolicyRecord } from './runner-policy.js';
+import { runnerPolicyRecord } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
-import { recoveryIdentity } from '../packages/resources/index.js';
-import { claimRunnerWorker } from './runner-transport.js';
+import { recoveryIdentity } from '../../../../packages/resources/index.js';
+import { claimRunnerWorker } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';

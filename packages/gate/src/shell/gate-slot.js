@@ -84,6 +84,9 @@ export function settleReceipt(lease) {
  */
 export async function withGateSlot(root, action, options = {}) {
   options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
+  // An awaited admission callback may own only unreferenced handles. Keep the gate alive until
+  // it records a result or throws; its lease heartbeat deliberately does not keep Node running.
+  const keepAlive = setInterval(() => {}, 1_000);
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
     if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
@@ -103,6 +106,7 @@ export async function withGateSlot(root, action, options = {}) {
     if (result && typeof result === 'object') result.runnerAttempt = attempt;
     return result;
   }
+  finally { clearInterval(keepAlive); }
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
