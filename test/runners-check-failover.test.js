@@ -118,3 +118,64 @@ test('runners-first opt-out retains the explicit local check control [C7]', t =>
   assert.equal(run.localRan, true);
   assert.equal(run.holders.length, 0);
 });
+
+
+test('a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
+  const home = mkdtempSync(join(tmpdir(), 'pullboard-phase-evidence-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const root = join(home, 'repo');
+  const machine = join(home, 'machine');
+  mkdirSync(root);
+  mkdirSync(machine);
+  const env = { ...process.env, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machine,
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Phase evidence', GIT_AUTHOR_EMAIL: 'evidence@example.invalid',
+    GIT_COMMITTER_NAME: 'Phase evidence', GIT_COMMITTER_EMAIL: 'evidence@example.invalid' };
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN',
+    'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_LANDING_RUN', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
+  writeFileSync(join(machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
+    runners: ['first-runner', 'second-runner'].map(host => ({ host, slots: 1, browser: 1 })),
+    gate: { runnersFirst: true, memoryFloorMB: 0 } }));
+  writeFileSync(join(root, 'source.txt'), 'committed phase evidence source');
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
+  runFixtureGit(['add', 'source.txt'], { cwd: root, env });
+  runFixtureGit(['commit', '-qm', 'test: private phase source [C7,V4]'], { cwd: root, env });
+  const url = cell => JSON.stringify(pathToFileURL(join(SOURCE, 'packages', cell, 'index.js')).href);
+  const script = `import { runSubmitGate } from ${url('gate')};
+import { Refused } from ${url('kernel')};
+import { runnerExecutionServices } from ${url('runners')};
+import { landingExecutionServices } from ${url('landing')};
+import { listResources } from ${url('resources')};
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const calls = [];
+const output = 'TAP version 13\\nnot ok 1 - retained failure [C7]\\n# fail 1\\n';
+const log = join(process.cwd(), '.git', 'phase-evidence.log');
+const executionServices = { runners: { ...runnerExecutionServices(),
+  probeRunnerTransport: async () => ({ healthy: false }),
+  probeRunnerHealth: async () => ({ healthy: false }),
+  refreshRunnerMeasurements: async () => {},
+  runOnRunnerAsync: async (_root, command, options) => {
+    calls.push({ command, host: options.runner.host });
+    if (command === 'fixture-check') return { isGreen: false, exitCode: 1, output };
+    throw new Refused('RUNNER_UNAVAILABLE', 'the proof runner is unavailable');
+  } }, landing: landingExecutionServices() };
+let code;
+try { await runSubmitGate(process.cwd(), { gate: 'true', affectedTests: 'fixture-proof' }, {
+  executionServices, staticChecked: true, outputLog: log,
+  plan: { check: 'fixture-check', selection: { full: false, reason: '', files: ['test/proof.test.js'] },
+    deferred: false, deferFullFallback: false, deferSelection: false, invariants: [], registryGuards: [],
+    proofFiles: ['test/proof.test.js'], fullConfig: { gate: 'true' }, hasFinalProof: true, phases: [], testTiers: null },
+}); } catch (error) { code = error.code; }
+process.stdout.write(JSON.stringify({ code, calls, output: readFileSync(log + '.check.log', 'utf8'),
+  expected: output, holders: listResources({ scope: 'machine' }).flatMap(row => row.holders) }));`;
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context ?? child.stderr);
+  const result = JSON.parse(child.stdout);
+  assert.equal(result.code, 'RUNNER_UNAVAILABLE');
+  assert.deepEqual(result.calls.map(call => call.command),
+    ['fixture-check', "fixture-proof './test/proof.test.js'", 'fixture-check', "fixture-proof './test/proof.test.js'"]);
+  assert.equal(new Set(result.calls.map(call => call.host)).size, 2, 'the bounded retry uses the other registered runner');
+  assert.equal(result.output, result.expected, 'the red check remains inspectable after the proof refuses');
+  assert.equal(result.holders.length, 0, 'the failed proof leaves no private lease behind');
+});
