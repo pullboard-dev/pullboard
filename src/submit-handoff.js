@@ -158,8 +158,26 @@ export async function recoverItemSubmitHandoff(ctx, itemId, actor) {
 }
 
 /**
- * A newer head replaces this seat's queued or running gate for the item: its worker's process group is stopped, which
- * frees its gate and runner slot, and the job ends with SUBMIT_HANDOFF_REPLACED. Why: waiting on a gate whose source is
+ * Stop a replaced worker's process group only when it is provably the recorded incarnation: it has a recorded start
+ * time and a fresh exact start read right before the signal equals it. Why: a missing start, a reused PID or an
+ * unreadable start could name another process; such a worker is left to end on its own (#2592). Returns whether it signaled.
+ *
+ * @param {{ job?: string, pid?: number, started?: string } | null} worker
+ * @param {{ id: string }} job
+ * @param {{ startOf?: (pid: number) => string | null, kill?: (pid: number, signal: string) => void }} [ports]
+ */
+export function stopReplacedWorker(worker, job, { startOf = exactStart, kill = process.kill.bind(process) } = {}) {
+  if (worker?.job !== job.id || !Number.isSafeInteger(worker.pid) || worker.pid <= 1 || typeof worker.started !== 'string' || !worker.started) return false;
+  let observed = null;
+  try { observed = startOf(worker.pid); } catch { return false; }
+  if (!observed || observed !== worker.started) return false;
+  try { kill(-worker.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; return false; }
+  return true;
+}
+
+/**
+ * A newer head replaces this seat's queued or running gate for the item: its worker's process group is stopped when it
+ * is provably the recorded incarnation, which frees its gate and runner slot, and the job ends with SUBMIT_HANDOFF_REPLACED. Why: waiting on a gate whose source is
  * already superseded cost builders about 15 minutes each (#2592). Returns null, so the caller queues the new head.
  */
 export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
@@ -169,9 +187,7 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
     let worker = null;
     try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); } catch { /* A queued job may not have launched yet. */ }
     // The worker leads its own detached process group; the group holds its gate, its runner connection and its slot.
-    if (worker?.job === job.id && Number.isSafeInteger(worker.pid) && worker.pid > 1 && !deadWorker(worker, job)) {
-      try { process.kill(-worker.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
-    }
+    stopReplacedWorker(worker, job);
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_REPLACED',
       `a newer head replaced this gate at ${job.commit.slice(0, 12)}`, 'read the newer gate with pullboard show <id>'), { caller: 'seat' }) };
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
