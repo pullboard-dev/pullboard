@@ -23,6 +23,8 @@
  * code turns into `.href`, wraps in pathToFileURL(...) or passes to import(...), names a module to
  * import, not a file to read. A test file is `*.test.js` or `*.spec.js`, also .mjs and .cjs. One
  * problem per undeclared test file, at the line of its first anchored source path.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { lex, lineAt, readText, runCheck, TEST_FILE, walk } from './scan.js';
 

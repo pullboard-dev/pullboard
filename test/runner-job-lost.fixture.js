@@ -5,7 +5,7 @@
 /** @pullboard-test-loads bin/runner-controller.js */
 /** @pullboard-test-loads src/gate.js */
 /** @pullboard-test-loads src/runners.js */
-/** @pullboard-test-loads src/landing-shards.js */
+/** @pullboard-test-loads packages/landing/index.js */
 /** Exact job observations and owned SSH teardown, registered by the combined orphan-recovery check [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
