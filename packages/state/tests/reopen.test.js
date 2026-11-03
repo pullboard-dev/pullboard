@@ -16,8 +16,8 @@ import {
   after,
   test,
 } from 'node:test';
-import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   appliedSequence,
   applyRelayMove,
@@ -439,7 +439,10 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   assert.equal(firstClaim.code, 0, firstClaim.err);
   const unchangedLandingHead = box.run(item.cwd, 'submit', String(item.id), '--json');
   assert.equal(unchangedLandingHead.code, 1);
-  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, 'HEAD_NOT_NEW', 'a verified-item red-landing reopen still requires new work');
+  const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
+  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'GATE_RED',
+    'the original head is refused before proof; a claim that merged main still fails the unchanged red behavior');
+  assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
   const firstFix = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "PASS";\n', 'fix(web): restore landing behavior [G1]');
@@ -785,6 +788,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(correctedNoVerdictReopen(correctedHistory, 1, '0'.repeat(40)), false,
     'the correction never authorizes a different previous submission');
   const claimedBoard = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  claimedBoard.gitRoot = box.repo;
   let claimedBoardOpen = true;
   t.after(() => { if (claimedBoardOpen) store.closeBoard(claimedBoard); });
   const engine11Move = prepareEngineMove(claimedBoard, 'submit', [1, {

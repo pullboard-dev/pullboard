@@ -77,7 +77,8 @@ test('owner-only key file links and reads with a locked keychain, migrates once,
   assert.equal(JSON.stringify(publicLinkResult).includes(encoded), false, 'the JSON result has no key outside its pairing field');
   for (const args of [['status'], ['show', '1'], ['relay'], ['show', '999999']]) {
     const result = await box.cli(...args);
-    assert.equal(result.code, args[1] === '999999' ? 1 : 0, 'ordinary reads or their typed refusal complete');
+    assert.equal(result.code, args[1] === '999999' ? 1 : 0,
+      `${args.join(' ')} completes; refusal code: ${result.document?.error?.code ?? 'none'}`);
     assert.equal(JSON.stringify(result.document).includes(encoded), false, 'ordinary status, show, relay and refusals never contain the board key');
   }
   const text = await box.script(`

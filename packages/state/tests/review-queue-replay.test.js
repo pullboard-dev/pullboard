@@ -1,9 +1,8 @@
 /** In-memory engine replay coverage for sealed review-skipped snapshots [Q1,V15,H3,H16]. */
-import { submitFixture } from '../../../test/board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import * as store from '../../store/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   exportBoard,
   importBoard,
@@ -16,6 +15,12 @@ import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { replayHistoricalSeatMove } from '../../../test/pre-grant-seats.js';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { unpackRelease } from '../../../test/release-archive.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
 const RENEW_AT = '2026-10-08T12:00:30.000Z';
@@ -100,14 +105,31 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
   assert.deepEqual(exportBoard(one), before, 'future-engine refusal preserves all rows and the replay cursor');
 });
 
-test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
-  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t);
-  for (const board of [legacyBoard, currentBoard]) {
-    store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
-      freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
-    submitFixture(board, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
-    store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
-  }
+test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', async (t) => {
+  // An actual released writer seeds this pre-release state; modern submit/reserve would activate newer review policy.
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-v5-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  unpackRelease('v0.8.2', directory);
+  const released = await import(pathToFileURL(join(directory, 'src/board.js')).href);
+  const exchange = await import(pathToFileURL(join(directory, 'src/exchange.js')).href);
+  const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
+  assert.equal(machine.ENGINE_VERSION, 5);
+  const seed = released.openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
+  t.after(() => released.closeBoard(seed));
+  for (const [lane, path] of [['coordinator', '/fixture'], ['web', '/fixture/web-1'], ['web', '/fixture/web-2']])
+    released.register(seed, { lane, path });
+  const item = released.addItem(seed, { by: 'coordinator', lane: 'web', title: 'Review queue fixture' });
+  released.claim(seed, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
+    freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
+  released.submit(seed, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+  released.reserveReview(seed, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
+  const snapshot = exchange.exportBoard(seed);
+  const [legacyBoard, currentBoard] = [0, 1].map(() => {
+    const board = openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
+    importBoard(board, snapshot);
+    t.after(() => store.closeBoard(board));
+    return board;
+  });
   assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
 
   const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
