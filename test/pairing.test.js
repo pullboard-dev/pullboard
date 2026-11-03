@@ -402,7 +402,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
-    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const root = process.cwd();
     const originalFetch = globalThis.fetch;
     let injected = false;
@@ -436,7 +436,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
     const store = await import(${JSON.stringify(new URL('../src/board.js', import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
-    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const root = process.cwd();
     const originalFetch = globalThis.fetch;
     let injected = false;
@@ -470,7 +470,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../packages/keys/index.js',import.meta.url).href)});
-    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const root=process.cwd(), originalFetch=globalThis.fetch;
     let injected=false,published=null;
     globalThis.fetch=async (...args)=>{
@@ -506,7 +506,7 @@ test('a local move while sealing is refused before the pairing upload [H15,H17]'
     const store=await import(${JSON.stringify(new URL('../src/board.js',import.meta.url).href)});
     const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const {relayPair}=await import(${JSON.stringify(new URL('../packages/keys/index.js',import.meta.url).href)});
-    const pairPorts = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const pairPorts = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const root=process.cwd(), originalEncrypt=webcrypto.subtle.encrypt;
     let injected=false,issued=false,code=null;
     webcrypto.subtle.encrypt=async function(...args) {
