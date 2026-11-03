@@ -494,7 +494,7 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
   const verify = launch(box, review, ['verify', '1', 'accept', '--note', 'queue fixture']);
   await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
-  assert.ok(verify.stdoutText.includes('place 1'), 'verify accept prints its queued gate-slot position');
+  assert.ok(verify.stdoutText.includes('place 1'), `verify accept prints its queued gate-slot position: ${verify.stdoutText}${verify.stderrText}`);
   assert.match(verify.stdoutText, /gate waiting:/);
   const verifyNext = launchTestRunner(box, verifyFocusedRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/probe.test.js'], verifyFocusedMarker, verifyFocusedRelease);
   await waitFor(() => /waiting for a gate slot:/u.test(verifyNext.stderrText) || verifyNext.exitCode !== null, 'the later focused run to enter the queue');
