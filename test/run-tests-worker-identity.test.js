@@ -98,7 +98,7 @@ if (process.argv[1] !== ${JSON.stringify(fixture.runner)}) {
   });
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
   assert.match(result.stdout, /# fail 0/u);
-  assert.match(result.stdout, /^ok \d+ - worker identity is recorded before the file body [C7,V4]$/mu,
+  assert.match(result.stdout, /^ok \d+ - worker identity is recorded before the file body \[C7,V4\]$/mu,
     'the nested worker test ran and recorded identity before its body');
   const queries = readFileSync(calls, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
   const compactQueries = queries.filter(row => row.type === 'pid-query');
