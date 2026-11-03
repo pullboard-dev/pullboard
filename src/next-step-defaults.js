@@ -521,5 +521,15 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "VIEW_SIGN_IN_STOPPED": "start sign-in again with pullboard view",
   "VIEW_SIGN_IN_UNKNOWN": "start sign-in again with pullboard view",
   "WITHDRAWN": "wait on an item that is not withdrawn; see pullboard list --all",
-  "WRONG_BOARD": "open the repository registered to this board and confirm its identity with pullboard status"
+  "WRONG_BOARD": "open the repository registered to this board and confirm its identity with pullboard status",
+  URGENT_VALUE: "run the fact again with the urgent value on or off, as in pullboard fact <id> urgent on --as person",
+  SUBMIT_HANDOFF_EXIT: "read the submit worker.log under .git/pullboard/submit-handoffs for this item, fix what it shows, then claim and submit the captured commit again",
+  SUBMIT_HANDOFF_RECOVERY: "keep the worker evidence under .git/pullboard/submit-handoffs, then claim the item and resubmit the captured commit",
+  SUBMIT_HANDOFF_DEAD: "read the submit worker.log under .git/pullboard/submit-handoffs for this item, then claim and resubmit the captured source",
+  ITEM_SIZE_REASON: "give --force-size a nonempty reason, such as --force-size \"why this scope must stay together\", or drop the flag",
+  ITEM_TOO_LARGE: "split the item into one item per named cell with at most three numbered clauses each, or add --force-size \"why this scope must stay together\"",
+  ITEM_PATCH_OUTPUT: "run pullboard patch again with a fresh --out directory that does not exist yet",
+  SHIM_IMPORT_INPUT: "split the staged source file into smaller modules the hook can read, then stage and commit again",
+  GIT_SYNC_FOLDER: "move the damaged board folder under .git/pullboard aside, then run pullboard doctor",
+  FLAKE_RATCHET: "quarantine each newly observed flaky test with a filed repair item, then land again"
 });

@@ -30,7 +30,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: inline ? (opaque ? '(node --test --test-reporter=tap web/floor.test.js)' : 'node --test --test-reporter=tap web/floor.test.js') : config.gate,
     affectedTests: 'node --test --test-reporter=tap', submitGate: 'landing',
-    submitInvariants: ['web/floor.test.js'], submitDeferAbove: 20, landing: inline ? {} : { publish: 'separate' },
+    submitInvariants: ['web/floor.test.js'], submitDeferAbove: 20, landing: inline ? { manualOverride: true } : { publish: 'separate', manualOverride: true },
     verify: { policy: 'any', unrelatedTrunkMoves: true } }, null, 2) + '\n');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
