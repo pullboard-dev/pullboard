@@ -81,12 +81,8 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
   return failures;
 }
 
-/** Fast hook entry; leave projects with fixers or a different static policy to the ordinary hook. */
+/** Judge the actual index whenever the explicit staged checker is invoked. */
 export function stagedHookFailures(root) {
-  let config;
-  try { config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')); }
-  catch { return []; }
-  if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || config.fix?.length) return [];
   const merging = spawnSync('git', ['rev-parse', '--verify', 'MERGE_HEAD'], { cwd: root, stdio: 'ignore' }).status === 0;
   const diff = spawnSync('git', ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])], { cwd: root, encoding: 'utf8' });
   if (diff.status !== 0) throw new Error('cannot enumerate staged files');

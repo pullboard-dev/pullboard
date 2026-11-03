@@ -1072,11 +1072,6 @@ export function hookScript(hook, version = installerVersion()) {
     `    echo "pullboard ${hook}: stopped before running any rule; these hooks were installed by Pullboard $want, but $bin is Pullboard \${have:-unknown}. Run: $fix" >&2`,
     '    exit 1',
     '  fi',
-    ...(hook === 'pre-commit' ? [
-      '  if [ -f "$root/bin/checks/changed-static.js" ]; then',
-      '    node --experimental-vm-modules --disable-warning=ExperimentalWarning "$root/bin/checks/changed-static.js" --staged-hook || exit 1',
-      '  fi',
-    ] : []),
     `  exec "$bin" hook ${hook}${args}`,
     '}',
     'for bin in "$root/node_modules/.bin/pullboard" "$main/node_modules/.bin/pullboard"; do',

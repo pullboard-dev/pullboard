@@ -1,5 +1,3 @@
-import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { stagedShimImportProblems } from '../../../../../packages/codemap/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
@@ -95,11 +93,6 @@ export async function hookCommand(io, { first, second }) {
     // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
     if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
-    const staticProblems = await stagedStaticProblems(info.root, ctx.config);
-    if (staticProblems.length) {
-      io.err(`pullboard ${first}: blocked\n${staticProblems.map(problem => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
-      return 1;
-    }
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
@@ -176,26 +169,6 @@ export async function hookCommand(io, { first, second }) {
   if (!problems.length) return 0;
   io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
   return 1;
-}
-
-/**
- * Run the gate's changed-file static checks on the staged files, so a static red is refused at commit and never costs a gate run.
- * It reuses bin/checks/changed-static.js, the same list the gate runs, and only where the project's static checks use it.
- *
- * @param {string} root - The checkout the commit is made in.
- * @param {{ staticChecks?: string }} config - Project config.
- * @returns {Promise<string[]>} The gate's own `path:line: message` lines; empty when clean or not applicable.
- */
-async function stagedStaticProblems(root, config) {
-  const shared = join(root, 'bin', 'checks', 'changed-static.js');
-  if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || !existsSync(shared)) return [];
-  const merging = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']).status === 0;
-  const staged = tryGit(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])]).stdout.split('\0').filter(Boolean);
-  if (!staged.length) return [];
-  // The import-style check needs vm modules, which the hook process lacks, so the shared list runs in one small child.
-  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', shared, '--staged', ...staged], { cwd: root, encoding: 'utf8' });
-  if (run.error) return [`changed-file static checks could not run: ${run.error.message}`];
-  return run.status === 0 ? [] : [`changed-file static checks are red; fix the named source before committing:\n${(run.stderr || run.stdout).trim()}`];
 }
 
 /** Run `pullboard hook` and return its exit code. */
