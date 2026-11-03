@@ -46,7 +46,7 @@ export async function consent(api, authority, parent, child, linkId, disclosure 
 /** Start the existing authenticated relay with real stand-in OAuth and private native snapshots. */
 export async function linkRelay(t, boards, authority) {
   const { githubFixture } = await import('./relay-fixture.js');
-  const { request } = await import('../src/relay.js');
+  const { request } = await import('../packages/link/index.js');
   const { generateBoardKey, seal } = await import('../packages/kernel/src/core/seal.js');
   const { exportBoard } = await import('../packages/store/index.js');
   const { ENGINE_VERSION } = await import('../packages/state/index.js');

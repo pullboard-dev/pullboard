@@ -28,8 +28,8 @@ function control(t, body) {
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
     import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('runner-transport.js'))};
-    import { processCensus } from ${JSON.stringify(url('runner-custody.js'))};
-    const custodyURL = ${JSON.stringify(url('runner-custody.js'))};
+    import { processCensus } from ${JSON.stringify(url('../apps/runner/index.js'))};
+    const custodyURL = ${JSON.stringify(url('../apps/runner/index.js'))};
     const transportURL = ${JSON.stringify(url('runner-transport.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };

@@ -1,3 +1,4 @@
+import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../src/main-red-failure-lines-engine.js';
 import { blockingFailures } from "../../../verify/index.js";
 /** Native exact-main evidence derives repair items only inside the submitting holder's atomic move [V4,B3,H16]. */
 import { Refused } from "../../../kernel/core.js";
@@ -50,6 +51,10 @@ export function validateKnownMainAutofile(board, id, options, value = options.au
       && !receipt.green && receipt.failureSignatures?.version === value.signatureVersion
       && receipt.failureSignatures.failures.some(row => row.file === failure.file && row.name === failure.name && row.signature === failure.signature));
     if (matches.length !== 1) throw refused();
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MAIN_RED_FAILURE_LINES_ENGINE) {
+      const mainFailure = matches[0].failureSignatures.failures.find(row => row.file === failure.file && row.name === failure.name && row.signature === failure.signature);
+      if (mainFailure?.firstError) unique.set(JSON.stringify([failure.file, failure.name]), { ...failure, firstError: mainFailure.firstError });
+    }
   }
   return { main: value.main, failures: [...unique.values()] };
 }
@@ -69,6 +74,8 @@ export function fileKnownMainAutofile(board, id, options, items) {
     const validated = validateItemAddition(board, item);
     // This engine's approved authority derives this one check; it does not impersonate the coordinator or widen addItem.
     const repair = insertItem(board, item, { ...validated, command: `${options.autoMainReds.runner.trim()} ${word(file)}` });
+    const lines = known.failures.filter(row => row.file === file && row.firstError).map(({ name, firstError }) => ({ name, firstError }));
+    if (lines.length) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`main_red_failure_lines:${repair}`, JSON.stringify(lines));
     items.push(board.db.prepare('SELECT * FROM item WHERE item_id=?').get(repair));
     repairs.push({ file, name: null, item: repair });
   }

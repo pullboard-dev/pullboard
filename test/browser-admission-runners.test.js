@@ -63,7 +63,7 @@ test('the actual HTTP fixture environment never joins or borrows the outer brows
   mkdirSync(fixtureRoot, { recursive: true });
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: fixtureRoot });
   const script = join(box.directory, 'fixture-run.mjs');
-  const gate = new URL('../src/gate.js', import.meta.url).href;
+  const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   writeFileSync(script, `import { withGateSlot } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 const release = new Promise(done => process.stdin.once('end', done));

@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
+import { createHash } from 'node:crypto';
 import * as store from '../../../../src/board.js';
 import { git } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
@@ -55,6 +57,32 @@ function requireParallelGateAdmission(root, config) {
   if (config.landing?.parallel === true && inheritedGateSlot({ root, namedFiles: true })) {
     throw new Refused('LAND_PARALLEL_NESTED_GATE', 'parallel landing needs separately admitted gate slots; run pullboard land outside the current gate command');
   }
+}
+
+/** Name this machine on the public board by a digest, never by its host name. */
+export function landingHost(name = hostname()) {
+  return createHash('sha256').update(name).digest('hex').slice(0, 16);
+}
+
+/** True when an unfinished batch's recorded landing process still runs on this machine; a foreign or unrecorded one is judged by the lease alone. */
+export function landingProcessLive(batch, { host = landingHost(), probe = pid => process.kill(pid, 0) } = {}) {
+  const pid = batch.pid ?? Number(/^pid-([1-9][0-9]*)$/u.exec(batch.owner ?? '')?.[1] ?? 0);
+  if (!Number.isSafeInteger(pid) || pid < 1 || pid === process.pid || (batch.host && batch.host !== host)) return false;
+  try { probe(pid); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/**
+ * Automatic landing adopts a batch whose landing process is gone, so a crash never deadlocks landing [B35,B3].
+ * Why the lease is enough: this command holds the board's exclusive landing lease, so no live process can own the batch
+ * unless its recorded pid still runs here. A batch whose worktree or gate log is gone cannot resume and is blocked.
+ */
+function adoptInterrupted(unfinished, { automatic, fence, say }) {
+  if (!automatic || !fence || !unfinished || ['flaky', 'test-defect'].includes(unfinished.state)) return null;
+  if (landingProcessLive(unfinished)) throw new Refused('LAND_ADOPT', `batch ${unfinished.id} is ${unfinished.state} under live process ${unfinished.pid ?? unfinished.owner}; automatic landing leaves it alone until it ends`);
+  const kept = ['pushed', 'ready', 'trunk'].includes(unfinished.state);
+  const lost = !kept && (!existsSync(unfinished.root) || unfinished.state !== 'merging' && !existsSync(unfinished.logPath));
+  say(`landing adopts interrupted batch ${unfinished.id} (${unfinished.state})${lost ? '; its worktree or log is gone, so it is blocked and a fresh batch starts' : ''}`);
+  return { lost };
 }
 
 /** Build, gate, diagnose and durably land one coordinator batch; all external actions stay in its worktree. */
@@ -117,7 +145,7 @@ export async function land(options) {
     /** Relay catch-up can change proof or trunk facts while a renewal awaits its receipt. */
     const checkLease = async () => { await lease.assertHeld(); invalidateGitFacts(); };
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
-      adopt: options.adopt, due: options.due, fence: lease.fence };
+      adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
       bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus });
@@ -132,7 +160,7 @@ export async function land(options) {
 }
 
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
-export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
+export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
@@ -174,6 +202,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     }
     return { batch: null, landed: [], conflicts, blocked: selected.blocked, culprits: [], flakes: [], items: selected.ready.map((item) => item.item_id) };
   }
+  const interrupted = !dryRun && !adopt ? adoptInterrupted(unfinished, { automatic, fence, say }) : null;
+  if (interrupted) adopt = true;
   if (unfinished && !adopt && !['flaky', 'test-defect'].includes(unfinished.state)) throw new Refused('LAND_ADOPT', `batch ${unfinished.id} is ${unfinished.state}; inspect pullboard resume, then run pullboard land --adopt`);
   if (adopt && !unfinished) throw new Refused('LAND_ADOPT', 'there is no interrupted landing batch; run pullboard land');
   let batch = unfinished;
@@ -188,6 +218,9 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (batch && batch.base !== trunk.commit && batch.state !== 'pushed') {
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', supersededByMain: trunk.commit }, revision: batch.revision }]);
     batch = null;
+  } else if (batch && interrupted?.lost) {
+    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
+    batch = null;
   }
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
@@ -198,14 +231,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       ...(environment ? { environment } : {}),
       candidates: selected.ready.map(landingEntry),
       items: selected.ready.map(landingEntry), conflicts: [], blocked: selected.blocked,
-      state: 'merging', owner, logPath: join(directory, 'logs', 'batch.log'), revision: 0 };
+      state: 'merging', owner, pid: process.pid, host: landingHost(), logPath: join(directory, 'logs', 'batch.log'), revision: 0 };
     batch = await write('recordLandingBatch', [{ agentId: 'coordinator', batch }]);
     mkdirSync(directory, { recursive: true });
     git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
   }
   const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, landingPorts, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
-    await save(state, { owner, refusal: null });
+    await save(state, { owner, pid: process.pid, host: landingHost(), refusal: null });
     await returnCulprits(state);
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);

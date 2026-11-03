@@ -13,6 +13,7 @@ import {
 import { ENGINE_VERSION } from "../../state/index.js";
 
 const outboxUrl = pathToFileURL(resolve(import.meta.dirname, '../../outbox/index.js')).href;
+const linkUrl = pathToFileURL(resolve(import.meta.dirname, '../../link/index.js')).href;
 const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;
 
 /**
@@ -31,8 +32,8 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     body: JSON.stringify({ sequence: link.sequence + 1, sealed: Buffer.from(sealed).toString('base64url') }) });
   assert.equal(posted.status, 200, await posted.clone().text());
   const result = await box.script(`
-    const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(url('relay'))});
-    const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(url('relay-requests'))});
+    const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(linkUrl)});
+    const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(linkUrl)});
     const store=await import(${JSON.stringify(url('board'))});
     const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(url("native-board"))});
     const {replay:replayConflictRecord,ACKNOWLEDGED_OPERATIONS,outboxQueueable,...outboxDoors}=await import(${JSON.stringify(outboxUrl)});
