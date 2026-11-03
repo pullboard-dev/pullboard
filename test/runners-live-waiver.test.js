@@ -1,5 +1,6 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
+import { openBoard } from '../apps/lib/index.js';
 import {
   HOST,
   after,
@@ -48,9 +49,8 @@ test('review655 a registered runner honors the same live person waiver at landin
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../src/board.js');
-  const nativeBoard = await import('../apps/lib/index.js');
   // @pullboard-board-file persistence: the registered runner reads this committed board's live person waiver.
-  const board = nativeBoard.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   let waiver;
   try { waiver = store.recordLandingWaiver(board, { agentId: 'person', channel: 'terminal', id: 'review655-remote-person-waiver', test: failing, until: '2099-01-01', reason: 'same live person exception on either execution machine' }); }
   finally { store.closeBoard(board); }
