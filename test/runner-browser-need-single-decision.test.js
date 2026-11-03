@@ -19,13 +19,13 @@ const PROOF_FILE = 'test/cockpit/activity-codegen.test.js';
 
 /** Build small fixture bodies at the witnessed paths; this proves admission, not either historical item's behavior. */
 function regressionSources(box) {
+  mkdirSync(join(box.repo, 'test/cockpit'), { recursive: true });
   for (const file of CHECK_FILES) writeFileSync(join(box.repo, file),
     "import { test } from 'node:test';\ntest('private frozen check runs [C7]', () => {});\n");
-  mkdirSync(join(box.repo, 'test/cockpit'), { recursive: true });
   writeFileSync(join(box.repo, PROOF_FILE), "import { test } from 'node:test';\n"
     + "import assert from 'node:assert/strict';\n"
-    + "import { requireBrowserSlot } from '../chrome-fixture.js';\n"
-    + "test('supplement has its admitted browser lease [C7]', () => { assert.equal(process.env.PULLBOARD_TEST_BROWSER_SLOT, 'held'); requireBrowserSlot(); });\n");
+    + "import { spawnSync } from 'node:child_process';\nconst chrome = 'google-chrome';\n"
+    + "test('supplement has its admitted browser lease [C7]', () => { assert.equal(process.env.PULLBOARD_TEST_BROWSER_SLOT, 'held'); if (process.env.PULLBOARD_FIXTURE_NEVER_SET) spawnSync(chrome, ['--version']); });\n");
 }
 
 test('review file sets from #2576 and #2521 take a browser lease on their first runner attempt [C7]', async t => {
