@@ -589,7 +589,7 @@ export async function submitHere(ctx, id, infra) {
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });
   }
-  return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, ambiguous, mechanicalFlag };
+  return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
   // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
@@ -670,7 +670,7 @@ export async function submitHere(ctx, id, infra) {
   for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
   const doctrine = stages.doctrine;
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
-  let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, ambiguous, mechanicalFlag } = stages.tests;
+  let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag } = stages.tests;
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
