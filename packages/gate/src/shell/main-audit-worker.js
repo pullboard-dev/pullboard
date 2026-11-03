@@ -80,6 +80,11 @@ import {
 import {
   saveMainAudit,
 } from './main-audit-state.js';
+import {
+  mainRedCheckFiles,
+  mainRedFilesProven,
+  mainRedFrozenCheck,
+} from './test-economics.js';
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -213,6 +218,33 @@ async function noteRegression(read, write, item, text) {
   const present = read(board => board.db.prepare("SELECT 1 FROM event WHERE event_kind='fact' AND item_id=? AND json_extract(event_detail,'$.text')=? LIMIT 1").get(item, text));
   if (!present) await write('appendFact', [item, { agentId: 'coordinator', kind: 'measurement', text }]);
 }
+/** Withdraw only a still-identical frozen Main red whose every named file passed this current-tip audit. */
+export async function closeAuditedMainReds(root, job, plan, receipt, write, openBoardForRead) {
+  const info = repoInfo(root);
+  const candidates = readBoard(info, board => store.listItems(board).filter(item => item.item_status === 'open'
+    && item.item_title.startsWith('Main red:')), openBoardForRead);
+  let closed = 0;
+  for (const item of candidates) {
+    const check = mainRedFrozenCheck(item);
+    if (!check || !mainRedCheckFiles(check)) continue;
+    const currentHead = git(root, ['rev-parse', 'main^{commit}']).trim();
+    const currentTree = git(root, ['rev-parse', 'main^{tree}']).trim();
+    if (!mainRedFilesProven(check, { plan, receipt, auditedHead: job.tip, currentHead,
+      auditedTree: job.tree, currentTree })) break;
+    try {
+      await write('withdraw', [item.item_id, { agentId: 'coordinator',
+        reason: `Every named frozen-check file passed on main at ${job.tip}.`,
+        expected: { status: 'open', title: item.item_title, check, frozenDigest: item.item_frozen_digest } }]);
+    } catch (error) {
+      if (error?.code === 'STALE_MAIN_RED') continue;
+      throw error;
+    }
+    await write('appendFact', [item.item_id, { agentId: 'coordinator', kind: 'measurement',
+      text: `Fixed on main by ${job.tip}; every file named in the frozen check passed in the current-tip audit.` }]);
+    closed++;
+  }
+  return closed;
+}
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
 async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
@@ -282,6 +314,7 @@ async function audit(root, directory, job, write, options, testValueServices, ex
     await routeAuditFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
     if (receipt.collection?.complete !== true || (saved.plan?.reused.length
       ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
+    await closeAuditedMainReds(root, job, saved.plan, receipt, write, openBoardForRead);
     const { incomplete, error, noticeRecorded, ...completed } = saved;
     saveMainAudit(file, { ...completed, state: 'complete', green: receipt.green });
     retainGreenAudit(directory, job, saved, receipt);
