@@ -171,12 +171,15 @@ test('module launchers and dynamic builtins keep browser admission conservative 
     'test/escaped-builtin.test.js': "const builtin = process['getBuiltin\\u004dodule']('node:cluster'); void builtin;",
     'test/optional-builtin.test.js': "const builtin = process?.['getBuiltinModule']('node:cluster'); void builtin;",
     'test/destructured-builtin.test.js': "const { getBuiltinModule: load } = process; void load;",
+    'test/regex-data.test.js': "const pattern = /getBuiltinModule/; void pattern;",
     'test/computed-process-alias.test.js': "const proc = process; const builtin = proc[property]; void builtin;",
   });
   for (const file of ['workers', 'cluster', 'vm', 'builtin', 'computed-builtin', 'computed-expression',
     'escaped-builtin', 'optional-builtin', 'destructured-builtin', 'computed-process-alias']) {
     assert.equal(await testsNeedBrowser(root, [`test/${file}.test.js`]), true, file);
   }
+
+  assert.equal(await testsNeedBrowser(root, ['test/regex-data.test.js']), false, 'a regex literal is data, not a builtin loader');
 
   // The reviewed parser has real local dependencies; preserve its actual source closure.
   copyPackageFiles(resolve(import.meta.dirname, '..'), root);
@@ -446,7 +449,9 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   const snapshotPaths = spawnSync('git', ['ls-files', '-z'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
   assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
   const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
+  t.diagnostic('browser census started');
   const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
+  t.diagnostic('browser census finished');
   const runnerScenarios = tracked.filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
   assert.ok(runnerScenarios.length > 0, 'the split runner scenarios remain in the browser census');
   for (const file of runnerScenarios) assert.ok(!bound.includes(file), `${file}: runner subprocess fixture source data does not launch a browser in the runner test process`);
@@ -473,7 +478,9 @@ test('launcher starts the stand-in browser inside its slot', async () => {
 });
 `,
   });
+  t.diagnostic('private runner started');
   const on = runner.run(true, ['test/plain.test.js', 'test/launcher.test.js']);
+  t.diagnostic('private runner finished');
   assert.equal(on.status, 0, on.output);
   assert.deepEqual(on.markers, ['launcher=held', 'plain=none'],
     'by launch, only the launching file takes a browser slot; the child_process file runs without one');

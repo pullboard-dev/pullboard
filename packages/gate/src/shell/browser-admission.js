@@ -24,6 +24,7 @@ import {
   git,
 } from '../../../../src/git.js';
 import { literalShellWords } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
@@ -285,7 +286,9 @@ function namesChromeLauncher(source, path) {
  */
 function usesDynamicBuiltinLoader(source) {
   const loaderName = ['getBuiltin', 'Module'].join('');
-  if (source.includes(loaderName) || /getBuiltin\\u(?:004d|\{4d\})odule/iu.test(source)) return true;
+  const parsed = lex(source);
+  if (parsed.code.includes(loaderName) || parsed.strings.some(literal => literal.text.includes(loaderName))
+    || /getBuiltin\\u(?:004d|\{4d\})odule/iu.test(source)) return true;
   if (/\bprocess\s*(?:\?\.)?\s*\[\s*(?!(['"])env\1\s*\])/u.test(source)) return true;
   const aliases = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*process\b/gu)].map(match => match[1]);
   return aliases.some(alias => {
