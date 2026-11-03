@@ -41,7 +41,8 @@ export function runLandingCliSmoke(candidate) {
     writeFileSync(join(home, 'machine-home', 'settings.json'), JSON.stringify({ view: { background: false } }));
     const env = scratchEnvironment(home), repo = join(home, 'repo'), seat = join(home, 'seat');
     const git = (cwd, ...args) => {
-      const result = spawnSync('git', args, { cwd, env, encoding: 'utf8' });
+      // init installs this repository's hooks, which call a pullboard that is not installed here; the scratch repository runs none.
+      const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
       if (result.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not prepare its scratch repository (git ${args[0]}): ${result.stderr.trim()}`);
     };
     mkdirSync(repo);
