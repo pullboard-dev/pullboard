@@ -1,7 +1,7 @@
 /** Model route policy and rejection receipts for automatic escalation [B13,B15,H16]. */
 import { COORDINATOR } from '../../../queue/core.js';
-import { AUTO_ESCALATE_ENGINE } from '../../../../src/engine-metadata.js';
-import { STRONG_REJECTION_NOTICE_ENGINE } from '../../../../src/engine-metadata.js';
+import { AUTO_ESCALATE_ENGINE } from '../../../../src/auto-escalate-engine.js';
+import { STRONG_REJECTION_NOTICE_ENGINE } from '../../../../src/strong-rejection-notice-engine.js';
 import { verdictRows } from './verdict-rows.js';
 
 /**
