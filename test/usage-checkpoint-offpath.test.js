@@ -18,6 +18,7 @@ import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
+import { nativeUsage } from '../packages/stats/index.js';
 import { usageDueDirectory } from '../packages/stats/index.js';
 import { usageCheckpointWorkerEntrypoint } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
@@ -163,4 +164,21 @@ test('a checkpoint reads only the log bytes added since its last offset [N2]', (
   assert.equal(sessionSnapshot(source, second, LATER.getTime(), cursors).totals['fixture-claude'].inputTokens, 113);
   writeFileSync(file, '{}\n');
   assert.equal(sessionSnapshot(source, second, CUTOFF, cursors), null, 'a truncated source stays unknown');
+});
+
+/** Native Claude message ids stay deduplicated across the complete session, as the old batch reader does. */
+test('a streamed update beyond the cursor window preserves old whole-log totals [N2]', () => {
+  const box = helpers.sandbox();
+  const file = join(box.dir, 'dedup-session.jsonl');
+  const source = { provider: 'claude', file };
+  writeFileSync(file, Array.from({ length: 257 }, (_, i) => row('history-' + i, 1, 1, HISTORY_AT)).join(''));
+  const cursors = {};
+  const first = sessionSnapshot(source, undefined, CUTOFF, cursors);
+  assert.equal(first.totals['fixture-claude'].inputTokens, 257);
+  appendFileSync(file, row('history-0', 5, 7, HISTORY_AT));
+  const batch = nativeUsage(source, undefined, CUTOFF);
+  assert.deepEqual([batch.reduce((n, e) => n + e.inputTokens, 0), batch.reduce((n, e) => n + e.outputTokens, 0)], [261, 263], 'the retained whole-log reader is the old oracle');
+  const updated = sessionSnapshot(source, first, CUTOFF, cursors);
+  assert.deepEqual([updated.totals['fixture-claude'].inputTokens, updated.totals['fixture-claude'].outputTokens], [261, 263],
+    'the same native message id replaces its original usage, even after 256 other messages');
 });

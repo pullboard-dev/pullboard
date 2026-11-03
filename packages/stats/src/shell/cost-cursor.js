@@ -6,8 +6,6 @@ import { claudeStep } from './cost-provider.js';
 import { codexStep } from './cost-provider.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 
-/** Claude streams one message id over adjacent rows; this many recent ids stay replaceable before they fold into totals. */
-const WINDOW = 256;
 /** A cursor no checkpoint has used for a week is dropped from the private ledger. */
 const CURSOR_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const FIELDS = ['inputTokens', 'outputTokens', ...SPLIT_COUNTS];
@@ -19,47 +17,43 @@ function add(left, right) {
 
 /** A cursor at byte zero of one file identity. */
 function fresh(provider, stat) {
-  return { provider, dev: stat.dev, ino: stat.ino, offset: 0, cutoff: 0, broken: false, count: 0, totals: {}, last: null, codex: {}, window: [] };
+  return { provider, dev: stat.dev, ino: stat.ino, offset: 0, cutoff: 0, broken: false, count: 0, totals: {}, last: null, codex: {}, messages: [] };
 }
 
-/** Fold one event into the committed per-model totals and remember the latest model the way the batch reader orders it. */
-function commit(cursor, event, order) {
+/** Fold one Codex event into the committed per-model totals; the latest model is the last event in file order. */
+function commit(cursor, event) {
   const model = event.model ?? 'unknown';
   const total = cursor.totals[model] ?? Object.fromEntries(FIELDS.map((name) => [name, 0]));
   cursor.totals[model] = Object.fromEntries(FIELDS.map((name) => [name, add(total[name], event[name])]));
   cursor.count++;
-  // Codex keeps file order; Claude sorts by first-seen time, ties keeping file order.
-  if (order === 'file' || !cursor.last || event.at >= cursor.last.at) cursor.last = { at: event.at, model: event.model };
+  cursor.last = { at: event.at, model: event.model };
 }
 
-/** Apply one parsed row; Claude rows wait in a bounded window of messages so streamed updates still replace them. */
+/**
+ * Apply one parsed row. Codex counters fold into totals at once; every Claude message stays keyed by its native id
+ * for the cursor's life, because a streamed update may arrive any number of messages later and must replace it.
+ */
 function step(cursor, messages, row) {
   if (row === null) { cursor.broken = true; return; }
   if (cursor.provider === 'codex') {
     const event = codexStep(cursor.codex, row);
     if (cursor.codex.broken) cursor.broken = true;
-    else if (event) commit(cursor, event, 'file');
+    else if (event) commit(cursor, event);
     return;
   }
-  if (cursor.provider !== 'claude') return;
-  claudeStep(messages, row);
-  while (messages.size > WINDOW) {
-    const [id, event] = messages.entries().next().value;
-    messages.delete(id);
-    commit(cursor, event, 'time');
-  }
+  if (cursor.provider === 'claude') claudeStep(messages, row);
 }
 
-/** Run rows through one cursor, keeping its window serializable for the private ledger. */
+/** Run rows through one cursor, keeping its messages serializable for the private ledger. */
 function apply(cursor, rows) {
-  const messages = new Map(cursor.window);
+  const messages = new Map(cursor.messages);
   for (const row of rows) if (!cursor.broken) step(cursor, messages, row);
-  cursor.window = [...messages];
+  cursor.messages = [...messages];
 }
 
 /** Consume complete lines up to the cutoff; a later row waits for a later checkpoint. Returns the bytes consumed. */
 function feed(cursor, bytes, cutoff) {
-  const messages = new Map(cursor.window);
+  const messages = new Map(cursor.messages);
   let start = 0;
   for (let end = bytes.indexOf(10, start); end !== -1; end = bytes.indexOf(10, start)) {
     let row;
@@ -72,7 +66,7 @@ function feed(cursor, bytes, cutoff) {
     }
     start = end + 1;
   }
-  cursor.window = [...messages];
+  cursor.messages = [...messages];
   cursor.offset += start;
   return start;
 }
@@ -92,18 +86,21 @@ function readFrom(file, offset, size) {
   } finally { closeSync(fd); }
 }
 
-/** Totals and latest model of the committed rows plus the replaceable window, or null with no usage record. */
+/**
+ * Totals and latest model of the folded Codex events plus every Claude message, or null with no usage record.
+ * Claude sorts by first-seen time with ties in file order, as the whole-file reader does.
+ */
 function totalsOf(cursor) {
   if (cursor.broken) return null;
   const totals = structuredClone(cursor.totals);
   let last = cursor.last;
-  for (const [, event] of cursor.window) {
+  for (const [, event] of cursor.messages) {
     const model = event.model ?? 'unknown';
     const total = totals[model] ?? Object.fromEntries(FIELDS.map((name) => [name, 0]));
     totals[model] = Object.fromEntries(FIELDS.map((name) => [name, add(total[name], event[name])]));
     if (!last || event.at >= last.at) last = { at: event.at, model: event.model };
   }
-  if (!cursor.count && !cursor.window.length) return null;
+  if (!cursor.count && !cursor.messages.length) return null;
   return { totals, model: last?.model ?? null };
 }
 
@@ -113,7 +110,8 @@ function totalsOf(cursor) {
  */
 export function cursorSnapshot(source, stat, cutoff, cursors) {
   const cached = cursors?.[source.file];
-  const reusable = cached && cached.provider === source.provider && cached.dev === stat.dev && cached.ino === stat.ino
+  // A cursor from before #2504's review folded old Claude messages away; it is reread once from byte zero.
+  const reusable = cached && Array.isArray(cached.messages) && cached.provider === source.provider && cached.dev === stat.dev && cached.ino === stat.ino
     && stat.size >= cached.offset && cutoff >= cached.cutoff;
   const cursor = reusable ? cached : fresh(source.provider, stat);
   const bytes = readFrom(source.file, cursor.offset, stat.size);
