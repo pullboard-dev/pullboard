@@ -18,7 +18,6 @@ import {
 import {
   appendFileSync,
   chmodSync,
-  existsSync,
   readFileSync,
   statSync,
   unlinkSync,
@@ -86,9 +85,10 @@ function release() {
 }
 
 /** Stop taking commands and free the socket path for a successor now; exitWhenDone ends the process. */
-function retire() {
+function retire(reason) {
   if (retired) return;
   retired = true;
+  trace(`retire:${reason}`, null);
   release();
   server.close();
   closeConnections();
@@ -100,8 +100,8 @@ function exitWhenDone() {
 }
 
 const { main, selectedToolEntry } = await import('../src/cli-main.js');
-const { loadNativeBoard: loadFreshNativeBoard, loadProcessPorts } = await import('./process-ports.js');
-const { openBoardReadOnly } = await import('../packages/store/index.js');
+const { loadNativeBoard, loadProcessPorts } = await import('./process-ports.js');
+const { holdReadConnections, openBoardReadOnly } = await import('../packages/store/index.js');
 const TRACE = baseEnv.PULLBOARD_RESIDENT_TRACE;
 const IDLE_CONNECTIONS = 4;
 /** Idle read-only board connections by board file, each with the file identity it was opened on. */
@@ -158,17 +158,8 @@ function closeConnections() {
   connections.clear();
 }
 
-/**
- * The native board for a command run here: the same module, except that read opens use a connection this process
- * holds. Writes still open their own connection, with their own lock and write context, as in a fresh process.
- */
-async function loadNativeBoard() {
-  const native = await loadFreshNativeBoard();
-  return { ...native, openBoardForRead(file, clock, options = {}) {
-    if (file === ':memory:' || !existsSync(file) || options.connection) return native.openBoardForRead(file, clock, options);
-    return native.openBoardForRead(file, clock, { ...options, connection: takeConnection(file) });
-  } };
-}
+// Every read open in this process, whichever module asks, takes a connection the process holds.
+holdReadConnections(takeConnection);
 
 /** A per-command output stream that frames text to the client and reports the client's terminal. */
 function clientStream(store, frame, isTTY, columns) {
@@ -183,7 +174,7 @@ function clientStream(store, frame, isTTY, columns) {
 async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
   if (retired || request.code !== loadedCode || Date.now() - bornAt > MAX_AGE_MS) {
-    retire();
+    retire(request.code !== loadedCode ? 'code' : 'age');
     return socket.end(JSON.stringify({ t: 'stale' }) + '\n', exitWhenDone);
   }
   const store = { env: { ...request.env }, cwd: request.cwd,
@@ -257,7 +248,7 @@ function listen(retry = true) {
 listen();
 
 setInterval(() => {
-  if (!inFlight.size && Date.now() - lastActive > IDLE_MS) { retire(); exitWhenDone(); }
+  if (!inFlight.size && Date.now() - lastActive > IDLE_MS) { retire('idle'); exitWhenDone(); }
 }, Math.min(IDLE_MS, 30_000)).unref();
 
 // Load each served command's modules now, so the first command after a start is warm too.

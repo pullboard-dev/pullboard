@@ -87,10 +87,15 @@ function seedBoardScale(file) {
   } finally { db.close(); }
 }
 
+/** Every line the resident processes traced. */
+function traceLines() {
+  return existsSync(fx.traceFile) ? readFileSync(fx.traceFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+}
+
 /** The connection events the resident process traced for the fixture board: how many it opened and reused. */
 function connectionTrace() {
-  const lines = existsSync(fx.traceFile) ? readFileSync(fx.traceFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
-  const board = lines.filter(line => line.file === fx.board);
+  // The fixture has one board; Git may spell its path through a symlink the fixture resolved.
+  const board = traceLines().filter(line => typeof line.file === 'string' && line.file.endsWith(join('.git', 'pullboard', 'board.sqlite')));
   return { opened: board.filter(line => line.event === 'open').length, reused: board.filter(line => line.event === 'reuse').length };
 }
 
@@ -252,10 +257,12 @@ test('an idle resident process closes its board connections and exits [H24]', ()
     fx.awaitResident();
     const idle = fx.residentPid();
     assert.equal(fx.runIn(fx.repo, ['show', '2']).status, 0);
-    // Watch the observable exit: each probe is a real child process, never a timer.
+    // Watch for the observable retirement the process traces; each probe is a real child process, never a timer.
+    const retired = () => traceLines().some(line => line.pid === idle && line.event === 'retire:idle');
     const deadline = performance.now() + 15_000;
-    while (fx.alive(idle) && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-    assert.equal(fx.alive(idle), false, 'the idle resident process exited');
-    assert.equal(fx.residentPid(), null, 'it removed its pid file on the way out');
+    while (!retired() && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+    assert.ok(retired(), `the idle resident process ${idle} retired as idle`);
+    while (fx.residentPid() === idle && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+    assert.notEqual(fx.residentPid(), idle, 'it removed its pid file on the way out');
   } finally { fx.env.PULLBOARD_RESIDENT_IDLE_MS = '120000'; }
 });

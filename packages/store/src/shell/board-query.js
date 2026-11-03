@@ -33,7 +33,7 @@ import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";
-export { closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
+export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { stats } from "../core/board-stats.js";
 export { submitInvariantEvents } from "./board-hot.js";
@@ -524,9 +524,11 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const wanted = [...new Set([...interests.related, ...[...interests.byId.values()]
     .filter(item => item.item_lane === agent.agent_lane).map(item => item.item_id)])];
   const rows = new Map();
-  for (let offset = 0; offset < wanted.length; offset += 500) {
-    const ids = wanted.slice(offset, offset + 500);
-    for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IN (${ids.map(() => '?').join(',')}) ORDER BY event_id`).all(after, cursor, ...ids)) rows.set(event.event_id, event);
+  // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
+  // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
+  const wantedIds = new Set(wanted);
+  if (wantedIds.size) for (const event of board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? AND item_id IS NOT NULL ORDER BY event_id').all(after, cursor)) {
+    if (wantedIds.has(event.item_id)) rows.set(event.event_id, event);
   }
   for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=?
     AND event_kind IN ('main-moved','row_decision','row_apply','row_draft','shout','shout_news','pass','answer','typed-request','typed-request-answer') ORDER BY event_id`).all(after, cursor)) rows.set(event.event_id, event);
