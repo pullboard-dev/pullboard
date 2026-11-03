@@ -14,7 +14,7 @@
     "moves": 92,
     "outbox": 1,
     "runner": 6,
-    "runners": 25,
+    "runners": 9,
     "sandbox": 2,
     "seats": 7,
     "sentinels": 1,
@@ -22,7 +22,6 @@
     "state": 41,
     "store": 114,
     "sync": 1,
-    "temporary": 1,
     "unmapped": 1,
     "verify": 3
   }
