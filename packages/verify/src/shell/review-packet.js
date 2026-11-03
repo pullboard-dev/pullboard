@@ -18,6 +18,7 @@ import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
+import { criterionClauses } from '../../../state/index.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -99,8 +100,10 @@ function reviewPacketInputs(board, { getItem, events }, id) {
 function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
-  const sentences = criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean);
-  return [...sentences.map(text => ({ text })), ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}` }))]
+  const numbered = criterionClauses(item.item_criterion ?? criterion);
+  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text }))
+    : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
+  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}` }))]
     .map((clause, index) => ({ n: index + 1, ...clause }));
 }
 

@@ -3,15 +3,31 @@ import { Refused } from '../../../kernel/index.js';
 
 export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'measurement', 'reasoning']);
 const KINDS = EVIDENCE_KINDS.join('|');
-const CLAUSE = /^\s*(\d+)[.)]\s+(\S.*)$/u;
+const CLAUSE_MARKER = /(?:^|\s)(\d+)[.)]\s+/gu;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
-/** The clauses of a criterion, or [] when it is free text: two or more lines numbered 1, 2, ... in order. */
+/** The clauses of a criterion, or [] when it is free text: one or more numbered clauses in order. */
 export function criterionClauses(criterion) {
-  const found = String(criterion ?? '').split(/\r?\n/u).map(line => CLAUSE.exec(line)).filter(Boolean);
-  if (found.length < 2 || found.some((match, index) => Number(match[1]) !== index + 1)) return [];
-  return found.map(match => ({ number: Number(match[1]), text: match[2].trim(), kind: DECLARED.exec(match[2])?.[1] ?? null }));
+  const source = String(criterion ?? '');
+  const markers = [...source.matchAll(CLAUSE_MARKER)];
+  if (!markers.length || markers.some((match, index) => Number(match[1]) !== index + 1)) return [];
+  const firstStart = markerStart(markers[0]);
+  if (markers.length === 1 && source.slice(0, firstStart).trim() && !source.slice(0, firstStart).trim().endsWith(':')) return [];
+  const clauses = markers.map((marker, index) => {
+    const start = markerStart(marker);
+    const header = /^\d+[.)]\s+/u.exec(source.slice(start));
+    const contentStart = start + header[0].length;
+    const end = index + 1 < markers.length ? markerStart(markers[index + 1]) : source.length;
+    const text = source.slice(contentStart, end).trim().replace(/[;,]\s*$/u, '').trim();
+    return { number: Number(marker[1]), text, kind: DECLARED.exec(text)?.[1] ?? null };
+  });
+  return clauses.every(clause => clause.text) ? clauses : [];
+}
+
+/** Locate the digit in a marker whether it begins a line or follows an inline separator. */
+function markerStart(marker) {
+  return marker.index + marker[0].lastIndexOf(marker[1]);
 }
 
 /** The latest tick each clause carries from the builder, read from ordinary note facts. */
@@ -37,6 +53,8 @@ export function clauseInspectionProblem(item, thread) {
     if (!tick) problems.push(`${label} has no evidence`);
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
+    } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence)) {
+      problems.push(`${label} needs a named test case citing clause ${clause.number}`);
     }
   }
   if (!problems.length) return null;
