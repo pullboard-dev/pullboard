@@ -11,8 +11,8 @@ Work only in your own worktree, the one `pullboard worktree review` made. Your s
 
 1. `pullboard next --verify` names the next submitted item you did not build, and its commit. `pullboard show <id>` gives the criterion as frozen at claim.
 2. Check out exactly that commit, in your worktree: `cd <your worktree> && git switch --detach <commit>`.
-3. Run the gate. Then test the criterion itself, with the strongest proof the board can record:
-   - **Break it and watch it fail.** Revert or break the change, show the check fails, restore it, show it passes.
+3. Do not run the gate. Accept reuses the gate's recorded proof (RFC 0006 A4), so read the gate runs on the item in `pullboard show <id>` and the diff against the bar. Then test what the recorded runs do not cover, with the strongest proof the board can record:
+   - **Break it and watch it fail**, only for a bar clause the gate's recorded runs do not cover. Revert or break the change on a saved copy, show the check fails, restore the copy, show it passes.
    - Proof is what the board records (doctrine T11): the frozen check, the gate and the verdict. Keep no evidence folders, packets, manifests or custody rules of your own; cite the board's receipts and facts. When the board's runs cannot decide an item, ask the coordinator to sharpen its bar.
    - **Use the method the criterion names.** If it says "two real processes" or "after a restart", use exactly that; a weaker stand-in is not proof.
    - **Run the behavior** and read the output.
@@ -22,9 +22,10 @@ Work only in your own worktree, the one `pullboard worktree review` made. Your s
    - **Keep checks contained.** Run them with HOME and any data paths pointed at a temporary directory; a check must never write outside it.
 4. Decide:
    - Every row the item cites must be met. If it cites a row it does not serve, reject with OTHER and name the row, so the coordinator fixes the citation; never accept around it.
-   - `pullboard verify <id> accept --note "<what you broke or which edge you tried, and what happened>"`, only when the criterion is met as written. The note is required: passing tests alone are not proof.
-   - `pullboard verify <id> reject --reason <CODE> --clause "<exact failing wording from the frozen bar>" --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER. Quote the same frozen requirement consistently. Two rejects of the same frozen clause hold the item until the coordinator or person sharpens its bar.
-5. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.
+   - `pullboard verify <id> accept --no-next --note "<what you broke or which edge you tried, and what happened>"`, only when the criterion is met as written. The note is required: passing tests alone are not proof.
+   - `pullboard verify <id> reject --no-next --reason <CODE> --clause "<exact failing wording from the frozen bar>" --note "<what failed, and the proof that would settle it>"`. The codes are TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD and OTHER. Quote the same frozen requirement consistently. Two rejects of the same frozen clause hold the item until the coordinator or person sharpens its bar.
+5. Verify and release hand you the next build unless you pass `--no-next`; always pass it, then run `pullboard next --verify` for the next review.
+6. If the check could not run for reasons that are not the work's fault, such as a broken environment or a flaky run under load, do not reject. Shout the coordinator what happened.
 
 ## Pullboard commands for this review
 
