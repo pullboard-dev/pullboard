@@ -148,12 +148,33 @@ function sealedSkips(root, seals, manifest, packages) {
 /**
  * Refuse a plan whose skipped packages include one the change unseals, or one skipped without a current seal holding
  * its named receipt, so a selection that hides a change fails instead of reporting green (RFC 0006 A3 control).
+ * It also refuses a unit test of a package that must run (one the plan names or the change unseals) that is missing
+ * from the plan's units, and, given `proofFiles`, a unit that neither the check nor the proof files run: an omitted
+ * test can never vanish from both units and skipped.
  *
  * @param {string} root
- * @param {{ base?: string | null, commit: string, skipped?: { package: string, hash?: string, receipt?: string | null }[] }} plan
+ * @param {{ base?: string | null, commit: string, packages?: string[], units?: string[], runner?: string, skipped?: { package: string, hash?: string, receipt?: string | null }[] }} plan
+ * @param {{ proofFiles?: string[], check?: string }} [proof] the files the submit run executes beside its check
  */
-export function requireSealedSkips(root, plan) {
-  if (!plan?.skipped?.length) return;
+export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
+  if (plan?.skipped?.length) requireSkipReceipts(root, plan);
+  if (!plan?.units) return;
+  const mustRun = new Set(plan.packages ?? []);
+  const unsealed = plan.base ? unsealedPackages(root, { base: plan.base, head: plan.commit }).unsealed.filter(row => row.hash).map(row => row.package) : [];
+  for (const name of unsealed) mustRun.add(name);
+  const after = snapshotAt(root, plan.commit);
+  const own = row => row.reasons.every(reason => reason.startsWith('cross-package:'))
+    && unsealed.includes(ownerOf(row.file, after.packageFiles, after.owners));
+  const required = after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row)).map(row => row.file);
+  const missing = required.filter(file => !plan.units.includes(file)).sort();
+  if (missing.length) throw new Refused('TEST_SELECTION_INCOMPLETE', `unit tests of unsealed packages are neither selected nor skipped: ${missing.join(', ')}; select tests from the committed diff`);
+  if (!proofFiles) return;
+  const unrun = testTierProofFiles(plan, check).filter(file => !proofFiles.includes(file)).sort();
+  if (unrun.length) throw new Refused('TEST_SELECTION_INCOMPLETE', `selected unit tests are missing from the submit run: ${unrun.join(', ')}; select tests from the committed diff`);
+}
+
+/** Every skip names a package the change leaves sealed, by a receipt its current seal holds. */
+function requireSkipReceipts(root, plan) {
   if (!plan.base) throw new Refused('SEAL_STALE', 'a plan that skips sealed packages needs its base; select tests from the committed diff');
   const unsealed = new Set(unsealedPackages(root, { base: plan.base, head: plan.commit }).unsealed.map(row => row.package));
   const hidden = plan.skipped.map(row => row.package).filter(name => unsealed.has(name)).sort();

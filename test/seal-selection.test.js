@@ -15,6 +15,8 @@ import { test } from 'node:test';
 import {
   recordSeal,
   requireSealedSkips,
+  runSubmitGate,
+  submitGatePlan,
   sealStatus,
   sealStoreFile,
   selectTestTiers,
@@ -99,6 +101,24 @@ test('control: a plan that hides a real change from its run fails, so skip logic
   const hidden = { ...plan, units: plan.units.filter(file => file !== USER_TEST), skipped: [...plan.skipped, { package: 'packages/user', hash: null, receipt: 'receipt-user' }] };
   assert.throws(() => requireSealedSkips(root, hidden), { code: 'SEAL_STALE', message: /packages\/user/u });
   assert.throws(() => requireSealedSkips(root, { ...plan, base: null }), { code: 'SEAL_STALE' });
+});
+
+test('control: the real submit path refuses a unit dropped from both units and skipped, and one missing from the run [C7,CD44]', async t => {
+  const { root, first } = fixture(t);
+  const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const two = 2;\n' });
+  const config = { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] };
+  const plan = submitGatePlan(root, config, { base: first });
+  assert.equal(plan.testTiers.commit, head);
+  assert.ok(plan.testTiers.units.includes(USER_TEST) && plan.proofFiles.includes(USER_TEST), 'the real selection runs the importer');
+  assert.doesNotThrow(() => requireSealedSkips(root, plan.testTiers, { proofFiles: plan.proofFiles, check: plan.check }));
+  const dropped = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST),
+    testTiers: { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== USER_TEST) } };
+  assert.deepEqual(dropped.testTiers.skipped, plan.testTiers.skipped, 'nothing is added to skipped');
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: dropped, staticChecked: true }),
+    { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/user\/tests\/user\.test\.js/u });
+  const unrun = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST) };
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: unrun, staticChecked: true }),
+    { code: 'TEST_SELECTION_INCOMPLETE', message: /missing from the submit run: packages\/user\/tests\/user\.test\.js/u });
 });
 
 test('an unchanged package with no current seal runs its tests, and a skip without a current seal receipt refuses [C7,CD44]', t => {

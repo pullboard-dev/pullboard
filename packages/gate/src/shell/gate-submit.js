@@ -164,7 +164,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
   const reusePlan = submitReusePlanDigest({ check, files: proofFiles, full: selection.full, deferred, proofCommand: plan.proofCommand });
-  if (plan.testTiers) { requireSealedSkips(root, plan.testTiers); config = { ...config, affectedTests: plan.testRunner }; }
+  if (plan.testTiers) { requireSealedSkips(root, plan.testTiers, { proofFiles, check }); config = { ...config, affectedTests: plan.testRunner }; }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
