@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 import { frozenCheck, policyAt } from '../packages/sandbox/index.js';
-import { submitGatePlan, submitGateConfig } from '../src/gate-submit.js';
+import { submitGatePlan } from '../packages/gate/index.js';
+import { submitGateConfig } from '../packages/gate/index.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../src/native-board.js';
@@ -14,7 +15,7 @@ import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../src/known-main-autofile-engine.js
 import { rememberCreatedItems } from '../packages/link/index.js';
 import { bindRefs, resolveMove } from '../packages/outbox/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
-import { sealKnownMainAutofile } from '../src/known-main-autofile-receipts.js';
+import { sealKnownMainAutofile } from '../packages/gate/index.js';
 import { validateKnownMainAutofile } from '../src/known-main-autofile.js';
 import { fixture, cli, rows } from './known-main-affected.fixture.js';
 
