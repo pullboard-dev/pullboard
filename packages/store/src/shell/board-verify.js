@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { rejectionReturnEnabled } from '../core/rework-family-routing.js';
 import * as rejectClause from "../../../verify/src/shell/reject-clause.js";
 import { requireSourceAdvanceReview } from "../../../verify/index.js";
@@ -126,7 +127,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
     if (isAccept && sandbox && outsideSource(board, id)) saveOutsideSource(board, id, { ...outsideSource(board, id), sandbox });
-    if (!isAccept && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
+    if (!isAccept && engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
+    else if (!isAccept && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
     const trigger = rejectClause.finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb, knownMainFailures: proofKnown }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
