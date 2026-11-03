@@ -47,7 +47,8 @@ let fx;
 /** Copy this checkout's code, untracked new files included, into a fresh checkout with one commit. */
 function copyCode(code, env) {
   const files = runFixtureGit(['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: REPO, env }).split('\0')
-    .filter(file => file && !file.startsWith('test/') && existsSync(join(REPO, file)));
+    // Test cases stay behind; test helpers come along, since some production modules import them.
+    .filter(file => file && !(file.startsWith('test/') && file.endsWith('.test.js')) && existsSync(join(REPO, file)));
   for (const file of files) {
     mkdirSync(dirname(join(code, file)), { recursive: true });
     cpSync(join(REPO, file), join(code, file));
