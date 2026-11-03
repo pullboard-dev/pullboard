@@ -130,7 +130,7 @@ export async function ordered(ctx, board, operation, args) {
       return ctx.privateBoard
         ? store.recordSpecApprovalBaseline(board, ...values)
         : gitSyncLinked(ctx.info.root)
-        ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
+        ? (await import('../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
         ? relayOperation(ctx.info.root, 'recordSpecApprovalBaseline', values, baselineIo, undefined,
           () => store.recordSpecApprovalBaseline(board, ...values))
@@ -168,7 +168,7 @@ export async function ordered(ctx, board, operation, args) {
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
       : gitLinked
-        ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
+        ? (await import('../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
