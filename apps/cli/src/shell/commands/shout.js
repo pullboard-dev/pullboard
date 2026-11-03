@@ -2,6 +2,7 @@ import { rulingOwner } from '../../../../../packages/spec/index.js';
 import { rulingRowReader } from '../../../../../packages/spec/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { addressedSeat } from '../../../../../packages/seats/index.js';
+import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 /** The pullboard shout command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { requireReadableShout } from '../../../../../packages/shouts/index.js';
@@ -62,6 +63,12 @@ export async function run(io, { first, second, rest, values }) {
   io.result?.({ id, decision: Boolean(values.decision), ...(ruling ? { ruling } : {}) });
   if (ruling) io.say(`computed call: ${ruling.owner}; execution guards still apply`);
   const agents = store.listAgents(board);
+  const routed = me.id === COORDINATOR ? /\b(?:review|verify|build|take|claim|fix|resubmit|land|work on|act on)\b[^#\n]{0,60}#(\d+)/iu.exec(text) : null;
+  if (routed) {
+    const target = store.getShout(board, id).shout_to;
+    const wake = await wakeRoutedSeat(ctx.info, { boardId: store.boardId(board), seat: agents.find(agent => agent.agent_id === target), item: Number(routed[1]) });
+    if (wake.error) io.err?.(`seat wake unavailable: ${wake.error}`);
+  }
   const recipientName = agents.some((agent) => agent.agent_id === to) ? agentDisplayName(agents, ctx.config, to) : to;
   io.say(values.decision ? `asked ${recipientName} for a decision as #${id}; it stays open until someone runs: pullboard answer ${id} "<the decision>"` : `shouted to ${recipientName}`);
   return 0;
