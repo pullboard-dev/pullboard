@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { serveView } from '../src/commands/view.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';

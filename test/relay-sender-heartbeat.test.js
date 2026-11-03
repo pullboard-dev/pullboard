@@ -1,4 +1,4 @@
-// @pullboard-test-loads packages/link/src/shell/relay.js src/cli.js src/relay-sender-worker.js apps/lib/src/shell/relay-sender-main.js
+// @pullboard-test-loads packages/link/src/shell/relay.js apps/cli/src/shell/cli.js src/relay-sender-worker.js apps/lib/src/shell/relay-sender-main.js
 /** A slow real multi-board pass must not make a live sender look abandoned [H21,H5,H16]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

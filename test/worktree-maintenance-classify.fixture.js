@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { classifyMaintenanceTree } from '../src/worktree-maintenance-classify.js';
+import { classifyMaintenanceTree } from '../apps/cli/src/shell/worktree-maintenance-classify.js';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

@@ -1,4 +1,4 @@
-/** @pullboard-test-loads packages/link/src/shell/relay.js src/cli.js */
+/** @pullboard-test-loads packages/link/src/shell/relay.js apps/cli/src/shell/cli.js */
 /** A transient outage never turns an acknowledged-authority exception into a local move [H21,H16]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

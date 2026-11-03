@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { commitCitations } from '../src/cli/spec.js';
+import { commitCitations } from '../apps/cli/src/shell/cli/spec.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { frozenCriterion, parseSpec } from '../packages/spec/index.js';

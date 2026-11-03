@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { cleanItemFolders } from '../src/item-folder.js';
+import { cleanItemFolders } from '../apps/cli/src/shell/item-folder.js';
 import { realGitAdapter } from '../packages/git/index.js';
 import { withGitContractAdapter } from '../packages/git/index.js';
 

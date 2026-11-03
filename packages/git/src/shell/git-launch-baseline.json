@@ -14,7 +14,7 @@
     "packages/sync/src/shell/sync.js": 1,
     "packages/gate/src/shell/affected-tests.js": 2,
     "packages/gate/src/shell/check-baseline.js": 2,
-    "src/cli/spec.js": 2,
+    "apps/cli/src/shell/cli/spec.js": 2,
     "packages/gate/src/shell/gui-admission.js": 1,
     "src/init-finish.js": 2,
     "packages/github/src/shell/pr-proof-graph.js": 1,
@@ -37,7 +37,7 @@
     "packages/verify/src/shell/evidence.js": 2,
     "packages/verify/src/shell/verdict-freshness.js": 2,
     "packages/verify/src/shell/verdict-trunk.js": 1,
-    "src/pinned-tool-build.js": 2,
+    "apps/cli/src/shell/pinned-tool-build.js": 2,
     "packages/runners/src/shell/run.js": 4,
     "packages/runners/src/shell/runner-history-pack.js": 3
   }
