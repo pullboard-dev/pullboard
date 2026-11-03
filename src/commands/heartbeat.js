@@ -1,4 +1,4 @@
-import { claimWorktrees } from '../../packages/activity/index.js';
+import { recordedClaimWorktrees } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 import { nextTake } from '../../packages/sandbox/index.js';
 import { mainRedReviewItems } from '../../packages/landing/index.js';
@@ -32,7 +32,8 @@ export async function run(io) {
   if (seat && !ctx.info.isMain) {
     const found = await nextTake(ctx, {}, { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered,
       idArg, ordered, whoAmI, withBoard, withBoardRead: takeBoardRead,
-      mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees });
+      mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest,
+      claimWorktrees: (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root }) });
     if (found.item) work = { item: found.item.item_id, review: found.review, held: found.held };
   }
   io.result?.({ ...(work ? { work } : {}), seat: seat?.agent_id ?? null, presence: seat?.presence ?? 'gone', heartbeatAt: seat?.heartbeatAt ?? null });
