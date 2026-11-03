@@ -3,6 +3,7 @@ import { warnMainMoved } from '../../packages/merge/index.js';
 import * as store from '../board.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../packages/landing/index.js';
+import { landingFlakeRatchet } from '../../packages/flakes/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import {
   codeIsFromMain,
@@ -68,6 +69,7 @@ export async function run(io, { first, second, values }) {
     const ids = values.items === undefined ? [id] : String(values.items).split(',').map(value => idArg(value.trim()));
     if (!ids.includes(id)) throw new Refused('USAGE', '--items must include the first named item');
     const request = prepareTrainLanding(ctx.info.root, board, ids, commit, values['gate-receipt']);
+    request.batch.flakeRatchet = landingFlakeRatchet(board).snapshot;
     if (codeIsFromMain()) {
       const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
       await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
@@ -95,7 +97,8 @@ export async function run(io, { first, second, values }) {
       throw new Refused('NOT_MERGED', `commit ${commit} is not on trunk ${trunkName}${trunkAt}, or does not contain item commit ${itemCommit} or carry its patch; merge that work onto ${trunkName}, or use --note "why"`);
     }
   }
-  await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note }]);
+  const flakeRatchet = landingFlakeRatchet(board).snapshot;
+  await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet }]);
   io.result?.({ id: idArg(first), commit });
   io.say(`#${first} merged as ${commit.slice(0, 12)}`);
   await refreshMap(ctx, io, board, commit);
