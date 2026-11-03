@@ -1,5 +1,5 @@
 import * as store from "./board.js";
-import * as releaseCooldown from "./next-release-cooldown.js";
+import * as releaseCooldownPolicy from "./next-release-cooldown.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -16,7 +16,7 @@ import * as releaseCooldown from "./next-release-cooldown.js";
 export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map(), releaseCooldown = null } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
-  const omitted = [...new Set([...assignedIds, ...releaseCooldown.ineligibleReleaseIds(board, agentId)])];
+  const omitted = [...new Set([...assignedIds, ...releaseCooldownPolicy.ineligibleReleaseIds(board, agentId)])];
 
   const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId);
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
@@ -30,7 +30,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   }
 
   // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
-  const build = releaseCooldown.nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: omitted, observeIdle, workingFiles },
+  const build = releaseCooldownPolicy.nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: omitted, observeIdle, workingFiles },
     releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
   return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }
