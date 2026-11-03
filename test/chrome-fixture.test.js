@@ -12,8 +12,8 @@ import { createEvaluator, createSender, createWaiter, findChromeExecutable, laun
 import { chromeLaunchArgs } from './chrome-launch-args.js';
 import { assertNoKilledChromeClone } from './chrome-clone-proof.js';
 
-test('a killed test Chrome leaves no code-sign clone [C7]', { skip: process.platform !== 'darwin' || !findChromeExecutable() }, async t => {
-  await assertNoKilledChromeClone(t);
+test('a killed test Chrome leaves no code-sign clone [C7]', async () => {
+  await assertNoKilledChromeClone();
 });
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */

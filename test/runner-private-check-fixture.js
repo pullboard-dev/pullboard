@@ -18,7 +18,7 @@ function document(result) {
 /** Submit an immutable legacy fixture through the existing historical receipt helper. */
 function historicalSubmission(box, id, commit) {
   box.git(box.web, 'update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit);
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { submitFixture(board, id, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
   finally { store.closeBoard(board); }
 }

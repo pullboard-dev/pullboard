@@ -1326,6 +1326,10 @@
     {
       "path": "src/move-history/211.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/milestone-queue-order-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

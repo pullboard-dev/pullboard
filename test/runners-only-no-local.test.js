@@ -131,7 +131,7 @@ test('landing cleanup failure stops named under runner-only and retains opt-out 
     const module = name => JSON.stringify(pathToFileURL(join(SOURCE, name)).href);
     const script = `import { runLandingShards } from ${module('src/landing-shards.js')};
 import { parseProcessCensus } from ${module('packages/kernel/src/core/process-census.js')};
-import { Refused } from ${module('src/refused.js')};
+import { Refused } from ${module('packages/kernel/index.js')};
 import { listResources } from ${module('packages/resources/index.js')};
 let output = '', calls = 0;
 const result = await runLandingShards({ root: ${JSON.stringify(box.repo)}, runner: ${JSON.stringify(join(box.repo, 'bin/run-tests.js'))},
