@@ -125,7 +125,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const repo = join(fresh.dir, 'fresh');
   mkdirSync(repo);
   fresh.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = fresh.run(repo, 'init', '--verbose');
+  const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
   assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
@@ -213,7 +213,9 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
 
 test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
   const box = project();
-  assert.equal(box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim(), '#1');
+  const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
+  assert.equal(added[0], '#1');
+  assert.match(added.at(-1), /^next: pullboard next --wait \d+$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
@@ -306,7 +308,9 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   rmSync(join(box.web, 'web', 'stray.txt'));
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project; gate green in \d+s/);
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
+  assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');
+  assert.match(submitted.out, /pinned as refs\/pullboard\/items\/1\/[0-9a-f]{12}/u);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
