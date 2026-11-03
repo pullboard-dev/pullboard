@@ -46,7 +46,12 @@ test('a builder nexts past same-family reviews it cannot take [N2,B13]', t => {
   assert.notEqual(second.code, 0, 'a second ineligible seat has no work after the build claim');
   const refusal = JSON.parse(second.out).error;
   assert.equal(refusal.code, 'NOTHING_FREE');
-  assert.doesNotMatch(refusal.message, new RegExp(`#${review}\\b`, 'u'), 'the ineligible submission is never pointed to as next work');
+  for (const guidance of [refusal.message, refusal.next ?? '']) {
+    assert.doesNotMatch(guidance, new RegExp(`pullboard\\s+(?:show|verify)\\s+#?${review}\\b`, 'iu'),
+      'the ineligible submission is never offered as an actionable review step');
+    assert.doesNotMatch(guidance, new RegExp(`\\b(?:review|verify)\\s+#?${review}\\b`, 'iu'),
+      'the refusal does not direct the builder to review the ineligible submission');
+  }
 
   const eligible = box.json(box.runAs('openai-reviewer-session', reviewer.root, 'next', '--verify', '--json'));
   assert.equal(eligible.item.item_id, review, 'a different-family reviewer retains its eligible review path');
