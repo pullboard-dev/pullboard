@@ -113,7 +113,7 @@ test('a sharded landing retains each actual attempt and immutable board-bound ti
   try { importBoard(replica, exportBoard(initial)); } finally { store.closeBoard(initial); }
   const source = `import {runGate} from './packages/gate/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
  import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {readFileSync} from 'node:fs'; import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
@@ -168,7 +168,7 @@ test('a selected real landing failure remains accounted under its native private
 import {runGate} from './packages/gate/index.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {accountedFailures,waivedFailures,liveWaiverProjection} from './packages/landing/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
@@ -251,7 +251,7 @@ test('a fresh main comparison survives checkout cleanup and cached comparisons a
   const source = `import assert from 'node:assert/strict'; import {readFileSync} from 'node:fs';
 import {runGate} from './packages/gate/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
  import {compareMainFailures} from './packages/landing/index.js';
 import {accountedFailures} from './packages/landing/index.js';

@@ -72,7 +72,7 @@ import {
 } from './projects.js';
 import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { relayLinkAvailability } from './relay.js';
+import { relayLinkAvailability } from '../packages/link/index.js';
 import { personNeeds } from '../packages/spec/index.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { sentinelDraftNeeds } from './sentinels.js';
@@ -487,7 +487,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   // Load the API transport factory when the view starts, after the shared projection exports
   // initialize, and use the real CLI entry point without adding a second move implementation.
   const { apiBoardListing, createLocalApiHandler } = await import('./api.js');
-  const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
+  const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('../packages/link/index.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
   const apiHandler = createLocalApiHandler({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },

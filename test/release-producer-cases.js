@@ -119,7 +119,7 @@ import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gate/index.js';
 import {runnerExecutionServices} from './.tooling/src/runners.js';
-import {landingExecutionServices} from './.tooling/src/landing-shards.js';
+import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/packages/gate/index.js';
 import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
