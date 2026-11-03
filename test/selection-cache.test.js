@@ -1,4 +1,4 @@
-/** Test selection reuses main's graph machine-wide and derives a candidate from its diff, so a fresh checkout costs the change [C7,V4]. */
+/** Test selection reads main's graph machine-wide and re-parses only the files a candidate changes [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -55,51 +55,64 @@ function freshCheckout(t, box) {
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' } }) };
 }
 
-test('a fresh checkout selects an added-file change warm in under 2 s and picks what a cold machine picks [C7,V4]', t => {
+/** A probe that counts full graph builds and records which modules were wired and which source texts were parsed. */
+const probe = () => ({ builds: 0, imported: [], parsed: [] });
+
+test('a fresh clone reads main\'s graph and parses only the one changed file, picking what a cold build picks [C7,V4]', t => {
   const box = repository(t);
   const warmMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-warm-'));
   const coldMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-cold-'));
   t.after(() => { rmSync(warmMachine, { recursive: true, force: true }); rmSync(coldMachine, { recursive: true, force: true }); });
   const main = box.commit();
-  // Another job on this machine already selected against main, which caches main's graph machine-wide.
+  // Another job on this machine already selected against main, which stores main's graph machine-wide.
   box.put('src/m5.js', "import './m4.js';\nexport const value5 = 55;\n");
   const earlier = box.commit();
   onMachine(warmMachine, () => selectAffectedTests(box.root, { base: main, commit: earlier }));
-  assert.ok(existsSync(join(warmMachine, 'main-facts', 'facts.sqlite')), 'the main graph is cached outside any checkout');
-  assert.ok(existsSync(join(warmMachine, 'parse-cache', 'parse-results.sqlite')), 'parse results are cached machine-wide');
-  // A later job: a fresh clone, and a candidate that adds a module and its test.
+  assert.ok(existsSync(join(warmMachine, 'main-facts', 'facts.sqlite')), 'the main graph is stored outside any checkout');
+  // A later job: a fresh clone and a candidate that changes one file.
   const fresh = freshCheckout(t, box);
   fresh.git('checkout', '-q', '-b', 'item', main);
-  mkdirSync(join(fresh.root, 'src'), { recursive: true });
-  writeFileSync(join(fresh.root, 'src/added.js'), "import './m47.js';\nexport const added = 1;\n");
-  writeFileSync(join(fresh.root, 'test/added.test.js'), "import '../src/added.js';\n");
-  fresh.git('add', '-A'); fresh.git('commit', '-qm', 'feat: add a module');
+  writeFileSync(join(fresh.root, 'src/m47.js'), "import './m46.js';\nexport const changedMarker47 = 4747;\n");
+  fresh.git('add', '-A'); fresh.git('commit', '-qm', 'feat: change one module');
   const candidate = fresh.git('rev-parse', 'HEAD').trim();
+  const warmProbe = probe();
   const started = Date.now();
-  const warm = onMachine(warmMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate }));
+  const warm = onMachine(warmMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate, probe: warmProbe }));
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 2000, `warm selection took ${elapsed} ms`); // budget: declared ceiling in the item #2536 criterion, selection under 2 s warm
-  assert.equal(existsSync(join(fresh.root, '.git', 'pullboard-main-facts')), false, 'nothing is cached beside the checkout');
-  const cold = onMachine(coldMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate }));
+  assert.equal(warmProbe.builds, 0, 'main\'s graph is read, not built');
+  assert.deepEqual(warmProbe.imported, ['src/m47.js'], 'only the changed file is parsed for imports');
+  assert.ok(warmProbe.parsed.length > 0 && warmProbe.parsed.every(source => source.includes('changedMarker47')), 'the parser saw no other file');
+  assert.equal(existsSync(join(fresh.root, '.git', 'pullboard-main-facts')), false, 'nothing is stored beside the checkout');
+  const coldProbe = probe();
+  const cold = onMachine(coldMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate, probe: coldProbe }));
+  assert.ok(coldProbe.builds >= 1 && coldProbe.imported.length >= MODULES, 'a cold machine builds the whole graph');
   assert.deepEqual(warm, cold);
-  assert.deepEqual(warm.files, ['test/added.test.js']);
+  assert.deepEqual(warm.files, Array.from({ length: 25 }, (_, at) => `test/t${(at + 5) * 10}.test.js`).sort());
 });
 
-test('a candidate graph built from the base graph equals one built from scratch [C7,V4]', t => {
+test('a graph updated from the base equals one built from scratch, and a changed path set rebuilds [C7,V4]', t => {
   const box = repository(t);
   const machine = mkdtempSync(join(tmpdir(), 'pullboard-machine-delta-'));
   t.after(() => rmSync(machine, { recursive: true, force: true }));
   const main = box.commit();
-  box.put('src/m7.js', "import './m6.js';\nexport const value7 = 77;\n");
-  box.put('src/extra.js', "import './m1.js';\nexport const extra = 1;\n");
-  box.put('test/extra.test.js', "import '../src/extra.js';\n");
-  box.git('rm', '-q', 'src/m299.js');
-  const candidate = box.commit();
   /** Plain data for every part of a graph selection reads, with sets and maps in canonical order. */
   const shape = graph => JSON.stringify([graph.paths, [...graph.reverse].map(([k, v]) => [k, [...v].sort()]).sort(), [...graph.unknown].sort(),
     [...graph.undeclared].sort(), [...graph.modules].sort(), [...graph.blobs].sort(), [...graph.imports].sort(), [...graph.testTreeReaders].sort(),
     [...graph.sourceTreeReaders].sort(), graph.importMap]);
-  const fromScratch = onMachine(machine, () => codeMapGraph(box.root, candidate));
-  const fromBase = onMachine(machine, () => codeMapGraph(box.root, candidate, codeMapGraph(box.root, main)));
-  assert.equal(shape(fromBase), shape(fromScratch));
+  onMachine(machine, () => {
+    box.put('src/m7.js', "import './m6.js';\nimport './m2.js';\nexport const value7 = 77;\n");
+    box.put('test/t20.test.js', "import '../src/m20.js';\nimport '../src/m9.js';\n");
+    const edited = box.commit();
+    const incremental = probe();
+    const delta = codeMapGraph(box.root, edited, codeMapGraph(box.root, main), incremental);
+    assert.deepEqual(incremental.imported.sort(), ['src/m7.js', 'test/t20.test.js'], 'only the changed modules are wired');
+    assert.equal(shape(delta), shape(codeMapGraph(box.root, edited)));
+    box.put('src/extra.js', "import './m1.js';\nexport const extra = 1;\n");
+    const added = box.commit();
+    const rebuilt = probe();
+    const full = codeMapGraph(box.root, added, codeMapGraph(box.root, main), rebuilt);
+    assert.equal(rebuilt.builds, 1, 'a new module path rebuilds the graph');
+    assert.equal(shape(full), shape(codeMapGraph(box.root, added)));
+  });
 });

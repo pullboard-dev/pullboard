@@ -110,6 +110,9 @@ function look(sources) {
   return sources.map(source => copyCompilation(cache.get(source) ?? observed.get(source)));
 }
 
+/** Real V8 compile results for each source, for a caller that wraps the parser to observe what it is asked to parse. */
+export const compileModules = look;
+
 /** Whole-word import matching is also used by conservative CPU classification. */
 const IMPORT = /(?<![\p{ID_Continue}$\u200c\u200d#])import(?![\p{ID_Continue}$\u200c\u200d])/gu;
 /** Skip only ordinary whitespace and comments when classifying executable source. */
