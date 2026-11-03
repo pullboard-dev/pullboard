@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { syncGitBoard } from '../packages/sync/index.js';
 
 /** Demand a successful fixture CLI result without including its synthetic relay credentials. */

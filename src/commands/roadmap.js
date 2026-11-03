@@ -6,6 +6,7 @@ import {
   Refused,
 } from '../../packages/kernel/index.js';
 import * as roadmapView from '../../packages/roadmap/index.js';
+import { listApiProjects } from '../../packages/seats/index.js';
 import {
   context,
   withBoard,
@@ -15,7 +16,7 @@ import {
 export function run(io, { first, second, rest }) {
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
   const ctx = context(io);
-  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: { ...store, roadmap, openBoard: ctx.nativeBoard.openBoard, workQueue } }));
+  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: { ...store, roadmap, openBoard: ctx.nativeBoard.openBoard, workQueue, listApiProjects } }));
   io.result?.({ milestones });
   if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
   for (const milestone of milestones) {

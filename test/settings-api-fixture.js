@@ -23,7 +23,7 @@ import { performanceCores } from '../packages/gate/index.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { defaults } from '../packages/config/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Hash durable fixture files, including the registry, settings, credentials and SQLite bytes. */

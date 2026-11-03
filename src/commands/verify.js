@@ -32,8 +32,8 @@ import {
   retainTestOutput,
   renderTestSummary,
   withTestOutput,
-} from '../test-output-summary.js';
-import { checkAtCommit } from '../runner-private-check.js';
+} from '../../packages/gate/index.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
@@ -316,7 +316,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
           tree: item.item_tree, main: trunk.commit, check: expectedPlan.check, affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan }) : { reason: 'clean submit plan unavailable' };
-        if (reused.ids) {
+        if (reused.ids && (frozenCheck(item) || supplement)) {
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {

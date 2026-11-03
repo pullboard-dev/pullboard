@@ -368,7 +368,7 @@ export function runnerFailureClass(error, { RunnerDropped, Refused }) {
   if (error instanceof RunnerDropped) return { action: 'rerun', reason: 'runner transport lost', code: null };
   if (!(error instanceof Refused)) return null;
   if (RERUN_REFUSALS.has(error.code)) return { action: 'rerun', reason: `runner refused: ${error.code}`, code: error.code };
-  if (error.code === 'RUNNER_CLEANUP_TIMEOUT') return { action: 'quarantine', reason: `runner refused: ${error.code}`, code: error.code };
+  if (error.code === 'RUNNER_CLEANUP_TIMEOUT' || error.code === 'RUNNER_SETUP') return { action: 'quarantine', reason: `runner refused: ${error.code}`, code: error.code };
   return { action: 'fail', reason: `runner refused: ${error.code}`, code: error.code };
 }
 
@@ -407,7 +407,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
-  const { withLandingGateSlot } = await import('../../../../src/gate.js');
+  const { withLandingGateSlot } = await import('../../../gate/index.js');
   const runners = await import('../../../../src/runners.js');
   const { RunnerDropped } = runners;
   // A test may stand in for the SSH round trip to make a runner answer with a given refusal.

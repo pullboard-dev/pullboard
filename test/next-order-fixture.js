@@ -1,6 +1,6 @@
 /** Shared real board and Git setup for ordering regressions [N2,B13,H16]. */
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';

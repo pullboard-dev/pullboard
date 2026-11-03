@@ -4,7 +4,7 @@ import { compactItemSummaries } from './view-state-summary.js';
 import { viewFlowSummary } from './view-state-summary.js';
 import { modelPresentation } from './view/cost-tab.js';
 import { projectItemState } from './api.js';
-import { performanceCores } from './gate.js';
+import { performanceCores } from '../packages/gate/index.js';
 import { landingPace } from '../packages/roadmap/index.js';
 import { milestoneFocus } from '../packages/roadmap/index.js';
 /** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
@@ -46,7 +46,7 @@ import {
 import * as store from './board.js';
 import { releaseHeadlinesBetween } from '../packages/config/index.js';
 import { VERSION } from '../packages/config/index.js';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import {
   COORDINATOR,
   DEFAULT_VIEW_PORT,
@@ -69,7 +69,7 @@ import {
   forgetProject,
   listApiProjects,
   registryFile,
-} from './projects.js';
+} from '../packages/seats/index.js';
 import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { relayLinkAvailability } from '../packages/link/index.js';

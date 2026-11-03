@@ -3,7 +3,7 @@
 /** @pullboard-test-loads src/runner-transport.js */
 /** @pullboard-test-loads src/runner-worker.js */
 /** @pullboard-test-loads bin/runner-controller.js */
-/** @pullboard-test-loads src/gate.js */
+/** @pullboard-test-loads packages/gate/src/shell/gate.js */
 /** @pullboard-test-loads src/runners.js */
 /** @pullboard-test-loads packages/landing/index.js */
 /** Exact job observations and owned SSH teardown, registered by the combined orphan-recovery check [C7,H16]. */
@@ -14,7 +14,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runnerJobReply } from '../src/runner-transport.js';
-import { processCensus } from '../src/runner-custody.js';
+import { processCensus } from '../apps/runner/index.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -55,7 +55,7 @@ function transport(t, mode) {
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   renameSync(ssh, join(bin, 'ssh-delegate'));
   const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('src/runner-transport.js'))};
-import {processCensus} from ${JSON.stringify(sourceURL('src/runner-custody.js'))};
+import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const [root,encoded]=process.argv.slice(1), recovery=JSON.parse(encoded);
 if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery,processCensus))process.exit(2);
 process.stdout.write('CLAIMED\\n');setInterval(()=>{},1000);`;
@@ -64,7 +64,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {appendFileSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {processCensus} from ${JSON.stringify(sourceURL('src/runner-custody.js'))};
+import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const args=process.argv.slice(2), command=args.at(-1), mode=${JSON.stringify(mode)}, root=${JSON.stringify(root)};
 if(command.includes(' --health ')||command.includes(' --restart ')||command.includes('/* pullboard registration GUI probe */')||command.includes('process.stdout.write(JSON.stringify({nonce:')){
  const child=spawn(process.execPath,[${JSON.stringify(join(bin, 'ssh-delegate'))},...args],{stdio:['inherit','pipe','inherit']});
@@ -118,7 +118,7 @@ finally{clearInterval(watch);}`;
 
 /** Observe real job loss under its own lease, then verify that one controlled second failure exhausts its retry. */
 function retryContract(box) {
-  const gate = sourceURL('src/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
+  const gate = sourceURL('packages/gate/src/shell/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const stages = join(box.dir, 'retry-stages.jsonl');
   writeFileSync(stages, '');

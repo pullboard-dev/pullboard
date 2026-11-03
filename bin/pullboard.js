@@ -69,7 +69,7 @@ if (process.argv[2] !== 'tool-build') {
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
-  loadNativeBoard: () => import('../src/native-board.js'),
+  loadNativeBoard: () => import('../apps/lib/index.js'),
   /** Compose process-only capabilities after a command actually requests them. */
   loadProcessPorts: () => Promise.all([import('node:url'), import('../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
@@ -93,7 +93,7 @@ process.exitCode = await main(process.argv.slice(2), {
     submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
-      void import('../src/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+      void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
     },
   })),
   stdout: process.stdout,
