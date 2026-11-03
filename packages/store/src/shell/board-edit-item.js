@@ -1,4 +1,6 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
+import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
+import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
@@ -51,7 +53,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
     const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
@@ -75,6 +77,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
     logEvent(board, agentId, 'edit', id, {
+      ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}),
       ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}),
       ...(reviewPolicy ? { reviewPolicy } : {}),
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
@@ -159,6 +162,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     ...(checkTiming === undefined && item.item_check_timing === undefined ? {} : { item_check_timing: checkTiming ?? item.item_check_timing }),
     item_after: after === undefined ? item.item_after : after.join(','),
   };
+  const evidenceWarnings = criterion !== undefined && engine >= CLAUSE_EVIDENCE_ENGINE ? requireCriterionEvidence(next.item_criterion) : [];
   checkRoute(next.item_route);
   const diagnosisProblem = lightDiagnosisProblem(board, { ...item, ...next });
   if (diagnosisProblem) throw diagnosisProblem;
@@ -172,5 +176,5 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
   checkRouted({ brief: next.item_brief, route: next.item_route, criterion: next.item_criterion, check: next.item_check }, engine);
   const unfreeze = next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_check_timing !== item.item_check_timing || Boolean(reviewPolicy) && (sensitive !== undefined || reviewFamily !== undefined);
-  return { item, next, command, unfreeze, bar: barCorrectionFields(board, item, next, { reason, widened }), widened: widened || null };
+  return { item, next, command, unfreeze, evidenceWarnings, bar: barCorrectionFields(board, item, next, { reason, widened }), widened: widened || null };
 }

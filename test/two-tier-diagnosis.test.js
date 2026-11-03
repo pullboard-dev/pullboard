@@ -21,7 +21,7 @@ function fixture(t, engine = TWO_TIER_DIAGNOSIS_ENGINE) {
   const strong = store.register(board, { lane: 'core', path: '/diagnosis/strong', route: 'strong', family: 'openai' });
   const light = store.register(board, { lane: 'core', path: '/diagnosis/light', route: 'light', family: 'anthropic' });
   const add = (route = 'mid') => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Diagnosed correction', route,
-    criterion: 'the correction works', check: 'true', brief: 'Files: web/handler.js\nTest: the handler case' });
+    criterion: 'the correction works [test]', check: 'true', brief: 'Files: web/handler.js\nTest: the handler case' });
   const claim = (id, agentId) => store.claim(board, id, { agentId, lane: 'core', leaseMs: 60 * 60_000,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'diagnosis-bar' }) });
   return { board, strong, light, add, claim };
@@ -66,8 +66,8 @@ test('bar edits cannot reuse a stale diagnosis and new fact/release moves seal t
   const id = f.add();
   store.appendFact(f.board, id, { agentId: f.strong, kind: 'diagnosis', text: DIAGNOSIS });
   assert.throws(() => store.editItem(f.board, id, { agentId: 'coordinator', brief: 'Files: web/other.js\nTest: unrelated case' }), { code: 'DIAGNOSIS_REQUIRED' });
-  assert.throws(() => store.editItem(f.board, id, { agentId: 'coordinator', criterion: 'a changed bar', reason: 'new scope' }), { code: 'DIAGNOSIS_REQUIRED' });
-  store.editItem(f.board, id, { agentId: 'coordinator', criterion: 'a changed bar', route: 'mid', reason: 'new scope needs diagnosis' });
+  assert.throws(() => store.editItem(f.board, id, { agentId: 'coordinator', criterion: 'a changed bar [test]', reason: 'new scope' }), { code: 'DIAGNOSIS_REQUIRED' });
+  store.editItem(f.board, id, { agentId: 'coordinator', criterion: 'a changed bar [test]', route: 'mid', reason: 'new scope needs diagnosis' });
   assert.throws(() => f.claim(id, f.light), { code: 'DIAGNOSIS_REQUIRED' });
   const move = prepareEngineMove(f.board, 'appendFact', [id, { agentId: f.strong, kind: 'diagnosis', text: DIAGNOSIS }]);
   assert.throws(() => applyEngineMove(f.board, { ...move, engine: TWO_TIER_DIAGNOSIS_ENGINE - 1 }, { sequence: 1, at: new Date().toISOString() }), /engine/u);
@@ -100,7 +100,7 @@ test('real CLI next displays the diagnosis to a light seat and DIAGNOSIS_WRONG r
   box.git(box.repo, 'worktree', 'add', '-q', light, '-b', 'web/light');
   const joined = box.run(light, 'join', 'web', '--route', 'light', '--model', 'Two tier light fixture');
   assert.equal(joined.code, 0, joined.err);
-  const added = box.run(box.repo, 'add', 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works', '--check', 'true',
+  const added = box.run(box.repo, 'add', 'web', 'Cold correction', '--route', 'mid', '--criterion', 'the correction works [test]', '--check', 'true',
     '--brief', 'Files: web/handler.js\nTest: expected result', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

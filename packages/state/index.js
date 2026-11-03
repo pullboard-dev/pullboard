@@ -185,3 +185,5 @@ export { STRICT_RENAME_ENGINE } from '../../src/strict-rename-engine.js';
 export { DEAD_HANDOFF_RETRY_ENGINE } from '../../src/dead-handoff-retry-engine.js';
 
 export { TWO_TIER_DIAGNOSIS_ENGINE } from '../../src/two-tier-diagnosis-engine.js';
+export { CLAUSE_EVIDENCE_ENGINE } from '../../src/clause-evidence-engine.js';
+export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';
