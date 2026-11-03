@@ -20,6 +20,7 @@ if (!isAbsolute(root ?? '') || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u
 for (const key of [...AGENT_SESSION_IDS, ...AGENT_SHELL_MARKERS, 'PULLBOARD_AGENT', 'PULLBOARD_AGENT_ID', 'PULLBOARD_PARENT_SESSION']) delete process.env[key];
 const io = { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: process.stderr,
   replayConflictRecord: outbox.replay,
+  openBoard: (...args) => nativeBoard.openBoard(...args), nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
   outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
   say: console.log, err: console.error };
 await resumeAutomaticLanding(root, token, dueAt, async () => landAfterAcceptance(context(io)));
