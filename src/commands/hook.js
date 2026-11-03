@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { stagedShimImportProblems } from '../../packages/codemap/index.js';
 import { importsIn } from '../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
@@ -106,6 +108,7 @@ export async function hookCommand(io, { first, second }) {
     const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    if (!problems.length) problems = await stagedStaticProblems(info.root, ctx.config);
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -163,6 +166,25 @@ export async function hookCommand(io, { first, second }) {
   if (!problems.length) return 0;
   io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
   return 1;
+}
+
+/**
+ * Run the gate's changed-file static checks on the staged files, so a static red is refused at commit and never costs a gate run.
+ * It reuses bin/checks/changed-static.js, the same list the gate runs, and only where the project's static checks use it.
+ *
+ * @param {string} root - The checkout the commit is made in.
+ * @param {{ staticChecks?: string }} config - Project config.
+ * @returns {Promise<string[]>} The gate's own `path:line: message` lines; empty when clean or not applicable.
+ */
+async function stagedStaticProblems(root, config) {
+  const shared = join(root, 'bin', 'checks', 'changed-static.js');
+  if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || !existsSync(shared)) return [];
+  const staged = tryGit(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR']).stdout.split('\0').filter(Boolean);
+  if (!staged.length) return [];
+  // The import-style check needs vm modules, which the hook process lacks, so the shared list runs in one small child.
+  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', shared, '--staged', ...staged], { cwd: root, encoding: 'utf8' });
+  if (run.error) return [`changed-file static checks could not run: ${run.error.message}`];
+  return run.status === 0 ? [] : [`changed-file static checks are red; fix the named source before committing:\n${(run.stderr || run.stdout).trim()}`];
 }
 
 /** Run `pullboard hook` and return its exit code. */

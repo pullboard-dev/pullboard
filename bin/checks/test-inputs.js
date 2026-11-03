@@ -128,10 +128,10 @@ function firstAnchoredSourcePath(source, { code, strings }) {
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function testInputProblems(root) {
+export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path)) {
   const problems = [];
-  for (const path of walk(root, TEST_FILE)) {
-    const source = readText(root, path);
+  for (const path of files.filter(path => TEST_FILE.test(path))) {
+    const source = read(path);
     if (declaresSource(source)) continue;
     const lexed = lex(source);
     if (!READ.test(lexed.code)) continue;

@@ -1358,6 +1358,10 @@
     {
       "path": "src/flake-ratchet-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/changed-static.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
