@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
@@ -34,8 +34,8 @@ import * as apiExports from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { projectState } from '../src/cli/view-state.js';
-import { serveView } from '../src/commands/view.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
@@ -524,7 +524,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js'; import { viewApiPorts } from './src/view-api-ports.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './src/api.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
     import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;

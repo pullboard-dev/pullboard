@@ -7,6 +7,7 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
+import { browserSourceFiles } from '../packages/gate/index.js';
 import { testsNeedBrowser } from '../packages/gate/index.js';
 import { memoryBrowserSourceFiles } from '../packages/gate/index.js';
 import { realBrowserSourceFiles } from '../packages/gate/index.js';
@@ -66,8 +67,8 @@ test('source snapshots retain captured bytes and never change real-default or co
   assert.equal(await realBrowserSourceFiles.readFile(join(box.root, 'leaf.js'), 'utf8'), 'changed after capture');
   await assert.rejects(snapshot.readFile(join(box.root, 'outside.js'), 'utf8'), error => error.code === 'EACCES');
   const actual = await Promise.all([withBrowserSourceFiles(snapshot, async () =>
-    (await import('../packages/gate/index.js')).browserSourceFiles() === snapshot),
-  Promise.resolve().then(async () => (await import('../packages/gate/index.js')).browserSourceFiles() === realBrowserSourceFiles)]);
+    browserSourceFiles() === snapshot),
+  Promise.resolve().then(async () => browserSourceFiles() === realBrowserSourceFiles)]);
   assert.deepEqual(actual, [true, true]);
 });
 

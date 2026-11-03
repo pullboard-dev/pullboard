@@ -81,7 +81,10 @@ test('[Q4] the machine pool ignores board and HOME overrides unless explicitly s
   const env = { ...process.env, HOME: '/private/home', PULLBOARD_HOME: '/private/board' };
   delete env.PULLBOARD_MACHINE_HOME;
   delete env.PULLBOARD_ACCOUNT_HOME;
-  const defaultHome = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env });
+  // Outside a test run (no runner pid), the default is the OS account's own home.
+  const outside = { ...env };
+  delete outside.PULLBOARD_TEST_RUNNER_PID;
+  const defaultHome = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env: outside });
   assert.equal(defaultHome.status, 0, defaultHome.stderr);
   assert.equal(defaultHome.stdout, join(userInfo().homedir, '.pullboard'));
   const account = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env: { ...env, PULLBOARD_ACCOUNT_HOME: '/private/account' } });

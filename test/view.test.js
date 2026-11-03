@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /**
  * The spec view (S7): one offline page with the spec, open questions, sign-offs and practice, where
  * no text from the files can inject markup.
@@ -17,11 +17,11 @@ import { main } from './native-cli-fixture.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { forgetProject, listApiProjects } from '../packages/seats/index.js';
-import { runningView, rememberView, forgetView } from '../src/view-session.js';
+import { runningView, rememberView, forgetView } from '../apps/view/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
-import { esc, renderSpecView } from '../src/view.js';
+import { esc, renderSpecView } from '../apps/view/index.js';
 import { assertPublicExportSupported } from '../src/public-export-guard.js';
 
 const SPEC = `# Bakery spec

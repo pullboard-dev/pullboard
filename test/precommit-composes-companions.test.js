@@ -55,8 +55,10 @@ function fixture({ fixer = false } = {}) {
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
         + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
     '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
+    '.selfhooks/pre-merge-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-merge-commit\n`,
   });
   chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
+  chmodSync(join(box.repo, '.selfhooks/pre-merge-commit'), 0o755);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a self-hosted entry and a shim');
   const api = join(box.dir, 'api-1');
@@ -105,4 +107,89 @@ test('a fixer\'s rewrite reaches the real index, so the checked blob is the comm
   const blob = box.git(builder, 'show', 'HEAD:web/value.txt');
   assert.equal(blob.trim(), 'edited\nfixed', 'the fixer\'s bytes are committed');
   assert.equal(readFileSync(checked, 'utf8').trim(), blob.trim(), 'the composed check read the committed bytes');
+});
+
+/* These two run the real CLI behind the composed entry (fixer: true), so the lane rule itself is exercised. */
+test('a merge of main commits cleanly when an attached companion changes a path of another lane [C7]', () => {
+  const { box, builder } = fixture({ fixer: true });
+  box.env.PB_CHECKED_OUT = join(box.dir, 'checked.txt');
+  box.git(builder, 'rm', '-q', 'web/shim.js');
+  const first = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
+  assert.equal(first.status, 0, `${first.stdout}${first.stderr}`);
+  write(box.repo, { 'web/other.txt': 'main moved\n' });
+  box.git(box.repo, 'add', 'web/other.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main');
+  const merged = box.tryGit(builder, 'merge', '--no-edit', 'main');
+  assert.equal(merged.status, 0, `${merged.stdout}${merged.stderr}${merged.failure ?? ''}`);
+  assert.equal(box.git(builder, 'show', 'HEAD:api/serve.js').trim(), SHIM_IMPORT.trim(), 'the companion is never committed');
+});
+
+test('control: a builder who stages a file of another lane is still refused [C7]', () => {
+  const { box, builder } = fixture({ fixer: true });
+  box.env.PB_CHECKED_OUT = join(box.dir, 'checked.txt');
+  box.git(builder, 'rm', '-q', 'web/shim.js');
+  write(builder, { 'api/own.js': 'export default 2;\n' });
+  box.git(builder, 'add', 'api/own.js');
+  const refused = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
+  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}${box.git(builder, 'log', '-1', '--format=%s')}`);
+  assert.match(`${refused.stdout}${refused.stderr}`, /outside the web lane: .*api/u);
+});
+
+/**
+ * A core builder whose item has an attached companion touching the coordinator-owned .githooks directory: the real
+ * CLI behind the composed entry runs the lane rule, which must see only the builder's staged paths.
+ */
+function hooksFixture() {
+  const box = helpers.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.lanes.core = { owns: ['core/'], specs: ['G1'] };
+  write(box.repo, {
+    'pullboard.json': JSON.stringify(config, null, 2),
+    'core/value.txt': 'one\n',
+    '.githooks/pre-commit': '#!/bin/sh\nexit 0\n',
+    'bin/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
+      + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
+      + 'if (composed !== null) process.exit(composed);\n'
+      + `await import(${JSON.stringify(REAL_CLI)});\n`,
+    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
+  });
+  chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a core lane and a hooks file');
+  const core = join(box.dir, 'core-1');
+  box.git(box.repo, 'worktree', 'add', '-q', core, '-b', 'core/one');
+  assert.match(box.run(core, 'join', 'core').out, /joined as core-/u);
+  // The coordinator owns .githooks, so its seat authors the companion.
+  const author = run(box, box.repo, 'whoami').id;
+  const item = run(box, box.repo, 'add', 'core', 'Edit the core value', '--specs', 'G1').item.item_id;
+  box.git(core, 'merge', '-q', '--ff-only', 'main');
+  const claimed = run(box, core, 'claim', String(item));
+  const builder = claimed.itemFolder ?? core;
+  const source = box.git(builder, 'rev-parse', 'HEAD').trim();
+  const patch = join(box.dir, 'hooks.patch');
+  writeFileSync(patch, 'diff --git a/.githooks/pre-commit b/.githooks/pre-commit\n--- a/.githooks/pre-commit\n+++ b/.githooks/pre-commit\n@@ -1,2 +1,2 @@\n'
+    + ' #!/bin/sh\n-exit 0\n+exit 0 # companion\n');
+  run(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'hooks', '--author', author, '--source', source);
+  box.git(box.repo, 'config', 'core.hooksPath', '.selfhooks');
+  return { box, builder };
+}
+
+test('a staged core change commits cleanly beside an attached .githooks companion [C7]', () => {
+  const { box, builder } = hooksFixture();
+  writeFileSync(join(builder, 'core/value.txt'), 'two\n');
+  box.git(builder, 'add', 'core/value.txt');
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  assert.equal(box.git(builder, 'show', 'HEAD:core/value.txt').trim(), 'two', 'the core change is committed');
+  assert.equal(box.git(builder, 'show', 'HEAD:.githooks/pre-commit').trim(), '#!/bin/sh\nexit 0', 'the .githooks companion is checked, never committed');
+});
+
+test('control: a builder who stages a file of another lane is still refused beside the .githooks companion [C7]', () => {
+  const { box, builder } = hooksFixture();
+  writeFileSync(join(builder, 'core/value.txt'), 'two\n');
+  write(builder, { 'api/own.js': 'export default 2;\n' });
+  box.git(builder, 'add', 'core/value.txt', 'api/own.js');
+  const refused = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
+  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.match(`${refused.stdout}${refused.stderr}`, /outside the core lane: .*api/u);
 });

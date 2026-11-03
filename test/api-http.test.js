@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { serveView } from '../src/commands/view.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
