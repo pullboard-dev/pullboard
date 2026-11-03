@@ -192,7 +192,7 @@ test('view sign-in keeps its key and intents inside the authenticated machine vi
 import { request } from 'node:http';
 import { serveView } from ${JSON.stringify(serveModule)};
 import { main as nativeTestMain } from ${JSON.stringify(new URL('../native-cli-fixture.js', import.meta.url).href)};
-import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from ${JSON.stringify(new URL('../../src/native-board.js', import.meta.url).href)};
+import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from ${JSON.stringify(new URL('../../apps/lib/index.js', import.meta.url).href)};
 import { refusalDocument } from ${JSON.stringify(new URL('../../src/next-step-words.js', import.meta.url).href)};
 import { HOSTED_ORIGIN } from ${JSON.stringify(viewModule)};
 import { updateRelayMachine } from ${JSON.stringify(machineModule)};

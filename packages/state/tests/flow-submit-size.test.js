@@ -7,7 +7,7 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import {
   applyEngineMove,

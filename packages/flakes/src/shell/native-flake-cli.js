@@ -1,5 +1,5 @@
 import { receiptRecorder } from "./native-flake-receipts.js";
-import { recordRun } from "../../../../src/gate-execution.js";
+import { recordRun } from "../../../gate/index.js";
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from "../../../config/index.js";

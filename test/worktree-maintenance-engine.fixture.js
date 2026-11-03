@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { test } from 'node:test';
 import { join, relative, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { closeBoard, openBoard } from '../src/native-board.js';
+import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { heartbeatSeat, withLocalSeatPresence } from '../packages/store/index.js';
 import { agentHandoff } from '../packages/state/index.js';

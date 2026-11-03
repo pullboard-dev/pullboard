@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { fetchLocal } from '../../packages/sync/index.js';
 import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
-import { openBoardForRead } from '../../src/board-read-open.js';
+import { openBoardForRead } from '../../packages/store/index.js';
 import { proofStats } from '../../packages/stats/index.js';
 import { compareFlowWindows } from '../../packages/stats/index.js';
 import { portableSnapshot } from '../../src/serve.js';

@@ -12,6 +12,12 @@ import { Refused } from "../../../kernel/index.js";
 import { coordinatorCheck } from "../../../verify/core.js";
 export { coordinatorCheck } from "../../../verify/core.js";
 
+/** Keep each failing case's file and name, bounded; a malformed entry names nothing (#2594). */
+function failedCasesOf(rows) {
+  return rows.filter(row => row && typeof row.file === 'string' && row.file.length <= 4096 && typeof row.name === 'string' && row.name.length <= 4096)
+    .slice(0, 512).map(row => ({ file: row.file, name: row.name }));
+}
+
 /** Validate captured baseline data without asking a replica to run Git or a shell [V2,H16]. */
 export function normalizeCheckBaseline(agentId, command, baseline, { authorized = false } = {}) {
   if (baseline === undefined) return undefined;
@@ -32,7 +38,9 @@ export function normalizeCheckBaseline(agentId, command, baseline, { authorized 
     command, main: baseline.main, result: baseline.result,
     ...(baseline.request === undefined ? {} : { request: baseline.request }),
     ...(baseline.reason === undefined ? {} : { reason: baseline.reason }),
-    ...(baseline.testEvidence === undefined ? {} : { testEvidence: { failed: [...baseline.testEvidence.failed], passed: [...baseline.testEvidence.passed], noTestsMatched: baseline.testEvidence.noTestsMatched } }),
+    ...(baseline.testEvidence === undefined ? {} : { testEvidence: { failed: [...baseline.testEvidence.failed], passed: [...baseline.testEvidence.passed],
+      ...(Array.isArray(baseline.testEvidence.failedCases) ? { failedCases: failedCasesOf(baseline.testEvidence.failedCases) } : {}),
+      noTestsMatched: baseline.testEvidence.noTestsMatched } }),
     ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
     ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
   };

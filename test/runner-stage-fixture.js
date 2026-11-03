@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import * as runnerApi from '../src/runners.js';
+import * as runnerApi from '../packages/runners/index.js';
 
 /** Seed the native private Git/SQLite context before exercising the namespace API. */
 export async function runnerStageFixture(t, e2e) {

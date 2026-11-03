@@ -1,0 +1,74 @@
+/** Machine-wide store of real V8 compile results, keyed by source bytes, so a change re-parses only its own files [C7]. */
+import { createHash } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { machineHome } from '../../../resources/index.js';
+
+const MAX_ROWS = 400_000;
+
+/** The directory every checkout and runner job on this machine shares; tests isolate it with their account home. */
+function storeDirectory() { return join(machineHome(), 'parse-cache'); }
+
+/** Digest of one source under one parser epoch; the epoch pins runtime, flags and parser program. */
+function keyOf(epoch, source) {
+  return createHash('sha256').update(epoch).update('\0').update(source).digest('hex');
+}
+
+/** A compile result is exactly a boolean and a list of strings; anything else is a miss. */
+function validRow(row) {
+  return row && typeof row.compiles === 'boolean' && Array.isArray(row.imports) && row.imports.every(value => typeof value === 'string');
+}
+
+/** Open the private store, creating it on first use; null when the machine cannot supply one. */
+function openStore() {
+  try {
+    const directory = storeDirectory();
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const db = new DatabaseSync(join(directory, 'parse-results.sqlite'));
+    try {
+      db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF; CREATE TABLE IF NOT EXISTS results(key TEXT PRIMARY KEY, body TEXT NOT NULL)');
+      return db;
+    } catch (error) { try { db.close(); } catch { /* Keep the setup failure. */ } throw error; }
+  } catch { return null; }
+}
+
+/**
+ * Compile results for `sources`, taking every one the store already holds and asking `compile` for the rest only.
+ * A damaged or unreachable store is a cache miss, never a different answer.
+ *
+ * @param {string} epoch Everything that could change what V8 reports for the same bytes.
+ * @param {string[]} sources
+ * @param {(missing: string[]) => { compiles: boolean, imports: string[] }[]} compile
+ * @returns {{ compiles: boolean, imports: string[] }[]}
+ */
+export function storedCompilations(epoch, sources, compile) {
+  const db = openStore();
+  if (!db) return compile(sources);
+  try {
+    const keys = sources.map(source => keyOf(epoch, source));
+    const found = new Map();
+    const read = db.prepare('SELECT body FROM results WHERE key=?');
+    for (const key of new Set(keys)) {
+      const saved = read.get(key);
+      if (!saved) continue;
+      try { const row = JSON.parse(saved.body); if (validRow(row)) found.set(key, row); } catch { /* Rebuilt below. */ }
+    }
+    const missing = [...new Map(sources.map((source, index) => [keys[index], source])).entries()].filter(([key]) => !found.has(key));
+    if (missing.length) {
+      const compiled = compile(missing.map(([, source]) => source));
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        if (db.prepare('SELECT COUNT(*) AS n FROM results').get().n > MAX_ROWS) db.exec('DELETE FROM results');
+        const write = db.prepare('INSERT OR REPLACE INTO results(key, body) VALUES (?, ?)');
+        missing.forEach(([key], index) => {
+          found.set(key, compiled[index]);
+          if (validRow(compiled[index])) write.run(key, JSON.stringify(compiled[index]));
+        });
+        db.exec('COMMIT');
+      } catch { try { db.exec('ROLLBACK'); } catch { /* No transaction. */ } }
+    }
+    return keys.map(key => found.get(key));
+  } catch { return compile(sources); }
+  finally { try { db.close(); } catch { /* Closing cannot change a result. */ } }
+}

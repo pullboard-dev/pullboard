@@ -9,7 +9,7 @@ export { withBrowserSourceFiles, browserSourceFiles, memoryBrowserSourceFiles, s
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/core/capacity-summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/core/check-baseline-format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/shell/check-baseline-worker.js";
-export { checkBaseline, baselineTestEvidence, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/shell/child-journal-preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/shell/chrome-clone-check.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/shell/cpu-load-admission.js";
@@ -20,7 +20,7 @@ export { digestOf, writeTimingProfile } from "./src/shell/gate-output.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-policy-load.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
-export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy } from "./src/shell/gate-slot.js";
+export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/shell/gate-slot.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
@@ -64,7 +64,7 @@ export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
 
-export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
+export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';

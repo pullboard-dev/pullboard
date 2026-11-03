@@ -11,7 +11,7 @@ import { moveOf } from './machine-source-functions.fixture.js';
 import { declaredBoardOrder } from './machine-source-functions.fixture.js';
 import { sourceReader } from './machine-source-functions.fixture.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
 import { assertGitFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
@@ -28,9 +28,9 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { HELP } from '../src/cli.js';
 import { loadConfig } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/core.js';
@@ -151,7 +151,7 @@ const CAUGHT = {
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
-  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
@@ -1385,7 +1385,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
     const boardFile = join(dir, 'src', 'board.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
-    const copyNative = await import(pathToFileURL(join(dir, 'src', 'native-board.js')).href);
+    const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);
     const board = copyNative.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });

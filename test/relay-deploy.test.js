@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -687,7 +687,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
   for (const omitted of [
     'src/cockpit.js',
     'src/machine.js',
-    'src/view.css',
+    'apps/view/src/shell/view.css',
     'packages/kernel/src/core/seal.js',
     'relay/browser-client.js',
     'relay/browser-model.js',

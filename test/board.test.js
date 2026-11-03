@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../packages/seats/index.js';

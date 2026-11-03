@@ -24,7 +24,7 @@ import { main } from './native-cli-fixture.js';
 import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';

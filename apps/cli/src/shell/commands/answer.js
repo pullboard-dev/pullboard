@@ -10,6 +10,7 @@ import {
 } from '../../../../../packages/state/index.js';
 import {
   laneNames,
+  listApiProjects,
 } from '../../../../../packages/seats/index.js';
 import {
   requirePersonChannel,
@@ -33,7 +34,7 @@ export async function run(io, { first, second, rest, values }) {
     // repo#id names a decision on another repo of this project; the answer runs on that repo's own board [N34].
     const ctx = context(io);
     const self = { root: ctx.info.root, name: ctx.config.name ?? basename(ctx.info.root) };
-    const target = resolveRepo(reference[1], self, projectSiblings(ctx.info.root, ctx.config));
+    const target = resolveRepo(reference[1], self, projectSiblings(ctx.info.root, ctx.config, listApiProjects));
     if (target.root !== self.root) {
       const there = Object.create(io, { cwd: { value: target.root } });
       return run(there, { first: reference[2], second, rest, values });

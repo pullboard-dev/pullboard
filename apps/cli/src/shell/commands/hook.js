@@ -90,7 +90,9 @@ export async function hookCommand(io, { first, second }) {
   }
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
-    applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
@@ -149,7 +151,11 @@ export async function hookCommand(io, { first, second }) {
       const landing = pushesTrunk(refsText, trunkRef(info.root));
       const waived = landing && withBoard(ctx, (board) => nativeWaivedLandingProof(board, headTree(info.root), { quarantineWaivers }));
       const recordedException = landing && withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.proof?.tree === headTree(info.root) && batch.proof.failures?.length));
+      // A batch whose every red case is red identically on its main base records a known-main proof for this tree (#2586).
+      const knownMain = landing && withBoard(ctx, (board) => store.landingBatches(board).findLast((batch) => ['ready', 'pushed'].includes(batch.state)
+        && batch.proof?.tree === headTree(info.root) && !batch.proof.failures?.length && batch.proof.knownMain?.length));
       if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
+      else if (knownMain && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree red only in cases red on main in batch ${knownMain.id}: ${knownMain.proof.knownMain.map((row) => `${row.file} :: ${row.name}`).join('; ')}`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
         const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io) });

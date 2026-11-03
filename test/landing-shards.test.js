@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
@@ -43,8 +43,8 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: GUI-marked private fixture');
   const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
@@ -76,8 +76,8 @@ test('a GUI-marked shard waits for a local slot when runner GUI capability is un
   const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, null);
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
@@ -116,8 +116,8 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, false);
 import assert from 'node:assert/strict';
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
@@ -159,8 +159,8 @@ test('six shards land on six different runners [C7,V4]', (t) => {
       { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
-  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
+  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
 import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
@@ -680,7 +680,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   writeFileSync(join(box.repo,'test/a.test.js'),source);
   for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
-  const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';

@@ -1,5 +1,5 @@
 /** Read recorded release membership without loading the Git-aware health path [B4,C7]. */
-import { milestones } from '../../../../src/board-read-auxiliary.js';
+import { milestones } from '../../../store/core.js';
 
 /** Current release members block its shipment; use recorded membership and actual landed state, never title text. */
 export function releaseBlockingItems(board) {

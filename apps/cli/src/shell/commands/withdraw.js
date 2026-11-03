@@ -1,6 +1,7 @@
 import * as store from '../../../../../packages/store/index.js';
 /** The pullboard withdraw command, in its own module so an item adding another command never edits these lines. */
 import * as roadmapView from '../../../../../packages/roadmap/index.js';
+import { listApiProjects } from '../../../../../packages/seats/index.js';
 import {
   actOn,
   idArg,
@@ -16,7 +17,7 @@ export function run(io, { first, second, rest }) {
     const previousOwner = previous?.item_owner ?? previous?.item_built_by;
     const owner = previousOwner ? store.agentById(board, previousOwner) : null;
     const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item,
-      [second, ...rest].filter(Boolean).join(' '), ordered, store);
+      [second, ...rest].filter(Boolean).join(' '), ordered, { ...store, listApiProjects });
     if (owner && ctx.config.worktreeMaintenance?.enabled === true) {
       const { cleanupMaintenanceLifecycle } = await import('../worktree-maintenance-command.js');
       await cleanupMaintenanceLifecycle(ctx, me.id, { path: owner.agent_path, item, agent: owner.agent_id, withdrawn: true, completedWithdrawal: true });

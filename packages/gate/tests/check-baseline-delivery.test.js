@@ -21,7 +21,7 @@ import { addItem } from '../../store/index.js';
 import { closeBoard } from '../../store/index.js';
 import { events } from '../../store/index.js';
 import { getItem } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { prepareCheckBaseline } from '../src/shell/check-baseline.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
@@ -127,7 +127,7 @@ function completionCount(board, id) {
 
 /** Run the actual worker function in a clean child process using the fixture environment. */
 function runWorker(box, id, request) {
-  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard });`;
+  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard });`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });

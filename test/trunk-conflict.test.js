@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { computedReturnArgs } from '../packages/landing/index.js';
 import { trunkMerge } from '../packages/merge/index.js';
 import { returnUnmergeable } from '../packages/verify/index.js';

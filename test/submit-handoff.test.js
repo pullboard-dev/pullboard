@@ -7,7 +7,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { randomUUID } from 'node:crypto';
@@ -166,6 +166,26 @@ test('queue preparation retries a real peer commit and still bounds continuous c
   } finally { peer.db.close(); board.db.close(); }
 });
 
+test('a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', t => {
+  const box = fixture(t);
+  const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  try {
+    const item = getItem(board, box.id);
+    const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit: box.commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), executionCommit: box.commit,
+      executionTree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), digest: item.item_frozen_digest,
+      companionDigest: null, leaseMs: 7_200_000 };
+    const queued = writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner);
+    const done = completeSubmitHandoff(board, box.id, { agentId: item.item_owner, job: queued.job.id,
+      result: { code: 1, error: { code: 'GIT_READ_INFRASTRUCTURE', message: 'the accepted cells-plan presence could not be read from Git', next: 'retry' } } });
+    assert.equal(done.state, 'infrastructure');
+    assert.equal(getItem(board, box.id).item_status, 'claimed');
+    assert.equal(getItem(board, box.id).item_owner, item.item_owner, 'the builder keeps its claim');
+    const texts = board.db.prepare('SELECT shout_to AS to_, shout_text AS text FROM shout').all();
+    assert.equal(texts.some(row => row.to_ === item.item_owner && /Fix it, commit and submit again/u.test(row.text)), false);
+  } finally { board.db.close(); }
+});
+
 test('two item folders stamp and queue their own claims while the first gate runs [B5,V4]', async t => {
   const box = fixture(t, { firstFolder: true });
   assert.match(box.git(box.source, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.id}\\b`));
@@ -281,20 +301,20 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
   assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
   assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
-  const workerPath = join(request.tools, 'src/submit-handoff-worker.js');
+  const workerPath = join(request.tools, 'apps/lib/src/shell/submit-handoff-worker.js');
   const originalWorker = readFileSync(workerPath, 'utf8');
   await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
-  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  writeFileSync(join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
   assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   assert.equal(state(box, box.id).item.item_commit, box.commit);
   await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
   assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder tool installation');
-  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), originalWorker);
+  writeFileSync(join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), originalWorker);
   const malformed = join(box.dir, 'malformed-worker-request.json');
   writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
-  const refused = runFixtureChild(process.execPath, [join(tools, 'src/submit-handoff-worker.js'), malformed],
+  const refused = runFixtureChild(process.execPath, [join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), malformed],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
   assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
@@ -306,7 +326,7 @@ test('a worker exiting without a result records its real exit and returns the qu
     const source = resolve(import.meta.dirname, '..');
     const tools = join(box.dir, 'exiting-tools');
     cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-    const worker = join(tools, 'src/submit-handoff-worker.js');
+    const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
     const stop = exit.signal ? `process.kill(process.pid, '${exit.signal}')` : `process.exit(${exit.code})`;
     writeFileSync(worker, `if (process.argv[3] === '--execute') { const fs = await import('node:fs'); fs.writeFileSync('untracked-worker-output', 'partial'); fs.writeFileSync('web/snapshot.txt', 'partial'); ${stop}; }\n` + readFileSync(worker, 'utf8'));
     const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
@@ -333,7 +353,7 @@ test('supervisor termination reaches its live child and retains a native refusal
   const tools = join(box.dir, 'interrupted-tools');
   const ready = join(box.dir, 'live-child.json');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const worker = join(tools, 'src/submit-handoff-worker.js');
+  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
   writeFileSync(worker, `if (process.argv[3] === '--execute') {
     const fs = await import('node:fs');
     fs.writeFileSync('untracked-worker-output', 'partial');
@@ -369,7 +389,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
   const tools = join(box.dir, 'initially-silent-tools');
   const exited = join(box.dir, 'initial-worker-exited');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const worker = join(tools, 'src/submit-handoff-worker.js');
+  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
   writeFileSync(worker, `{
     const fs = await import('node:fs');
     if (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)})) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }

@@ -12,4 +12,4 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 const { main } = await import('./native-cli-fixture.js');
-process.exitCode = await main(argv, { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin, trustedRelayOrigin, loadNativeBoard: () => import('../src/native-board.js') });
+process.exitCode = await main(argv, { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin, trustedRelayOrigin, loadNativeBoard: () => import('../apps/lib/index.js') });

@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
@@ -121,10 +121,10 @@ import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gat
 import {runnerExecutionServices} from './.tooling/src/runners.js';
 import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
-import {isStampedGreen} from './.tooling/src/gate.js';
+import {isStampedGreen} from './.tooling/packages/gate/index.js';
 import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
 import {closeBoard} from './.tooling/src/board.js';
-import {openBoard} from './.tooling/src/native-board.js';
+import {openBoard} from './.tooling/apps/lib/index.js';
 const root=process.cwd();
 const board=openBoard(join(root,'.git','pullboard','board.sqlite'));closeBoard(board);
 try {

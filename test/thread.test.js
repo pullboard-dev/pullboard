@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';

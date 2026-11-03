@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createDescendantTracker } from '../src/runner-custody.js';
+import { createDescendantTracker } from '../apps/runner/index.js';
 
 /** A scripted POSIX identity is stable across parent reparenting, without signalling any real process. */
 function row(pid, ppid, pgid) {

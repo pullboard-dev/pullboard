@@ -1,7 +1,7 @@
 /** @pullboard-test-gui */
 /** Cockpit references checks, using the shared real-board fixtures [N26]. */
 import { main as nativeTestMain } from '../native-cli-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts } from '../../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts } from '../../apps/lib/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
