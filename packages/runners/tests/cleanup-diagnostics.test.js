@@ -10,12 +10,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cleanupProcessText } from '../index.js';
 import { readCleanupTimeoutDetails } from '../index.js';
-import { createWorkerState } from '../../../src/runner-worker-state.js';
+import { createWorkerState } from '../../../apps/runner/src/shell/runner-worker-state.js';
 import { createDescendantTracker } from '../../../src/runner-custody.js';
-import { beginCleanup } from '../../../src/runner-worker-cleanup.js';
-import { reportCleanupTimeout } from '../../../src/runner-worker-cleanup.js';
-import { spawnOwned } from '../../../src/runner-worker-process.js';
-import { drainOwned } from '../../../src/runner-worker-process.js';
+import { beginCleanup } from '../../../apps/runner/src/shell/runner-worker-cleanup.js';
+import { reportCleanupTimeout } from '../../../apps/runner/src/shell/runner-worker-cleanup.js';
+import { spawnOwned } from '../../../apps/runner/src/shell/runner-worker-process.js';
+import { drainOwned } from '../../../apps/runner/src/shell/runner-worker-process.js';
 
 /** A controlled POSIX observation supplies identity evidence without signalling synthetic PIDs. */
 function row(pid, ppid, pgid) {

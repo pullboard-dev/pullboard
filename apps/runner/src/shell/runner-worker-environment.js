@@ -1,6 +1,6 @@
 /** Build the runner-owned child environment and bind the trusted resource API and its pools [C7]. */
-import { Refused } from '../packages/kernel/index.js';
-import * as resourceApi from '../packages/resources/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
+import * as resourceApi from '../../../../packages/resources/index.js';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -41,7 +41,7 @@ export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease
 
 /** Check that this already installed capsule matches the controller before using its static API. */
 export function loadResourceApi(runtime) {
-  const sourceDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
+  const sourceDirectory = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
   if (Object.entries(runtime.files).some(([name, source]) => readFileSync(join(sourceDirectory, name), 'utf8') !== source)) {
     throw new Error('trusted runtime cache does not match the request');
   }

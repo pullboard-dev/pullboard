@@ -258,7 +258,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
-  env.PULLBOARD_MODEL = 'Test Model';
+  env.PULLBOARD_MODEL = 'Test Model'; env.PULLBOARD_OWN_CLI = '1'; // #2458: tests run the candidate's own CLI.
   env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   // A test finds its runner by this pid, never by parsing ps text; a nested runner sets its own (#1073).
   env.PULLBOARD_TEST_RUNNER_PID = String(process.pid);

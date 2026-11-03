@@ -86,7 +86,7 @@ function plannedFixture(t, prepare = () => {}) {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
-  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
+  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
 }
 
 /** Commit the exact candidate the real immutable-snapshot preflight will inspect. */
@@ -101,7 +101,7 @@ test('submit accepts unchanged scheduled debt but refuses an unplaced committed 
   const clean = await requireSubmitCells(box.root, box.main, box.main, box.item);
   assert.deepEqual(clean.problems, []);
   box.put('src/new-unsafe.js', 'throw new Error("candidate module must never execute");\n');
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/new-unsafe.js/u);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /no cells-plan entry: src\/new-unsafe.js/u);
 });
 
 test('submit names a new later edge even when candidate metadata declares it temporary [C7,D3,CD64]', async t => {
@@ -113,7 +113,7 @@ test('submit names a new later edge even when candidate metadata declares it tem
     expires: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }] }));
   const declared = commitCandidate(box);
   await assert.rejects(requireSubmitCells(box.root, box.main, declared, box.item), /frozen criterion does not name exact edge/u);
-  const authorized = { item_frozen: JSON.stringify({ criterion: 'Temporary src/refused.js -> src/stats-flow.js under contract 123.' }) };
+  const authorized = { item_title: box.item.item_title, item_frozen: JSON.stringify({ criterion: 'Temporary src/refused.js -> src/stats-flow.js under contract 123.' }) };
   await assert.rejects(requireSubmitCells(box.root, box.main, declared, authorized), /kernel --cuts: kernel still imports later stats/u,
     'exact metadata authority never exempts the actual new later-cell edge');
 });
@@ -475,7 +475,7 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   assert.deepEqual(result.cells, []);
   assert.deepEqual(result.problems, []);
   box.put('src/unplanned.js', 'export const value = 1;\n');
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /no cells-plan entry: src\/unplanned.js/u);
 });
 
 /** The refusal text a candidate draws, or an empty string when submit accepts it. */

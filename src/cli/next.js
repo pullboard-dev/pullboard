@@ -86,9 +86,18 @@ export async function nextOnce(ctx, values) {
     });
   });
   const looked = withBoardRead(ctx, (board) => nextPick(ctx, board, values));
+  if (looked.autoReview) {
+    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }), review: true }; }
+    catch (error) {
+      if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED'].includes(error.code)) return { retry: true,
+        retryDetail: { phase: 'first-review reservation', item: looked.autoReview.item_id, code: error.code } };
+      throw error;
+    }
+  }
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
     const picked = nextPick(ctx, board, values);
+    if (picked.autoReview) return { retry: true, retryDetail: { phase: 'first-review reservation', item: picked.autoReview.item_id, code: 'REVIEW_BECAME_MANDATORY' } };
     if (!picked.claim) return picked;
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const { me: holder, item, held, shared, reasons, reviewSkipped } = picked;
@@ -138,6 +147,12 @@ function nextPick(ctx, board, values) {
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
+  const firstReview = () => store.reviewOffer(board, { ...selection, mandatoryOnly: true,
+    priority: [], skipIds: selection.skipIds });
+  const mandatory = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, firstReview) : firstReview();
+  if (mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
+    return { autoReview: mandatory.item, item: mandatory.item, reasons: [] };
+  }
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
@@ -147,7 +162,9 @@ function nextPick(ctx, board, values) {
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
-  const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
+  // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
+  const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
+  const offer = held && found?.urgent !== 'age' ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
@@ -157,7 +174,7 @@ function nextPick(ctx, board, values) {
   const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
-  if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
+  if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;

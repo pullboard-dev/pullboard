@@ -212,12 +212,12 @@ globalThis.fetch = function tracedFetch(input, init) {
     if (Number.isSafeInteger(document.sequence)) sequence = document.sequence;
     if (typeof document.sealed === 'string') ciphertext = createHash('sha256').update(document.sealed).digest('hex');
   } catch { /* Record only metadata for malformed fixture traffic. */ }
-  const callers = (new Error().stack ?? '').split('\\n')
+  const callers = (Error.stackTraceLimit = 64, new Error().stack ?? '').split('\\n')
     .filter(line => line.includes('/src/'))
-    .slice(0, 8)
+    .slice(0, 32)
     .map(line => {
       const name = line.match(/^\\s*at (.*?) \\(/u)?.[1] ?? '<anonymous>';
-      const location = line.match(/\\/src\\/([^/():]+\\.js:\\d+:\\d+)/u)?.[1] ?? 'unknown';
+      const location = line.match(/\\/src\\/((?:[^/():]+\\/)*[^/():]+\\.js:\\d+:\\d+)/u)?.[1] ?? 'unknown';
       return name + '@' + location;
     });
   const signal = init?.signal ?? input?.signal;
