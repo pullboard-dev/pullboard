@@ -1,7 +1,7 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { compactItemSummaries } from '../src/view-state-summary.js';
-import { expandItemSummaries } from '../src/view-state-summary.js';
+import { compactItemSummaries } from '../apps/view/index.js';
+import { expandItemSummaries } from '../apps/view/index.js';
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
 import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';

@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads src/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
-import { viewApiPorts } from '../../src/view-api-ports.js';
+import { viewApiPorts } from '../../apps/view/index.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import { copyPackageFiles } from '../../packages/runners/index.js';

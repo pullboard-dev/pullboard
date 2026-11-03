@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
 import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';

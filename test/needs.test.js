@@ -11,7 +11,7 @@ import { main } from './native-cli-fixture.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { personNeeds } from '../packages/spec/index.js';
 import { serveMcp } from '../packages/mcp/index.js';
-import { personNeedsState } from '../src/needs-state.js';
+import { personNeedsState } from '../apps/view/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
 import { readBlueprint } from '../packages/blueprints/index.js';
@@ -58,7 +58,6 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
   assert.equal(expected.find(need => need.kind === 'hold').id, 'web');
   assert.equal(expected.find(need => need.kind === 'decision').text, 'Which public interface should we keep?');
   assert.ok(!expected.some(need => ['G4', 'G5'].includes(need.id)), 'approved and declined unapplied rows stay out');
-  const { personNeedsState } = await import('../src/needs-state.js');
   const state = personNeedsState(box.repo);
   assert.deepEqual(personNeeds(state), expected);
   const statusCard = box.run(box.repo, 'status', '--json');
