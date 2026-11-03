@@ -29,6 +29,10 @@ after(helpers.cleanup);
 
 const SESSION = 'offpath-fixture-claude';
 const LOG_BYTES = 50 * 1024 * 1024;
+/** Fixed fixture clock: history predates every real claim, and the cursor test needs no wall clock. */
+const HISTORY_AT = new Date('2026-01-01T00:00:00.000Z');
+const CUTOFF = Date.parse('2026-01-01T00:00:30.000Z');
+const LATER = new Date('2026-01-01T00:01:00.000Z');
 
 /** One native-shaped Claude usage row; fixture data, not provider execution. */
 function row(id, input, output, at = new Date()) {
@@ -37,7 +41,7 @@ function row(id, input, output, at = new Date()) {
 
 /** Write about 50 MB of history that all predates the claim. */
 function bigLog(file) {
-  const at = new Date(Date.now() - 60_000);
+  const at = HISTORY_AT;
   const pad = 'x'.repeat(400);
   const chunk = [];
   let size = 0;
@@ -130,24 +134,23 @@ test('a checkpoint reads only the log bytes added since its last offset [N2]', (
   const box = helpers.sandbox();
   const file = join(box.dir, 'native-session.jsonl');
   const source = { provider: 'claude', file };
-  writeFileSync(file, row('first', 8, 2) + row('second', 4, 1));
+  writeFileSync(file, row('first', 8, 2, HISTORY_AT) + row('second', 4, 1, HISTORY_AT));
   const cursors = {};
-  const first = sessionSnapshot(source, undefined, Date.now(), cursors);
+  const first = sessionSnapshot(source, undefined, CUTOFF, cursors);
   assert.deepEqual([first.totals['fixture-claude'].inputTokens, first.totals['fixture-claude'].outputTokens], [12, 3]);
   assert.equal(cursors[file].offset, statSync(file).size, 'the cursor rests at the end of the consumed lines');
   // Overwrite the old bytes in place with same-length junk: a reader that rereads them would lose the totals.
   const old = statSync(file).size;
   const fd = openSync(file, 'r+');
   try { writeSync(fd, Buffer.alloc(old, 0x20), 0, old, 0); } finally { closeSync(fd); }
-  appendFileSync(file, row('third', 100, 10));
-  const second = sessionSnapshot(source, first, Date.now(), cursors);
+  appendFileSync(file, row('third', 100, 10, HISTORY_AT));
+  const second = sessionSnapshot(source, first, CUTOFF, cursors);
   assert.deepEqual([second.totals['fixture-claude'].inputTokens, second.totals['fixture-claude'].outputTokens], [112, 13], 'only the appended row was read');
   assert.equal(cursors[file].offset, statSync(file).size);
   // A row after the cutoff waits for a later checkpoint instead of being skipped.
-  const later = new Date(Date.now() + 60_000);
-  appendFileSync(file, row('fourth', 1, 1, later));
-  assert.equal(sessionSnapshot(source, second, Date.now(), cursors).totals['fixture-claude'].inputTokens, 112);
-  assert.equal(sessionSnapshot(source, second, later.getTime(), cursors).totals['fixture-claude'].inputTokens, 113);
+  appendFileSync(file, row('fourth', 1, 1, LATER));
+  assert.equal(sessionSnapshot(source, second, CUTOFF, cursors).totals['fixture-claude'].inputTokens, 112);
+  assert.equal(sessionSnapshot(source, second, LATER.getTime(), cursors).totals['fixture-claude'].inputTokens, 113);
   writeFileSync(file, '{}\n');
-  assert.equal(sessionSnapshot(source, second, Date.now(), cursors), null, 'a truncated source stays unknown');
+  assert.equal(sessionSnapshot(source, second, CUTOFF, cursors), null, 'a truncated source stays unknown');
 });
