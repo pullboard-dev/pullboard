@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard, openBoardForRead } from '../src/native-board.js';
+import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import * as nativeBoard from '../src/native-board.js';
 import { withBoard } from '../src/cli-context.js';
 import { withBoardRead } from '../src/cli-context.js';

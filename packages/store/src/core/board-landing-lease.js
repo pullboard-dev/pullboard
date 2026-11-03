@@ -4,7 +4,7 @@ import {
   logEvent,
 } from "../shell/board.js";
 import { COORDINATOR } from "../../../config/index.js";
-import { coordinatorHolder } from "../../../../src/coordinator-hold.js";
+import { coordinatorHolder } from "../../../seats/core.js";
 import { Refused } from "../../../kernel/core.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../src/landing-local-lease-engine.js";
