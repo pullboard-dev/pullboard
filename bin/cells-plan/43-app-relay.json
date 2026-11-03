@@ -6,8 +6,6 @@
  "frontDoor": "apps/relay/index.js",
  "dryRunName": "app:relay-server",
  "paths": [
-  ["relay/Dockerfile","apps/relay/src/shell/Dockerfile","seed"],
-  ["relay/README.md","apps/relay/src/shell/README.md","seed"],
   ["relay/app.webmanifest","apps/relay/src/shell/app.webmanifest","seed"],
   ["relay/auth-http.js","apps/relay/src/shell/auth-http.js","seed"],
   ["relay/auth.js","apps/relay/src/shell/auth.js","seed"],
@@ -48,10 +46,8 @@
   ["relay/person-enrollment-http.js","apps/relay/src/core/person-enrollment-http.js","seed"],
   ["relay/person-enrollment-store.js","apps/relay/src/core/person-enrollment-store.js","seed"],
   ["relay/retention.js","apps/relay/src/shell/retention.js","seed"],
-  ["relay/server.mjs","apps/relay/src/shell/server.mjs","seed"],
   ["relay/service-worker.js","apps/relay/src/core/service-worker.js","seed"],
   ["relay/service.js","apps/relay/src/shell/service.js","seed"],
-  ["relay/smoke.mjs","apps/relay/src/shell/smoke.mjs","seed"],
   ["relay/storage-quota.js","apps/relay/src/shell/storage-quota.js","seed"],
   ["relay/upload-status.js","apps/relay/src/core/upload-status.js","seed"]
  ],
