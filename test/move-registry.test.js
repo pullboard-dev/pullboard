@@ -175,7 +175,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
-import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './src/native-board.js';
+import * as store from './src/board.js'; import {openBoard,nativeBoardPorts} from './apps/lib/index.js';
 import { registryFixtureBoard } from './test/move-registry-fixture.js';
 import { REGISTRY_AT } from './test/move-registry-fixture.js';
 const root=process.cwd();

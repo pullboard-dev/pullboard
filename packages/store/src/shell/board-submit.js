@@ -1,3 +1,6 @@
+import { git } from '../../../git/index.js';
+import { gateJudgmentPath } from '../../../verify/index.js';
+import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
@@ -40,6 +43,30 @@ import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
 import { isDeepStrictEqual } from 'node:util';
 import { contains } from '../../../git/index.js';
+
+/** Seal rename evidence from exact Git objects and accepted sensitive-path policy before replication [V4,H16]. */
+export function sealStrictRenames(board, id, options) {
+  if (!board.gitRoot) return options;
+  const base = getItem(board, id)?.item_claim_head;
+  if (!base || !options.commit) return options;
+  const fields = git(board.gitRoot, ['diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, options.commit]).split('\0');
+  const policy = options.clausePolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, options.clausePolicyCommit)
+    : board.enginePorts.sandboxPolicyReads.mainPolicy(board.gitRoot);
+  const configured = policy.config.intake?.sensitivePaths ?? [];
+  if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path))
+    throw new Refused('BAD_CONFIG', 'intake.sensitivePaths must name relative sensitive files or directory prefixes');
+  const strictRenames = [];
+  for (let i = 0; i < fields.length && fields[i];) {
+    const status = fields[i++], oldPath = fields[i++];
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const newPath = fields[i++];
+      const sensitive = configured.some(path => oldPath === path || path.endsWith('/') && oldPath.startsWith(path));
+      if (status.startsWith('R') && (gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
+    }
+  }
+  return { ...options, strictRenames };
+}
 
 /** Name changed policy leaves without treating object key order as policy. */
 function changedPolicyKeys(before, after, prefix) {
@@ -92,8 +119,11 @@ export function sealClauseInspection(board, id, options) {
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
-  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) options = sealClauseInspection(board, id, options);
-  const { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) {
+    options = sealClauseInspection(board, id, options);
+    options = sealStrictRenames(board, id, options);
+  }
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -115,7 +145,12 @@ export function submit(board, id, options) {
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
-  atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+  atomic(board, () => {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
+      if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
+      if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
+    }
+    reviewRouting.requireStrictBuilderFamily(board, id, agentId);
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });

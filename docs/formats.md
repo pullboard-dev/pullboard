@@ -872,4 +872,6 @@ Item summaries and item details carry `withdrawnReason` and `withdrawnFrom` on e
 
 The main-red failure-lines engine retains the first safe error line for each authenticated main-red failure. Automatically filed repairs store these lines beside the item, and show prints them; older moves replay without those new records. Check baselines retain their named red diagnostics in the recorded observation.
 
+The pinned-claim lapse engine releases a claim on a coordinator-pinned item after 30 minutes without a commit, submit or check, where other claims are released after 40. Older moves replay with the 40-minute rule.
+
 The release-quality hold engine counts a holder’s BLOCKED, BUDGET, or INELIGIBLE release toward an automatic released-twice hold. Maintenance, routing, and OTHER releases do not count; OTHER is free-form and cannot prove quality provenance. Older engine moves keep their original replay behavior.
