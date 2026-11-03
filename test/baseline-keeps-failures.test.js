@@ -11,6 +11,8 @@ import { baselineFailureDetails } from '../packages/gate/index.js';
 test('a red baseline with two real failing cases prints both first error lines in show [C7]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
+  // The private CLI launches its own test process, not a child of this node:test protocol.
+  delete box.env.NODE_TEST_CONTEXT;
   writeFileSync(join(box.repo, 'two-fail.test.js'), "import { test } from 'node:test';\ntest('first broken case', () => { throw new Error('first diagnostic'); });\ntest('second broken case', () => { throw new Error('second diagnostic'); });\n");
   box.git(box.repo, 'add', 'two-fail.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: two failing baseline cases');
