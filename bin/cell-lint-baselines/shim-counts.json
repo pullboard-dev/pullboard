@@ -2,7 +2,7 @@
   "version": 1,
   "cells": {
     "api": 2,
-    "cli": 14,
+    "cli": 28,
     "config": 4,
     "doctrine": 1,
     "gate": 22,
