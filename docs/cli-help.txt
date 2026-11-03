@@ -144,7 +144,8 @@ Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
-  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>]
+  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>] [--out <directory>]
+                                        format-patch or plain diff; mixed lanes report owners and write drafts for confirmation
                                         coordinator: bind a companion patch to the exact submitted source
   pullboard patch list <item>            read its ordered native patches and patch-set digest
   pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
@@ -182,7 +183,7 @@ Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--on <ids>] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
@@ -306,7 +307,7 @@ Receipts
                                         merge wait: land the accepted items: #A, #B
                                         when that queue is empty, the action says none waiting or waits for open work
   pullboard ledger                      markdown: what was built, by whom, verified by whom
-  pullboard capacity                     serial test-work minutes, work per landing, declared pure/contract share and conversion priority; --json
+  pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes
@@ -380,7 +381,6 @@ Lifecycle, read from src/machine.js
 Additional commands
   pullboard heartbeat                 record this seat's local session activity; no board move
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
-  pullboard seats                     current seat states and local 24-hour timing ledger
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
   pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
