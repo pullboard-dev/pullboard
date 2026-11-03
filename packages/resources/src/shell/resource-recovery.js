@@ -1,5 +1,6 @@
 /** Shared SQLite generations keep transport recovery separate from cleanup and capacity policy [C7]. */
 import { randomUUID } from 'node:crypto';
+import { healDelay, healLeakedRunner } from './runner-leak-heal.js';
 
 /** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
 export function recoveryIdentity(value) {
@@ -64,7 +65,7 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
 }
 
 /** Probe due failed generations outside transactions; only exact or explicit idle proofs restore availability. */
-export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, now = Date.now() } = {}) {
+export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, leakProbe, now = Date.now() } = {}) {
   if (typeof probe !== 'function') return false;
   const configured = new Map(runners.map(runner => [runner.host, runner]));
   const rows = db.prepare(`SELECT * FROM runner_unavailable WHERE probe_after<=? AND probe_until<=?
@@ -115,6 +116,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
         result = restart;
       }
     }
+    if (result?.healthy !== true && row.detail === 'CLEANUP_UNVERIFIED') result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe });
     if (result?.healthy === true) {
       const recovered = auditedChange(db, () => {
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?
@@ -129,7 +131,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     }
     const attempts = Math.min(16, row.probe_attempts + 1);
     const delay = ['CLEANUP_UNVERIFIED', 'WORKER_UNRESPONSIVE'].includes(row.detail)
-      ? 300_000 : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
+      ? healDelay(db, row, leakProbe) : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
     db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,probe_after=?,probe_attempts=?,failure=?
       WHERE host=? AND since=? AND probe_token=?`)
       .run(now + delay, attempts, JSON.stringify({ ...retained, latestProbe: result }), row.host, row.since, token);
