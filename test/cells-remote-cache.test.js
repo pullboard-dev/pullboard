@@ -15,7 +15,7 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { createFixtureMemo } from '../packages/codemap/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
-import { submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
+import { submitCellsRemoteCommand } from '../apps/cli/src/shell/submit-cells-remote.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
