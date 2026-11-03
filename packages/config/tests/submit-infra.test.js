@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -64,9 +67,15 @@ function commitAll(box, message = 'chore: fixture state') {
 function privateRepo(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-infra-')));
   dirs.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
   mkdirSync(root);
+  t.after(async () => {
+    const directory = join(root, '.git/pullboard/review-comparisons');
+    const jobs = existsSync(directory) ? readdirSync(directory).map(job => join(directory, job)) : [];
+    await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
+      'owned submit comparisons have closed before repository removal', { signal: t.signal });
+    rmSync(dir, { recursive: true, force: true });
+  });
   const env = {
     ...process.env,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -84,6 +93,8 @@ function privateRepo(t) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
   const run = (...args) => {
+    if (args[0] === 'add' || args[0] === 'submit') args.push('--wait');
+    if (args[0] === 'submit' || args[0] === 'verify') args.push('--no-next');
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
@@ -111,6 +122,8 @@ function builderRepo(box, { requireInfraNote = true } = {}) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   /** Run the real CLI with the joined builder identity. */
   const run = (...args) => {
+    if (args[0] === 'add' || args[0] === 'submit') args.push('--wait');
+    if (args[0] === 'submit' || args[0] === 'verify') args.push('--no-next');
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
