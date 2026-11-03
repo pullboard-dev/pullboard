@@ -1,6 +1,7 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { importParseScopes } from './module-import-cache-state.js';
+import { storedCompilations } from './parse-result-store.js';
 import {
   mkdtempSync,
   rmSync,
@@ -39,6 +40,13 @@ const PARSER = [
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function compileSources(sources) {
+  if (process.env.NODE_OPTIONS) return compileFresh(sources);
+  const epoch = JSON.stringify([process.execPath, process.versions.node, PARSER]);
+  return storedCompilations(epoch, sources, compileFresh);
+}
+
+/** Compile in a child Node, with no stored result consulted. */
+function compileFresh(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');

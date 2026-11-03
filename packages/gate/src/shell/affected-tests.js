@@ -1,6 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './affected-graph-cache.js';
+import { unknownRootTests } from './affected-unknown-roots.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -598,18 +599,14 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const changedTestInput = changed.some(path => path.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(path) || TEST.test(path) || /^test\.[cm]?js$/u.test(path));
     const changedSourceInput = changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
     // An opaque loader may read any changed dependency: retain its roots without inventing missing edges.
-    const unknownRoots = new Map();
-    for (const graph of [before, after]) {
-      for (const [test, closure] of closuresInGraph(graph).closures) {
-        if (closure.files === null) unknownRoots.set(test, closure.reason);
-      }
-    }
-    const selected = files.filter(path => reached.has(path) || unknownRoots.has(path)
+    const unknownRoots = [before, after].map(graph => unknownRootTests(graph, path => TEST.test(path)));
+    const unknownRoot = path => unknownRoots.some(roots => roots.has(path));
+    const rootReason = path => (unknownRoots[1].has(path) ? unknownRoots[1] : unknownRoots[0]).reasonOf(path);
+    const selected = files.filter(path => reached.has(path) || unknownRoot(path)
       || (changedTestInput && (before.testTreeReaders.has(path) || after.testTreeReaders.has(path)))
       || (changedSourceInput && (before.sourceTreeReaders.has(path) || after.sourceTreeReaders.has(path))));
     if (selected.length === files.length) return { full: true, reason: 'the change reaches every test file', files };
-    const unresolved = selected.filter(path => unknownRoots.has(path))
-      .map(path => `${path}: ${unknownRoots.get(path)}`);
+    const unresolved = selected.filter(unknownRoot).map(path => `${path}: ${rootReason(path)}`);
     return { full: false, reason: unresolved.length ? `unresolved root closures retained: ${unresolved.join('; ')}` : '', files: selected };
   } catch (error) {
     if (error?.code === 'MAIN_FACTS_BUSY') throw error;
