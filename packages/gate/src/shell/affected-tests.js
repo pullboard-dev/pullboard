@@ -1,6 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './affected-graph-cache.js';
+import { documentationInputs } from './affected-doc-inputs.js';
 import { unknownRootTests } from './affected-unknown-roots.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -178,7 +179,7 @@ function selectionGit(root, args) {
 }
 
 /** Read all committed module blobs in one Git batch, preserving exact names and source bytes; a header-only scan passes `completeGraph: false`, since it reads text and needs no ES-module import graph; `blobs` maps every tracked path to its object id. */
-function modulesAt(root, commit, { completeGraph = true } = {}) {
+function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
   const tracked = selectionGit(root, ['ls-tree', '-r', '-z', commit]).split('\0').filter(Boolean).map(record => {
     const tab = record.indexOf('\t');
     const [mode, type, hash] = record.slice(0, tab).split(' ');
@@ -200,12 +201,14 @@ function modulesAt(root, commit, { completeGraph = true } = {}) {
   const blobs = new Map(tracked.map(entry => [entry.path, entry.hash]));
   const unsafeInputs = new Set(tracked.filter(entry => entry.mode === '120000' || entry.type !== 'blob').map(entry => entry.path));
   if (!entries.length) return { modules: new Map(), blobs, unsafeInputs, importMap: policy.imports ?? {} };
-  const hashes = [...new Set(entries.map(entry => entry.hash))];
-  const result = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
+  // A prior graph already holds the bytes of every blob this tree shares with it; read only the rest.
+  const known = new Map(prior ? [...prior.blobs].filter(([path]) => prior.modules.has(path)).map(([path, hash]) => [hash, prior.modules.get(path)]) : []);
+  const hashes = [...new Set(entries.map(entry => entry.hash))].filter(hash => !known.has(hash));
+  const result = !hashes.length ? { status: 0, stdout: Buffer.alloc(0) } : spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root, env: cleanGitEnvironment(), input: hashes.join('\n') + '\n', maxBuffer: 128 * 1024 * 1024,
   });
   if (result.status !== 0) throw new Error('committed module blobs could not be read');
-  const sources = new Map();
+  const sources = known;
   let at = 0;
   for (const hash of hashes) {
     const end = result.stdout.indexOf(10, at);
@@ -217,83 +220,6 @@ function modulesAt(root, commit, { completeGraph = true } = {}) {
     at += size + 1;
   }
   return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs, importMap: policy.imports ?? {} };
-}
-
-/**
- * Find literal documentation inputs without executing repository code. File references are resolved
- * both from the repository and from the reader; directory references deliberately overselect their
- * subtree. Split path arguments and template prefixes count as directory reads. Comments may add
- * readers, which is safe: this is conservative input discovery, not JavaScript data-flow analysis.
- * Computed Markdown names select the docs tree; opaque helpers declare DOCS_TREE_INPUT. The
- * landing gate remains complete and never uses this submit-only optimization.
- */
-function documentationInputs(path, source, imports, changedDocs = []) {
-  const inputs = new Set();
-  if (source.split(/\r?\n/u).includes(DOCS_TREE_INPUT)) inputs.add('docs');
-  // Plain text is the required conservative rule: syntax, comments, and escapes do not matter.
-  // Keep the older literal-reader scan below as an additional conservative signal.
-  if (source.includes('docs') && source.includes('.md')) {
-    for (const doc of changedDocs) inputs.add(doc);
-  }
-  for (const doc of changedDocs) {
-    const basename = posix.basename(doc).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    const wholeWord = new RegExp(`(?:^|[^\\p{L}\\p{M}\\p{N}_])${basename}(?:$|[^\\p{L}\\p{M}\\p{N}_])`, 'u');
-    if (wholeWord.test(source)) inputs.add(doc);
-  }
-  const markdownReader = imports.some(target => target === 'node:fs' || target === 'node:fs/promises');
-  const literals = /(['"])(?:\\[\s\S]|(?!\1)[^\\\r\n])*\1|`(?:\\[\s\S]|[^`\\])*`/uy;
-  // Try every quote start: a quote in a comment or regular expression must not hide a later real path.
-  for (const quote of source.matchAll(/['"`]/gu)) {
-    literals.lastIndex = quote.index;
-    const match = literals.exec(source);
-    if (!match) continue;
-    let values;
-    if (match[0][0] === '`') {
-      const raw = match[0].slice(1,-1);
-      // Cook escape sequences only; never evaluate an interpolation. Keep raw text too for tags.
-      const cooked = raw.replace(/\\(u\{[\da-fA-F]+\}|u[\da-fA-F]{4}|x[\da-fA-F]{2}|\r\n|[\s\S])/gu, (_, escape) => {
-        if (/^u\{[\da-fA-F]+\}$/u.test(escape)) return String.fromCodePoint(parseInt(escape.slice(2,-1),16));
-        if (/^(?:u[\da-fA-F]{4}|x[\da-fA-F]{2})$/u.test(escape)) return String.fromCharCode(parseInt(escape.slice(1),16));
-        return ({ n:'\n', r:'\r', t:'\t', b:'\b', f:'\f', v:'\v', 0:'\0', '\n':'', '\r':'', '\r\n':'' })[escape] ?? escape;
-      });
-      values = [...new Set([raw,cooked])].map(text => {
-        const rootDoc = /(?:^|\/)docs(?:\/|$)/u.exec(text);
-        if (!rootDoc && text.includes('${') && text.endsWith('.md') && markdownReader) inputs.add('docs');
-        return (rootDoc ? text.slice(rootDoc.index + (rootDoc[0].startsWith('/') ? 1 : 0)) : text).split('${',1)[0];
-      });
-    }
-    else {
-      // Only a complete quoted string matched above is evaluated, never a template or expression.
-      try { values = [match[0].includes('\\') ? new Function(`return ${match[0]};`)() : match[0].slice(1,-1)]; }
-      catch { continue; }
-    }
-    for (let value of values) {
-      if (typeof value !== 'string') continue;
-      value = value.split(/[?#]/u)[0].replace(/\/$/u,'');
-      const embeddedRoot = /\/docs(?:\/|$)/u.exec(value);
-      if (embeddedRoot) value = value.slice(embeddedRoot.index + 1);
-      const wildcard = value.search(/[\*\[\{]/u);
-      if (wildcard !== -1) value = value.slice(0,value.lastIndexOf('/',wildcard) + 1);
-      if (value === '.md' && markdownReader) { inputs.add('docs'); continue; }
-      if (!value) continue;
-      const directoryReader = /\b(?:readdir|glob|opendir)/u.test(source);
-      if (!value.includes('/') && !value.endsWith('.md') && value !== 'docs' && !directoryReader) continue;
-      const prefix = value === 'docs' || value.endsWith('.md') ? source.slice(0,match.index).trimEnd() : '';
-      if (/\.(?:startsWith|endsWith|includes|indexOf)\($/u.test(prefix)) continue;
-      if (markdownReader && value.endsWith('.md') && !value.includes('docs/')
-        && (/\+$/u.test(prefix) || /^\s*\+/u.test(source.slice(match.index + match[0].length)))) inputs.add('docs');
-      // Bare "docs" is also a commit type or lane. In a call/path assignment, or a directory
-      // scanner, it can name an input; a declaration of commit types alone is not a reader.
-      const callArgument = /[,(]$/u.test(prefix) && prefix.lastIndexOf('(') > prefix.lastIndexOf('[');
-      const joinedArray = prefix.lastIndexOf('[') > prefix.lastIndexOf(']')
-        && /^[^\]]*\]\s*\.join\s*\(/u.test(source.slice(match.index + match[0].length));
-      if (value === 'docs' && !callArgument && !joinedArray && !/(?<![=!<>])=$/u.test(prefix) && !directoryReader) continue;
-      for (const candidate of [posix.normalize(value), posix.normalize(posix.join(posix.dirname(path),value))]) {
-        if (candidate === 'docs' || candidate.startsWith('docs/')) inputs.add(candidate.replace(/\/$/u,''));
-      }
-    }
-  }
-  return inputs;
 }
 
 /**
@@ -314,8 +240,8 @@ function knownBuiltinUtilities(sources, imports) {
 }
 
 /** Compile this tree's import edges, plus the literal child-CLI dependency used by fixture modules. */
-function buildGraph(root, commit) {
-  const { modules, blobs, unsafeInputs, importMap } = modulesAt(root, commit);
+function buildGraph(root, commit, prior) {
+  const { modules, blobs, unsafeInputs, importMap } = modulesAt(root, commit, { prior });
   const paths = [...modules.keys()];
   const sources = [...modules.values()];
   const imports = importsIn(sources);
@@ -415,10 +341,14 @@ function buildGraph(root, commit) {
     imports: new Map(paths.map((path, index) => [path, imports[index]])), importMap };
 }
 
-/** Cache only immutable base graphs; documentation reach is specific to this selection. */
-function graphAt(root, commit, changedDocs = []) {
+/**
+ * The import graph at a commit. A main commit's graph is cached machine-wide, so a fresh checkout or runner job reuses
+ * it. Any other commit is a candidate: it is derived from `prior` (the base graph), reading only the blobs that differ,
+ * and is not persisted. Documentation reach is specific to this selection and never cached.
+ */
+function graphAt(root, commit, changedDocs = [], prior = null) {
   const pinned = selectionGit(root, ['rev-parse', '--verify', `${commit}^{commit}`]).trim();
-  const graph = cachedAffectedGraph(root, pinned, () => buildGraph(root, pinned));
+  const graph = prior ? buildGraph(root, pinned, prior) : cachedAffectedGraph(root, pinned, () => buildGraph(root, pinned));
   if (changedDocs.length) {
     for (const path of graph.paths) {
       graph.docInputs.set(path, documentationInputs(path, graph.modules.get(path), graph.imports.get(path), changedDocs));
@@ -442,8 +372,8 @@ export function testClosures(root, commit = 'HEAD') {
 }
 
 /** Expose the same commit-pinned import graph for read-only code-map observations, never a new selector. */
-export function codeMapGraph(root, commit = 'HEAD') {
-  return graphAt(root, commit);
+export function codeMapGraph(root, commit = 'HEAD', prior = null) {
+  return graphAt(root, commit, [], prior);
 }
 
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
@@ -562,12 +492,12 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
     const changedDocs = changed.filter(path => DOC.test(path));
-    const after = graphAt(root, commit, changedDocs);
+    const before = graphAt(root, base, changedDocs);
+    const after = graphAt(root, commit, changedDocs, before);
     files = after.paths.filter(path => TEST.test(path)).sort();
     const fallback = changed.find(path => GLOBAL.has(path) || path.startsWith('.githooks/'));
     if (fallback) return { full: true, reason: `${fallback} controls the gate or dependency selection`, files };
     if (!files.length) return { full: true, reason: 'no committed Node test files can be selected', files };
-    const before = graphAt(root, base, changedDocs);
     if (changed.includes('package.json') && !descriptionOnlyPackage(root, base, commit)) {
       return { full: true, reason: 'package.json changes implicit runtime or package effects', files };
     }

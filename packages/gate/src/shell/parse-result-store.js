@@ -1,19 +1,14 @@
 /** Machine-wide store of real V8 compile results, keyed by source bytes, so a change re-parses only its own files [C7]. */
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { machineHome } from '../../../resources/index.js';
 
 const MAX_ROWS = 400_000;
 
-/**
- * The directory every checkout and runner job on this machine shares. An override exists for tests and for
- * runners whose home is not shared.
- */
-function storeDirectory() {
-  return process.env.PULLBOARD_PARSE_CACHE_DIR || join(homedir(), '.cache', 'pullboard');
-}
+/** The directory every checkout and runner job on this machine shares; tests isolate it with their account home. */
+function storeDirectory() { return join(machineHome(), 'parse-cache'); }
 
 /** Digest of one source under one parser epoch; the epoch pins runtime, flags and parser program. */
 function keyOf(epoch, source) {

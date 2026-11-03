@@ -1,6 +1,7 @@
-/** Test selection reuses machine-wide parse results, so a one-file change costs its diff and picks the same tests [C7,V4]. */
+/** Test selection reuses main's graph machine-wide and derives a candidate from its diff, so a fresh checkout costs the change [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { codeMapGraph } from '../packages/gate/index.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
@@ -36,31 +38,68 @@ function repository(t) {
   return { root, git, put, commit };
 }
 
-/** Run `work` with the machine-wide parse store pointed at `directory`. */
-function withStore(directory, work) {
-  const saved = process.env.PULLBOARD_PARSE_CACHE_DIR;
-  process.env.PULLBOARD_PARSE_CACHE_DIR = directory;
-  try { return work(); } finally { if (saved === undefined) delete process.env.PULLBOARD_PARSE_CACHE_DIR; else process.env.PULLBOARD_PARSE_CACHE_DIR = saved; }
+/** Run `work` with the machine-wide state (graphs and parse results) rooted at `directory`. */
+function onMachine(directory, work) {
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = directory;
+  try { return work(); } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('a warm one-file selection takes under 2 s and picks what a cold selection picks [C7,V4]', t => {
+/** A fresh checkout: a new clone with its own Git directory, so no per-repository cache can carry over. */
+function freshCheckout(t, box) {
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-selection-clone-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const root = join(parent, 'checkout');
+  box.git('clone', '-q', '--no-hardlinks', box.root, root);
+  return { root, git: (...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' } }) };
+}
+
+test('a fresh checkout selects an added-file change warm in under 2 s and picks what a cold machine picks [C7,V4]', t => {
   const box = repository(t);
-  const warmStore = mkdtempSync(join(tmpdir(), 'pullboard-parse-warm-'));
-  const coldStore = mkdtempSync(join(tmpdir(), 'pullboard-parse-cold-'));
-  t.after(() => { rmSync(warmStore, { recursive: true, force: true }); rmSync(coldStore, { recursive: true, force: true }); });
-  const first = box.commit();
-  box.put('src/m5.js', 'import \'./m4.js\';\nexport const value5 = 55;\n');
-  const second = box.commit();
-  withStore(warmStore, () => selectAffectedTests(box.root, { base: first, commit: second }));
-  assert.ok(existsSync(join(warmStore, 'parse-results.sqlite')), 'the first selection fills the machine-wide store');
-  box.put('src/m47.js', 'import \'./m46.js\';\nexport const value47 = 4747;\n');
-  const third = box.commit();
+  const warmMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-warm-'));
+  const coldMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-cold-'));
+  t.after(() => { rmSync(warmMachine, { recursive: true, force: true }); rmSync(coldMachine, { recursive: true, force: true }); });
+  const main = box.commit();
+  // Another job on this machine already selected against main, which caches main's graph machine-wide.
+  box.put('src/m5.js', "import './m4.js';\nexport const value5 = 55;\n");
+  const earlier = box.commit();
+  onMachine(warmMachine, () => selectAffectedTests(box.root, { base: main, commit: earlier }));
+  assert.ok(existsSync(join(warmMachine, 'main-facts', 'facts.sqlite')), 'the main graph is cached outside any checkout');
+  assert.ok(existsSync(join(warmMachine, 'parse-cache', 'parse-results.sqlite')), 'parse results are cached machine-wide');
+  // A later job: a fresh clone, and a candidate that adds a module and its test.
+  const fresh = freshCheckout(t, box);
+  fresh.git('checkout', '-q', '-b', 'item', main);
+  mkdirSync(join(fresh.root, 'src'), { recursive: true });
+  writeFileSync(join(fresh.root, 'src/added.js'), "import './m47.js';\nexport const added = 1;\n");
+  writeFileSync(join(fresh.root, 'test/added.test.js'), "import '../src/added.js';\n");
+  fresh.git('add', '-A'); fresh.git('commit', '-qm', 'feat: add a module');
+  const candidate = fresh.git('rev-parse', 'HEAD').trim();
   const started = Date.now();
-  const warm = withStore(warmStore, () => selectAffectedTests(box.root, { base: second, commit: third }));
+  const warm = onMachine(warmMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate }));
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 2000, `warm selection took ${elapsed} ms`); // budget: declared ceiling in the item #2536 criterion, selection under 2 s warm
-  const cold = withStore(coldStore, () => selectAffectedTests(box.root, { base: second, commit: third }));
+  assert.equal(existsSync(join(fresh.root, '.git', 'pullboard-main-facts')), false, 'nothing is cached beside the checkout');
+  const cold = onMachine(coldMachine, () => selectAffectedTests(fresh.root, { base: main, commit: candidate }));
   assert.deepEqual(warm, cold);
-  const expected = Array.from({ length: 25 }, (_, at) => `test/t${(at + 5) * 10}.test.js`).sort();
-  assert.deepEqual(warm.files, expected);
+  assert.deepEqual(warm.files, ['test/added.test.js']);
+});
+
+test('a candidate graph built from the base graph equals one built from scratch [C7,V4]', t => {
+  const box = repository(t);
+  const machine = mkdtempSync(join(tmpdir(), 'pullboard-machine-delta-'));
+  t.after(() => rmSync(machine, { recursive: true, force: true }));
+  const main = box.commit();
+  box.put('src/m7.js', "import './m6.js';\nexport const value7 = 77;\n");
+  box.put('src/extra.js', "import './m1.js';\nexport const extra = 1;\n");
+  box.put('test/extra.test.js', "import '../src/extra.js';\n");
+  box.git('rm', '-q', 'src/m299.js');
+  const candidate = box.commit();
+  /** Plain data for every part of a graph selection reads, with sets and maps in canonical order. */
+  const shape = graph => JSON.stringify([graph.paths, [...graph.reverse].map(([k, v]) => [k, [...v].sort()]).sort(), [...graph.unknown].sort(),
+    [...graph.undeclared].sort(), [...graph.modules].sort(), [...graph.blobs].sort(), [...graph.imports].sort(), [...graph.testTreeReaders].sort(),
+    [...graph.sourceTreeReaders].sort(), graph.importMap]);
+  const fromScratch = onMachine(machine, () => codeMapGraph(box.root, candidate));
+  const fromBase = onMachine(machine, () => codeMapGraph(box.root, candidate, codeMapGraph(box.root, main)));
+  assert.equal(shape(fromBase), shape(fromScratch));
 });
