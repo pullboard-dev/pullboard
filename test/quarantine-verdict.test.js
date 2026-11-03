@@ -25,7 +25,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const copied = copyPackageFiles(join(import.meta.dirname, '..'), box.repo);
   // The complete installed runtime is real; its own shipped tests are outside this synthetic test universe.
-  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
+  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages|apps)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, flakes: { rerun: false, quarantine: true },
