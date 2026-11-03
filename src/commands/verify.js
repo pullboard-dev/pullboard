@@ -17,7 +17,7 @@ import { testsNeedGui } from '../../packages/gate/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../packages/gate/index.js';
 import { testTierCommand } from '../../packages/gate/index.js';
-import { testTierReport } from '../../packages/gate/index.js';
+import { testTierReport, reviewCitations, citedReceiptsNote } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { itemTrunkMove } from '../../packages/verify/index.js';
@@ -266,7 +266,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     let digest = 'missing';
     let check;
     let review;
-    let unaffectedMove = '';
+    let unaffectedMove = '', cited = [];
     let knownMain = null;
     const companionDigest = store.itemPatchDigest(board, id);
     const missing = missingCompanionKeys(root, board, item, head,
@@ -304,7 +304,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
-        if (testTiers) ctx.io.say(testTierReport(testTiers));
+        if (testTiers) { ctx.io.say(testTierReport(testTiers)); cited = reviewCitations(root, testTiers); } // A4: cite seals, never re-check them
         let expectedPlan = null;
         if (head === checkedCommit && isClean(root) && !untracked(root).length && !companionDigest && !item.item_effective_head) {
           try {
@@ -411,7 +411,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,

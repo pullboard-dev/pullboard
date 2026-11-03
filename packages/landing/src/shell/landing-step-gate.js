@@ -1,6 +1,7 @@
 import { requireTestTierAccount } from '../../../gate/index.js';
 import { selectTestTiers } from '../../../gate/index.js';
 import { requireSealedSkips } from '../../../gate/index.js';
+import { landingRunFiles } from '../../../gate/index.js';
 import { packageHashesAt } from '../../../gate/index.js';
 import { TEST_TIERS_FILE } from '../../../gate/index.js';
 import { testTierCommand } from '../../../gate/index.js';
@@ -59,9 +60,9 @@ function batchAffectedTests(state) {
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
-    const proven = submittedUnits(state, commit);
-    const units = testTiers.units.filter(file => !proven.has(file));
-    return { full: false, mandatory: [], testTiers, files: [...new Set([...testTiers.journeys, ...units, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
+    // A5: an item proves once; landing adds only the composition's journeys and units no submit already proved.
+    const files = landingRunFiles(testTiers, submittedUnits(state, commit));
+    return { full: false, mandatory: [], testTiers, files: [...new Set([...files, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
   }
   const selection = state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
