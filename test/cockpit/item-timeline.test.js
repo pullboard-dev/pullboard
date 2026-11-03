@@ -26,8 +26,9 @@ test('the native item timeline reads as sentences with clamped notes and working
   box.run(demo.web, 'check', '1', '--yes');
   const body = Array.from({ length: 12 }, (_, index) => 'Line ' + index + ': every original word remains in this long note.').join('\n')
     + `\nOpen #2 and web/timeline.js:1@${head}. Full source ${head}. At 2026-10-28T12:34:56Z ONE_CLAIM <img src=x onerror=alert(1)>.`;
+  const fixtureFacts = [];
   for (const [kind, text] of [['note', body], ['measurement', 'The real module parsed twice.'], ['capture', 'The native item has an actual committed module.']]) {
-    box.run(demo.web, 'fact', '1', kind, text);
+    fixtureFacts.push(JSON.parse(box.run(demo.web, 'fact', '1', kind, text, '--json')).fact);
   }
   box.run(demo.web, 'submit', '1', '--no-next');
   box.git(reviewer.path, 'switch', '--detach', head);
@@ -55,6 +56,9 @@ test('the native item timeline reads as sentences with clamped notes and working
   try {
     const state = await boardOf(view, demo.repo), item = state.items.find(row => row.id === 1);
     assert.ok(item.thread.some(row => row.type === 'fact' && row.kind === 'measurement'));
+    const apiFacts = item.thread.filter(row => row.type === 'fact');
+    const fixtureFactEvents = fixtureFacts.map(fact => item.thread.find(row => row.type === 'fact' && row.id === fact.id));
+    assert.deepEqual(fixtureFactEvents.map(fact => fact?.kind), ['note', 'measurement', 'capture'], 'each fixture fact remains in the native item thread');
     assert.ok(item.thread.some(row => row.kind === 'health-resolved'));
     const proofs = item.thread.filter(row => row.kind === 'proof-run');
     assert.ok(proofs.length >= 2, 'the pair comes from actual native checks');
@@ -71,7 +75,7 @@ test('the native item timeline reads as sentences with clamped notes and working
         return { sentences: rows.map(row => { const sentence = row.querySelector('.tl-sentence').cloneNode(true); for (const kind of sentence.querySelectorAll('.tl-kind,.tl-kind-type')) kind.remove(); return sentence.textContent.trim(); }),
           body: (() => { const copy = text.cloneNode(true); for (const ref of copy.querySelectorAll('[data-code]')) ref.replaceWith(ref.dataset.code); for (const hash of copy.querySelectorAll('code.sha')) hash.replaceWith(hash.title); for (const time of copy.querySelectorAll('time[datetime]')) time.replaceWith(time.getAttribute('datetime')); return copy.textContent; })(), clamp: style.webkitLineClamp, height: rect.height, lineHeight: parseFloat(style.lineHeight),
           models: [...document.querySelectorAll('#detail .tl-who[title]')].map(row => ({ text: row.textContent, title: row.title })),
-          kinds: rows.filter(row => row.classList.contains('tl-fact')).map(row => row.querySelector('.tl-kind').textContent),
+          factEvents: rows.filter(row => row.classList.contains('tl-fact')).map(row => [row.dataset.eventId, row.dataset.timelineKind]),
           kindTints: ['note', 'measurement', 'fact', 'proof'].map(kind => getComputedStyle(document.querySelector('#detail .tl-kind-' + kind)).color),
           rail: getComputedStyle(rows[0], '::after').backgroundColor,
           pair: rows.some(row => row.textContent.includes('ran the proof twice') && row.dataset.eventIds.split(' ').length === 2),
@@ -84,7 +88,9 @@ test('the native item timeline reads as sentences with clamped notes and working
       assert.equal(result.body, body, width + ': all original note words remain in the DOM');
       assert.equal(result.clamp, '3');
       assert.ok(result.height <= result.lineHeight * 3 + 1, width + ': clamped geometry ' + JSON.stringify(result));
-      assert.deepEqual(result.kinds, ['note', 'measurement', 'capture']);
+      assert.deepEqual(result.factEvents, apiFacts.toReversed().map(fact => [String(fact.eventId), fact.kind]), `${width}: every native fact appears once in newest-first order`);
+      assert.deepEqual(result.factEvents.filter(([eventId]) => fixtureFactEvents.some(fact => String(fact.eventId) === eventId)),
+        fixtureFactEvents.toReversed().map(fact => [String(fact.eventId), fact.kind]), `${width}: the three fixture facts retain their own identities and labels`);
       assert.deepEqual({ distinctKinds: new Set(result.kindTints).size, railVisible: !['transparent', 'rgba(0, 0, 0, 0)'].includes(result.rail) },
         { distinctKinds: 4, railVisible: true }, width + ': each kind has its own tint and the timeline rail is visible');
       assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
