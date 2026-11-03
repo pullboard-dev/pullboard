@@ -142,7 +142,10 @@ test('a second submit records fresh main evidence before a held submit finishes,
       assert.equal(report.gate.green, false, 'actual inherited red remains red in the receipt');
       assert.equal(report.gate.knownMainFailures.main, box.main);
       assert.deepEqual(report.gate.knownMainFailures.failures.map(row => row.file).sort(), expected);
-      assert.deepEqual(recorded.detail.submissionProof.knownMainFailures, report.gate.knownMainFailures);
+      const persistedFailures = recorded.detail.submissionProof.knownMainFailures;
+      assert.equal(persistedFailures.main, report.gate.knownMainFailures.main);
+      assert.deepEqual(persistedFailures.failures,
+        report.gate.knownMainFailures.failures.map(({ file, name, signature, item }) => ({ file, name, signature, item })));
     }
     const all = mainReceipts(box);
     assert.equal(all.length, 3, 'each comparison was freshly retained as an authentic main-red receipt');
