@@ -229,8 +229,9 @@ export async function closeAuditedMainReds(root, job, plan, receipt, write, open
     if (!check || !mainRedCheckFiles(check)) continue;
     const currentHead = git(root, ['rev-parse', 'main^{commit}']).trim();
     const currentTree = git(root, ['rev-parse', 'main^{tree}']).trim();
+    if (currentHead !== job.tip || currentTree !== job.tree) break;
     if (!mainRedFilesProven(check, { plan, receipt, auditedHead: job.tip, currentHead,
-      auditedTree: job.tree, currentTree })) break;
+      auditedTree: job.tree, currentTree })) continue;
     try {
       await write('withdraw', [item.item_id, { agentId: 'coordinator',
         reason: `Every named frozen-check file passed on main at ${job.tip}.`,

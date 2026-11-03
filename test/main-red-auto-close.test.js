@@ -1,10 +1,10 @@
 /** Main red auto-close requires exact frozen named checks and per-file green proof at current main [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { runFixtureGit } from './fixture-child.js';
 import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck } from '../packages/gate/index.js';
 import { createHash } from 'node:crypto';
@@ -18,6 +18,23 @@ const proof = {
 };
 proof.plan.run = ['test/a.test.js', 'test/b.test.js'];
 proof.plan.reused = [];
+
+/** Isolate temporary Git repositories from runner checkout variables and user-wide config. */
+function fixtureGit(cwd, ...args) {
+  const env = {
+    ...process.env,
+    GIT_CONFIG_COUNT: '0',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture',
+    GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture',
+    GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
+  };
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[name];
+  return runFixtureGit(args, { cwd, env });
+}
 
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
   assert.deepEqual(mainRedCheckFiles('node bin/run-tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
@@ -55,11 +72,11 @@ test('the main audit withdraws only a named-file green Main red and records its 
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/a.test.js'), '');
   writeFileSync(join(repo, 'test/b.test.js'), '');
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
-  execFileSync('git', ['add', '-A'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture']);
-  const tip = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
-  const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, encoding: 'utf8' }).trim();
+  fixtureGit(repo, 'init', '-q', '-b', 'main');
+  fixtureGit(repo, 'add', '-A');
+  fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
+  const tip = fixtureGit(repo, 'rev-parse', 'HEAD');
+  const tree = fixtureGit(repo, 'rev-parse', 'HEAD^{tree}');
   const dbFile = join(repo, '.git/pullboard/board.sqlite');
   const db = openBoard(dbFile, undefined, { isMain: true, gitRoot: repo });
   t.after(() => closeBoard(db));
@@ -71,8 +88,11 @@ test('the main audit withdraws only a named-file green Main red and records its 
     return id;
   }
   const passing = add('Main red: passing named file', 'node --test test/a.test.js');
+  // The board lists newest first, so this failing repair is visited before the eligible green repair.
   const failing = add('Main red: failing named file', 'node --test test/b.test.js');
   const compound = add('Main red: compound check', 'node --test test/a.test.js && true');
+  assert.deepEqual(store.listItems(db).filter(item => item.item_title.startsWith('Main red:')).map(item => item.item_id),
+    [compound, failing, passing], 'the ineligible compound then failing item are visited before the green item');
   const plan = { keys: { 'test/a.test.js': 'c'.repeat(64), 'test/b.test.js': 'd'.repeat(64) }, run: ['test/a.test.js', 'test/b.test.js'], reused: [] };
   const receipt = { head: tip, tree, collection: { complete: true, files: ['test/a.test.js', 'test/b.test.js'] },
     testOutcomes: [{ file: 'test/a.test.js', passed: true }, { file: 'test/b.test.js', passed: false }],
@@ -91,10 +111,10 @@ test('withdraw refuses when the frozen check or digest changed after the audit s
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const repo = join(scratch, 'repo');
   mkdirSync(repo);
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });
+  fixtureGit(repo, 'init', '-q', '-b', 'main');
   writeFileSync(join(repo, 'tracked'), 'fixture');
-  execFileSync('git', ['add', '-A'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture']);
+  fixtureGit(repo, 'add', '-A');
+  fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
   const db = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
   t.after(() => closeBoard(db));
   const title = 'Main red: changed during audit';
