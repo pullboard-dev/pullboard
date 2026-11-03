@@ -7,7 +7,7 @@ import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { scratch, SPEC, machine, project, fetchLive, startView, target, chromeExecutable, openSnapshotChrome, stopOwnedChrome } from './fixture.js';
 
 test('read-only Needs-you preserves each entry as text while its transport stays read-only [N26,N27,B26]', { timeout: 90_000 }, async (t) => {
@@ -58,7 +58,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     }
     if (url.pathname === '/view.css') {
       response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
-      response.end(readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8'));
+      response.end(readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url), 'utf8'));
       return;
     }
     if (!url.pathname.startsWith('/fixture/')) {

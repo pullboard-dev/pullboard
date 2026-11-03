@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../packages/gate/index.js';
 import { gateRuns } from '../packages/gate/index.js';

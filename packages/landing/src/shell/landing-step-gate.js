@@ -9,7 +9,7 @@ import { VALUE_GATE } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runLocalLandingGuard } from '../core/land-local-guard.js';
 import { createHash } from 'node:crypto';
@@ -34,6 +34,7 @@ import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
+import { runLandingCliSmoke } from './landing-cli-smoke.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
@@ -112,9 +113,22 @@ export function landingRunObserver(state, config, commit) {
     } }), { main: pin.main, recordRun: receiptId => recordLandingRun(state, receiptId) });
 }
 
+/**
+ * Smoke the candidate's own CLI on a scratch board once per tree, before its gate [C7].
+ * Why here: every automatic landing (inline, local trunk, parallel candidate, and their bisections) gates its final
+ * tree through gateGroup before publication, so this one boundary covers them all with no skip list.
+ */
+function smokeTree(state, tree) {
+  state.smoked ??= new Set();
+  if (state.smoked.has(tree)) return;
+  runLandingCliSmoke(state.batch.root);
+  state.smoked.add(tree);
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 export async function gateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
+  smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
   const { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
@@ -210,7 +224,7 @@ function submittedUnits(state, commit) {
   for (const entry of state.batch.items) {
     const event = store.events(state.board, { itemId: entry.id }).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
-    const files = detail?.commit === entry.commit ? detail.submissionProof?.files ?? [] : [];
+    const files = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof?.files ?? [] : [];
     if (!files.length) continue;
     const [then, now] = packageHashesAt(root, [entry.commit, commit]);
     for (const file of files) {

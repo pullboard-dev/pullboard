@@ -76,6 +76,16 @@ function snapshotAt(root, commit) {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
+/**
+ * A package's own test that only crosses into what it imports counts as its unit, so an unsealed importer runs it.
+ * The repository root ('.') owns no units this way: its cross-package files are journeys. Selection and the
+ * completeness guard share this one rule, so the guard never demands a file the selection is right to leave out.
+ */
+function ownUnit(row, snapshot, unsealed) {
+  const owner = ownerOf(row.file, snapshot.packageFiles, snapshot.owners);
+  return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
+}
+
 /** Select only units belonging to changed packages and defer every current journey to the batch. */
 export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test' } = {}) {
   commit = commitAt(root, commit);
@@ -113,15 +123,15 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     }
   }
   // RFC 0006 A3: a change also runs every package its hashes unseal, so importers of a changed front door run too.
-  const seals = !global && base ? unsealedPackages(root, { base, head: commit }) : null;
+  const seals = base ? unsealedPackages(root, { base, head: commit }) : null;
   for (const row of seals?.unsealed ?? []) if (row.hash) packages.add(row.package);
-  const skipped = seals ? sealedSkips(root, seals, after.manifest, packages) : [];
+  const skipped = !global && seals ? sealedSkips(root, seals, after.manifest, packages) : [];
   const doors = new Set([...(seals?.doors ?? []), ...(actual ?? []).filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
   const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
   const contracts = after.manifest.files.map(row => row.file).filter(file => contractRoots.some(prefix => file.startsWith(prefix)));
   // A package's own tests that only cross into what it imports are its units too, so an unsealed importer runs them.
-  const own = row => row.reasons.every(reason => reason.startsWith('cross-package:'))
-    && [ownerOf(row.file, after.packageFiles, after.owners)].some(name => name && name !== '.' && seals?.unsealed.some(unsealed => unsealed.package === name));
+  const unsealedNames = new Set((seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package));
+  const own = row => ownUnit(row, after, unsealedNames);
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
@@ -164,8 +174,8 @@ export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
   const unsealed = (seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package);
   for (const name of unsealed) mustRun.add(name);
   const after = snapshotAt(root, plan.commit);
-  const own = row => row.reasons.every(reason => reason.startsWith('cross-package:'))
-    && unsealed.includes(ownerOf(row.file, after.packageFiles, after.owners));
+  // The same rule the selection uses, so a root-owned cross-package journey is never demanded as a unit (#2596).
+  const own = row => ownUnit(row, after, new Set((seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package)));
   // Every contract at a changed front door runs too; the doors come from Git, never from the plan's own change list.
   const changed = plan.base ? sourceGit(root, ['diff', '--no-renames', '--name-only', '-z', plan.base, plan.commit]).split('\0').filter(Boolean) : [];
   const doors = new Set([...(seals?.doors ?? []), ...changed.filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);

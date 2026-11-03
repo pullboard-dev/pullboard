@@ -56,7 +56,7 @@ export function gitLaunchReport(root) {
       }
     }
   }
-  for (const top of ['src', 'packages']) if (existsSync(join(root, top))) walk(join(root, top));
+  for (const top of ['src', 'packages', 'apps']) if (existsSync(join(root, top))) walk(join(root, top));
   return { total: Object.values(files).reduce((sum, launches) => sum + launches.length, 0), files };
 }
 

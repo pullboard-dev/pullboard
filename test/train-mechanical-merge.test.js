@@ -19,7 +19,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { json } from './land-board-fixture.js';
 import {
   mergeMechanicalSources,

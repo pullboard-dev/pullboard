@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import { join, parse, resolve } from 'node:path';
 import { test } from 'node:test';
-import { machineHomeWriteScopeIsNarrow } from '../src/init.js';
+import { machineHomeWriteScopeIsNarrow } from '../apps/cli/index.js';
 import { machineHome } from '../packages/resources/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 

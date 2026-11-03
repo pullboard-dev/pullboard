@@ -1,8 +1,8 @@
 /** Revision comparisons retain full escaped rows inside the shared disclosure [N26,B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { needsActionsHtml } from '../../src/view/needs-actions.js';
-import { needsPanelHtml, needsPanelModel } from '../../src/view/needs-panel.js';
+import { needsActionsHtml } from '../../apps/view/index.js';
+import { needsPanelHtml, needsPanelModel } from '../../apps/view/index.js';
 
 test('revision Needs rows preserve comparison bytes and exact proposal actions [N26,B26,C7]', () => {
   const call = { kind: 'spec-revision', id: 'R7', ref: 'G1',

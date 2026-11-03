@@ -2,6 +2,7 @@
   "version": 1,
   "cells": {
     "api": 2,
+    "cli": 11,
     "config": 4,
     "doctrine": 1,
     "gate": 22,
@@ -14,15 +15,14 @@
     "moves": 1,
     "outbox": 1,
     "runner": 6,
-    "runners": 25,
+    "runners": 18,
     "sandbox": 2,
-    "seats": 7,
     "sentinels": 1,
     "spec": 5,
     "state": 41,
-    "store": 114,
+    "store": 103,
     "temporary": 1,
-    "unmapped": 1,
-    "verify": 3
+    "verify": 2,
+    "view": 4
   }
 }

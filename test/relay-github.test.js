@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { createGitHubClient, githubAppManifest, repositoryName, GITHUB_API_VERSION } from '../relay/github.js';
+import { createGitHubClient, githubAppManifest, repositoryName, GITHUB_API_VERSION } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 test('App browser grant uses state and PKCE and is one-use [H8, H1]', async (t) => {

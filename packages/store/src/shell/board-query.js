@@ -77,13 +77,8 @@ export function current(board, item, reviewFamily = undefined) {
   return { ...item, item_status: 'open', item_owner: null, item_lease_until: null };
 }
 
-/** Read an observation only when it still describes the item's current check command. */
-export function itemCheckBaseline(board, item) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${item.item_id}`);
-  if (!row) return null;
-  const baseline = JSON.parse(row.meta_value);
-  return baseline.command === item.item_check ? baseline : null;
-}
+import { itemCheckBaseline } from "../core/board-item-check-read.js";
+export { itemCheckBaseline };
 
 /** Find review releases after the current submission, optionally for one reviewer [V1,R1].
  * Older releases are ignored because a new submission starts a fresh review.

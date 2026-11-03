@@ -15,9 +15,9 @@ import { requireSealedSkips } from './test-tier-selection.js';
  * @returns {{ package: string, hash: string, receipt: string }[]}
  */
 export function reviewCitations(root, plan) {
-  if (!plan?.skipped?.length) return [];
+  if (!plan) return [];
   requireSealedSkips(root, plan);
-  return plan.skipped.map(row => ({ package: row.package, hash: String(row.hash), receipt: String(row.receipt) }));
+  return (plan.skipped ?? []).map(row => ({ package: row.package, hash: String(row.hash), receipt: String(row.receipt) }));
 }
 
 /**

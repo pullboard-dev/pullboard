@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { accept, build, chromeExecutable, fetchLive, machine, openSnapshotChrome, press, project, startView, tapTouch } from './fixture.js';
 
 /** Serve the supported live read-only page over the fixture's authenticated board API. */
@@ -19,7 +19,7 @@ async function startReadOnlyView(view) {
         .end(cockpitPage('', { readOnly: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
       if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transport);
       if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-        .end(readFileSync(new URL('../../src/view.css', import.meta.url)));
+        .end(readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url)));
       if (!url.pathname.startsWith('/upstream/')) return response.writeHead(404).end();
       const reply = await fetchLive(view.base + url.pathname.slice('/upstream'.length) + url.search,
         { headers: { 'x-pullboard-key': view.key } });

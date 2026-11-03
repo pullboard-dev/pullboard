@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
@@ -17,7 +17,7 @@ import { runFixtureGit } from './fixture-child.js';
 import { serveApi } from '../packages/api/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main } from './native-cli-fixture.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';

@@ -1,5 +1,7 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
+export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/shell/refusal-trial.js";
+export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
@@ -20,7 +22,7 @@ export { digestOf, writeTimingProfile } from "./src/shell/gate-output.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-policy-load.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
-export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy } from "./src/shell/gate-slot.js";
+export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/shell/gate-slot.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
@@ -30,7 +32,7 @@ export { guiSession } from "./src/shell/gui-session.js";
 export { nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-scheduler.js";
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
-export { runMainAudits } from "./src/shell/main-audit-worker.js";
+export { runMainAudits, mainAuditJobs } from "./src/shell/main-audit-worker.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
 export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
@@ -68,4 +70,17 @@ export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } fr
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
+
+export { runGateStages } from "./src/core/gate-stages.js";
 export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
+
+export { privateCheckAdmission } from './src/shell/private-check-admission.js';
+export {
+  DEFAULT_TEST_FILE_TIMEOUT_MS,
+  TEST_CHILD_CLEANUP_FAILED,
+  testFileTimeoutMs,
+  activeHandleSummary,
+  installTestChildDrain,
+} from './src/shell/test-child-drain.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
+export { changedStaticFailures, stagedHookFailures } from './src/shell/changed-static.js';

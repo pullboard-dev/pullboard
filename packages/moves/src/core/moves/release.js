@@ -8,7 +8,7 @@ import { STALE_STATE_ENGINE } from "../../../../../src/stale-state-engine.js";
 import { GONE_CLAIM_ENGINE } from "../../../../../src/gone-claim-engine.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by release, discovered without a shared registry edit [C7,V4,H16]. */
-import { firstRefusal } from "../../../../../src/board-item-read.js";
+import { firstRefusal } from "../../../../store/core.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../../src/engine-metadata.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";

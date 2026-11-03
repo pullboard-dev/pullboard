@@ -58,3 +58,5 @@ export { auditFailureItem } from './src/core/audit-failure-item.js';
 export { claimProgress } from './src/core/claims.js';
 export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/core/claim-overlap.js';
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/core/expected-build.js';
+
+export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';

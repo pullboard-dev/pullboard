@@ -16,7 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard, recordGateRun } from '../src/native-board.js';
+import { openBoard, recordGateRun } from '../apps/lib/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { boardReceiptStore } from '../packages/gate/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
@@ -171,7 +171,7 @@ async function audit(box, batch) {
   if (await finishAudits(box, box.waitFor)) return;
   const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
+import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
 import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};

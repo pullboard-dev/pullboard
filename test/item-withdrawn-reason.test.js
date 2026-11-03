@@ -7,14 +7,14 @@ import { itemSummary } from '../packages/items/index.js';
 import { withdrawnFrom } from '../packages/items/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
-import { openBoard } from '../src/native-board.js';
-import { closeBoard } from '../src/native-board.js';
-import { projectState } from '../src/cli/view-state.js';
+import { openBoard } from '../apps/lib/index.js';
+import { closeBoard } from '../apps/lib/index.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../packages/store/index.js';
-import { snapshotState } from '../relay/browser-model.js';
-import { presentationState } from '../relay/browser-model.js';
+import { snapshotState } from '../apps/relay/index.js';
+import { presentationState } from '../apps/relay/index.js';
 
 /** Use actual board moves; synthetic submit proof is only a lifecycle input, not a gate claim. */
 function fixture(t, clock) {

@@ -1,3 +1,5 @@
+import { runnerPolicyRecord } from '../../../../packages/sandbox/index.js';
+import { RUNNER_POLICY_FILE } from '../../../../packages/sandbox/index.js';
 import { TIMING_RUN_ID_ENV } from '../../../../packages/gate/index.js';
 /** Controller-owned private checks: immutable clone, runner protocol and retained sanitized evidence [C7,V4]. */
 import {
@@ -15,6 +17,7 @@ import {
   realpathSync,
   rmSync,
   writeSync,
+  writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -197,6 +200,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   let checkLogPath = '';
   let timingProfile = { files: [], tests: [] };
   let checkedSourceReady = false;
+  let trustedTrunk = null;
   let executed = false;
   let exitCode = null;
   /** Format one completed check phase with the private captures and durable artifact locations. */
@@ -227,11 +231,18 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
             cwd: copy, env, stdio: 'ignore',
           });
           if (savedTip.status !== 0) return finish('unverified', 'retained trunk tip could not be copied into the private clone');
+          trustedTrunk = { ref: retainedTrunk, commit: retainedTip.stdout.trim() };
         }
       }
     }
     const checkout = clone.status === 0 && gitSpawnSync(['checkout', '--quiet', '--detach', item.item_commit], { cwd: copy, env, stdio: 'ignore' });
     if (!checkout || checkout.status !== 0) return finish('unverified', 'clone or checkout could not start');
+    // The detached private primary has no main checkout; carry the controller's actual retained trunk for test budgets.
+    if (trustedTrunk) {
+      const record = runnerPolicyRecord({ id: `private-${randomUUID()}`, commit: item.item_commit,
+        tree: policyGit(copy, ['rev-parse', 'HEAD^{tree}']).trim(), trunk: trustedTrunk });
+      writeFileSync(join(copy, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600, flag: 'wx' });
+    }
     if (mutate) {
       const reason = mutate(copy);
       if (reason) return finish('unverified', reason);

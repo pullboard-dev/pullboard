@@ -7,7 +7,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { randomUUID } from 'node:crypto';
@@ -420,7 +420,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
     }, 'actual recovery worker exit', 120000);
     document(box.run(box.web, 'next', '--json'));
   }
-  await waitJob(box, mode === 'relaunch' ? 'green' : 'red');
+  await waitJob(box, mode === 'relaunch' ? 'green' : 'infrastructure');
   const ended = state(box, box.id);
   assert.equal(ended.job.id, current.job.id, 'recovery retains the original immutable queue');
   if (mode !== 'relaunch') {
