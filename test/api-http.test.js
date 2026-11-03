@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { serveView } from '../src/commands/view.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
@@ -184,7 +184,7 @@ try {
   const provenanceChecks = [];
   if (codeMetadataMarker) {
     const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
-    const { openBoard, openBoardForRead } = await import(new URL('../native-board.js', pathToFileURL(serveFile)));
+    const { openBoard, openBoardForRead } = await import(new URL('../../apps/lib/index.js', pathToFileURL(serveFile)));
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID

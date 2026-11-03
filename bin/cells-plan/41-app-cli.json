@@ -227,7 +227,7 @@
     ],
     [
       "src/commands/forget.js",
-      "apps/cli/src/core/commands/forget.js",
+      "apps/cli/src/shell/commands/forget.js",
       "seed"
     ],
     [
@@ -267,7 +267,7 @@
     ],
     [
       "src/commands/hooks.js",
-      "apps/cli/src/core/commands/hooks.js",
+      "apps/cli/src/shell/commands/hooks.js",
       "seed"
     ],
     [
@@ -307,7 +307,7 @@
     ],
     [
       "src/commands/lane.js",
-      "apps/cli/src/core/commands/lane.js",
+      "apps/cli/src/shell/commands/lane.js",
       "seed"
     ],
     [
@@ -322,7 +322,7 @@
     ],
     [
       "src/commands/lifecycle.js",
-      "apps/cli/src/core/commands/lifecycle.js",
+      "apps/cli/src/shell/commands/lifecycle.js",
       "seed"
     ],
     [
@@ -452,7 +452,7 @@
     ],
     [
       "src/commands/runner.js",
-      "apps/cli/src/core/commands/runner.js",
+      "apps/cli/src/shell/commands/runner.js",
       "seed"
     ],
     [
@@ -547,7 +547,7 @@
     ],
     [
       "src/commands/version.js",
-      "apps/cli/src/core/commands/version.js",
+      "apps/cli/src/shell/commands/version.js",
       "seed"
     ],
     [
@@ -1348,6 +1348,26 @@
     [
       "src/submit-controller-cache.js",
       "apps/cli/src/shell/submit-controller-cache.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/session.js",
+      "apps/cli/src/shell/cli-main/session.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/options.js",
+      "apps/cli/src/shell/cli-main/options.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/run-command.js",
+      "apps/cli/src/shell/cli-main/run-command.js",
+      "rule"
+    ],
+    [
+      "src/cli-main/run-main.js",
+      "apps/cli/src/shell/cli-main/run-main.js",
       "rule"
     ],
     [
