@@ -20,6 +20,7 @@ import {
 import { runShell } from './shell-run.js';
 import { mappedCheck } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { secretsIn } from '../../../commits/index.js';
 
 /**
  * Capture the command and coordinator commit once on the sender; replay only receives this observation.
@@ -42,10 +43,37 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
     const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', base.main], { cwd: checkout, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (!selected || selected.status !== 0) return { ...base, result: 'unavailable', reason: 'temporary checkout could not be prepared' };
     const ran = runShell(checkout, mappedCheck(checkout, command));
-    return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds, testEvidence: baselineTestEvidence(ran.output, command) };
+    const failures = baselineFailureDetails(ran.output);
+    return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds,
+      ...(failures.length ? { reason: failures.map(row => `${row.name}: ${row.error}`).join('\n') } : {}),
+      testEvidence: baselineTestEvidence(ran.output, command) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/** Keep each TAP failure's first diagnostic line, bounded and scrubbed before it reaches the board. */
+export function baselineFailureDetails(output) {
+  const rows = [], stack = [];
+  for (const raw of String(output ?? '').split(/\r?\n/u)) {
+    if (Buffer.byteLength(raw, 'utf8') > 65536) continue;
+    const indent = raw.length - raw.trimStart().length, text = raw.trim();
+    const match = /^(not ok|ok)\s+\d+\s+-\s+(.+?)(?:\s+#.*)?$/u.exec(text);
+    if (match) {
+      while (stack.length && stack.at(-1).indent >= indent) stack.pop();
+      if (match[1] === 'not ok') { const row = { name: match[2].slice(0, 4096), error: '', indent, block: false }; rows.push(row); stack.push(row); }
+      continue;
+    }
+    const row = stack.at(-1);
+    if (!row || indent <= row.indent || row.error) continue;
+    const error = /^error:\s*(.*)$/u.exec(text);
+    if (error) { row.block = /^(?:[|>][-+]?|)$/.test(error[1]); if (!row.block) row.error = error[1].replace(/^['"]|['"]$/gu, ''); }
+    else if (row.block && text && text !== '...') row.error = text;
+  }
+  return rows.filter(row => row.error).slice(0, 512).map(({ name, error }) => ({
+    name: secretsIn([{ path: 'check output', line: 1, text: name }]).length ? '[redacted test name]' : name,
+    error: secretsIn([{ path: 'check output', line: 1, text: error }]).length ? '[redacted error]' : error.slice(0, 1024),
+  }));
 }
 
 /** Retain observed case outcomes, distinguishing an absent named case from unrelated shell failure. */

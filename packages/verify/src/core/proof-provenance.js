@@ -84,8 +84,10 @@ function collectionFields(value) {
 export function observedFailureSignatures(value, failures) {
   if (!value || !Number.isSafeInteger(value.version) || value.version < 1 || !Array.isArray(value.failures)
     || value.failures.length !== failures.length || value.failures.some((row, index) => !row || typeof row !== 'object'
-      || row.file !== failures[index].file || row.name !== failures[index].name || !DIGEST.test(row.signature ?? ''))) return null;
-  return { version: value.version, failures: value.failures.map(({ file, name, signature }) => ({ file, name, signature })) };
+      || row.file !== failures[index].file || row.name !== failures[index].name || !DIGEST.test(row.signature ?? '')
+      || row.firstError !== undefined && !line(row.firstError, 1024))) return null;
+  return { version: value.version, failures: value.failures.map(({ file, name, signature, firstError }) => ({ file, name, signature,
+    ...(firstError === undefined ? {} : { firstError }) })) };
 }
 
 /** The checks behind receiptFields; each malformed field throws, and receiptFields turns that into null. */
