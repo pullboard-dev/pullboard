@@ -90,7 +90,7 @@ function parallelPublicationRoot(state, batch) {
   if (headCommit(root) !== batch.tip) git(root, ['checkout', '--detach', batch.tip]);
   const computed = quarantineBatchGates(batch).find(gate => gate.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath && gate.blockingVerdict?.green === true);
   if (computed) state.landingPorts.validateQuarantineGate(state.board, computed);
-  if (!(batch.proof.failures ?? []).length && !computed && !isStampedGreen(root)) {
+  if (!(batch.proof.failures ?? []).length && !batch.proof.knownMain?.length && !computed && !isStampedGreen(root)) {
     throw new Refused('LAND_MOVED', 'the gate-owning worktree lost its native green stamp; inspect the recorded gate before adopting');
   }
   return root;
