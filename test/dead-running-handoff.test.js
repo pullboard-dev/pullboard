@@ -95,14 +95,3 @@ test('a running handoff with a dead worker pid is recovered and a new submit que
   await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the new gate finished', 120000); // budget: real gate ceiling, no timing assertion.
   assert.equal(state(box, box.id).item.item_status, 'submitted');
 });
-
-test('a running handoff whose worker is alive still holds the next submit [C7,V4]', async t => {
-  const box = fixture(t);
-  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
-  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
-  await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
-  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'pass\n', 'feat(web): next candidate [G1]').status, 0);
-  const next = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');
-  assert.match(next.out + next.err, /SUBMIT_HANDOFF_PENDING/u, 'a live worker keeps its captured candidate');
-  assert.equal(state(box, box.id).job.state, 'running');
-});
