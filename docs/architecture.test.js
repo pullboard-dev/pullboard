@@ -11,11 +11,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { createRelayAuth } from '../relay/auth.js';
-import { createDeviceStore } from '../relay/device-store.js';
-import { createRelayJournal } from '../relay/journal.js';
-import { createRelayPages } from '../relay/page-store.js';
-import { createStorageQuota } from '../relay/storage-quota.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createDeviceStore } from '../apps/relay/index.js';
+import { createRelayJournal } from '../apps/relay/index.js';
+import { createRelayPages } from '../apps/relay/index.js';
+import { createStorageQuota } from '../apps/relay/index.js';
 
 const ROOT = join(import.meta.dirname, '..');
 const PAGE = readFileSync(join(ROOT, 'docs', 'architecture.md'), 'utf8');

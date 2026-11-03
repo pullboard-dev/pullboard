@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import { request as boardLinkRequest } from '../packages/link/index.js';
 import {
@@ -116,7 +116,7 @@ import {
 } from '../packages/pages/index.js';
 import {
   snapshotState,
-} from '../relay/browser-model.js';
+} from '../apps/relay/index.js';
 import {
   unpackRelease,
 } from './release-archive.js';

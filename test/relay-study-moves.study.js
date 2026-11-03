@@ -22,7 +22,7 @@ import { differences, paths, readRelay, valueDifferences } from './relay-study-f
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
-import { presentationState } from '../relay/browser-model.js';
+import { presentationState } from '../apps/relay/index.js';
 import { apiFetch } from './api-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';

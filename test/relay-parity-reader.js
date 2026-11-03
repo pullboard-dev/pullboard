@@ -9,7 +9,7 @@ import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
-import { snapshotState } from '../relay/browser-model.js';
+import { snapshotState } from '../apps/relay/index.js';
 
 /** Deliberate machine-local differences; all other fields retain complete reader parity. */
 export const LOCAL_PARITY_FIELDS = Object.freeze([
