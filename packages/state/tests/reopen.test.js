@@ -1,5 +1,6 @@
 /** @pullboard-test-loads src/board.js src/claims.js src/engine.js src/exchange.js src/machine.js */
 /** Real Git, SQLite and ordered-engine coverage for coordinator criterion reopen [V2,V6,H16]. */
+import { agentGrantMinimum } from '../index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
@@ -179,6 +180,8 @@ const engine9Source = '314ef28751c44c96186b337cc4ace0fd8bf33d42';
 
 /** Compare verified-item reopen behavior across engines 8 through 10 and the current receiver. */
 async function assertLegacyVerifiedReopen(t, box, item, note) {
+  // Replay the failure evidence, excluding the automatic note's later human navigation suffix.
+  note = note.replace(/; see landing failure evidence in pullboard show \d+$/u, '');
   for (const [version, reference] of [[8, 'v0.8.6'], [9, engine9Source], [10, 'v0.8.23']]) {
     const directory = mkdtempSync(join(tmpdir(), `pullboard-engine-${version}-verified-reopen-`));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -803,15 +806,10 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   claimedBoard.gitRoot = box.repo;
   let claimedBoardOpen = true;
   t.after(() => { if (claimedBoardOpen) store.closeBoard(claimedBoard); });
-  const engine11Move = prepareEngineMove(claimedBoard, 'submit', [1, {
-    agentId: 'web-1', commit: submitted.commit, tree: submitted.tree,
-    policyCommit: box.git(box.repo, 'rev-parse', 'HEAD'),
-    submissionProof: { version: 1, files: [], full: false, deferred: true,
-      reason: 'synthetic board-state fixture; no gate execution' },
-  }], { id: 'same-commit-engine-11', actor: 'web-1' });
-  // Build a valid modern move, then model the historical proofless wire envelope explicitly.
-  delete engine11Move.args[1].submissionProof;
-  engine11Move.engine = 11;
+  // Model the historical proofless wire explicitly; modern preparation adds later clause-policy fields.
+  const engine11Move = { version: 1, engine: 11, id: 'same-commit-engine-11', operation: 'submit', actor: 'web-1',
+    args: [1, { agentId: 'web-1', commit: submitted.commit, tree: submitted.tree,
+      policyCommit: box.git(box.repo, 'rev-parse', 'HEAD') }] };
   const builderSender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
   const engine10Replica = openBoard(join(box.dir, 'engine-10-same-commit.sqlite'));
   t.after(() => store.closeBoard(engine10Replica));
@@ -819,10 +817,11 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   const markedReplica = openBoard(join(box.dir, 'modern-grant-same-commit.sqlite'));
   t.after(() => store.closeBoard(markedReplica));
   importBoard(markedReplica, exportBoard(claimedBoard));
+  assert.equal(agentGrantMinimum(markedReplica, engine10Move), AGENT_GRANT_ENGINE, 'the current claim retains its exact grant-engine floor');
   assert.throws(() => applyRelayMove(markedReplica, engine10Move, {
     sequence: 1, at: '2026-10-10T12:00:02.000Z', kind: 'move', sender: builderSender,
-  }), error => error.code === 'RELAY_MOVE' && error.message.includes(String(AGENT_GRANT_ENGINE)),
-  'an engine-10 move cannot interpret a current claim carrying the new grant marker');
+  }), error => error.code === 'RELAY_MOVE' && Number(/use engine (\d+) or newer/u.exec(error.message)?.[1]) >= AGENT_GRANT_ENGINE,
+  'an engine-10 move cannot interpret the current grant or any later active policy');
 
   // Seed the historical lifecycle with the actual released engine-10 writer, not by deleting modern markers.
   // These are board-state fixtures only: neither direct submit call claims an executed gate.

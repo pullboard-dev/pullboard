@@ -1,6 +1,6 @@
 /** Real independent SQLite states used by the fixed accepted-main floor snapshot [H3,H16]. */
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { join } from 'node:path';
 
 export const REGISTRY_AT = '2026-10-01T00:00:00.000Z';

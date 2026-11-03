@@ -16,7 +16,7 @@ import { events } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { logEvent } from '../packages/store/index.js';
 import { merged } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { register } from '../packages/store/index.js';
 import { verify } from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { resumeNeeds } from '../src/resume-needs.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';

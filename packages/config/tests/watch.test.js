@@ -20,7 +20,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { reserveReview } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { followBoard } from '../../shouts/index.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
