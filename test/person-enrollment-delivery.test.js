@@ -47,7 +47,7 @@ test('a native key holder verifies a pinned person root before delivering each g
     /** The fixture supplies only the public pin; initial person/passkey bootstrap belongs to #408. */
     async function pin(publicKey, holder = box) {
       const result = await holder.script(`
-        const { updateRelayMachine } = await import(${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)});
+        const { updateRelayMachine } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
         updateRelayMachine(state => { state.personRoots = ${JSON.stringify(publicKey
           ? [{ account: '7', url: box.origin, origin: box.origin, publicKey }] : [])}; });
         process.stdout.write('{}');
@@ -68,8 +68,8 @@ test('a native key holder verifies a pinned person root before delivering each g
     const raced = await box.script(`
       const {readFileSync} = await import('node:fs');
       const {deliverPersonEnrollments} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
-      const {relayDeviceRequest} = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
-      const {relayPersonRoot,updateRelayMachine} = await import(${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)});
+      const {relayDeviceRequest} = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
+      const {relayPersonRoot,updateRelayMachine} = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
       const state = JSON.parse(readFileSync(${JSON.stringify(box.linkFile)}, 'utf8'));
       let reads = 0;
       const errors = [];

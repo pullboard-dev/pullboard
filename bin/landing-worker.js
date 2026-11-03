@@ -9,7 +9,7 @@ if (process.argv[1] === FILE && process.send) {
   if (process.argv[2] === 'guardian') landingWorkerEntry({ workerFile: FILE, parseProcessCensus });
   else if (process.argv[2] === 'worker') {
     const { openBoard } = await import('../apps/lib/index.js');
-    const { checkAtCommit } = await import('../src/runner-private-check.js');
+    const { checkAtCommit } = await import('../apps/runner/index.js');
     const { badgeCounts, writeBadges } = await import('../src/badge.js');
     const { flakeLedger } = await import('../packages/flakes/index.js');
     const { flakeSource, observeNativeFailure } = await import('../packages/flakes/index.js');

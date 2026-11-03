@@ -23,7 +23,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 
@@ -345,7 +345,7 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   const pidFile = join(box.dir, 'private-check-child.pid');
   const check = `sleep 30 & echo $! > '${pidFile}'; trap 'while :; do :; done' TERM; while :; do :; done`;
   const item = { item_frozen: JSON.stringify({ check }), item_claim_head: commit, item_commit: commit };
-  const modulePath = resolve(import.meta.dirname, '../src/runner-private-check.js');
+  const modulePath = resolve(import.meta.dirname, '../apps/runner/index.js');
   const source = `import { checkAtCommit } from ${JSON.stringify(modulePath)}; console.log(JSON.stringify(checkAtCommit(process.argv[1], JSON.parse(process.argv[2]))));`;
   const shellPidFile = join(box.dir, 'private-check-shell.pid');
   const trackedCheck = `echo $$ > '${shellPidFile}'; ${check}`;

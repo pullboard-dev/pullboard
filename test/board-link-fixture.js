@@ -45,7 +45,7 @@ export async function linkRelay(t, boards, authority) {
   const { createGitHubClient } = await import('../relay/github.js');
   const { createRelayAuth } = await import('../relay/auth.js');
   const { serveRelay } = await import('../relay/service.js');
-  const { request } = await import('../src/relay.js');
+  const { request } = await import('../packages/link/index.js');
   const { generateBoardKey, seal } = await import('../packages/kernel/src/core/seal.js');
   const { exportBoard } = await import('../packages/store/index.js');
   const { ENGINE_VERSION } = await import('../packages/state/index.js');

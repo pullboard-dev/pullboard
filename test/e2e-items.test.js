@@ -23,7 +23,7 @@ import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 

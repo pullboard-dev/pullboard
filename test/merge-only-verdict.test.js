@@ -1,5 +1,5 @@
 import { landingPorts } from './landing-ports-fixture.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { fileURLToPath } from 'node:url';
 const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js', import.meta.url));
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
