@@ -13,6 +13,10 @@ const source = value => `import assert from 'node:assert/strict';\nimport { test
 
 /** A real repository whose main fails the case, and the candidate's red run of the same check. */
 function fixture(t) {
+  // The nested node --test runs must not inherit this runner's test context, or they report nothing.
+  const context = process.env.NODE_TEST_CONTEXT;
+  delete process.env.NODE_TEST_CONTEXT;
+  t.after(() => { if (context !== undefined) process.env.NODE_TEST_CONTEXT = context; });
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-verify-known-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
