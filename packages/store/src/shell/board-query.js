@@ -34,6 +34,7 @@ import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";
+import { boardDataVersion } from "./board-data-version.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { stats } from "../core/board-stats.js";
@@ -154,8 +155,9 @@ export function listItems(board, { lane, all = false } = {}) {
   // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
   const key = `${hasLane ? lane : ''}\0${all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
   const version = boardDataVersion(board);
-  const remembered = LISTED.get(board.db)?.get(key);
-  if (remembered && remembered.clock === board.clock && remembered.version === version && !(remembered.expires <= now(board))) {
+  const remembered = LISTED.get(board.db)?.get(key), at = now(board);
+  // Any reader's clock may reuse the list: lapsed claims stay lapsed later, and live ones hold until the first expiry.
+  if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
     return remembered.items.map(item => ({ ...item }));
   }
   const rows = board.db
@@ -167,8 +169,12 @@ export function listItems(board, { lane, all = false } = {}) {
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
-  const at = now(board), expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
-  const items = rows.map(({ imported_rehome: imported, review_family: family, expected_build: expected, ...item }) => {
+  const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
+  // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
+  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build'].includes(key)) : [];
+  const items = rows.map((row) => {
+    const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
+    for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
     // A claim whose lease lapsed reads as open (B4), exactly as current() reads it.
     if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at)) {
@@ -181,21 +187,12 @@ export function listItems(board, { lane, all = false } = {}) {
   // A held claim reads as open once its lease passes, so the remembered list lasts only until the first lease ends.
   const expires = items.filter(item => item.item_status === 'claimed' && item.item_lease_until).map(item => item.item_lease_until).sort()[0];
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
-  LISTED.get(board.db).set(key, { clock: board.clock, version, expires, items: items.map(item => ({ ...item })) });
+  LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
 }
 
 /** Remembered item lists by connection and filter; each entry names the board data version it read. */
 const LISTED = new WeakMap();
-
-/**
- * A value that changes whenever the board's data may have: another connection's commit moves SQLite's data_version,
- * and this connection's own writes move its total_changes.
- */
-function boardDataVersion(board) {
-  return `${board.db.prepare('PRAGMA data_version').get().data_version}:${board.db.prepare('SELECT total_changes() AS n').get().n}`;
-}
-
 /** Read a stored status/owner slice, excluding claims whose leases have expired rather than caching items. */
 export function itemsInStatus(board, status, owner = null) {
   return board.db.prepare(`SELECT * FROM item WHERE item_status=? AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)${owner === null ? '' : ' AND item_owner=?'} ORDER BY item_id DESC`)

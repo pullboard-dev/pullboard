@@ -250,6 +250,26 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
 });
 
+/**
+ * Kill every resident process started for this socket and wait until none runs. Why the socket argument, not the pid
+ * file: a resident an earlier command started may still be loading and has not written its pid yet.
+ */
+function stopResidents(socket) {
+  // A resident names its socket in its arguments from the moment it starts, before it listens.
+  const holders = () => runFixtureChild('ps', ['-axww', '-o', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n')
+    .filter(line => line.includes(socket)).map(line => Number(line.trim().split(/\s+/u)[0])).filter(pid => pid > 0 && pid !== process.pid);
+  // A resident an earlier client started may appear just after the others stop; stop until none has run for a while.
+  let quiet = 0;
+  for (let round = 0; round < 400; round++) {
+    const live = holders();
+    quiet = live.length ? 0 : quiet + 1;
+    if (quiet >= 40) return;
+    for (const pid of live) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+  assert.fail(`processes still hold ${socket}: ${holders().join(', ')}`);
+}
+
 /** Ask a resident process to run its idle check now, and return its answer. */
 function tick(socket) {
   return new Promise((resolve, reject) => {
@@ -267,8 +287,8 @@ test('an idle resident process closes its board connections and exits [H24]', as
   // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
   const bin = join(fx.code, 'bin', 'pullboard.js');
   const place = residentSocket(fx.repo, bin);
-  const running = fx.residentPid();
-  if (running && fx.alive(running)) process.kill(running, 'SIGKILL');
+  // Every process holding the board's socket stops first, including a resident an earlier command started.
+  stopResidents(place.socket);
   rmSync(place.pid, { force: true });
   rmSync(place.socket, { force: true });
   const clockFile = join(fx.dir, 'resident-clock');
