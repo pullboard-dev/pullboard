@@ -88,13 +88,16 @@ export function relayOutboxSetting(root) {
 
 const LAPSE_MAINTENANCE = new WeakSet();
 
-/** Capture bounded native liveness once before a requested write; nested bootstrap and maintenance never recurse. */
+/**
+ * Expire lapsed leases once before a requested write; nested bootstrap and maintenance never recurse.
+ * Why lapsed only: it reads board rows and presence, no Git. Live-claim idle checks run in background maintenance (#2427).
+ */
 async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
     || operation === 'release' && args[3]?.staleClaim) return;
   LAPSE_MAINTENANCE.add(board);
   try {
-    const snapshot = captureLapsedClaims(ctx, board, actor);
+    const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
     try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
@@ -130,7 +133,7 @@ export async function ordered(ctx, board, operation, args) {
       return ctx.privateBoard
         ? store.recordSpecApprovalBaseline(board, ...values)
         : gitSyncLinked(ctx.info.root)
-        ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
+        ? (await import('../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
         ? relayOperation(ctx.info.root, 'recordSpecApprovalBaseline', values, baselineIo, undefined,
           () => store.recordSpecApprovalBaseline(board, ...values))
@@ -168,7 +171,7 @@ export async function ordered(ctx, board, operation, args) {
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
       : gitLinked
-        ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
+        ? (await import('../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());

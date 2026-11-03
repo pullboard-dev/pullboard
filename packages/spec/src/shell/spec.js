@@ -9,7 +9,7 @@
  */
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import {
   appendFileSync,
   existsSync,
@@ -210,15 +210,15 @@ export function legacyDoctrineRenameBase(root, name) {
     maxBuffer: 8 * 1024 * 1024,
     stdio: 'pipe',
   };
-  const changed = spawnSync('git', [
+  const changed = gitSpawnSync([
     '--no-replace-objects', '-c', 'core.quotepath=false',
     'diff', '--name-status', '--find-renames', 'HEAD', '--', LEGACY_DOCTRINE_FILE, DOCTRINE_FILE,
   ], options);
   if (changed.status === 0 && /^R\d*\tPRACTICE\.md\tDOCTRINE\.md$/mu.test(changed.stdout)) {
-    const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], options);
+    const head = gitSpawnSync(['rev-parse', '--verify', 'HEAD'], options);
     return head.status === 0 ? head.stdout.trim() : null;
   }
-  const history = spawnSync('git', [
+  const history = gitSpawnSync([
     '--no-replace-objects', '-c', 'core.quotepath=false',
     'log', '--follow', '--name-status', '--find-renames', '--format=%H %P', '--', DOCTRINE_FILE,
   ], options);
@@ -304,7 +304,7 @@ export function gateFiles(gate) {
  * @returns {string}
  */
 function lastCommitOf(root, file) {
-  const result = spawnSync('git', ['log', '--all', '-n', '1', '--format=%h', '--', file], { cwd: root, encoding: 'utf8', env: cleanGitEnvironment() });
+  const result = gitSpawnSync(['log', '--all', '-n', '1', '--format=%h', '--', file], { cwd: root, encoding: 'utf8', env: cleanGitEnvironment() });
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
@@ -343,7 +343,7 @@ export function missingGateFindings(spec, root) {
 
 /** Repoint only gate paths Git identifies as renames in this landing, preserving every other row byte [B23,N39]. */
 export function repointLandingGates(root, config, base, tip) {
-  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', 'diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, tip],
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.quotepath=false', 'diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, tip],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (result.status !== 0) throw new Refused('LAND_MERGE', 'cannot inspect landing renames; restore the exact Git objects and retry');
   const fields = result.stdout.split('\0'), renames = new Map();
@@ -353,8 +353,8 @@ export function repointLandingGates(root, config, base, tip) {
       const to = fields[i++];
       if (status.startsWith('R')) {
         const options = { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' };
-        const before = spawnSync('git', ['rev-parse', `${base}:${from}`], options);
-        const after = spawnSync('git', ['rev-parse', `${tip}:${to}`], options);
+        const before = gitSpawnSync(['rev-parse', `${base}:${from}`], options);
+        const after = gitSpawnSync(['rev-parse', `${tip}:${to}`], options);
         if (before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim()) renames.set(from, to);
       }
     }
