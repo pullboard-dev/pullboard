@@ -47,7 +47,7 @@ import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
 import { doctrineRunnerChecks } from '../submit-remote-gate.js';
 export { doctrineExecutionPhases } from '../submit-remote-gate.js';
 import { loadMachineSettings } from '../../packages/config/index.js';
-import { effectiveRunners } from '../runner-slots.js';
+import { effectiveRunners } from '../../packages/runners/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   retainTestOutput,

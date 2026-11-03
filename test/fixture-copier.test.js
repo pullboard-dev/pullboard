@@ -158,6 +158,18 @@ test('the copier is also accepted at the cells-plan target of src/package-files.
   assert.ok(wrongPackage.edits.length + wrongPackage.problems.length > 0);
 });
 
+test('the copier is also accepted through the front door of the cell that owns it, and through no other [C7]', () => {
+  assert.ok(canonicalCopierPaths().has('packages/runners/index.js'), 'the runners front door forwards toolSourcePath from the body');
+  const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
+  const as = specifier => fixtureSourceEdits(
+    `import { readFileSync } from 'node:fs';\nimport { toolSourcePath } from '${specifier}';\n${read}`, { ...options, file: 'test/a.test.js' });
+  assert.deepEqual(as('../packages/runners/index.js'), { edits: [], problems: [] });
+  for (const lookalike of ['../packages/config/index.js', '../packages/runners/other.js', '../apps/runner/index.js']) {
+    const refused = as(lookalike);
+    assert.ok(refused.edits.length + refused.problems.length > 0, `${lookalike} is not the copier`);
+  }
+});
+
 test('only real import declarations make a copier; quoted text and comments never do [C7]', () => {
   const head = "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nimport { toolSourcePath } from './private/package-files.js';\n";
   const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
