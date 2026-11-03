@@ -9,7 +9,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
-import { stopReplacedWorker } from '../src/submit-handoff.js';
+import { stopReplacedWorker } from '../apps/cli/index.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {

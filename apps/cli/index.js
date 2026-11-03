@@ -40,3 +40,5 @@ export { cli$freezer as freezer } from "./index.js";
 export { cockpit$cockpitPage as cockpitPage } from "./index.js";
 export { commandsStatus$run as run } from "./index.js";
 export { nextSteps$NEXT_STEPS as NEXT_STEPS } from "./index.js";
+export { stopReplacedWorker } from "./src/shell/submit-handoff.js";
+export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.js";
