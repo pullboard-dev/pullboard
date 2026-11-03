@@ -1472,3 +1472,4 @@ export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth
 
 export { runnerBoardFile } from './controller-custody.js';
 export { runnerItemState } from './controller-custody.js';
+export { runnerItemSources } from './controller-custody.js';

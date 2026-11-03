@@ -190,9 +190,9 @@ export async function serveRunnerController(ports) {
       custody.observationProblem(problem);
     }
   };
-  let boardFile = null;
-  try { boardFile = item && typeof ports.runnerBoardFile === 'function' ? ports.runnerBoardFile(request.root) : null; } catch { /* The wake falls back to its timer. */ }
-  const stopWatching = controllerWake(request, { roots, boardFile, needsBoard: Boolean(item), abort, observe });
+  let itemFiles = [];
+  try { itemFiles = item && typeof ports.runnerItemSources === 'function' ? ports.runnerItemSources(request.root) : []; } catch { /* The wake falls back to its timer. */ }
+  const stopWatching = controllerWake(request, { roots, itemFiles, needsBoard: Boolean(item), abort, observe });
   observe();
   try {
     const result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });

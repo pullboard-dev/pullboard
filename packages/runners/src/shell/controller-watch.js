@@ -76,18 +76,18 @@ export function watchPaths(paths, onChange, { settleMs = 1_000 } = {}) {
 
 /**
  * Wake a controller's observation on events: the dispatching process's pipe closing, a source folder being
- * replaced or removed, and a write to the board its item lives on. Only a caller without one of those sources
- * (an older dispatcher with no parent pipe, an item whose board cannot be found, a platform that cannot watch)
- * keeps the once-a-second observation it had before.
+ * replaced or removed, and a write to a file the item's observation reads (each git config on the way to its board,
+ * and the board). Only a caller without one of those sources (an older dispatcher with no parent pipe, an item whose
+ * board cannot be found, a platform that cannot watch) keeps the once-a-second observation it had before.
  * @param {{ parentPipe?: number }} request
- * @param {{ roots: string[], boardFile: string|null, needsBoard: boolean, abort: () => void, observe: () => void }} sources
+ * @param {{ roots: string[], itemFiles: string[], needsBoard: boolean, abort: () => void, observe: () => void }} sources
  * @returns {() => void} a closer
  */
-export function controllerWake(request, { roots, boardFile, needsBoard, abort, observe }) {
+export function controllerWake(request, { roots, itemFiles, needsBoard, abort, observe }) {
   const parent = watchParentPipe(request.parentPipe, abort);
   let paths = null;
-  if (!needsBoard || boardFile) {
-    try { paths = watchPaths([...roots, ...(boardFile ? [boardFile] : [])], observe); }
+  if (!needsBoard || itemFiles.some(file => file.endsWith('board.sqlite'))) {
+    try { paths = watchPaths([...roots, ...itemFiles], observe); }
     catch { paths = null; }
   }
   if (parent && paths) return () => { parent(); paths(); };
