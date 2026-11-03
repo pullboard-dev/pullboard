@@ -120,10 +120,11 @@ test('submit dry-run prepares repository evidence before locking and records a h
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined,
-    { gitRoot: box.repo, writeContext: { command: 'submit-preflight', seat: 'web-fixture' } });
+    { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
   t.after(() => closeBoard(board));
-  store.register(board, { id: 'web-fixture', lane: 'web', path: join(box.dir, 'builder'), model: 'fixture', family: 'openai' });
-  store.claim(board, id, { agentId: 'web-fixture', lane: 'web', leaseMs: 3_600_000,
+  const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder'), model: 'fixture', family: 'openai' });
+  board.writeContext.seat = builder;
+  store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000,
     freeze: () => ({ text: '{}', digest: 'private-preflight-fixture' }), head: box.git(box.repo, 'rev-parse', 'HEAD') });
   const observer = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'));
   observer.exec('PRAGMA busy_timeout=0');
@@ -149,7 +150,7 @@ test('submit dry-run prepares repository evidence before locking and records a h
   };
   const before = store.getItem(board, id);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
-  submitPreflight(board, id, { agentId: 'web-fixture', commit, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') }, ports);
+  submitPreflight(board, id, { agentId: builder, commit, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') }, ports);
   assert.ok(policyProbes > 0, 'actual accepted-policy preparation permits an independent writer');
   assert.equal(preparations, 1, 'repository preparation runs outside the outer dry-run transaction');
   assert.deepEqual(store.getItem(board, id), before, 'the dry-run still rolls native state back');

@@ -142,20 +142,6 @@ export function noteBoardWriteItem(db, item) {
 /** Locate per-command write measurements in private machine storage, outside native board state. */
 export function boardWriteLog() { return join(machineHome(), 'board-writes.jsonl'); }
 
-/** Record every completed writer after releasing SQLite; optional measurement I/O cannot undo a move. */
-function recordWrite(record, durationMs, outcome) {
-  let fd;
-  try {
-    mkdirSync(machineHome(), { recursive: true, mode: 0o700 });
-    fd = openSync(boardWriteLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
-    if (!fstatSync(fd).isFile()) return;
-    writeSync(fd, JSON.stringify({ version: 1, at: new Date(record.acquiredAt).toISOString(),
-      command: record.command, seat: record.seat, item: record.item ?? null, durationMs, outcome,
-      phase: record.phase ?? 'work', phaseMs: Math.round(record.phaseMs ?? 0) }) + '\n');
-  } catch { /* Measurements preserve the original transaction outcome. */ }
-  finally { if (fd !== undefined) try { closeSync(fd); } catch { /* Optional measurement descriptor. */ } }
-}
-
 /** Complete only after COMMIT/ROLLBACK or actual connection close; unique records cannot unlink a successor. */
 export function finishBoardWrite(record, released, outcome = 'released') {
   if (!record || record.complete || !released) return;
@@ -167,7 +153,7 @@ export function finishBoardWrite(record, released, outcome = 'released') {
     catch { /* A closed diagnostic stream must not turn an already committed move into an apparent refusal. */ }
   }
   recordBoardHold({ ...record, durationMs, outcome });
-  recordWrite(record, durationMs, outcome);
+  recordBoardHold({ ...record, durationMs, outcome, allWrites: true });
   if (record.marker) try { unlinkSync(record.marker); } catch { /* Optional advisory cleanup. */ }
   pending.get(record.db)?.delete(record);
 }

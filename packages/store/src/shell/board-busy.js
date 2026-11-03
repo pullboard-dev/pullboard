@@ -7,8 +7,8 @@ import { BOARD_BUSY_TIMEOUT_MS } from "./board-schema-source.js";
 
 /** Recognize SQLite's busy code, including extended busy result codes. */
 function isBusy(error) {
-  const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
-  return sqliteCode === 5 || sqliteCode === 6 || error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED' || /database is locked/iu.test(error.message ?? '');
+  const sqliteCode = Number.isInteger(error?.errcode) ? error.errcode & 0xff : null;
+  return sqliteCode === 5 || sqliteCode === 6 || error?.code === 'SQLITE_BUSY' || error?.code === 'SQLITE_LOCKED' || /database is locked/iu.test(error?.message ?? '');
 }
 
 /**
@@ -31,6 +31,13 @@ export function boardWriteBusyError(db, startedAt, error) {
   return boardBusyError(file, startedAt, error);
 }
 
+
+/** Translate a failed transaction without filesystem or process observations in the writer call graph. */
+export function boardTransactionBusyError(db, startedAt, error) {
+  if (!isBusy(error)) return error;
+  const file = db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || ':memory:';
+  return new Refused('BOARD_BUSY', `board file ${file} remained held by another process after ${Date.now() - startedAt}ms; wait for it to finish and retry`);
+}
 
 /** Extra time, beyond SQLite's own busy timeout, a board write queues for the lock before BOARD_BUSY (#1854). */
 const DEFAULT_QUEUE_MS = 0;
@@ -72,7 +79,7 @@ export function beginImmediateQueued(db, startedAt, marker = null) {
           catch { /* Diagnostics cannot turn a queued write into a refusal. */ }
         }
         // SQLITE_LOCKED has no busy handler; yield without spinning when it returns immediately.
-        if ((error.errcode & 0xff) === 6 || error.code === 'SQLITE_LOCKED') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(10, remaining));
+        if ((error.errcode & 0xff) === 6 || error?.code === 'SQLITE_LOCKED') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(10, remaining));
       }
     }
   } finally { db.exec(`PRAGMA busy_timeout = ${original}`); finish?.(); }
