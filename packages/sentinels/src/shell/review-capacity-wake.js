@@ -69,8 +69,10 @@ async function reserveAction(ctx, board, ordered, item, action, seat = '') {
 
 /** Ask once per item, only after local eligible wake commands are absent or have failed. */
 async function askPerson(ctx, board, ordered, item, reason) {
-  if (!await reserveAction(ctx, board, ordered, item, 'person')) return;
-  await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: 'person', lanes: [], request: true, item: item.item_id,
+  const prefix = `#${item.item_id} needs an independent reviewer:`;
+  if (board.db.prepare('SELECT 1 FROM shout WHERE shout_from=? AND shout_to=? AND substr(shout_text,1,?)=?').get('coordinator', 'person', prefix.length, prefix)) return;
+  await reserveAction(ctx, board, ordered, item, 'person');
+  await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: 'person', lanes: [], decision: true,
     text: `#${item.item_id} needs an independent reviewer: ${reason}. Register an eligible seat with pullboard join <lane> --wake <executable>, or start its review session.` }]);
 }
 

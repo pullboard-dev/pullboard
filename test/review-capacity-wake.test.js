@@ -4,7 +4,7 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
-import { closeBoard, getItem, recentShouts } from '../packages/store/index.js';
+import { closeBoard, getItem, heartbeatSeat, recentShouts } from '../packages/store/index.js';
 import { REVIEW_WAKE_WAIT_MS } from '../packages/sentinels/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
@@ -44,8 +44,7 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   assert.equal(getItem(board, item).item_status, 'submitted');
   at += REVIEW_WAKE_WAIT_MS;
   if (awake) {
-    const resumed = await cli(reviewer, 'status', '--json');
-    assert.equal(resumed.code, 0, resumed.err);
+    assert.equal(heartbeatSeat(board, JSON.parse(joined.out).agent), true, 'the native local observation protocol marks the reviewer awake');
   }
   /** Run exactly the background health-sweep entry point through its native coordinator. */
   const sweep = () => cli(box.repo, 'sentinel', 'run', '--health-only', '--json');
