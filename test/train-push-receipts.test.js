@@ -169,10 +169,10 @@ async function audit(box, batch) {
     && JSON.parse(event.event_detail).batch.state === 'landed').at(-1));
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
-  const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
 import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
-import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../src/gate-run-receipt.js', import.meta.url).href)};
+import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
@@ -417,7 +417,7 @@ test('actual admission sentinel [C7]',()=>writeFileSync(${JSON.stringify(marker)
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: mark the actual private gate body');
   writeFileSync(join(box.repo, 'web/dirty-proof.txt'), 'A remote proof needs committed source.\n');
-  const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';

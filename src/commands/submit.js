@@ -54,7 +54,7 @@ import {
   renderTestSummary,
   summaryProfile,
   withTestOutput,
-} from '../test-output-summary.js';
+} from '../../packages/gate/index.js';
 import { quarantineWaivers } from '../../packages/flakes/index.js';
 import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
@@ -62,7 +62,7 @@ import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
-import { submitGateConfig } from '../gate-submit.js';
+import { submitGateConfig } from '../../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../item-patch-submit.js';
 import { withItemPatchSubmit } from '../item-patch-submit.js';
@@ -97,7 +97,7 @@ import {
   submitRulesNarrowable,
   ruleLine,
 } from '../../packages/doctrine/index.js';
-import * as gateReceipt from '../gate-receipt.js';
+import { receiptLine as gateReceiptLine } from '../../packages/gate/index.js';
 import { recordNativeProof } from '../../packages/verify/index.js';
 import { proofRunReceipt } from '../../packages/store/index.js';
 import {
@@ -465,7 +465,7 @@ export async function submitHere(ctx, id, infra) {
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
       finally { remoteDoctrine?.finish(); }
     },
-      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
+      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
     : []); }
   finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);

@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { codeMapGraph } from '../packages/gate/index.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
-import { cachedAffectedGraph } from '../src/affected-graph-cache.js';
+import { cachedAffectedGraph } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** A real immutable Git graph with a supported reader and an unresolved computed loader. */
@@ -57,7 +57,7 @@ test('cached committed graphs retain unknowns and give each consumer fresh conta
   assert.ok(second.modules.has('src/value.js'));
   assert.ok(second.reverse.get('src/value.js').has('test/value.test.js'));
   assert.ok(second.paths.includes('test/value.test.js'));
-  const helper = new URL('../src/affected-graph-cache.js', import.meta.url).href;
+  const helper = new URL('../packages/gate/index.js', import.meta.url).href;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e',
     `import {cachedAffectedGraph} from ${JSON.stringify(helper)};
      const graph=cachedAffectedGraph(${JSON.stringify(box.root)},${JSON.stringify(commit)},()=>{throw new Error('duplicate derivation');});
