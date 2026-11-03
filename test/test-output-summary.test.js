@@ -65,7 +65,8 @@ function itemProject() {
   const flag = join(box.dir, 'fail-tests');
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')),
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false },
     gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test', 'output.test.js'), [
@@ -98,7 +99,9 @@ function itemProject() {
 function assertFailureSummary(result, code) {
   assert.equal(result.code, 1);
   const text = [result.out, result.err].join('\n');
-  assert.ok(text.trim().split('\n').length < 40, `${code} output is bounded`);
+  const lineCount = text.trim().split('\n').length;
+  assert.ok(lineCount < (code === 'CHECK_RED' ? 80 : 40), `${code} output is bounded (${lineCount} lines)`);
+  if (code === 'CHECK_RED') assert.match(text, /last output lines \(up to 40\):/u);
   assert.match(text, new RegExp(code));
   for (const value of ['first failing case', 'second failing case', 'first failure detail', 'second failure detail']) {
     assert.ok(text.includes(value), `${code} retains ${value}`);
