@@ -2,9 +2,10 @@
 /** Cell-lint and shim ratchets count main and the candidate at check time; no committed baseline must match source [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fixture as planFixture, git, acceptedCutItems } from './cells-plan-fixture.js';
 import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
 import { cellLintReport, cellLintBaseline, writeCellLintBaseline, CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
@@ -12,8 +13,10 @@ import { withMainCheckout } from '../packages/landing/index.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 const parsers = { importsIn, commonJsIn };
+const LINTS = fileURLToPath(new URL('../bin/cell-lints.js', import.meta.url));
 
 /**
  * Build a real repo whose main records a cell-lint baseline, then lands a cells move that adds a shim
@@ -68,4 +71,55 @@ test('an item that adds a shim over main is refused naming the shim file [C7]', 
     && /shim count rose without a cells move: src\/stats-flow\.js/u.test(error.message)
     && !/src\/refused\.js/u.test(error.message)
     && !/baseline/u.test(error.message));
+});
+
+/**
+ * Build a strict (post-migration) repo whose main records a cell-lint baseline once, then gains
+ * non-shim debt without touching it, so the committed snapshot is stale against main's own source.
+ */
+function staleLintMain(t) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pb-ratchet-cli-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Ratchet fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Ratchet fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
+  /** Write one private fixture file. */
+  const put = (file, source) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); };
+  const check = () => runFixtureChild(process.execPath, [LINTS, '--check', root], { encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js' } }));
+  put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
+  put('packages/sample/index.js', 'export const value = 1;\n');
+  put('bin/cells-plan/path-map/sample.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
+  git('add', '-A'); git('commit', '-qm', 'accepted migration');
+  assert.equal(cellLintReport(root, parsers).transition.active, false, 'the fixture ratchet is strict');
+  writeCellLintBaseline(root, cellLintBaseline(cellLintReport(root, parsers)), { initialize: true });
+  git('add', '-A'); git('commit', '-qm', 'record the cell lint baseline once');
+  const recorded = readFileSync(join(root, CELL_BASELINE_DESCRIPTOR), 'utf8');
+  put('landed-stray.js', 'void 0;\n');
+  put('apps/demo/index.js', "import { value } from '../../packages/sample/index.js'; console.log(value);\n");
+  git('add', '-A'); git('commit', '-qm', 'main lands stray and boundary debt without touching a baseline');
+  assert.equal(readFileSync(join(root, CELL_BASELINE_DESCRIPTOR), 'utf8'), recorded, 'main left its baseline untouched');
+  git('checkout', '-qb', 'candidate');
+  return { root, git, put, check };
+}
+
+test('cell-lints --check passes an unrelated item while main carries non-shim debt over its stale baseline [C7]', t => {
+  const box = staleLintMain(t);
+  box.put('packages/sample/index.js', 'export const value = 2;\n');
+  const checked = box.check();
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.doesNotMatch(checked.stderr, /landed-stray\.js|exceeds/u);
+  rmSync(join(box.root, 'bin/cell-lint-baselines'), { recursive: true, force: true });
+  box.git('add', '-A'); box.git('commit', '-qm', 'candidate deletes the stored baseline');
+  const without = box.check();
+  assert.equal(without.status, 0, `no committed baseline is needed: ${without.stderr}`);
+});
+
+test('cell-lints --check refuses only the debt the item adds over main, naming its file [C7]', t => {
+  const box = staleLintMain(t);
+  box.put('item-stray.js', 'void 0;\n');
+  const checked = box.check();
+  assert.notEqual(checked.status, 0);
+  assert.match(checked.stderr, /strays:item-stray\.js/u);
+  assert.doesNotMatch(checked.stderr, /landed-stray\.js|boundaries/u);
 });
