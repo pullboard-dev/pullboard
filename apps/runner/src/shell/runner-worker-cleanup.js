@@ -60,7 +60,7 @@ export function reportCleanupTimeout(S) {
 export async function releaseDrainedLease(S, lease) {
   let reported = false;
   for (;;) {
-    try { lease.release({ retryMs: 0 }); return; }
+    try { lease.release(); return; }
     catch {
       reportCleanupTimeout(S);
       if (!reported) {
