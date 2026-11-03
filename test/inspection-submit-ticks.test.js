@@ -63,7 +63,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
 
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/inspection');
-  ok(box, builder, 'join', 'web');
+  ok(box, builder, 'join', 'web', '--model', 'inspection-fixture');
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Inspect every clause', '--criterion', CRITERION,
     '--check', RUN, '--brief', 'Files:\n- web/page.html\nTest:\n- each named case cites its clause', '--json').out);
   const id = added.item.item_id;
