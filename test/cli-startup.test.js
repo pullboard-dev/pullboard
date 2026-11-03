@@ -17,7 +17,7 @@ const BIN = join(REPO, 'bin', 'pullboard.js');
 /** Modules a read must never load: the gate runner, the relay client and the landing machinery. */
 const HEAVY = ['src/gate.js', 'src/land.js', 'src/commands/gate.js', 'src/commands/relay.js', 'src/commands/land.js',
   'packages/sandbox/src/shell/trusted-policy.js', 'packages/gate/src/shell/check-baseline.js', 'packages/gate/src/shell/shell-run.js', 'packages/commits/src/shell/hooks.js', 'packages/resources/index.js',
-  'src/board.js', 'src/board-event-log.js', 'src/machine.js', 'src/sentinels.js', 'packages/sentinels/src/shell/sentinels.js', 'src/landing-lease.js', 'src/board-landing-lease.js'];
+  'src/board.js', 'packages/store/src/shell/board-event-log.js', 'src/machine.js', 'src/sentinels.js', 'packages/sentinels/src/shell/sentinels.js', 'src/landing-lease.js', 'src/board-landing-lease.js'];
 
 /** Find the real Git executable before the fixture puts its counting shim first on PATH. */
 function realGitPath() {

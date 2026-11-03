@@ -8,9 +8,11 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   mkdtempSync,
+  realpathSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import {
   gitChildEnv,
@@ -46,7 +48,7 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
     const failures = baselineFailureDetails(ran.output);
     return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds,
       ...(failures.length ? { reason: failures.map(row => `${row.name}: ${row.error}`).join('\n') } : {}),
-      testEvidence: baselineTestEvidence(ran.output, command) };
+      testEvidence: baselineTestEvidence(ran.output, command, checkout) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -105,11 +107,25 @@ export function baselineFailureDetails(output) {
 }
 
 /** Retain observed case outcomes, distinguishing an absent named case from unrelated shell failure. */
-export function baselineTestEvidence(output, command) {
+export function baselineTestEvidence(output, command, root = null) {
   const tests = timingFromOutput(output, timingRunner(command)).tests;
+  // Each failing case keeps the repository file it ran in, so a case is matched by file and name, never name alone (#2594).
+  const relative = file => {
+    if (typeof file !== 'string' || !file) return null;
+    for (const base of root ? [root, realOrSame(root)] : []) if (file.startsWith(base + '/')) return file.slice(base.length + 1);
+    return isAbsolute(file) ? null : file.replace(/^\.\//u, '');
+  };
+  const failedCases = [...new Map(tests.filter(test => !test.passed).map(test => ({ file: relative(test.file), name: test.name }))
+    .filter(row => row.file).map(row => [`${row.file}\0${row.name}`, row])).values()].slice(0, 512);
   return { failed: [...new Set(tests.filter(test => !test.passed).map(test => test.name))].slice(0,512),
     passed: [...new Set(tests.filter(test => test.passed).map(test => test.name))].slice(0,512),
+    failedCases,
     noTestsMatched: /^run-tests: NO_TESTS_MATCHED:/mu.test(output) };
+}
+
+/** A directory's real path, or the path itself when it cannot be resolved. */
+function realOrSame(path) {
+  try { return realpathSync(path); } catch { return path; }
 }
 
 /**

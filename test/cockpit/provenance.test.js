@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
+import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { beginCommandPhase } from '../../packages/link/index.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 
