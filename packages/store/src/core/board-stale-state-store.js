@@ -8,6 +8,8 @@ import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { redReturnLeaseHolds } from "./red-return-lease.js";
 
 /** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
@@ -104,6 +106,7 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     return { row, item };
   }
   const observed = Date.parse(snapshot.observedAt);
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE && redReturnLeaseHolds(board, item, observed)) changed();
   if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
   const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }) : null;
   // A holder who committed in the last 30 minutes is working, whatever the failures or the clock say [B4,B5].

@@ -1350,6 +1350,10 @@
     {
       "path": "bin/cells-reorg.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/queued-red-return-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

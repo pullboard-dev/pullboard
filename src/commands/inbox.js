@@ -8,6 +8,7 @@ import { withBoardRead } from '../cli-context.js';
 import { evidenceLine } from '../cli/shout.js';
 import { whoAmI } from '../cli/join.js';
 import { Refused } from '../../packages/kernel/index.js';
+import { sayQueuedReds } from '../../packages/store/index.js';
 
 /**
  * Load the ordered writer only when a read must record something.
@@ -23,6 +24,7 @@ export async function run(io, { values = {} } = {}) {
   if (values.history) return history(io, ctx, values);
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
   const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead };
+  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
   io.result?.(document);

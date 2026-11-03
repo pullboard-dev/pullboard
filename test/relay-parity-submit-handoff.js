@@ -52,7 +52,7 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
         message: 'Synthetic refusal for native-state projection only; no gate execution.',
         next: 'Read the fixture observation; no successful submission is claimed.' } } }));
     assert.equal(completed?.state, 'red');
-    assert.equal(store.getItem(board, item).item_status, 'open', 'a real red completion releases the queued claim');
+    assert.equal(store.getItem(board, item).item_status, 'claimed', 'a real red completion keeps the queued claim for its builder');
     assert.equal(store.getItem(board, item).item_commit, null, 'job observations never invent submitted source');
     const states = store.events(board, { itemId: item }).filter(event => event.event_kind === 'submit-handoff')
       .map(event => JSON.parse(event.event_detail).state);
