@@ -5,7 +5,7 @@ import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 
 /** Read positive TAP completion counts while rejecting the canonical runner's incomplete accounts. */
-function completionAccount() {
+function completionAccount(allowCancelled = false) {
   let early = false;
   let plan = null;
   let topLevel = 0;
@@ -13,8 +13,8 @@ function completionAccount() {
   let prior = true;
   /** Require every completed TAP stream, not just the last appended phase, to account for its tests. */
   const finished = () => !early && Number.isSafeInteger(plan) && plan > 0 && plan === topLevel && Number.isSafeInteger(counts.tests)
-    && Number.isSafeInteger(counts.pass) && Number.isSafeInteger(counts.fail) && (counts.cancelled ?? 0) === 0
-    && counts.pass + counts.fail + (counts.skipped ?? 0) + (counts.todo ?? 0) === counts.tests;
+    && Number.isSafeInteger(counts.pass) && Number.isSafeInteger(counts.fail) && (allowCancelled || (counts.cancelled ?? 0) === 0)
+    && counts.pass + counts.fail + (allowCancelled ? counts.cancelled ?? 0 : 0) + (counts.skipped ?? 0) + (counts.todo ?? 0) === counts.tests;
   /** Recognize canonical incomplete accounts even when only a bounded line prefix is retained. */
   const markerPrefix = (text) => {
     if (/^(?:Landing gate stopped early after |Files not run: |Interrupted test files: )/u.test(text)) early = true;
@@ -33,17 +33,17 @@ function completionAccount() {
       const count = /^# (tests|pass|fail|cancelled|skipped|todo) (\d+)\s*$/u.exec(text);
       if (count) counts[count[1]] = Number(count[2]);
     },
-    /** A complete plan accounts for every test and contains no interrupted or cancelled work. */
+    /** A complete plan accounts for every test; only explicit known-main comparisons may account for cancelled children. */
     complete() {
       return prior && finished();
     },
   };
 }
 
-/** Require positive completion evidence from this run, or stream the retained legacy raw account. */
-export function completeGate(gate) {
-  if (typeof gate.complete === 'boolean') return gate.complete;
-  const account = completionAccount();
+/** Require positive completion evidence; known-main comparisons may opt into fully counted cancellations, never interrupted files. */
+export function completeGate(gate, { allowCancelled = false } = {}) {
+  if (!allowCancelled && typeof gate.complete === 'boolean') return gate.complete;
+  const account = completionAccount(allowCancelled);
   if (typeof gate.output === 'string') {
     for (const line of gate.output.split('\n')) account.line(line);
     return account.complete();

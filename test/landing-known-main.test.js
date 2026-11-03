@@ -7,6 +7,9 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { diagnose } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import { completeGate } from '../packages/landing/src/shell/landing-completion.js';
+import { failureSignatures } from '../packages/landing/src/shell/main-failure-matches.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -14,9 +17,34 @@ const { sandbox, project, commitFile } = e2e;
 const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const MAIN_RED = 'web/land-9.test.js';
 
+test('known-main cancellation accounting excludes only fully accounted cancellations [B3,C7]', () => {
+  const root = '/fixture';
+  const output = [
+    'TAP version 13', '# Subtest: broken', 'not ok 1 - broken', '  ---',
+    '  location: /fixture/test/example.test.js:1:1', '  failureType: testCodeFailure', '  error: assertion failed', '  ...',
+    '# Subtest: cancelled', 'not ok 2 - cancelled', '  ---',
+    '  location: /fixture/test/example.test.js:2:1', '  failureType: cancelledByParent', '  error: pending promise', '  ...',
+    '1..2', '# tests 2', '# pass 0', '# fail 1', '# cancelled 1', '',
+  ].join('\n');
+  const run = { isGreen: false, output, stages: [{ status: 1, output }] };
+  const allowed = { allowCancelled: true };
+  assert.equal(completeGate(run), false);
+  assert.equal(failureSignatures(run, root), null);
+  assert.equal(completeGate(run, allowed), true);
+  assert.deepEqual(failureSignatures(run, root, allowed).map(row => [row.file, row.name]), [['test/example.test.js', 'broken']]);
+  const interrupted = `${output}Interrupted test files: test/other.test.js\n`;
+  assert.equal(completeGate({ ...run, output: interrupted }, allowed), false);
+  assert.equal(failureSignatures({ ...run, stages: [{ status: 1, output: interrupted }] }, root, allowed), null);
+  const wrongCount = output.replace('# cancelled 1', '# cancelled 2');
+  assert.equal(completeGate({ ...run, output: wrongCount }, allowed), false);
+  assert.equal(failureSignatures({ ...run, stages: [{ status: 1, output: wrongCount }] }, root, allowed), null);
+  assert.equal(failureSignatures({ ...run, stages: [{ status: 2, output }] }, root, allowed), null);
+});
+
 /** A separate-publish landing project whose main already carries one red case, committed and pushed through real hooks. */
 function redMainProject() {
-  const box = landProject();
+  const box = landProject({ withWorktree: false });
+  box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
@@ -69,6 +97,7 @@ function landBatch(box, itemId) {
 test('a batch red only in a case red on main lands and names that case as known-main [B3,C7]', () => {
   const box = redMainProject();
   const entry = acceptedItem(box, 1, 'PASS\n');
+  box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
   assert.equal(result.error, null, JSON.stringify(result.lines));
   assert.equal(result.batch.state, 'landed', JSON.stringify(result.batch));
@@ -81,6 +110,7 @@ test('a batch red only in a case red on main lands and names that case as known-
 test('a batch holding one case red on main and one red only in the batch fails only on the second [B3,C7]', () => {
   const box = redMainProject();
   const entry = acceptedItem(box, 1, 'RED NAME:batch-red-case\n');
+  box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
   assert.notEqual(result.batch.state, 'landed');
   assert.equal(result.merged, null, 'the batch-only red keeps the item off main');
@@ -88,4 +118,24 @@ test('a batch holding one case red on main and one red only in the batch fails o
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
   assert.ok(result.batch.culprits.some(culprit => culprit.id === entry.item), `the batch-only case makes its item the culprit: ${JSON.stringify(result.batch)}`);
   assert.ok(!result.batch.culprits.some(culprit => JSON.stringify(culprit).includes(MAIN_RED)), 'the known-main case is never a culprit reason');
+});
+
+test('an observer error without observations isolates each failing file once; recorded evidence still refuses [B3,C7]', async () => {
+  const box = redMainProject();
+  const state = {
+    config: { flakes: { rerun: true }, affectedTests: box.affected },
+    batch: { root: box.repo, logPath: join(box.dir, 'diagnostic.log'), revision: 0 },
+    diagnosed: new Map(),
+    write: async (_operation, [options]) => options.batch,
+  };
+  const failures = [{ file: MAIN_RED, name: 'main-red-case' }, { file: MAIN_RED, name: 'another case' }];
+  const callsBefore = readFileSync(box.calls, 'utf8').trim().split('\n').length;
+  const result = await diagnose(state, failures, { flakeDiagnostics: { error: 'observer failed', observations: [] } });
+  assert.deepEqual(result, [], 'the reproducible red remains attributable');
+  const callsAfter = readFileSync(box.calls, 'utf8').trim().split('\n').slice(callsBefore).map(JSON.parse);
+  assert.deepEqual(callsAfter, [['--alone', MAIN_RED]], 'duplicate failures run the file once');
+  await assert.rejects(diagnose(state, failures, { logPath: box.calls, flakeDiagnostics: {
+    error: 'observer failed', observations: [{ file: MAIN_RED, recorded: true, classification: 'flake' }],
+  } }), { code: 'LAND_DIAGNOSTIC' });
+  assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').length, callsBefore + 1, 'recorded evidence triggers no extra isolation');
 });
