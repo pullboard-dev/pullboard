@@ -145,6 +145,7 @@
         "src/serve.js",
         "src/view.css",
         "src/view/",
+        "apps/view/",
         "test/cockpit.test.js",
         "test/cockpit/",
         "test/journeys.test.js"

@@ -32,7 +32,8 @@ export { guiSession } from "./src/shell/gui-session.js";
 export { nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-scheduler.js";
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
-export { runMainAudits, mainAuditJobs } from "./src/shell/main-audit-worker.js";
+export { runMainAudits, mainAuditJobs, routeAuditFailures } from "./src/shell/main-audit-worker.js";
+export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/shell/main-audit-attribution.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
 export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
@@ -66,6 +67,7 @@ export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
 
+export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/shell/prove-once.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
