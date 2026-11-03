@@ -12,12 +12,17 @@ const sandboxes = [];
 after(() => { for (const directory of sandboxes) rmSync(directory, { recursive: true, force: true }); });
 
 const SCAN = pathToFileURL(new URL('../bin/checks/scan.js', import.meta.url).pathname).href;
+const STUB = `export * from '${SCAN}';\n`;
 const CHECK = `#!/usr/bin/env node
 /** A file-local fixture check built on the real walk. @file-local */
-import { readText, report, rootOf, walk } from '${SCAN}';
-const problems = [];
-for (const path of walk(rootOf(), /\\.js$/u)) readText(rootOf(), path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
-report(problems);
+import { readText, runCheck, walk } from './scan.js';
+/** One problem per TODO line in every walked file. */
+export function todoProblems(root) {
+  const problems = [];
+  for (const path of walk(root, /\\.js$/u)) readText(root, path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
+  return problems;
+}
+runCheck(import.meta, todoProblems);
 `;
 const DOCTRINE = '# Doctrine\n\n## Q · Quality\n- Q1 [approved, must] No TODO markers. | gate: check node bin/checks/todo.js | count: 2\n';
 
@@ -33,6 +38,7 @@ function repo() {
   mkdirSync(join(root, 'bin', 'checks'), { recursive: true });
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'bin', 'checks', 'todo.js'), CHECK);
+  writeFileSync(join(root, 'bin', 'checks', 'scan.js'), STUB);
   writeFileSync(join(root, 'DOCTRINE.md'), DOCTRINE);
   writeFileSync(join(root, 'src', 'old.js'), '// TODO one\n// TODO two\n');
   writeFileSync(join(root, 'src', 'clean.js'), 'export const clean = 1;\n');

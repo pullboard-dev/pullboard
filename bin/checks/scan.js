@@ -49,20 +49,26 @@ export function walk(root, pattern) {
   return found.sort(byText);
 }
 
+let narrowed = null;
+
 /**
- * The repo-relative files a doctrine hold narrowed this run to, from PULLBOARD_CHECK_FILES (a JSON
- * array), or null for the whole tree. Why: a count can only rise in files the item changed, so
- * submit scans just those and the check finishes in milliseconds.
+ * Run a synchronous check with every walk() limited to the given repo-relative files. Why: a count
+ * can only rise in files the item changed, so a doctrine hold scans just those in its own process.
  *
- * @returns {string[] | null}
+ * @template T
+ * @param {string[]} files
+ * @param {() => T} run
+ * @returns {T}
  */
+export function narrowedTo(files, run) {
+  const before = narrowed;
+  narrowed = files;
+  try { return run(); } finally { narrowed = before; }
+}
+
+/** The files the current narrowing allows, or null for the whole tree. */
 function restrictedFiles() {
-  const raw = process.env.PULLBOARD_CHECK_FILES;
-  if (!raw) return null;
-  try {
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list.filter(name => typeof name === 'string') : null;
-  } catch { return null; } // a malformed list means no narrowing: scan everything
+  return narrowed;
 }
 
 /** True when a narrowed path is a regular file the full walk would also have visited. */

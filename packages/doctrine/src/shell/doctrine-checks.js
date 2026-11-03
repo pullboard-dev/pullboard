@@ -31,7 +31,7 @@ import {
   invalidateGitFacts,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
-import { fastAnswer } from './doctrine-fast.js';
+import { createFastPass } from './doctrine-fast.js';
 import { fastCheckScript } from './doctrine-fast.js';
 import { lex } from '../../../kernel/index.js';
 import {
@@ -419,11 +419,12 @@ export function holdDoctrine(root, options) {
 /** Await each actual rule and base comparison without blocking other admitted work or changing ratchet decisions. */
 export async function holdDoctrineAsync(root, options) {
   const execution = doctrineHoldExecution(root, options);
+  const pass = options.fast ? createFastPass(root) : null;
   try {
     let step = execution.next();
     while (!step.done) {
       const request = step.value;
-      let run = options.fast ? await fastAnswer(root, request) : null;
+      let run = pass ? await pass.answer(request) : null;
       // A narrowed rule is answered in-process over the changed files; the rest follow the established paths.
       if (!run && options.runCheck) {
         // Remote checks share the same per-tree receipts as local rule checks, but only when
@@ -443,7 +444,7 @@ export async function holdDoctrineAsync(root, options) {
       step = execution.next(run);
     }
     return step.value;
-  } finally { execution.return(); }
+  } finally { execution.return(); pass?.close(); }
 }
 
 /** Reuse a complete successful hold before admitting any runner work. */
