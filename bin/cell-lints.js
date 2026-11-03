@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-import { shimCountBaseline } from '../packages/codemap/index.js';
-import { shimBaselineProblems } from '../packages/codemap/index.js';
-import { writeFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
 import { importsWithCompiler } from '../packages/kernel/index.js';
@@ -25,17 +21,14 @@ import { cachedCellsRun } from '../src/cells-cache.js';
 withCellLintParser(compile => {
   const parsers = { importsIn: sources => importsWithCompiler(sources, compile), commonJsIn: sources => commonJsWithCompiler(sources, compile) };
   const [mode = '--report', directory = '.'] = process.argv.slice(2);
-  if (!['--report', '--check', '--init', '--update', '--shim-update'].includes(mode) || process.argv.length > 4) {
-    throw new Error('use node bin/cell-lints.js --report|--check|--init|--update|--shim-update [root]');
+  if (!['--report', '--check', '--init', '--update'].includes(mode) || process.argv.length > 4) {
+    throw new Error('use node bin/cell-lints.js --report|--check|--init|--update [root]');
   }
   const root = resolve(directory), file = resolve(root, CELL_BASELINE_DESCRIPTOR);
   /** The lint report is the slow part; --check on an unchanged state never builds it [C7]. */
   const build = () => cellLintReport(root, parsers);
   const report = mode === '--check' ? null : build();
-  if (mode === '--shim-update') {
-    mkdirSync(resolve(root, 'bin/cell-lint-baselines'), { recursive: true });
-    writeFileSync(resolve(root, 'bin/cell-lint-baselines/shim-counts.json'), JSON.stringify(shimCountBaseline(report), null, 2) + '\n');
-  } else if (mode === '--report') console.log(JSON.stringify({ ...report, growth: existsSync(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
+  if (mode === '--report') console.log(JSON.stringify({ ...report, growth: existsSync(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
   else if (mode === '--init') {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
@@ -53,10 +46,8 @@ withCellLintParser(compile => {
     else process.exitCode = cachedCellsRun(root, ['cell-lints', mode], () => {
       const current = build();
       const problems = cellLintGrowth(current, baseline);
-      const shimProblems = shimBaselineProblems(current);
-      for (const problem of shimProblems) console.error(problem);
       for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
-      return shimProblems.length || problems.some(row => !row.advisory) ? 1 : 0;
+      return problems.some(row => !row.advisory) ? 1 : 0;
     }, { code: [fileURLToPath(import.meta.url)] });
   }
 });
