@@ -76,3 +76,4 @@ export {
   activeHandleSummary,
   installTestChildDrain,
 } from './src/shell/test-child-drain.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
