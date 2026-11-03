@@ -1,6 +1,7 @@
 /** A green native test account covers every selected file even when its reporter emits no case timings [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -12,6 +13,8 @@ import { runCliInProcess } from './cli-in-process-fixture.js';
 import { copyFixtureRunner } from './fixture-runner-copy.js';
 import { writeTestTiers } from '../packages/gate/index.js';
 import { requireTestTierAccount } from '../packages/gate/index.js';
+import { loadConfig } from '../packages/config/index.js';
+import { frozenCheckCeilingMs } from '../packages/config/index.js';
 
 /** Commit real fixture source through its ordinary installed hooks. */
 function commit(box, cwd, message) {
@@ -29,8 +32,18 @@ async function json(box, cwd, ...args) {
 
 test('a green dot-reporter gate records both selected files and accepts with its native test account [C7,V4]', async t => {
   const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  let box;
+  t.after(async () => {
+    if (box) {
+      const directory = join(box.repo, '.git/pullboard/review-comparisons');
+      const jobs = existsSync(directory) ? readdirSync(directory).map(job => join(directory, job)) : [];
+      // The worker writes this terminal result only after its real comparison CLI child has closed.
+      await helpers.waitFor(() => jobs.every(job => existsSync(join(job, 'result.json'))),
+        'owned automatic comparison to finish before cleanup', frozenCheckCeilingMs(loadConfig(box.repo)));
+    }
+    helpers.cleanup();
+  });
+  box = helpers.project('true');
   const runner = 'node bin/run-tests.js --test-reporter=dot';
   const check = `node -e "if (!require('node:fs').readFileSync('packages/alpha/index.js', 'utf8').includes('value = 2')) process.exit(1)"`;
   copyFixtureRunner(resolve(import.meta.dirname, '..'), box.repo);
