@@ -1,6 +1,7 @@
 /** Shared SQLite generations keep transport recovery separate from cleanup and capacity policy [C7]. */
 import { randomUUID } from 'node:crypto';
-import { healDelay, healLeakedRunner } from './runner-leak-heal.js';
+import { healDelay } from './runner-leak-heal.js';
+import { healLeakedRunner } from './runner-leak-heal.js';
 
 /** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
 export function recoveryIdentity(value) {

@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 
 /** Seconds a no-holder runner waits between heal attempts; a healed runner returns well inside a minute. */
-const HEAL_RETRY_MS = 30_000;
+export const HEAL_RETRY_MS = 30_000;
 /** The longer wait for runners that may still be doing work. */
 const CLEANUP_RETRY_MS = 300_000;
 

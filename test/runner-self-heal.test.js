@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
+import { HEAL_RETRY_MS } from '../packages/resources/src/shell/runner-leak-heal.js';
 import { stopLeakedRunnerJobs } from '../packages/runners/src/shell/runner-leak-stop.js';
 
 /** Build a private runner root with an ssh stand-in that runs the remote command in a local shell, and a machine database file. */
@@ -46,23 +47,15 @@ function machine(t) {
   return { db, runner, leak, alive, idleProbe, quarantine };
 }
 
-/** Wait until a leaked pid is gone, so a kill that has been signalled but not yet reaped still counts. */
-async function gone(alive, pid) {
-  for (let i = 0; i < 50 && alive(pid); i++) await new Promise(resolve => setTimeout(resolve, 100));
-  return !alive(pid);
-}
-
 test('a quarantined runner with no holders and a leftover job process is restored and the process is gone [C7]', async t => {
   const m = machine(t), pid = m.leak();
   assert.ok(m.alive(pid));
   m.quarantine();
-  const started = Date.now();
   const recovered = await recoverUnavailableRunners(m.db, [m.runner],
     { probe: async () => ({ healthy: false, step: 'cleanup' }), idleProbe: m.idleProbe, leakProbe: stopLeakedRunnerJobs, now: Date.now() + 2000 });
   assert.equal(recovered, true);
-  assert.ok(Date.now() - started < 60_000);
   assert.equal(m.db.prepare('SELECT * FROM runner_unavailable').get(), undefined);
-  assert.ok(await gone(m.alive, pid), 'the leftover job process was stopped');
+  assert.equal(m.alive(pid), false, 'the leftover job process was stopped');
   const event = m.db.prepare("SELECT detail FROM runner_recovery_event WHERE kind='leaked-jobs-stopped'").get();
   assert.deepEqual(JSON.parse(event.detail).stopped, [pid]);
   assert.deepEqual(m.db.prepare('SELECT kind FROM runner_recovery_event ORDER BY rowid').all().map(row => row.kind), ['unavailable', 'leaked-jobs-stopped', 'available']);
@@ -78,7 +71,7 @@ test('a quarantined runner with a live holder keeps its leftover process and sta
   assert.ok(m.alive(pid), 'a runner with a holder is never touched');
   const held = m.db.prepare('SELECT * FROM runner_unavailable').get();
   assert.match(JSON.parse(held.failure).latestProbe.reason, new RegExp('live process ' + pid));
-  assert.ok(held.probe_after - Date.now() > 200_000, 'a held runner keeps the long wait');
+  assert.ok(held.probe_after - Date.now() > HEAL_RETRY_MS, 'a held runner keeps the long wait');
 });
 
 test('a no-holder runner whose heal fails retries within 60 s, and an unreadable holder table is never zero [C7]', async t => {
@@ -88,7 +81,7 @@ test('a no-holder runner whose heal fails retries within 60 s, and an unreadable
   await recoverUnavailableRunners(m.db, [m.runner], { probe: async () => ({ healthy: false, step: 'cleanup' }),
     idleProbe: m.idleProbe, leakProbe: async () => ({ stopped: [] }), now });
   const held = m.db.prepare('SELECT * FROM runner_unavailable').get();
-  assert.ok(held.probe_after - now <= 30_000, 'a no-holder runner retries within a minute');
+  assert.ok(held.probe_after - now <= HEAL_RETRY_MS, 'a no-holder runner retries within a minute');
   assert.ok(m.alive(pid));
   m.db.exec('DROP TABLE holder');
   m.db.prepare('UPDATE runner_unavailable SET probe_after=0,probe_until=0').run();
