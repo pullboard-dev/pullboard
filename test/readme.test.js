@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { FIGURES, drawLifecycle } from '../docs/img/draw.mjs';
 import { themeVariants } from '../docs/img/theme.mjs';
-import { HELP, commandPhrases } from '../src/help.js';
+import { help$HELP as HELP, commandPhrases } from '../apps/cli/index.js';
 import { MACHINE } from '../src/machine.js';
 import { agentsBlock } from '../src/doctrine.js';
 import { createE2eHelpers } from './e2e-helpers.js';

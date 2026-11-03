@@ -87,6 +87,12 @@ async function remoteCells(encoded) {
     return result.stdout;
   };
   const git = (...args) => run('git', ['--no-replace-objects', ...args]);
+  // Generic projects have no cells plan or Pullboard's own checker modules. Match the local no-plan result on the runner.
+  if (!git('ls-tree', '--name-only', input.main, '--', 'bin/cells-plan.json').toString().trim()) {
+    process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify({ acceptedMain: input.main, source: input.source,
+      cells: [], existingCuts: [], problems: [], warnings: [], reorg: null }) + '\n');
+    return;
+  }
   const objects = git('rev-parse', '--path-format=absolute', '--git-path', 'objects').toString().trim();
   if (!objects || /[\r\n]/u.test(objects)) throw new Error('invalid object directory');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cells-trusted-'));

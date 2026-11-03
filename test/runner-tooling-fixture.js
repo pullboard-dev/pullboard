@@ -162,7 +162,7 @@ async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, fi
  */
 export async function runThroughGate(repo, env, command, { browser = true, timing = false, item = '663', kind = 'check', landing = false, toolingRoot = resolve(import.meta.dirname, '..'), requests, deadlines } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'src', 'gate.js')).href;
+  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});

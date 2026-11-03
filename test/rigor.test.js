@@ -365,8 +365,8 @@ test('a repeated failure cause is noticed [D1,V1]', () => {
   const uncausedItem = board.add('Uncaused');
   board.submit(uncausedItem); board.reject(uncausedItem, undefined, `${catalog.slice('test:'.length).replace('::', ': ')} failed`);
   // Merge conflicts on two items never list, however often they recur.
-  board.submit(conflictA); board.landReopen(conflictA, { file: 'src/help.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
-  board.submit(conflictB); board.landReopen(conflictB, { file: 'src/help.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
+  board.submit(conflictA); board.landReopen(conflictA, { file: 'src/sample-conflict.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
+  board.submit(conflictB); board.landReopen(conflictB, { file: 'src/sample-conflict.js', name: 'conflicts with main 8b8dc50e (0.8.29), merge main and resubmit' });
   board.close();
 
   const repeated = json(box, 'rigor');
