@@ -1314,6 +1314,24 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "relay/Dockerfile",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
+    },
+    {
+      "path": "relay/server.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "relay/smoke.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)",
+      "owner": "app:relay"
+    },
+    {
+      "path": "relay/README.md",
+      "reason": "Railway deploy checklist stays beside the deployed relay/Dockerfile (#1592)"
+    },
+    {
       "path": "src/reviews-first-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },

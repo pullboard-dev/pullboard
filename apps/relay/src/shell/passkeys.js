@@ -10,7 +10,7 @@ import {
   createPublicKey,
   verify,
 } from 'node:crypto';
-import { Refused } from '../packages/kernel/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 const USER_PRESENT = 0x01;
 const ATTESTED = 0x40;
