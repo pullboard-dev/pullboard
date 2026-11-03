@@ -118,7 +118,7 @@ test('a live job stays unavailable and its next idle probe waits five minutes [C
 
 test('a job owner outside its job cwd blocks recovery only until that process exits [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href;
-  const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../packages/runners/index.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
     import { spawn } from 'node:child_process';
     import { once } from 'node:events';

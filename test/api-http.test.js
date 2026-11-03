@@ -3,7 +3,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
 
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
@@ -184,7 +184,7 @@ try {
   const provenanceChecks = [];
   if (codeMetadataMarker) {
     const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
-    const { openBoard, openBoardForRead } = await import(new URL('../native-board.js', pathToFileURL(serveFile)));
+    const { openBoard, openBoardForRead } = await import(new URL('../../apps/lib/index.js', pathToFileURL(serveFile)));
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID

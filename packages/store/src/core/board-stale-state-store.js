@@ -10,6 +10,9 @@ import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 import { redReturnLeaseHolds } from "./red-return-lease.js";
+import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../src/pinned-claim-lapse-engine.js";
+import { PINNED_CLAIM_RELEASE_MS } from "./pinned-claim.js";
+import { itemPinned } from "./pinned-claim.js";
 
 /** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
@@ -114,7 +117,8 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
   const last = staleInstant(row.workActivity, observed);
-  const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
+  const pinnedLapse = row.idle === 'release' && (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, item.item_id);
+  const limit = row.idle === 'release' ? (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS) : CLAIM_STALL_MS;
   if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
   if (['release', 'progress'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
     || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length

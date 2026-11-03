@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /** Private finite worker: no actor argument, credentials, host override or inherited admission [C7,V4]. */
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 const { openBoardForRead } = nativeBoard;
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
-import { runnerExecutionServices } from '../src/runners.js';
+import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 import { isAbsolute } from 'node:path';
 import { runSourceAdvances } from '../packages/sandbox/index.js';

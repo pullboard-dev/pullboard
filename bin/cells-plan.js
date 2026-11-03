@@ -28,7 +28,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { runnerPackage } from '../packages/runners/index.js';
+import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -369,7 +369,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
-      try { workerFiles = new Set(Object.keys(runnerPackage(root).files)); }
+      try { workerFiles = runnerWorkerFiles(root, { importsIn, commonJsIn, files: sharedInventory().files.keys() }); }
       catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
     }
     return workerFiles.has(from) && workerFiles.has(to);

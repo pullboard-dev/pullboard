@@ -1,7 +1,7 @@
 /** Projected capacity is plain input; browser layout and live refresh remain journeys [N26,R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { homeCapacity } from '../../src/view/home.js';
+import { homeCapacity } from '../../apps/view/src/core/view/home.js';
 
 /** A projected measurement, never a forecast calculated by the browser. */
 const CAPACITY = {
