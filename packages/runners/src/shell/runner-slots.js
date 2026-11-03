@@ -49,9 +49,19 @@ export function effectiveRunners(settings) {
 /** Fresh measurements are reused for five minutes; the next actual admission refreshes stale hosts. */
 export const RUNNER_MEASUREMENT_MS = 5 * 60_000;
 
+/**
+ * Whether the gate reads live load (#2509): when gate.loadAwareDispatch is on, and by default once any runner
+ * is measured; off only when set off. Why on by default: an overloaded runner fails every job it takes.
+ * The gate's own gateRunnerLoadPolicy states the same rule.
+ */
+function liveLoadEnabled(settings) {
+  const setting = settings?.gate?.loadAwareDispatch;
+  return setting === true || setting !== false && (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
+}
+
 /** Refresh outside resource admission; only an authenticated healthy nonce can replace measured facts. */
 export async function refreshRunnerMeasurements(settings, { measure, record, now = Date.now() }) {
-  const cpu = settings.gate?.loadAwareDispatch === true;
+  const cpu = liveLoadEnabled(settings);
   if (settings.gate?.measuredSlots !== true && !cpu) return;
   if (typeof measure !== 'function' || typeof record !== 'function') throw new TypeError('runner measurement requires canonical transport and persistence');
   await Promise.all((settings.runners ?? []).map(async runner => {
