@@ -184,7 +184,7 @@ test('a long infra note submits with one bounded automatic shout [V4,B3]', t => 
 });
 
 test('an oversized main red decision preserves the show pointer [V4,B3]', async () => {
-  const { boundedMainRedShout } = await import('../src/commands/submit.js');
+  const { boundedMainRedShout } = await import('../apps/cli/src/shell/commands/submit.js');
   const text = boundedMainRedShout(7, [{ file: 'test/red.test.js', names: ['🧪'.repeat(2000)] }], 'a'.repeat(40));
   assert.ok(Array.from(text).length <= 400);
   assert.match(text, /pullboard show 7/);

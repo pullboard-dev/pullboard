@@ -33,7 +33,7 @@ if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:res
 
 /** Commit a complete installable synthetic generation with the ordinary hooks still enabled. */
 function generation(box, label) {
-  writeFileSync(join(box.repo, 'src', 'commands', 'version.js'), `/** Synthetic generation probe for the pin integration fixture. */
+  writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'version.js'), `/** Synthetic generation probe for the pin integration fixture. */
 import {existsSync,writeFileSync} from 'node:fs';
 import packageData from '../../package.json' with {type:'json'};
 /** Retain this loaded generation while the fixture promotes another build. */
@@ -44,7 +44,7 @@ export async function run(io){
  io.say('${label}');return 0;
 }
 `);
-  const hookFile = join(box.repo, 'src', 'commands', 'hook.js');
+  const hookFile = join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js');
   const originalHook = box.originalHook;
   writeFileSync(hookFile, `import {writeFileSync as writePinHookMarker} from 'node:fs';\nif(process.env.PULLBOARD_PIN_HOOK_MARKER)writePinHookMarker(process.env.PULLBOARD_PIN_HOOK_MARKER,'${label}');\n${originalHook}`);
   box.git(box.repo, 'add', '-A');
@@ -68,7 +68,7 @@ function project(source) {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
-  const originalHook = readFileSync(join(repo, 'src', 'commands', 'hook.js'), 'utf8');
+  const originalHook = readFileSync(join(repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
   // This private project has one committed test; copied package fixtures are not this project's tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   box.git(repo, 'add', '-A');
