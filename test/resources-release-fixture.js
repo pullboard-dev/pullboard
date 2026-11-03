@@ -33,8 +33,8 @@ function command(box, root, ...args) {
 function board(box, root) {
   command(box, root, 'init');
   for (const title of ['Current work', 'Later work', 'Unplanned work']) command(box, root, 'add', 'coordinator', title);
-  command(box, root, 'milestone', 'add', 'current', '--items', '1');
-  command(box, root, 'milestone', 'add', 'later', '--items', '2');
+  command(box, root, 'milestone', 'add', 'current', '--items', '1', '--reason', 'Arrange current release for queue fixture');
+  command(box, root, 'milestone', 'add', 'later', '--items', '2', '--reason', 'Arrange later release for queue fixture');
 }
 
 /** Change only this test's private machine settings, preserving both gate slots. */

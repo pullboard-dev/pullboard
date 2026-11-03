@@ -41,7 +41,9 @@ export function checkProject(box) {
 export function verificationProject(t, { checked = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const project = helpers.project('true');
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';
+  const project = helpers.project('true', sandbox);
   const marker = join(project.dir, 'verification-check-ran');
   const check = 'printf check-ran > ' + "'" + marker.replaceAll("'", "'\\''") + "'";
   const added = project.run(project.repo, 'add', 'web', 'Private admission boundary', '--specs', 'G1',
@@ -56,6 +58,8 @@ export function verificationProject(t, { checked = false } = {}) {
   const submitted = project.run(project.web, 'submit', String(item), '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const head = JSON.parse(submitted.out).commit;
+  project.env.CLAUDECODE = '1';
+  project.env.CLAUDE_CODE_SESSION_ID = 'resource-fixture-reviewer';
   const reviewer = join(project.dir, 'reviewer');
   project.git(project.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   const joined = project.run(reviewer, 'join', 'web');

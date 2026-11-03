@@ -48,7 +48,7 @@ import { verificationProject } from '../../../test/resources-verify-fixture.js';
 const TEMP = [];
 const CHILDREN = new Set();
 const MODULE = pathToFileURL(resolve(import.meta.dirname, '../../resources/index.js')).href;
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const LEASE_HELPERS = createE2eHelpers();
 const PRE_RUNNER_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../test/fixtures/resources-pre-runners.js')).href;
 const SETTINGS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../config/src/shell/settings.js')).href;

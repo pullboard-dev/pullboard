@@ -26,9 +26,9 @@ import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../../../bin/run-tests.js');
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const RESOURCE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../resources/index.js')).href;
-const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/shell/browser-admission.js')).href;
+const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../index.js')).href;
 const PROBE_NAME = 'machine gate slot runner probe [Q4]';
 const PROBE_PATTERN = '^machine gate slot runner probe \\[Q4\\]$';
 const PROBE_PATH_ENV = 'PULLBOARD_GATE_RESOURCE_PROBE_PATH';
@@ -254,7 +254,7 @@ function checkProject(box, { releaseCheck = null } = {}) {
   const initialized = spawnSync(process.execPath, [BIN, 'init'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
-  const joined = spawnSync(process.execPath, [BIN, 'join', 'web'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const joined = spawnSync(process.execPath, [BIN, 'join', 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stderr);
   writeFileSync(script, releaseCheck
     ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
@@ -481,7 +481,8 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const review = join(box.dir, 'check-review');
   const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
-  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api'], { cwd: review, env: box.env, encoding: 'utf8' });
+  const reviewBox = { ...box, env: { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'gate-resource-reviewer' } };
+  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   writeFileSync(box.events, '');
@@ -492,7 +493,7 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const verifyFocusedRelease = join(box.dir, 'release-verify-focused');
   const verifyHolder = launch(box, verifyHolderRoot);
   await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
-  const verify = launch(box, review, ['verify', '1', 'accept', '--note', 'queue fixture']);
+  const verify = launch(reviewBox, review, ['verify', '1', 'accept', '--note', 'queue fixture']);
   await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
   assert.ok(verify.stdoutText.includes('place 1'), 'verify accept prints its queued gate-slot position');
   assert.match(verify.stdoutText, /gate waiting:/);
@@ -664,19 +665,20 @@ syncBuiltinESMExports();
 test('a short slot is offered only to a literal runner call over regular test files [C7]', async () => {
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} bin/run-tests.js test/gate-resource.test.js`;
-  assert.deepEqual(await explicitCheckFiles(root, named), ['test/gate-resource.test.js']);
-  assert.deepEqual(await explicitCheckFiles(root, `out=$(${named} 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - .*probe' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`), ['test/gate-resource.test.js'], 'the frozen-check capture form names its files');
+  const named = `${quote(process.execPath)} bin/run-tests.js packages/gate/tests/gate-resource.test.js`;
+  assert.deepEqual(await explicitCheckFiles(root, named), ['packages/gate/tests/gate-resource.test.js']);
+  assert.deepEqual(await explicitCheckFiles(root, `out=$(${named} 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - .*probe' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`), ['packages/gate/tests/gate-resource.test.js'], 'the frozen-check capture form names its files');
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} bin/run-tests.js`), null, 'a whole suite is not short');
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} bin/run-tests.js test/`), null, 'a directory is not short');
-  assert.equal(await explicitCheckFiles(root, 'npm test test/gate-resource.test.js'), null, 'an opaque runner is not short');
-  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js $(printf test/gate-resource.test.js)'), null, 'shell expansion is not short');
-  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js --unknown test/gate-resource.test.js'), null, 'an unknown option is not short');
+  assert.equal(await explicitCheckFiles(root, 'npm test packages/gate/tests/gate-resource.test.js'), null, 'an opaque runner is not short');
+  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js packages/gate/tests/../../../test/cells.test.js'), null, 'path traversal is not a package test');
+  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js $(printf packages/gate/tests/gate-resource.test.js)'), null, 'shell expansion is not short');
+  assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js --unknown packages/gate/tests/gate-resource.test.js'), null, 'an unknown option is not short');
   assert.equal(await explicitCheckFiles(root, 'node bin/run-tests.js test/short-missing.test.js'), null, 'a missing file is not short');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...process.env, NODE_OPTIONS: '--trace-warnings' } }), null, 'NODE_OPTIONS is not short');
   const head = runFixtureChild('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
   assert.equal(head.status, 0, head.stderr);
-  assert.deepEqual(await explicitCheckFiles(root, named, { commit: head.stdout.trim() }), ['test/gate-resource.test.js'], 'a review reads the files from the submitted tree');
+  assert.deepEqual(await explicitCheckFiles(root, named, { commit: head.stdout.trim() }), ['packages/gate/tests/gate-resource.test.js'], 'a review reads the files from the submitted tree');
 });
 
 test('short slots behave the same with gate.browserByLaunch on [C7]', async () => {
@@ -685,11 +687,11 @@ test('short slots behave the same with gate.browserByLaunch on [C7]', async () =
   // runner gives its children for that setting, and both name the file. A foreign NODE_OPTIONS still refuses.
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} bin/run-tests.js test/gate-resource.test.js`;
-  const guard = pathToFileURL(resolve(root, 'src/browser-slot-guard.js')).href;
+  const named = `${quote(process.execPath)} bin/run-tests.js packages/gate/tests/gate-resource.test.js`;
+  const guard = pathToFileURL(resolve(root, 'packages/gate/src/shell/browser-slot-guard.js')).href;
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'NODE_OPTIONS'));
-  assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['test/gate-resource.test.js'], 'with gate.browserByLaunch off');
-  assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['test/gate-resource.test.js'], 'with gate.browserByLaunch on');
+  assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['packages/gate/tests/gate-resource.test.js'], 'with gate.browserByLaunch off');
+  assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['packages/gate/tests/gate-resource.test.js'], 'with gate.browserByLaunch on');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: '--import=file:///elsewhere/unclassified.js' } }), null, 'a foreign NODE_OPTIONS is not short');
 });
 
