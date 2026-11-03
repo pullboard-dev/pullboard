@@ -59,7 +59,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   writeFileSync(configPath, JSON.stringify(config, null, 2));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   outcomeReporter(box);
-  commit(box, box.repo, 'chore: record clause inspection runner [C7]');
+  commit(box, box.repo, 'chore: record clause inspection runner');
 
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/inspection');
