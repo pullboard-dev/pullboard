@@ -65,7 +65,9 @@ test('warm runner source moves a clean base and sends only the changed history [
       ${forbidden ? `a.notEqual(c.spawnSync('git',['cat-file','-e',${JSON.stringify(forbidden)}],{encoding:'utf8'}).status,0);` : ''}
       ${mutate ? "f.writeFileSync('tracked.txt','command mutation');f.writeFileSync('command-poison','private job mutation');c.execFileSync('git',['tag','command-poison']);" : ''}
       process.stdout.write('SOURCE_ASSERTIONS_PASSED\\n');`;
-    const result = await runThroughGate(repo, env, `node -e ${shellQuote(body)}`, { browser: false, requests });
+    // budget: dispatch waits on this host's own admission queue, which a loaded reviewer machine can hold past the default
+    // 20 s; this file proves the worker-measured source phase, so dispatch gets 60 s and the remaining deadlines stay.
+    const result = await runThroughGate(repo, env, `node -e ${shellQuote(body)}`, { browser: false, requests, deadlines: { dispatch: 60_000 } });
     assert.equal(result.status, 0, fixtureResultContext(result));
     assert.equal(gateResult(result.stdout).runner, HOST);
     assert.match(result.stdout, /SOURCE_ASSERTIONS_PASSED/u);
