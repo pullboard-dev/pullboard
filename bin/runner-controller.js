@@ -2,12 +2,12 @@
 /** Compose the fresh native runner controller with its fixed private-check policy, never request-selected code [C7,V4]. */
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { serveRunnerController } from '../packages/runners/index.js';
-import { privateCheckEnvelope } from '../apps/runner/index.js';
-import { privateCheckPhases } from '../apps/runner/index.js';
+import { serveRunnerController } from '../src/runners.js';
+import { privateCheckEnvelope } from '../src/runner-private-mode.js';
+import { privateCheckPhases } from '../src/runner-private-mode.js';
 import { runnerItemState } from '../packages/resources/index.js';
 import { controllerDeadline } from '../packages/resources/index.js';
-import { probeRunnerJob } from '../packages/runners/index.js';
+import { probeRunnerJob } from '../src/runners.js';
 
 /** Importing this module never starts a controller; only its exact direct entry accepts bridge input. */
 function isRunnerControllerEntry() {
