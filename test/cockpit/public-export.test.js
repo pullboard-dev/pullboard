@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { withPrivateBoard } from '../../src/projects.js';
+import { withPrivateBoard } from '../../packages/seats/index.js';
 import { atomic } from '../../src/board.js';
 import { closeBoard } from '../../src/board.js';
 import { finishLandingBatch } from '../../src/board.js';
