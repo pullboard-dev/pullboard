@@ -347,3 +347,17 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
   const rerun = reviewRerunClauses(packet);
   return `\nreview packet ${packet.head.slice(0, 12)}: read clauses ${[...new Set(numbers)].sort((a, b) => a - b).join(', ')}; no recorded run: ${rerun.join(', ') || 'none'}`;
 }
+
+/**
+ * What the stored packet at the item's head says an accept must rerun: null with no packet, otherwise
+ * the clause numbers with no recorded run. An empty list lets accept record the verdict from the packet.
+ *
+ * Why: the packet is stored only after a green gate at that exact head, so a clause it covers was already
+ * proved there; rerunning it in a fresh checkout repeats minutes of work and proves nothing new.
+ * A failure recorded at head always forces the frozen check.
+ */
+export function reviewPacketRerun(commonDir, item) {
+  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit);
+  if (!packet) return null;
+  return { head: packet.head, rerun: reviewRerunClauses(packet), failures: packet.failures?.length ?? 0 };
+}
