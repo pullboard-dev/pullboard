@@ -66,7 +66,7 @@ function itemProject() {
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')),
-    gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
+    gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap', submitGate: 'landing' }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test', 'output.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -86,7 +86,12 @@ function itemProject() {
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  return { box, flag };
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'output-summary-candidate.js'), 'export const candidate = true;\n');
+  box.git(box.web, 'add', 'web/output-summary-candidate.js');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): add output summary candidate [G1]');
+  const submittedHead = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  return { box, flag, submittedHead };
 }
 
 /** Keep the real refusal and both diagnostics while reading its full native output artifact. */
@@ -112,7 +117,7 @@ test('a red native submit keeps its authority refusal and prints both cases inst
 });
 
 test('native submit JSON and a red frozen verification expose bounded cases and complete logs [C7,V4,V10]', () => {
-  const { box, flag } = itemProject();
+  const { box, flag, submittedHead } = itemProject();
   const submitted = box.run(box.web, 'submit', '1', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err);
   const document = JSON.parse(submitted.out);
@@ -121,7 +126,7 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   assert.equal(document.gate.profile.tests, undefined, 'case-level records stay in the full timing profile');
   assert.match(readFileSync(document.gate.logPath, 'utf8'), /passing case 199/u);
   const review = join(box.dir, 'review-output');
-  box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output');
+  box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output', submittedHead);
   const joined = box.run(review, 'join', 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
   writeFileSync(flag, 'red');
