@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixture, cli, rows } from './known-main-affected.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { baselineFailureDetails } from '../packages/gate/index.js';
 
 test('a red baseline with two real failing cases prints both first error lines in show [C7]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
@@ -32,4 +33,12 @@ test('a derived main-red repair keeps the actual first error line and show print
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /main red: affected case \[G1\]:/u);
   assert.match(shown.stdout, /Expected values to be strictly equal/u);
+});
+
+
+test('JUnit failures retain decoded names and the first diagnostic line [C7]', () => {
+  const output = '<testsuite><testcase name="first &amp; case"><failure message="expected &lt;one&gt;"/></testcase><testcase name="second"><error>bad value\nstack</error></testcase></testsuite>';
+  assert.deepEqual(baselineFailureDetails(output), [
+    { name: 'first & case', error: 'expected <one>' }, { name: 'second', error: 'bad value' },
+  ]);
 });

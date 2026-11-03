@@ -8,7 +8,7 @@ export { withBrowserSourceFiles, browserSourceFiles, memoryBrowserSourceFiles, s
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/core/capacity-summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/core/check-baseline-format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/shell/check-baseline-worker.js";
-export { checkBaseline, baselineTestEvidence, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/shell/child-journal-preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/shell/chrome-clone-check.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/shell/cpu-load-admission.js";

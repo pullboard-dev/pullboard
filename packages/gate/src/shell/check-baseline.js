@@ -52,6 +52,34 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
   }
 }
 
+/** Decode only XML's built-in and numeric entities in one JUnit attribute or text. */
+function xmlText(value) {
+  return value.replace(/&(?:#(x[0-9a-f]+|[0-9]+)|(amp|lt|gt|quot|apos));/giu, (whole, number, named) => {
+    if (number) {
+      const point = Number.parseInt(number.startsWith('x') ? number.slice(1) : number, number.startsWith('x') ? 16 : 10);
+      return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : whole;
+    }
+    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[named.toLowerCase()];
+  });
+}
+
+/** Read JUnit case names and their first failure message without loading external XML entities. */
+function junitFailures(output) {
+  const rows = [], tags = /<\s*(\/?)(?:[\w.-]+:)?(testcase|failure|error)\b([^<>]*?)(\/?)>/giu;
+  let current = null, tag;
+  while ((tag = tags.exec(output)) && rows.length < 512) {
+    const closing = Boolean(tag[1]), kind = tag[2].toLowerCase();
+    const attrs = Object.fromEntries([...tag[3].matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gu)].map(match => [match[1], xmlText(match[2] ?? match[3])]));
+    if (kind === 'testcase') { current = closing || tag[4] ? null : { name: attrs.name ?? '' }; continue; }
+    if (!closing && current?.name && !current.error) {
+      const body = output.slice(tags.lastIndex, output.indexOf('<', tags.lastIndex) < 0 ? output.length : output.indexOf('<', tags.lastIndex));
+      current.error = (attrs.message ?? xmlText(body)).split(/\r?\n/u).find(line => line.trim())?.trim() ?? '';
+      if (current.error) rows.push({ name: current.name, error: current.error });
+    }
+  }
+  return rows;
+}
+
 /** Keep each TAP failure's first diagnostic line, bounded and scrubbed before it reaches the board. */
 export function baselineFailureDetails(output) {
   const rows = [], stack = [];
@@ -70,9 +98,9 @@ export function baselineFailureDetails(output) {
     if (error) { row.block = /^(?:[|>][-+]?|)$/.test(error[1]); if (!row.block) row.error = error[1].replace(/^['"]|['"]$/gu, ''); }
     else if (row.block && text && text !== '...') row.error = text;
   }
-  return rows.filter(row => row.error).slice(0, 512).map(({ name, error }) => ({
-    name: secretsIn([{ path: 'check output', line: 1, text: name }]).length ? '[redacted test name]' : name,
-    error: secretsIn([{ path: 'check output', line: 1, text: error }]).length ? '[redacted error]' : error.slice(0, 1024),
+  return [...rows.filter(row => row.error), ...junitFailures(String(output ?? ''))].slice(0, 512).map(({ name, error }) => ({
+    name: secretsIn([{ path: 'check output', line: 1, text: name.slice(0, 65536) }]).length ? '[redacted test name]' : name.slice(0, 4096),
+    error: secretsIn([{ path: 'check output', line: 1, text: error.slice(0, 65536) }]).length ? '[redacted error]' : error.slice(0, 1024),
   }));
 }
 
