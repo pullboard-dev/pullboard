@@ -33,7 +33,7 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
   }
 });
 
-test('the moved runner load shim keeps unrelated front-door modules out of the worker capsule [C7]', () => {
+test('the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
   const root = resolve(import.meta.dirname, '..');
   const files = runnerPackage(root).files;
   assert.equal(Object.hasOwn(files, 'src/runner-load.js'), false, 'the worker reaches the canonical load body without the compatibility hop');

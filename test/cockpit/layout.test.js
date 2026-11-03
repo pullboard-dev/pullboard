@@ -156,11 +156,11 @@ test("the authenticated local view assembles its shared and private styles [N26]
     const css = await fetchPage(view, '/view.css');
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-    const dashboardCss = readFileSync(new URL('../../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd();
-    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../../src/view/stage.css', import.meta.url), 'utf8').trimEnd());
-    const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
-    const doctrineCss = readFileSync(new URL('../../src/view/doctrine.css', import.meta.url), 'utf8');
-    const itemPanelCss = readFileSync(new URL('../../src/view/item-panel.css', import.meta.url), 'utf8');
+    const dashboardCss = readFileSync(new URL("../../apps/view/src/shell/view/dashboard.css", import.meta.url), 'utf8').trimEnd();
+    const sharedCss = readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL("../../apps/view/src/shell/view/item-rows.css", import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL("../../apps/view/src/shell/view/stage.css", import.meta.url), 'utf8').trimEnd());
+    const privateCss = readFileSync(new URL("../../apps/view/src/shell/view/cost.css", import.meta.url), 'utf8');
+    const doctrineCss = readFileSync(new URL("../../apps/view/src/shell/view/doctrine.css", import.meta.url), 'utf8');
+    const itemPanelCss = readFileSync(new URL("../../apps/view/src/shell/view/item-panel.css", import.meta.url), 'utf8');
     assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
     assert.equal(sharedCss.split('/* @shared-view-css src/view/doctrine.css */').length - 1, 1, 'the shared view has one Doctrine-style insertion point');
     assert.equal(sharedCss.split('/* @shared-view-css src/view/item-panel.css */').length - 1, 1, 'the shared view has one item-panel style insertion point');

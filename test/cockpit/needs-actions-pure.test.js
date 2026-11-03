@@ -1,8 +1,8 @@
 /** Render person controls from explicit advertised actions without a DOM or fake review [N26,B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { agentApprovalActionsHtml } from '../../src/view/needs-actions.js';
-import { needsActionsHtml } from '../../src/view/needs-actions.js';
+import { agentApprovalActionsHtml } from '../../apps/view/src/core/view/needs-actions.js';
+import { needsActionsHtml } from '../../apps/view/src/core/view/needs-actions.js';
 
 test('approval controls require exact row verbs and person authority on both detail surfaces [N26,B26,C7]', () => {
   const row = { id: 'G1', actions: [{ verb: 'spec-approve', args: { ids: 'G1' } }, { verb: 'spec-decline', args: { ids: 'G2' } }] };
