@@ -460,7 +460,9 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
   const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
   process.stderr.write('browser census started\n');
+  process.env.PULLBOARD_BROWSER_CENSUS_TRACE = '1';
   const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
+  delete process.env.PULLBOARD_BROWSER_CENSUS_TRACE;
   process.stderr.write('browser census finished\n');
   const runnerScenarios = tracked.filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
   assert.ok(runnerScenarios.length > 0, 'the split runner scenarios remain in the browser census');

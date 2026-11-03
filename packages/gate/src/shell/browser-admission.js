@@ -736,7 +736,8 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const safeChildImports = new Map();
     const sourceMemo = new Map(), reachMemo = new Map();
     const bound = [];
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
+      if (process.env.PULLBOARD_BROWSER_CENSUS_TRACE && index % 50 === 0) process.stderr.write(`census ${file}\n`);
       if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo)) bound.push(file);
     }
     return bound;
