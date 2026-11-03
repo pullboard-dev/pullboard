@@ -61,9 +61,9 @@ export async function run(io, { values }) {
   const ctx = context(io);
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
-  const relay = hasRelayState ? await import('../relay.js') : null;
+  const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../packages/link/index.js')) : null;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
-    ? await import('../relay-environment.js') : null;
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../packages/link/index.js')) : null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: relay?.relayLinked ?? (() => false) }, readers);
@@ -87,7 +87,7 @@ export async function run(io, { values }) {
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
-    const exclusion = (await import('../relay-exclusion-state.js')).relayExclusion(ctx.info.root);
+    const exclusion = (await import('../../packages/link/index.js')).relayExclusion(ctx.info.root);
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
   summary.memoryHeld = memoryHeldRuns();
@@ -97,7 +97,7 @@ export async function run(io, { values }) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../packages/outbox/index.js')))) io.say(line);
+  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../packages/outbox/index.js')))) io.say(line);
   const { items, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
   io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);

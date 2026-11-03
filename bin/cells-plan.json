@@ -1360,6 +1360,14 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/main-red-failure-lines-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-quality-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/strict-rename-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"

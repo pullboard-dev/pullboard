@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { cleanupProcessText } from '../index.js';
 import { readCleanupTimeoutDetails } from '../index.js';
 import { createWorkerState } from '../../../apps/runner/src/shell/runner-worker-state.js';
-import { createDescendantTracker } from '../../../src/runner-custody.js';
+import { createDescendantTracker } from '../../../apps/runner/index.js';
 import { beginCleanup } from '../../../apps/runner/src/shell/runner-worker-cleanup.js';
 import { reportCleanupTimeout } from '../../../apps/runner/src/shell/runner-worker-cleanup.js';
 import { spawnOwned } from '../../../apps/runner/src/shell/runner-worker-process.js';

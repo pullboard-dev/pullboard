@@ -1,1 +1,0 @@
-export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from '../packages/link/index.js';
