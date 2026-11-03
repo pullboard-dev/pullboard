@@ -126,6 +126,17 @@ async function signIn(chrome, box) {
   assert.equal(result.success, true, 'the real person session is installed in the isolated browser');
 }
 
+/**
+ * Wait for the loaded page's board, select Items as a person does, then wait for the item.
+ * Why: pages open on the Dashboard and draw only the chosen tab, so the item list exists only once Items is selected.
+ */
+async function showItem(chrome, title, previousDocument) {
+  await chrome.waitFor('performance.timeOrigin !== ' + JSON.stringify(previousDocument)
+    + ' && document.readyState === "complete" && typeof data === "object" && !!data?.project');
+  await chrome.evaluate("document.querySelector('[data-tab=items]').click(); true");
+  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+}
+
 /** Pair a real browser and retain the transport already owned by its cockpit. */
 async function pairedTransport(chrome, box, title, timing = null) {
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -134,10 +145,11 @@ async function pairedTransport(chrome, box, title, timing = null) {
   await signIn(chrome, box);
   timing?.finish();
   timing?.begin('Chrome navigation', relayWorkBudgetMs());
+  const previousDocument = await chrome.evaluate('performance.timeOrigin');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   timing?.finish();
   timing?.begin('page readiness', relayWorkBudgetMs());
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+  await showItem(chrome, title, previousDocument);
   timing?.finish();
   await installRequestTransport(chrome, timing);
   return link;
@@ -240,8 +252,9 @@ test('real paired Chrome transports a person shout while its native snapshot is 
     timing.finish();
 
     timing.begin('browser reload and readiness', relayWorkBudgetMs());
+    const reloadedFrom = await chrome.evaluate('performance.timeOrigin');
     await chrome.send('Page.reload');
-    await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+    await showItem(chrome, title, reloadedFrom);
     assert.equal(await chrome.evaluate("document.querySelector('#relay-notice').textContent"),
       '1 request from this device is waiting for a linked machine to run Pullboard.',
       'the device-local request id survives a page reload without storing its text');

@@ -1,6 +1,5 @@
 import { claimWorktreeSnapshot } from '../untouched-claim-observation.js';
 import { relayRecovered } from '../../packages/link/index.js';
-import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
 import { pinClaimHandoff } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
@@ -8,12 +7,10 @@ import { Refused } from '../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../release-reasons.js';
 import { cleanItemFolders } from '../item-folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 import { refuseHeldElsewhere } from '../../packages/seats/index.js';
 import {
-  nextOnce,
-  withBoardRead,
   actOn,
   idArg,
   ordered,
@@ -37,7 +34,7 @@ async function releaseOnSessionEnd(io) {
       await ordered(ctx, board, 'release', [item.item_id, me.id, note, { worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, 'OTHER']);
       released.push(item.item_id);
     }
-    cleanItemFolders(ctx, board, me, store.listItems);
+    cleanItemFolders(ctx, board, me);
     io.result?.({ released });
     io.say(released.length ? `session ended: released ${released.map(id => `#${id}`).join(', ')}` : 'session ended: no build claim to release');
     return 0;
@@ -49,9 +46,7 @@ export async function run(io, args) {
   const { first, values } = args;
   if (values['session-end'] === true) return releaseOnSessionEnd(io);
   const act = (work) => actOn(io, work);
-  let releasedContext;
   const code = await act(async (ctx, board, me) => {
-  releasedContext = ctx;
   const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
   if (values.on !== undefined && (values.reason !== 'BLOCKED' || values.stale)) throw new Refused('USAGE', '--on requires an ordinary release with --reason BLOCKED');
   const blockedOn = values.on === undefined ? undefined : editAfter(values.on);
@@ -75,7 +70,7 @@ export async function run(io, args) {
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
   const review = await ordered(ctx, board, 'release', args);
-  cleanItemFolders(ctx, board, me, store.listItems);
+  cleanItemFolders(ctx, board, me);
   if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
     const { cleanupMaintenanceLifecycle } = await import('../worktree-maintenance-command.js');
     await cleanupMaintenanceLifecycle(ctx, me.id, { path: ctx.info.root, item: idArg(first), agent: me.id });
@@ -84,6 +79,5 @@ export async function run(io, args) {
   io.say(review ? `released the review of #${first}; the review is free again` : `released #${first}`);
   return 0;
 });
-  if (code === 0) await completeMoveHandoff(releasedContext, idArg(first), values, { id: idArg(first) }, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
 }

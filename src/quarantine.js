@@ -1,2 +1,0 @@
-/** Compatibility shim: quarantine.js now lives in the flakes cell [C7]. */
-export { flakeQuarantines, gateRuns, quarantineOn, quarantineVerdictSnapshot, quarantineWaivers, recordGateRun, recordSealedGateRun, requireBound, requireSubmitDiagnosticAdmission, runReceipt, sealQuarantineVerdict, submitFlakePairs, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineProofIds, validateQuarantineVerdict } from "../packages/flakes/index.js";
