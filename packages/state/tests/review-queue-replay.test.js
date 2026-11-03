@@ -106,35 +106,16 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
   assert.deepEqual(exportBoard(one), before, 'future-engine refusal preserves all rows and the replay cursor');
 });
 
-test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', async (t) => {
-  // An actual released writer seeds this pre-release state; modern submit/reserve would activate newer review policy.
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-v5-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  unpackRelease('v0.8.2', directory);
-  const released = await import(pathToFileURL(join(directory, 'src/board.js')).href);
-  const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
-  assert.equal(machine.ENGINE_VERSION, 5);
-  const seedFile = join(directory, 'seed.sqlite');
-  const seed = released.openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
-  for (const [lane, path] of [['coordinator', '/fixture'], ['web', '/fixture/web-1'], ['web', '/fixture/web-2']])
-    released.register(seed, { lane, path });
-  const item = released.addItem(seed, { by: 'coordinator', lane: 'web', title: 'Review queue fixture' });
-  released.claim(seed, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
-    freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
-  released.submit(seed, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
-  released.reserveReview(seed, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
-  released.closeBoard(seed);
-  // Upgrade the genuine released database through the normal opener before exporting its current schema.
-  const migrated = openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
-  let snapshot;
-  try { snapshot = exportBoard(migrated); }
-  finally { store.closeBoard(migrated); }
-  const [legacyBoard, currentBoard] = [0, 1].map(() => {
-    const board = openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
-    importBoard(board, snapshot);
-    t.after(() => store.closeBoard(board));
-    return board;
-  });
+test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
+  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t);
+  for (const board of [legacyBoard, currentBoard]) {
+    if (board === legacyBoard) board.executionEngineVersion = 4;
+    store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
+      freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
+    submitFixture(board, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+    store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
+    if (board === legacyBoard) delete board.executionEngineVersion;
+  }
   assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
 
   const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
