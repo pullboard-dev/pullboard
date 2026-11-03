@@ -1,3 +1,4 @@
+import { prepareFlakeLanding } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -96,6 +97,7 @@ export async function landOnTrunk(state) {
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  await prepareFlakeLanding(state);
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
