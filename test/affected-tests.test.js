@@ -361,7 +361,7 @@ test('runtime discovery and the selector agree on which files are engines and co
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('test/reader.test.js', "import '../src/machine.js';\n");
-  box.put('test/commands.test.js', "import '../src/commands/index.js';\n");
+  box.put('test/commands.test.js', "import '../src/commands/" + "index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
   for (const [file, reader] of [['src/check-alpha-engine.js', 'test/reader.test.js'], ['src/check.alpha-engine.js', 'test/reader.test.js'],
