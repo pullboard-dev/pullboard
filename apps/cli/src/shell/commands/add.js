@@ -112,7 +112,7 @@ export async function run(io, args) {
   if (authority) item.referenceAuthority = authority;
   const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
-  const { command } = store.validateItemAddition(board, item);
+  const { command, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
@@ -132,7 +132,8 @@ export async function run(io, args) {
       }
     }
   }
-  io.result?.({ item: store.getItem(board, id) });
+  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
+  for (const warning of evidenceWarnings) io.err(warning.message);
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;
