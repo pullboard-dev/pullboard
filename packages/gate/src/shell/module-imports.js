@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { importParseScopes } from './module-import-cache-state.js';
 import { storedCompilations } from './parse-result-store.js';
+import { foreignNodeOptions } from './test-isolation.js';
 import {
   mkdtempSync,
   rmSync,
@@ -40,8 +41,8 @@ const PARSER = [
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function compileSources(sources) {
-  if (process.env.NODE_OPTIONS) return compileFresh(sources);
-  const epoch = JSON.stringify([process.execPath, process.versions.node, PARSER]);
+  if (foreignNodeOptions(process.env.NODE_OPTIONS)) return compileFresh(sources);
+  const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
   return storedCompilations(epoch, sources, compileFresh);
 }
 
