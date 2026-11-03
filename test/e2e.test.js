@@ -142,7 +142,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const freshView = await startView(fresh, repo);
   await freshView.stop();
-  assert.match(next(fresh, repo), /^build #1, commit, then pullboard submit 1/, 'after setup the coordinator’s claim comes first');
+  assert.match(next(fresh, repo), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
