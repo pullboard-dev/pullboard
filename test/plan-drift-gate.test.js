@@ -64,7 +64,7 @@ function success(box, cwd, ...args) {
   return JSON.parse(run.out);
 }
 
-test('native submit names an unplanned source before its check, then the same placed source submits [C7]', t => {
+test('native submit refuses an unplanned source while independent checks run, then the placed source submits [C7]', t => {
   const box = plannedProject(t);
   const id = success(box, box.repo, 'add', 'web', 'Cells move 1/1: place the new source', '--specs', 'G1',
     '--criterion', 'the added source is planned', '--check', 'node check.cjs', '--wait').item.item_id;
@@ -81,7 +81,9 @@ test('native submit names an unplanned source before its check, then the same pl
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
   assert.match(refused.out, /node bin\/cells-plan\.js --place/);
-  assert.equal(existsSync(box.marker), false, 'no check executes before the placement refusal');
+  assert.equal(existsSync(box.marker), true, 'the independent check can finish while preflight refuses the unplaced source');
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
+    'placement refusal records no accepted submission');
   const before = readPlan(box.web);
   const placed = runFixtureChild(process.execPath, [PLAN, '--place', 'src/plan-gate-added.js', '--cell', 'items'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
@@ -133,7 +135,9 @@ test('native view submit validates its core companion placement on the composed 
   const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
-  assert.equal(existsSync(box.marker), false, 'the unplaced bare source never runs its check');
+  assert.equal(existsSync(box.marker), true, 'the independent check can finish while companion placement is refused');
+  assert.equal(JSON.parse(box.run(view, 'show', String(id), '--json').out).item_status, 'claimed',
+    'companion placement refusal records no accepted submission');
   placePath(view, file, { cell: 'app:view' });
   const patch = join(box.dir, 'core-placement.patch');
   writeFileSync(patch, box.git(view, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan') + '\n');
