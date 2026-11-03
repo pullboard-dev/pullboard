@@ -110,6 +110,8 @@ test('a second hold on the same main commit reads main\'s measured count from th
   const [result] = hold(box, commit);
   assert.equal(result.committed, 2);
   assert.equal(result.holds, true);
+  // Later cases share this main tree; drop the rewritten entries so they measure main again.
+  rmSync(folder, { recursive: true, force: true });
 });
 
 test('a rule added on main after the frozen base holds the item [C7]', () => {
@@ -129,4 +131,20 @@ test('a declared count above main\'s measured total never loosens the baseline [
   assert.equal(result.count, 1);
   assert.equal(result.committed, 1, 'declared 2, measured 1: the baseline is 1');
   assert.equal(result.holds, true);
+});
+
+test('a candidate that is exactly current main is measured against current main, not the older frozen main it was handed [C7]', () => {
+  const box = repo();
+  git(box.item, 'merge', '-q', '--ff-only', 'main');
+  const [result] = hold(box, box.main);
+  assert.equal(result.count, 1);
+  assert.equal(result.committed, 1, 'rules and baseline come from current main');
+  assert.equal(result.holds, true);
+});
+
+test('a candidate that does not contain current main is refused, never measured against the older main [C7]', () => {
+  const box = repo();
+  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  const commit = commitAll(box.item, 'feat: change the app without main');
+  assert.throws(() => hold(box, commit), (error) => error.code === 'MAIN_NOT_COMPOSED' && error.message.includes(box.main.slice(0, 12)));
 });

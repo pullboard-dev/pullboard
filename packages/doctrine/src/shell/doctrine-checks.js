@@ -323,16 +323,23 @@ async function runAtCommitAsync(root, commit, command, timeoutMs) {
 }
 
 /**
- * The main a hold judges against: the primary checkout's commit when the candidate already composes it and the
- * accepted main it was handed is an older ancestor of it, else that accepted main.
- * Why: a queued or handed-off submit carries the main it saw first, while its composed tree holds a newer one (#2575).
+ * The main a hold judges against: the primary checkout's commit whenever the candidate contains it, including a
+ * candidate that is exactly that main; the handed accepted main only when the primary checkout is behind it, or when the
+ * hold runs in the primary checkout itself, whose HEAD is the candidate rather than independent evidence of main.
+ * Why: a queued or handed-off submit carries the main it saw first, while current main may be newer (#2575). A candidate
+ * that does not contain current main is refused, never measured against an older main.
  */
 function currentMain(root, mainCommit, commit) {
   let tip = null;
   try { tip = mainCheckout(root)?.commit ?? null; } catch { return mainCommit; }
-  if (!tip || tip === mainCommit || tip === commit) return mainCommit;
+  if (!tip || tip === mainCommit) return mainCommit;
+  const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
+  const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
+  if (gitDir && gitDir === commonDir) return mainCommit;
   const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
-  return ancestor(mainCommit, tip) && ancestor(tip, commit) ? tip : mainCommit;
+  if (ancestor(tip, commit)) return tip;
+  if (ancestor(tip, mainCommit)) return mainCommit;
+  throw new Refused('MAIN_NOT_COMPOSED', `the candidate ${commit.slice(0, 12)} does not contain current main ${tip.slice(0, 12)}, so the doctrine hold cannot count against it; merge current main, commit, and submit again`);
 }
 
 /** The machine-wide file caching one rule's measured problems at one main tree. */
