@@ -156,6 +156,21 @@ function storedFamily(board, id) {
   return path === record.path ? record.family : undefined;
 }
 
+/** Read a bounded group of projections with one query per SQLite parameter chunk. */
+function storedFamilies(board, rows) {
+  const result = new Map(), ids = [...new Set(rows.map(row => row?.agent_id).filter(Boolean))];
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const chunk = ids.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
+    const values = board.db.prepare(`SELECT a.agent_id, a.agent_path, m.meta_value FROM agent a
+      LEFT JOIN board_meta m ON m.meta_key = ? || a.agent_id WHERE a.agent_id IN (${marks})`).all(FAMILY_RECORD_PREFIX, ...chunk);
+    for (const row of values) {
+      const record = parsed(row.meta_value);
+      if ((record?.family === null || namesFamily(record?.family)) && record.path === row.agent_path) result.set(row.agent_id, record.family);
+    }
+  }
+  return result;
+}
+
 /**
  * Record a seat's family once it names one. A read-only board, or a read that cannot take the write lock now, leaves
  * it for the next writer: the family is the same whenever it is recorded.
@@ -273,7 +288,7 @@ export function withDerivedFamilies(board, rows) {
     const derived = withDerivedFamily(board, row);
     return derived ? { ...derived, family: derived.agent_family } : derived;
   });
-  const stored = new Map(rows.map(row => [row?.agent_id, row?.agent_id ? storedFamily(board, row.agent_id) : undefined]));
+  const stored = storedFamilies(board, rows);
   // Seats whose family is recorded need no derivation; only the rest build a snapshot.
   if (rows.every(row => !row || stored.get(row.agent_id) !== undefined)) {
     return rows.map(row => row && { ...row, agent_family: stored.get(row.agent_id), family: stored.get(row.agent_id) });
@@ -307,6 +322,7 @@ export function warmFamilyProjection(board) {
   if (board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(marker)) return;
   const rows = board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all();
   withDerivedFamilies(board, rows);
-  if (rows.some(row => storedFamily(board, row.agent_id) === undefined)) throw new Error('family projection was not recorded');
+  const stored = storedFamilies(board, rows);
+  if (rows.some(row => !stored.has(row.agent_id))) throw new Error('family projection was not recorded');
   board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(marker, '1');
 }
