@@ -83,7 +83,7 @@ function skippedReviewReasons(failures) {
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30 }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -94,7 +94,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
     const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
-      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, focusOnly: true }).item;
+      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
   const route = routeOf(board, agentId);
@@ -151,6 +151,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
+    if (reviewOrder) candidates.sort((a, b) => {
+      const first = reviewOrder.get(a.entry.item_id), second = reviewOrder.get(b.entry.item_id);
+      return (first?.at ?? Infinity) - (second?.at ?? Infinity)
+        || (first?.sequence ?? Infinity) - (second?.sequence ?? Infinity) || a.entry.item_id - b.entry.item_id;
+    });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
       && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
