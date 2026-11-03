@@ -8,7 +8,7 @@ import { BOARD_BUSY_TIMEOUT_MS } from "./board-schema-source.js";
 /** Recognize SQLite's busy code, including extended busy result codes. */
 function isBusy(error) {
   const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;
-  return sqliteCode === 5 || error.code === 'SQLITE_BUSY' || /database is locked/iu.test(error.message ?? '');
+  return sqliteCode === 5 || sqliteCode === 6 || error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED' || /database is locked/iu.test(error.message ?? '');
 }
 
 /**
@@ -33,7 +33,7 @@ export function boardWriteBusyError(db, startedAt, error) {
 
 
 /** Extra time, beyond SQLite's own busy timeout, a board write queues for the lock before BOARD_BUSY (#1854). */
-const DEFAULT_QUEUE_MS = 50_000;
+const DEFAULT_QUEUE_MS = 0;
 
 /** Read the bound per call so a caller or test can set PULLBOARD_BOARD_QUEUE_MS=0 to refuse at SQLite's timeout. */
 function queueMs() {
@@ -44,23 +44,36 @@ function queueMs() {
 
 /**
  * Take the outermost write lock, queueing behind another writer instead of failing at the first busy timeout.
- * SQLite's busy handler is unfair, so one 10 s attempt can lose to a rival's back-to-back short writes
- * although each hold is tens of milliseconds. Each retry is another full attempt; every expired attempt
- * prints the wait and the observed holder, and only a wait past the queue bound refuses with BOARD_BUSY.
+ * Short busy-handler attempts retry within the normal ten-second deadline, so back-to-back writers
+ * cannot consume a fresh ten seconds per attempt. An explicit legacy queue allowance extends that
+ * deadline and announces the holder once; exhaustion always reports BOARD_BUSY.
  *
  * @param {any} db
  * @param {number} startedAt
  */
 export function beginImmediateQueued(db, startedAt, marker = null) {
-  const bound = queueMs();
+  const bound = BOARD_BUSY_TIMEOUT_MS + queueMs();
+  const original = db.prepare('PRAGMA busy_timeout').get().timeout;
   const finish = globalThis[Symbol.for('pullboard.seat-timing.lock')]?.();
-  try { for (;;) {
-    try { db.exec('BEGIN IMMEDIATE'); return; }
-    catch (error) {
-      const refusal = boardWriteBusyError(db, startedAt, error);
-      if (refusal === error || bound === 0 || db.prepare('PRAGMA busy_timeout').get().timeout === 0 || Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS + bound) { discardBoardWriteMarker(marker); throw refusal; }
-      try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round((BOARD_BUSY_TIMEOUT_MS + bound) / 1000)}s): ${refusal.message.replace(/^\[BOARD_BUSY\]\s*/u, '')}\n`); }
-      catch { /* A closed diagnostic stream must not turn a queued write into a refusal. */ }
+  let announced = false;
+  try {
+    for (;;) {
+      const remaining = Math.max(1, bound - (Date.now() - startedAt));
+      db.exec(`PRAGMA busy_timeout = ${Math.min(original, 100, remaining)}`);
+      try { db.exec('BEGIN IMMEDIATE'); return; }
+      catch (error) {
+        if (!isBusy(error) || original === 0 || Date.now() - startedAt >= bound) {
+          discardBoardWriteMarker(marker);
+          throw boardWriteBusyError(db, startedAt, error);
+        }
+        if (!announced && Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS) {
+          announced = true;
+          try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round(bound / 1000)}s)${boardWriteHolderText(db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || ':memory:')}\n`); }
+          catch { /* Diagnostics cannot turn a queued write into a refusal. */ }
+        }
+        // SQLITE_LOCKED has no busy handler; yield without spinning when it returns immediately.
+        if ((error.errcode & 0xff) === 6 || error.code === 'SQLITE_LOCKED') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(10, remaining));
+      }
     }
-  } } finally { finish?.(); }
+  } finally { db.exec(`PRAGMA busy_timeout = ${original}`); finish?.(); }
 }

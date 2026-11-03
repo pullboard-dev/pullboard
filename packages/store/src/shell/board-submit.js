@@ -1,3 +1,5 @@
+import { boardWriteSnapshot } from './board-write-preparation.js';
+import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
 import { gateJudgmentPath } from '../../../verify/index.js';
 import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
@@ -68,6 +70,23 @@ export function sealStrictRenames(board, id, options) {
   return { ...options, strictRenames };
 }
 
+const PREPARED_SUBMITS = new WeakMap();
+
+/** Seal repository reads before taking the write lock, bound to this native connection and snapshot. */
+export function prepareSubmit(board, id, options) {
+  const known = PREPARED_SUBMITS.get(options);
+  if (known?.board === board && known.id === id) return options;
+  const snapshot = boardWriteSnapshot(board);
+  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) {
+    options = sealClauseInspection(board, id, options);
+    options = sealStrictRenames(board, id, options);
+  }
+  requireBoardWriteSnapshot(board, snapshot, 'submit');
+  const prepared = Object.freeze({ ...options });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot });
+  return prepared;
+}
+
 /**
  * Submit your claimed item at a commit (V4, V6). The caller has already checked the tree is clean
  * and run the gate green at that commit.
@@ -81,10 +100,8 @@ export function sealStrictRenames(board, id, options) {
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
-  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) {
-    options = sealClauseInspection(board, id, options);
-    options = sealStrictRenames(board, id, options);
-  }
+  options = prepareSubmit(board, id, options);
+  requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
@@ -108,6 +125,7 @@ export function submit(board, id, options) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
   atomic(board, () => {
+    requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
       if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
