@@ -167,7 +167,7 @@ export function appendProofCounter(board, event) {
   }
   appendRuleProof(board, event, detail, key => proofCounter(board, key), (key, value) => put(board, key, value));
   put(board, 'summary', summary);
-  if (!REPLAYING.has(board)) refreshCapacityCache(board);
+  // The capacity forecast is derived off the write lock (#2578): refreshCapacityOutsideWrite, from background maintenance.
 }
 
 /** Refresh the derived forecast using bounded indexed sample dates, never native history. */
@@ -177,6 +177,23 @@ function refreshCapacityCache(board, options) {
       'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
       .all(`${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`, `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`)
       .map(row => decode(row.meta_value)), options);
+}
+
+/**
+ * Refresh the capacity forecast without holding the board's write lock: plan from plain reads, then store the
+ * few resulting rows in one short transaction through `atomic`. Why: the plan runs a Monte Carlo and a weekly
+ * refit; inside a move it held every writer and reader's lock for seconds (#2578). Returns the keys it stored.
+ */
+export function refreshCapacityOutsideWrite(board, atomic, options) {
+  const writes = new Map();
+  const read = key => writes.has(key) ? writes.get(key) : proofCounter(board, key);
+  refreshCapacity(board, read, (key, value) => writes.set(key, value),
+    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
+      'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
+      .all(`${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`, `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`)
+      .map(row => decode(row.meta_value)), options);
+  if (writes.size) atomic(board, () => { for (const [key, value] of writes) put(board, key, value); }, { reviewPolicy: false });
+  return [...writes.keys()];
 }
 
 /** Optional capacity migration has its own cursor so older writers cannot silently omit events. */
@@ -257,8 +274,12 @@ function ensureReportCounters(board, until) {
   }
 }
 
-/** Rebuild from authoritative history inside the caller's existing write transaction. */
-export function rebuildProofCounters(board) {
+/**
+ * Rebuild from authoritative history inside the caller's existing write transaction.
+ * refresh: false leaves the capacity forecast to background maintenance, so a rebuild
+ * under the write lock never runs the forecast (#2578).
+ */
+export function rebuildProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
   const keepNewer = reportIsNewer(board);
   clearProofCounters(board);
@@ -267,7 +288,7 @@ export function rebuildProofCounters(board) {
   if (!keepNewer) resetReportCounters(board);
   replayProofTail(board, 0);
   ensureCapacityCounters(board, proofCounter(board, 'summary').last);
-  refreshCapacityCache(board, { force: true });
+  if (refresh) refreshCapacityCache(board, { force: true });
 }
 
 /** Catch up an older writer once; ordinary current-writer appends then decode only their new event. */
@@ -275,7 +296,7 @@ export function ensureProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
   ensureRigorCounters(board);
   const summary = proofCounter(board, 'summary');
-  if (!summary) { rebuildProofCounters(board); return; }
+  if (!summary) { rebuildProofCounters(board, { refresh }); return; }
   ensureReportCounters(board, summary.last);
   ensureCapacityCounters(board, summary.last);
   replayProofTail(board, summary.last);
