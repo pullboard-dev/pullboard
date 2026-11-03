@@ -6,10 +6,11 @@ export const executionServices = Object.freeze({ runners: runnerExecutionService
 
 /** Generate literal provider imports beside a fixture's actual gate module, retaining its tooling version. */
 export function executionServicesSource(gateURL) {
-  const url = new URL(gateURL);
-  const door = url.pathname.endsWith('/packages/gate/index.js');
-  const moved = url.pathname.endsWith('/packages/gate/src/shell/gate.js');
-  const runners = new URL(door ? '../runners/index.js' : moved ? '../../../runners/index.js' : './runners.js', gateURL).href;
-  const landing = new URL(door ? '../landing/index.js' : moved ? '../../../landing/index.js' : './landing-shards.js', gateURL).href;
+  const root = new URL(gateURL);
+  const entry = /\/(?:src\/[^/]+\.js|packages\/gate\/(?:index\.js|src\/shell\/[^/]+\.js))$/u.exec(root.pathname);
+  if (!entry) throw new Error('gate fixture needs an exact canonical gate entry');
+  root.pathname = root.pathname.slice(0, entry.index + 1);
+  const runners = new URL('packages/runners/index.js', root).href;
+  const landing = new URL('packages/landing/index.js', root).href;
   return `import { runnerExecutionServices } from ${JSON.stringify(runners)};\nimport { landingExecutionServices } from ${JSON.stringify(landing)};\nconst executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };\n`;
 }

@@ -63,6 +63,23 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
   });
 }
 
+/**
+ * Slots each runner loses to unverified cleanups: one per job whose cleanup is still unproven.
+ * Why: one job's cleanup timeout under load said nothing about the runner's other slots, yet it
+ * quarantined the whole runner for an hour while healthy jobs held it and blocked its idle proof.
+ */
+export function cleanupCharges(db) {
+  const charges = new Map();
+  for (const row of db.prepare("SELECT host, failure FROM runner_unavailable WHERE detail = 'CLEANUP_UNVERIFIED'").all()) {
+    let pending;
+    try { pending = JSON.parse(row.failure)?.pending; } catch { pending = null; }
+    // One job is one slot however often its failure is recorded; an unidentified failure counts on its own.
+    const jobs = Array.isArray(pending) ? new Set(pending.map(entry => recoveryIdentity(entry) ? entry.request + ':' + entry.nonce : Symbol('unknown'))) : new Set();
+    charges.set(row.host, Math.max(1, jobs.size));
+  }
+  return charges;
+}
+
 /** Probe due failed generations outside transactions; only exact or explicit idle proofs restore availability. */
 export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, now = Date.now() } = {}) {
   if (typeof probe !== 'function') return false;
@@ -128,7 +145,8 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       return recovered;
     }
     const attempts = Math.min(16, row.probe_attempts + 1);
-    const delay = ['CLEANUP_UNVERIFIED', 'WORKER_UNRESPONSIVE'].includes(row.detail)
+    // A cleanup re-check is cheap and the runner keeps its other slots, so it comes round every minute.
+    const delay = row.detail === 'CLEANUP_UNVERIFIED' ? 60_000 : row.detail === 'WORKER_UNRESPONSIVE'
       ? 300_000 : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
     db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,probe_after=?,probe_attempts=?,failure=?
       WHERE host=? AND since=? AND probe_token=?`)
