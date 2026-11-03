@@ -13,6 +13,7 @@ const OPTIONS = {
   lane: { type: 'string' },
   specs: { type: 'string' },
   parent: { type: 'string' },
+  wake: { type: 'string' },
   reason: { type: 'string' },
   revises: { type: 'string' },
   status: { type: 'string' },

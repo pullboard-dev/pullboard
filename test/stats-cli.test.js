@@ -20,7 +20,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { proofStats } from '../packages/stats/index.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { boardHoldLog } from '../src/board-hold-log.js';
 

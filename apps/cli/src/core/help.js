@@ -298,3 +298,6 @@ export function commandPhrases(help = HELP) {
   }
   return [...phrases].sort((left, right) => right.length - left.length || left.localeCompare(right));
 }
+
+/** The command catalog the cockpit renderer re-exports, computed here after HELP so no import cycle reads it early. */
+export const PULLBOARD_COMMANDS = Object.freeze(commandPhrases().sort((left, right) => right.split(' ').length - left.split(' ').length));

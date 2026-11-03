@@ -21,7 +21,7 @@ import { githubFixture } from './relay-fixture.js';
 import { board as store } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { storeBoardKey } from '../packages/keys/index.js';

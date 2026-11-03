@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';

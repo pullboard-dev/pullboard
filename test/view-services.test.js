@@ -11,12 +11,12 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { main } from './native-cli-fixture.js';
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
 import { exportView } from '../apps/view/index.js';
 import { serveView, projectState as unprovidedProjectState } from '../apps/view/index.js';
-import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
-import { refusalDocument } from '../src/next-step-words.js';
-import { nativeBoardOpeners } from '../src/cli-context.js';
+import { cockpitPage as unprovidedPage } from '../apps/cli/index.js';
+import { refusalDocument } from '../apps/cli/index.js';
+import { nativeBoardOpeners } from '../apps/cli/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 

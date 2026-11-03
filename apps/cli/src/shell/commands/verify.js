@@ -103,6 +103,7 @@ import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   gateRunnerAdmission,
+  loadMachineSettings,
 } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
@@ -469,8 +470,7 @@ export async function verifyHere(ctx, id, { second, values }) {
 export async function run(io, args) {
   const { first, values } = args;
   const id = idArg(first);
-  const verdictResult = {};
-  const ctx = { ...context(io), verdictResult };
+  const ctx = { ...context(io), verdictResult: {} };
   if (values.compare) {
     if (args.second) throw new Refused('USAGE', 'use pullboard verify <id> --compare without an accept or reject verdict');
     const item = withBoardRead(ctx, board => store.getItem(board, id));
@@ -482,7 +482,7 @@ export async function run(io, args) {
     }
     let compared;
     try {
-      compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
+      compared = await compareVerification(ctx.info.root, item, { main: policy.commit, runnerAvailable: () => executionServices.runners.effectiveRunners(loadMachineSettings()).length > 0,
         selectTests: async (root, pair) => {
           const selected = selectAffectedTests(root, pair);
           const tiered = selectTestTiers(root, pair);
@@ -513,7 +513,7 @@ export async function run(io, args) {
     return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
 }
 

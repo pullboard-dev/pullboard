@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { recordBlock } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';

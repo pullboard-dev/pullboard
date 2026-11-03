@@ -20,7 +20,7 @@ import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { presentationState } from '../apps/relay/index.js';
 import { apiFetch } from './api-fixture.js';

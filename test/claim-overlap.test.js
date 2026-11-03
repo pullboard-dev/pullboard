@@ -42,7 +42,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
   const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
-  const { heartbeatCommand } = await import('../src/cli-presence.js');
+  const { heartbeatCommand } = await import('../apps/cli/index.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   const left = store.register(board, { lane: 'core', path: first, route: 'strong' });
@@ -147,7 +147,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const { createLocalApiHandler } = await import('../packages/api/index.js');
   const { viewApiPorts } = await import('../apps/view/index.js');
   const { apiBoardOpeners } = await import('./board-fixture.js');
-  const { refusalDocument } = await import('../src/next-step-words.js');
+  const { refusalDocument } = await import('../apps/cli/index.js');
   const { main } = await import('./native-cli-fixture.js');
   const { apiFetch } = await import('./api-fixture.js');
   let port = 0;

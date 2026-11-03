@@ -5,7 +5,7 @@ import { apiBoardOpeners } from './board-fixture.js';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
