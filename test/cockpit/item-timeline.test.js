@@ -59,6 +59,8 @@ test('the native item timeline reads as sentences with clamped notes and working
     const apiFacts = item.thread.filter(row => row.type === 'fact');
     const fixtureFactEvents = fixtureFacts.map(fact => item.thread.find(row => row.type === 'fact' && row.id === fact.id));
     assert.deepEqual(fixtureFactEvents.map(fact => fact?.kind), ['note', 'measurement', 'capture'], 'each fixture fact remains in the native item thread');
+    /** Map the native fact kind to the timeline's supported visible tint category. */
+    const timelineKind = kind => ['note', 'measurement', 'fact', 'proof'].includes(kind) ? kind : 'fact';
     assert.ok(item.thread.some(row => row.kind === 'health-resolved'));
     const proofs = item.thread.filter(row => row.kind === 'proof-run');
     assert.ok(proofs.length >= 2, 'the pair comes from actual native checks');
@@ -88,9 +90,9 @@ test('the native item timeline reads as sentences with clamped notes and working
       assert.equal(result.body, body, width + ': all original note words remain in the DOM');
       assert.equal(result.clamp, '3');
       assert.ok(result.height <= result.lineHeight * 3 + 1, width + ': clamped geometry ' + JSON.stringify(result));
-      assert.deepEqual(result.factEvents, apiFacts.toReversed().map(fact => [String(fact.eventId), fact.kind]), `${width}: every native fact appears once in newest-first order`);
+      assert.deepEqual(result.factEvents, apiFacts.toReversed().map(fact => [String(fact.eventId), timelineKind(fact.kind)]), `${width}: every native fact appears once in newest-first order`);
       assert.deepEqual(result.factEvents.filter(([eventId]) => fixtureFactEvents.some(fact => String(fact.eventId) === eventId)),
-        fixtureFactEvents.toReversed().map(fact => [String(fact.eventId), fact.kind]), `${width}: the three fixture facts retain their own identities and labels`);
+        fixtureFactEvents.toReversed().map(fact => [String(fact.eventId), timelineKind(fact.kind)]), `${width}: the three fixture facts retain their own identities and visible categories`);
       assert.deepEqual({ distinctKinds: new Set(result.kindTints).size, railVisible: !['transparent', 'rgba(0, 0, 0, 0)'].includes(result.rail) },
         { distinctKinds: 4, railVisible: true }, width + ': each kind has its own tint and the timeline rail is visible');
       assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
