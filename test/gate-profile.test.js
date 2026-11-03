@@ -289,10 +289,15 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(statSync(verifyPath.slice(0, -'.profile.json'.length)).mode & 0o777, 0o600);
   const verified = JSON.parse(readFileSync(verifyPath, 'utf8'));
   assert.ok(verified.waitMs >= 0 && verified.wallMs > 0);
-  assert.ok(verified.executionSource?.commit, 'the fresh ACCEPT profile names its actual composed source');
-  assert.notEqual(verified.executionSource.commit, commit, 'unrelated main advancement produced a new composed commit');
-  assert.equal(box.git(review, 'show', `${verified.executionSource.commit}:docs/review-context.md`).trim(), 'unrelated main context',
-    'the fresh verification profile was written by the composition that includes the moved main file');
+  const reviewBoard = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let checkedHead;
+  try {
+    checkedHead = store.verdictsFor(reviewBoard, 1).at(-1)?.review?.head;
+  } finally { store.closeBoard(reviewBoard); }
+  assert.ok(checkedHead, 'the sealed fresh ACCEPT review names its actual checked composition');
+  assert.notEqual(checkedHead, commit, 'unrelated main advancement produced a new composed commit');
+  assert.equal(box.git(review, 'show', `${checkedHead}:docs/review-context.md`).trim(), 'unrelated main context',
+    'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
