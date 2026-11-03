@@ -64,10 +64,10 @@ process.exitCode = status;
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
  * Why namespace imports: an accepted main that predates an optional export still links, and the step says what it lacks.
  */
-const ANALYSIS_ENTRY = `import * as items from '../../../../src/packages/items/index.js';
-import * as gate from '../../../../src/packages/gate/index.js';
-import * as landing from '../../../../src/packages/landing/index.js';
-import * as cells from '../../../../src/bin/cells-submit-checks.js';
+const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
+import * as gate from './packages/gate/index.js';
+import * as landing from './packages/landing/index.js';
+import * as cells from './bin/cells-submit-checks.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
