@@ -38,8 +38,8 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6', '--reason', 'Arrange the fixture releases');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5', '--reason', 'Arrange the fixture releases');
   box.run(alpha.repo, 'milestone', 'ship', '0.9.3', '--next', '0.9.4: Restructure for Speed and Cost');
   const roadmap = JSON.parse(box.run(alpha.repo, 'roadmap', '--json'));
   const shipped = roadmap.milestones.find(milestone => milestone.name === '0.9.3');
