@@ -93,7 +93,9 @@ export function waiverLine(failure) {
 
 /** Record every failure's exact live waiver rather than changing which tests the gate runs. */
 export function waivedProof(state, gate) {
-  if (!completeGate(gate) || gate.requiresGreen) return null;
+  if (gate.requiresGreen) return null;
+  if (gate.knownMainProof && completeGate(gate, { allowCancelled: true })) return gate.knownMainProof;
+  if (!completeGate(gate)) return null;
   if (gate.knownMainProof) return gate.knownMainProof; // Red only in cases red on main: nothing to waive (#2586).
   if (gate.knownMain && !gate.accounted?.length) return null; // Own cases left unaccounted cannot become a waived proof.
   const failures = waivedFailures(state.board, gate.accounted, state.landingPorts);
