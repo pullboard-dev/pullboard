@@ -1,6 +1,5 @@
 /** @pullboard-test-input source-tree */
 /** Exercise the real registered-runner flake ledger with an isolated committed source [C7]. */
-import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,13 +20,12 @@ export async function runPairedRerun(t, mode, { createE2eHelpers, cli, observe, 
   for (const folder of [fixtureBin, remoteMachineHome, worker, join(repo, 'test')]) mkdirSync(folder, { recursive: true });
   const env = { ...box.env, PATH: fixtureBin + ':' + box.env.PATH };
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
-  copyCommittedPackageFiles(box, join(import.meta.dirname, '..'), { directory: 'tooling' });
   // Red on its first run, green on its paired rerun: a flake the ledger should record.
   const runs = join(box.dir, 'flaky-runs');
   writeFileSync(join(repo, 'test/flaky.test.js'), `import { test } from 'node:test'; import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-test('remote flaky case', () => { const n = existsSync(${JSON.stringify(runs)}) ? readFileSync(${JSON.stringify(runs)}, 'utf8').length : 0; appendFileSync(${JSON.stringify(runs)}, 'x'); if (n === 0) throw new Error('first run fails'); });\n`);
+test('remote flaky case [C7]', () => { const n = existsSync(${JSON.stringify(runs)}) ? readFileSync(${JSON.stringify(runs)}, 'utf8').length : 0; appendFileSync(${JSON.stringify(runs)}, 'x'); if (n === 0) throw new Error('first run fails'); });\n`);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'node tooling/bin/run-tests.js test/flaky.test.js', flakes: { rerun: true } }) + '\n');
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'node --test --test-reporter=tap test/flaky.test.js', flakes: { rerun: true } }) + '\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'test: a remote flaky fixture');
   const preload = join(box.dir, 'worker-preload.mjs');
