@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
+import { initializeRunnerRecovery, updateRunnerSettings, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
 import { HEAL_RETRY_MS } from '../packages/resources/src/shell/runner-leak-heal.js';
 import { stopLeakedRunnerJobs } from '../packages/runners/src/shell/runner-leak-stop.js';
 
@@ -44,7 +44,7 @@ function machine(t) {
   };
   const runner = { host: 'fixture-host', root, slots: 1, browser: 0 };
   const quarantine = () => recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'controller orphan' });
-  return { db, runner, leak, alive, idleProbe, quarantine };
+  return { dir, db, runner, leak, alive, idleProbe, quarantine };
 }
 
 test('a quarantined runner with no holders and a leftover job process is restored and the process is gone [C7]', async t => {
@@ -89,4 +89,23 @@ test('a no-holder runner whose heal fails retries within 60 s, and an unreadable
     idleProbe: m.idleProbe, leakProbe: stopLeakedRunnerJobs, now: now + 1 });
   assert.ok(m.alive(pid), 'without a readable holder table nothing is stopped');
   assert.equal(existsSync(m.runner.root), true);
+});
+
+test('a registration during the leaked job cleanup cannot clear the quarantine or admit work under the kill [C7]', async t => {
+  const m = machine(t), pid = m.leak();
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = m.dir;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  m.quarantine();
+  let during;
+  const leakProbe = async runner => {
+    updateRunnerSettings(runner.host, () => ({ ...runner }));
+    during = m.db.prepare('SELECT host FROM runner_unavailable').get();
+    return stopLeakedRunnerJobs(runner);
+  };
+  const recovered = await recoverUnavailableRunners(m.db, [m.runner],
+    { probe: async () => ({ healthy: false, step: 'cleanup' }), idleProbe: m.idleProbe, leakProbe, now: Date.now() + 2000 });
+  assert.equal(during?.host, m.runner.host, 'registration left the quarantine standing while cleanup ran');
+  assert.equal(recovered, true);
+  assert.equal(m.alive(pid), false);
 });

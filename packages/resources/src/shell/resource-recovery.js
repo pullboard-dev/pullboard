@@ -117,7 +117,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
         result = restart;
       }
     }
-    if (result?.healthy !== true && row.detail === 'CLEANUP_UNVERIFIED') result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe });
+    if (result?.healthy !== true && row.detail === 'CLEANUP_UNVERIFIED') result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe, token, now });
     if (result?.healthy === true) {
       const recovered = auditedChange(db, () => {
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?

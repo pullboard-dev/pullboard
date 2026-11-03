@@ -817,7 +817,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
         db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET capacity = excluded.capacity')
           .run(resourceName, result.slots);
       }
-      db.prepare('DELETE FROM runner_unavailable WHERE host = ?').run(host);
+      db.prepare('DELETE FROM runner_unavailable WHERE host = ? AND probe_until <= ?').run(host, Date.now());
       db.prepare('DELETE FROM runner_draining WHERE host = ?').run(host);
       return result;
     });
