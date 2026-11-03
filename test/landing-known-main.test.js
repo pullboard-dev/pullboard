@@ -108,8 +108,15 @@ test('a batch red only in a case red on main lands and names that case as known-
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
 });
 
-test('a batch holding one case red on main and one red only in the batch fails only on the second [B3,C7]', () => {
+test('a batch holding a main red and a case passing on base fails only on the merged-only case [B3,C7]', () => {
   const box = redMainProject();
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    assert.equal(commitFile(box, box.repo, 'web/land-1.test.js', 'PASS\n', 'test(web): establish passing base case [G1]').status, 0);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
+  const base = runFixtureChild(process.execPath, [join(box.dir, 'land-gate.cjs'), '--alone', 'web/land-1.test.js'],
+    { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
+  assert.equal(base.status, 0, `the case passes on the actual base main: ${base.stderr}\n${base.stdout}`);
   const entry = acceptedItem(box, 1, 'RED NAME:batch-red-case\n');
   box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
