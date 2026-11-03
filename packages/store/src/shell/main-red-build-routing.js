@@ -2,6 +2,7 @@ import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { pendingSubmitHandoff } from './submit-handoff-read.js';
+import { ineligibleReleaseIds } from './next-release-cooldown.js';
 /** Plan main-red build offers without taking another seat's work or releasing a claim [C7,N2]. */
 import * as store from "./board.js";
 
@@ -36,7 +37,7 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
     }
     const omitIds = items.filter(item => !repairs.has(item.item_id) && item.item_id !== claim?.item_id).map(item => item.item_id);
     const selected = store.nextFor(board, { agentId: seat.agent_id, lane: seat.agent_lane,
-      priority: [...repairs], omitIds, runnable, workingFiles, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
+      priority: [...repairs], omitIds: [...omitIds, ...ineligibleReleaseIds(board, seat.agent_id)], runnable, workingFiles, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
     if (!selected.item || !repairs.has(selected.item.item_id) || selected.item.item_lane !== seat.agent_lane) continue;
     // Renewals are separate events, so renewing a half-built item never makes it the newest build.
     const started = claim ? board.db.prepare("SELECT event_id FROM event WHERE event_kind='claim' AND item_id=? AND event_by=? ORDER BY event_id DESC LIMIT 1")

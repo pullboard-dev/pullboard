@@ -74,6 +74,10 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!(values.verify && values.verifyId !== undefined)) {
+    const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+    values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
+  }
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
@@ -132,6 +136,7 @@ function otherLaneWork(me, item, reasons) {
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
+  const omitIds = [...new Set([...(values.omitIds ?? []), ...store.ineligibleReleaseIds(board, me.id)])];
   const items = store.listItems(board), agents = store.listAgents(board);
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -146,7 +151,7 @@ function nextPick(ctx, board, values) {
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds, observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
   const firstReview = () => store.reviewOffer(board, { ...selection, mandatoryOnly: true,
     priority: [], skipIds: selection.skipIds });
@@ -162,14 +167,14 @@ function nextPick(ctx, board, values) {
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
+    observeIdle: values.observeIdle, omitIds, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   const offer = held && found?.urgent !== 'age' ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
-    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), focusOnly: true });
+    omitIds, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), focusOnly: true });
   const focusedReview = focus && !held && !values.build
     ? relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findFocusedReview) : findFocusedReview() : null;
   const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)

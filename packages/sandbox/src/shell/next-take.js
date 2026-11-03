@@ -33,6 +33,7 @@ function selected(ctx, board, values, services) {
   const me = whoAmI(ctx, board);
   const mandatory = store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
+    omitIds: values.omitIds ?? [],
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
   if (mandatory?.mandatory && !store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id)) {
     return { item: mandatory.item, review: true, held: false, reasons: [] };
@@ -65,6 +66,8 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
+  const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+  values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   const looked = withBoardRead(ctx, board => selected(ctx, board, values, services));
   if (looked.releaseRequest) {
     const me = withBoardRead(ctx, board => whoAmI(ctx, board));
