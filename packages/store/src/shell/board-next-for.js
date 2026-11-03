@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
@@ -100,7 +101,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   };
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
-  const allItems = listItems(board).reverse();
+  const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   const items = allItems
     .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
     .sort((first, second) => tier(second) - tier(first));
@@ -237,6 +238,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
+    if (diagnosisProblem) { reasons.push(diagnosisProblem.message); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)

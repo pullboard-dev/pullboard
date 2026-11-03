@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
@@ -85,6 +86,8 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     validateReferences(brief, { actor: proof?.actor ?? by,
       authors: proof?.authors ?? referenceAuthors, authority: proof?.authority ?? referenceAuthority });
   }
+  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route });
+  if (diagnosisProblem) throw diagnosisProblem;
   checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
   if (parentId !== null) {
     const parent = itemById(board, parentId);

@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
@@ -159,6 +160,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     item_after: after === undefined ? item.item_after : after.join(','),
   };
   checkRoute(next.item_route);
+  const diagnosisProblem = lightDiagnosisProblem(board, { ...item, ...next });
+  if (diagnosisProblem) throw diagnosisProblem;
   const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
