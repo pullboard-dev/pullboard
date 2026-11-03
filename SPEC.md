@@ -48,6 +48,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
 - B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
 - B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
+- B37 [draft, must] When lanes are on, every item is built in its own lane; the coordinator claims only coordinator-lane items. (Proposed change to B12, Corey approved 3 Nov.) | gate: review
+- B38 [draft, must] When lanes are on, below strong an item needs a criterion, a check command, and a brief naming its test and in-lane files. (Proposed change to B14, Corey approved 3 Nov.) | gate: review
+- B39 [draft, must] When lanes are on and only work above an agent's tier is open in its lane, next names it and the ways through. (Proposed change to B16, Corey approved 3 Nov.) | gate: review
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -91,6 +94,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/config/tests/lanes.test.js
 - L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: test/e2e.test.js
 - L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: test/e2e.test.js
+- L5 [draft, must] When lanes are off, a seat joins the board, next offers any item its route covers, and pre-commit and submit check the claimed item's cells. (Corey approved lanes off, 3 Nov.) | gate: review
+- L6 [draft, must] When lanes are on, in a lane's worktree pre-commit refuses changes outside the lane, moves included. (Proposed change to L3, Corey approved 3 Nov.) | gate: review
+- L7 [draft, must] When lanes are on, a worktree that has not joined a lane cannot commit. (Proposed change to L4, Corey approved 3 Nov.) | gate: review
 
 ## S · Spec
 - S1 [approved, must] SPEC.md holds one row per line: id, status, text, gate, what it serves. | gate: test/spec.test.js
