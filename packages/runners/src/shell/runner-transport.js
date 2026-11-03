@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { recoveryIdentity } from '../../../resources/index.js';
-import { DatabaseSync } from 'node:sqlite';
+import { openPoolReadOnly } from '../../../resources/index.js';
 import { mkdirSync } from 'node:fs';
 import { linkSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -36,7 +36,7 @@ function environment() {
 function word(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
 /** Confirm SSH and the configured Node answer a fresh nonce; this does not attest worker cleanup or test success. */
-export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false } = {}) {
+export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false, discoverNode = false } = {}) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u.test(runner?.host ?? '')
     || runner.node !== undefined && (typeof runner.node !== 'string' || /[\u0000-\u001f\u007f]/u.test(runner.node)
       || !(runner.node === 'node' || runner.node.startsWith('/')))) {
@@ -44,12 +44,13 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   }
   const nonce = randomUUID();
   const desktop = observeGui || observeLoad ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};const os=require('node:os');` : '';
-  const answer = `process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${observeGui ? ',gui:guiSession(),cores:os.availableParallelism(),memoryMB:Math.floor(os.totalmem()/1048576)' : ''}${observeLoad ? ',cpuLoad:{at:new Date().toISOString(),busyPercent:busy,average:os.loadavg()}' : ''}}))`;
+  const answer = `process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${discoverNode ? ',nodePath:process.execPath' : ''}${observeGui ? ',gui:guiSession(),cores:os.availableParallelism(),memoryMB:Math.floor(os.totalmem()/1048576)' : ''}${observeLoad ? ',cpuLoad:{at:new Date().toISOString(),busyPercent:busy,average:os.loadavg()}' : ''}}))`;
   // Both snapshots run on the destination; controller CPU counters never stand in for a runner.
   const script = observeLoad ? `${desktop}const first=os.cpus();setTimeout(()=>{const last=os.cpus();let idle=0,total=0;for(let i=0;i<last.length;i++){if(!first[i])continue;for(const key of Object.keys(last[i].times)){const delta=last[i].times[key]-first[i].times[key];total+=delta;if(key==='idle')idle+=delta;}}const busy=total>0?100*(1-idle/total):null;${answer}},100);` : `${desktop}${answer}`;
+  const command = `${word(runner.node ?? 'node')}${observeGui || observeLoad ? ' --input-type=commonjs' : ''} -e ${word(script)}`;
+  const remote = discoverNode ? 'exec "${SHELL:-/bin/sh}" -lc ' + word(command) : command;
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
-    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host,
-    `${word(runner.node ?? 'node')}${observeGui || observeLoad ? ' --input-type=commonjs' : ''} -e ${word(script)}`];
+    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
   const child = spawn('ssh', args, { env: environment(), stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '', stderr = '', error = null, timedOut = false, kill;
   /** Keep a misbehaving transport bounded without changing any native execution budget. */
@@ -72,7 +73,7 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   const measured = cpu && Number.isFinite(Date.parse(cpu.at)) && Number.isFinite(cpu.busyPercent) && cpu.busyPercent >= 0 && cpu.busyPercent <= 100
     && Array.isArray(cpu.average) && cpu.average.length === 3 && cpu.average.every(n => Number.isFinite(n) && n >= 0);
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
-  return { healthy: Boolean(healthy), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
+  return { healthy: Boolean(healthy), ...(healthy && discoverNode && typeof reply?.nodePath === 'string' && isAbsolute(reply.nodePath) && !/[\u0000-\u001f\u007f]/u.test(reply.nodePath) ? { nodePath: reply.nodePath } : {}), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
     ...(healthy && Number.isSafeInteger(reply?.cores) && reply.cores > 0 && Number.isSafeInteger(reply?.memoryMB) && reply.memoryMB > 0 ? { cores: reply.cores, memoryMB: reply.memoryMB } : {}) } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
 }
@@ -367,7 +368,7 @@ export function runnerIdleReply(root, request, processCensus) {
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (resourceFile) {
       if (!resourceFile.isFile()) return { ...base, reason: 'runner resource location is not a file' };
-      const db = new DatabaseSync(file, { readOnly: true });
+      const db = openPoolReadOnly(file, 1_000);
       try {
         if (db.prepare("SELECT 1 FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%' LIMIT 1").get())
           return { ...base, reason: 'runner resource lease is active' };

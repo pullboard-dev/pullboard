@@ -12,14 +12,13 @@ import { dispatchHealth } from '../packages/sentinels/index.js';
 import { healthReport, healthLines } from '../packages/health/index.js';
 import { defaults, configFromSource } from '../packages/config/index.js';
 import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
-import { cellLintReport, cellLintBaseline, writeCellLintBaseline, shimCountBaseline, shimLifecycle } from '../packages/codemap/index.js';
+import { cellLintReport, cellLintBaseline, writeCellLintBaseline, shimLifecycle } from '../packages/codemap/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 import { runFixtureGit } from './fixture-child.js';
 
-const COUNTS = 'bin/cell-lint-baselines/shim-counts.json';
 const parsers = { importsIn, commonJsIn };
 
 /** Build committed native plan policy with a real falling baseline and a distinct candidate branch. */
@@ -31,17 +30,15 @@ function fixture(t) {
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'plan actual shim fixture');
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, parsers)), { initialize: true });
-  box.put(COUNTS, JSON.stringify(shimCountBaseline(cellLintReport(box.root, parsers))));
   git(box.root, 'add', '-A');
-  git(box.root, 'commit', '-qm', 'record initial shim counts');
+  git(box.root, 'commit', '-qm', 'record initial cell lint baseline');
   const main = git(box.root, 'rev-parse', 'HEAD').trim();
   git(box.root, 'checkout', '-qb', 'candidate');
   return { ...box, main };
 }
 
-/** Record the source count, then inspect its immutable candidate with the exact native submit guard. */
-async function inspect(box, { updateCounts = true } = {}) {
-  if (updateCounts) box.put(COUNTS, JSON.stringify(shimCountBaseline(cellLintReport(box.root, parsers))));
+/** Commit the candidate, then inspect it with the exact native submit guard; counts come from main and the candidate. */
+async function inspect(box) {
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'candidate shim source');
   const commit = git(box.root, 'rev-parse', 'HEAD').trim();
@@ -59,13 +56,12 @@ function move(box, t) {
     frontDoor: 'packages/kernel/index.js', purpose: 'Expose the actual fixture refusal class.' }), custody);
 }
 
-test('a real cells move may land with its new shim count committed [C7,CD64]', async t => {
+test('a real cells move may land and its shim is counted from source [C7,CD64]', async t => {
   const box = fixture(t);
   move(box, t);
   const commit = await inspect(box);
   git(box.root, 'checkout', '-q', 'main');
   git(box.root, 'merge', '--no-ff', '-qm', 'land actual cells move', commit);
-  assert.deepEqual(JSON.parse(readFileSync(join(box.root, COUNTS))), { version: 1, cells: { kernel: 1 } });
   assert.equal(cellLintReport(box.root, parsers).metrics.shims.count, 1);
   const records = shimLifecycle(box.root, { items: [
     { item_id: 23, item_title: 'Remove kernel shims', item_criterion: 'Delete src/refused.js', item_status: 'open' },
@@ -82,10 +78,10 @@ test('a stray shim refuses even when the builder updates the count snapshot [C7,
   await assert.rejects(inspect(box), error => error.code === 'CELLS_SUBMIT' && /shim count rose without a cells move: src\/stats-flow.js/u.test(error.message));
 });
 
-test('a cells move must record its actual shim count before landing [C7,CD64]', async t => {
+test('a cells move submits without any committed shim count snapshot [C7,CD64]', async t => {
   const box = fixture(t);
   move(box, t);
-  await assert.rejects(inspect(box, { updateCounts: false }), error => error.code === 'CELLS_SUBMIT' && /shim count baseline differs/u.test(error.message));
+  assert.match(await inspect(box), /^[0-9a-f]{40}$/u);
 });
 
 test('native health names an aged shim, its cell and the removal item at the configured age [C7,CD64]', async t => {

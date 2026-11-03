@@ -22,6 +22,8 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 // Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
+// Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
+const RECEIPT_GRACE_MS = 500;
 const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
 
 /** Bound stopping only this owned child and its pipes; local settlement never proves remote cleanup. */
@@ -210,9 +212,10 @@ async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   const request = await requestFor(root, command, options, ports);
   const deadline = ports.controllerCustody;
+  deadline?.job?.(request.spec.recovery);
   let removeAbort = () => {};
   let runnerWaitTimer;
-  let jobWatch, transport;
+  let jobWatch, transport, receiptSeen = false, receiptTimer;
   const jobCancellation = new AbortController();
   let rawFd = null;
   try {
@@ -310,6 +313,11 @@ async function runInController(root, command, options, ports) {
           if (cleanupDetails) error.diagnostic.cleanup = cleanupDetails;
           transport.stop(); return;
         }
+        // The receipt is the result: once it is in, the runner's cleanup runs on without this transport (#2538).
+        if (line.startsWith(`PULLBOARD_RUNNER_RESULT ${request.spec.id} `) && !receiptSeen) {
+          receiptSeen = true;
+          receiptTimer = setTimeout(() => transport.stop(), RECEIPT_GRACE_MS);
+        }
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
         if (!line.startsWith(prefix)) continue;
         if (requested) { error = new Error('duplicate runner inventory'); transport.stop(); return; }
@@ -334,7 +342,12 @@ async function runInController(root, command, options, ports) {
     child.stdin.on('error', failure => { if (failure.code !== 'EPIPE') error ??= failure; });
     child.once('error', failure => { error ??= failure; });
     child.stdin.write(request.frame);
-    const {status,signal} = await transport.wait();
+    const waited = await transport.wait();
+    let status = waited.status;
+    const signal = waited.signal;
+    clearTimeout(receiptTimer);
+    // A transport ended by us after the receipt completed the job; resultFrom still authenticates that receipt.
+    if (receiptSeen && !error && status !== 0) status = 0;
     clearInterval(jobWatch);
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;

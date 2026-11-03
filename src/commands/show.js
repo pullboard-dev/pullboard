@@ -9,6 +9,7 @@ import { dollarText } from '../../packages/config/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { reviewEligibility } from '../../packages/verify/index.js';
+import { showReviewPacket } from '../../packages/verify/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,
@@ -59,8 +60,12 @@ export async function run(io, { first, values }) {
   const ctx = context(io);
   const prices = loadMachineSettings().costPrices;
   const id = idArg(first);
+  // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
+  if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
   const { item, queuedSubmit, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
+    const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
+    if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}) } : null;
     const result = { item, queuedSubmit, progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
@@ -82,7 +87,7 @@ export async function run(io, { first, values }) {
   // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
   // Without a relay link or deleted-copy notice there is no outbox to read, so the relay client never loads.
   if (relayStateExists(ctx.info.commonDir)) await io.prepareProcessPorts?.();
-  const outbox = relayStateExists(ctx.info.commonDir) ? (await import('../relay.js')).relayStatus(ctx.info.root, io).outbox : undefined;
+  const outbox = relayStateExists(ctx.info.commonDir) ? (await import('../../packages/link/index.js')).relayStatus(ctx.info.root, io).outbox : undefined;
   const relayPending = (outbox ?? []).filter((move) => move.item === id);
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
@@ -131,6 +136,7 @@ export async function run(io, { first, values }) {
     }
   }
   sayCheckBaseline(io, item);
+  for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
   for (const { item: other, shared } of related) {
