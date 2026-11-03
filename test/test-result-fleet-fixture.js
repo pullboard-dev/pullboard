@@ -145,9 +145,9 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
     assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
     if (composition) {
-      const harnessPath = join(repo, 'src', 'test-action-reporter.js');
+      const harnessPath = join(repo, 'packages', 'gate', 'src', 'shell', 'test-action-reporter.js');
       writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
-      git('add', 'src/test-action-reporter.js');
+      git('add', 'packages/gate/src/shell/test-action-reporter.js');
       git('commit', '-q', '-m', 'test: change actual harness bytes');
       const harnessChanged = await run(homeA, HOST, 'land');
       assert.equal(harnessChanged.isGreen, true, harnessChanged.output);
