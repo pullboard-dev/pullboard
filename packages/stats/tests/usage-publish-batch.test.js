@@ -15,8 +15,8 @@ import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
 import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { applyEngineMove } from '../../state/index.js';
-import { declaredMoveActor } from '../../../src/move-registry.js';
-import { minimumMoveEngine } from '../../../src/move-registry.js';
+import { declaredMoveActor } from '../../moves/index.js';
+import { minimumMoveEngine } from '../../moves/index.js';
 
 /** A private joined repository and historical events are fixture data, not measured provider usage. */
 function fixture(t, count = 48) {

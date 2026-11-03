@@ -29,6 +29,8 @@ const SKIPPED = new Set(['node_modules', 'work']);
  * @returns {string[]}
  */
 export function walk(root, pattern) {
+  const only = restrictedFiles();
+  if (only) return only.filter(name => pattern.test(name) && isWalkable(root, name)).sort(byText);
   const found = [];
   const pending = [resolve(root)];
   while (pending.length) {
@@ -45,6 +47,34 @@ export function walk(root, pattern) {
     }
   }
   return found.sort(byText);
+}
+
+let narrowed = null;
+
+/**
+ * Run a synchronous check with every walk() limited to the given repo-relative files. Why: a count
+ * can only rise in files the item changed, so a doctrine hold scans just those in its own process.
+ *
+ * @template T
+ * @param {string[]} files
+ * @param {() => T} run
+ * @returns {T}
+ */
+export function narrowedTo(files, run) {
+  const before = narrowed;
+  narrowed = files;
+  try { return run(); } finally { narrowed = before; }
+}
+
+/** The files the current narrowing allows, or null for the whole tree. */
+function restrictedFiles() {
+  return narrowed;
+}
+
+/** True when a narrowed path is a regular file the full walk would also have visited. */
+function isWalkable(root, name) {
+  if (name.split('/').some(part => SKIPPED.has(part) || part.startsWith('.'))) return false;
+  try { return lstatSync(join(root, name)).isFile(); } catch { return false; } // a deleted file has nothing to scan
 }
 
 /** Compare by UTF-16 code units, so the order never depends on the machine's locale. */

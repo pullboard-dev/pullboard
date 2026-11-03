@@ -129,6 +129,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `flow replay` | `version:number`, `history:object`, `replay:object` |
 | `roadmap` | `version:number`, `milestones:array` |
 | `milestone add` | `version:number`, `milestone:object` |
+| `milestone focus` | `version:number`, `focus:string\|null`, `overflow:boolean` |
 | `milestone items` | `version:number`, `milestone:object` |
 | `milestone order` | `version:number`, `milestone:object` |
 | `milestone pin` | `version:number`, `milestone:object` |

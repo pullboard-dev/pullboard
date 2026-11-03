@@ -1,8 +1,12 @@
-/** Newly introduced physical shims require an exact first move, even during advisory migration [C7,CD64]. */
+/**
+ * Refuse only shims the candidate adds over current main, naming each file; a newly introduced physical shim
+ * needs an exact first move, even during advisory migration [C7,CD64].
+ * Both counts are computed at check time from main's and the candidate's source: no committed snapshot is
+ * compared, so main's own landed shims can never refuse an unrelated item.
+ */
 export function shimCountProblems({ before, after, beforeInventory, afterInventory }) {
   const existing = new Set(before.metrics.shims.findings.map(row => row.key));
-  const problems = shimBaselineProblems(after);
-  if (before.shimBaseline && !after.shimBaseline) problems.push('restore the committed shim count baseline');
+  const problems = [];
   for (const { key } of after.metrics.shims.findings) {
     if (existing.has(key) || key.startsWith('temporary:')) continue;
     const target = after.pathMap?.[key];
@@ -24,15 +28,4 @@ export function shimCountBaseline(report) {
     cells[cell] = (cells[cell] ?? 0) + row.count;
   }
   return { version: 1, cells: Object.fromEntries(Object.entries(cells).sort(([a], [b]) => a.localeCompare(b))) };
-}
-
-/** The committed count snapshot must describe the actual source, independently of old advisory allowances. */
-export function shimBaselineProblems(report) {
-  const recorded = report.shimBaseline;
-  if (recorded === null || recorded === undefined) return [];
-  const valid = recorded.version === 1 && recorded.cells && typeof recorded.cells === 'object' && !Array.isArray(recorded.cells)
-    && Object.values(recorded.cells).every(count => Number.isSafeInteger(count) && count > 0);
-  const actual = shimCountBaseline(report);
-  if (valid && JSON.stringify(Object.entries(recorded.cells).sort()) === JSON.stringify(Object.entries(actual.cells).sort())) return [];
-  return ['shim count baseline differs from source; run node bin/cell-lints.js --shim-update and commit bin/cell-lint-baselines/shim-counts.json'];
 }

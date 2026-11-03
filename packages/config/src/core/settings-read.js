@@ -8,6 +8,15 @@ import { validateGateQueue } from '../../../queue/index.js';
 const DEFAULT_GATE_SLOTS = 2;
 const DEFAULT_BROWSER_SLOTS = 1;
 
+/**
+ * Which slot counts this machine's settings state outright. An unset count is only the default, so a pool that a
+ * runner's own jobs already sized keeps its recorded capacity instead (#2541).
+ */
+export function declaredMachineSlots() {
+  const value = readMachineSettingsFile(machineSettingsFile());
+  return { gate: value?.gateSlots !== undefined, browser: value?.browserSlots !== undefined };
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
