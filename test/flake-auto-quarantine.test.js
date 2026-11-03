@@ -31,7 +31,7 @@ function fixture(t, deterministic = false, companion = false) {
   config.lanes = { core: { owns: ['src/', 'test/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
   config.gate = 'node tooling/bin/run-tests.js test/alternating.test.mjs';
-  config.affectedTests = 'node tooling/bin/run-tests.js';
+  config.affectedTests = 'node --test';
   delete config.submitGate;
   delete config.submitDeferAbove;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
