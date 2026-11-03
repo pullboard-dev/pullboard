@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { press } from './cockpit/stable.js';
+import { press, stableChrome } from './cockpit/stable.js';
 
 /** The hosted page's real secure origin, answered from memory: no network is used. */
 const ORIGIN = 'https://app.pullboard.dev/';
@@ -290,7 +290,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   assert.equal(stateResponse.status, 200, 'the checkpoint at N is present before phone startup');
   const checkpointN = (await stateResponse.json()).state.sequence;
 
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
