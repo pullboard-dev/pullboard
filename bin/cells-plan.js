@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
-import { withParseScope } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { withParseScope } from '../packages/gate/index.js';
 import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -44,6 +44,24 @@ import { writeShimHandoff } from './cells-remove-shims.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
+
+import { createFixtureMemo } from '../packages/codemap/index.js';
+import { checkCommandDefinition } from '../packages/git/index.js';
+import { receiptDigest } from '../packages/git/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
+import { cellsCacheDirectory } from './cells-inventory-cache.js';
+import { publishCacheEntry } from './cells-inventory-cache.js';
+
+/** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
+function fixtureAnalyzerDigest() {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  return receiptDigest({ node: process.version, files: checkCommandDefinition(root, [], [fileURLToPath(new URL('./cells-move-fixtures.js', import.meta.url))])
+    .map(entry => [entry.path, entry.mode, entry.digest]) });
+}
+const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, unsupportedSite } = createFixtureMemo({
+  fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest: fixtureAnalyzerDigest,
+  eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+});
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -291,41 +309,6 @@ function moveBase(root) {
   return null;
 }
 
-/** Split one analyzer refusal into its exact source line text and reason, or null for any other problem. */
-function unsupportedSite(problem, file, source) {
-  const match = /^(.+):(\d+): unsupported fixture source: (.+)$/u.exec(problem);
-  if (!match || match[1] !== file) return null;
-  const text = source.split('\n')[Number(match[2]) - 1];
-  return text === undefined ? null : { text: text.trim(), reason: match[3] };
-}
-
-/**
- * Count the same file's unproven reads at the move's main base, by exact line text and reason, from committed
- * bytes only. Why: a read the analyzer could not prove before the move is not a gap the move made, while a read
- * whose line names a moved basename, or any new or extra occurrence, still counts against the move.
- */
-function baseUnsupported(root, base, file, { moves, dataReads }) {
-  const counts = new Map();
-  if (!base) return counts;
-  /** Read one regular blob at the base commit, never the working tree. */
-  function readBase(path) {
-    if (!/^[\w./-]+$/u.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
-    const row = tryGit(root, ['ls-tree', '-z', base, '--', path]);
-    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
-    // tryGit trims output, so exact bytes come from Git directly; the analyzer re-hashes them against the object.
-    const shown = object && spawnSync('git', ['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
-    return shown?.status === 0 ? { source: shown.stdout, object } : null;
-  }
-  const original = readBase(file);
-  if (!original) return counts;
-  const uses = fixtureSourceEdits(original.source, { file, moves, readSource: readBase, dataReads, mentionsOnly: true });
-  for (const problem of uses.problems) {
-    const site = unsupportedSite(problem, file, original.source);
-    if (site) counts.set(`${site.text}\0${site.reason}`, (counts.get(`${site.text}\0${site.reason}`) ?? 0) + 1);
-  }
-  return counts;
-}
-
 const historyReferencesByBase = new Map();
 
 /** Read only sealed history already present on the accepted base; candidate edits cannot create authority. */
@@ -428,15 +411,16 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
   const snapshot = tryGit(root, ['rev-parse', 'HEAD']);
+  // One tree listing names every tracked blob; each read used to ask Git once (#2601).
+  const blobs = snapshot.status === 0 ? treeBlobs(root, snapshot.stdout) : new Map();
   /** Bind producer bytes to the current regular tracked snapshot; symlink ancestors never supply analysis authority. */
   function readSource(file) {
     if (snapshot.status !== 0 || !/^[\w./-]+$/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return null;
     let path = root;
     for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) return null; }
     if (!lstatSync(path).isFile()) return null;
-    const row = tryGit(root, ['ls-tree', '-z', snapshot.stdout, '--', file]);
-    const object = /^100(?:644|755) blob ([a-f0-9]+)\t/u.exec(row.stdout)?.[1];
-    return row.status === 0 && object ? { source: readFileSync(path, 'utf8'), object } : null;
+    const object = blobs.get(file);
+    return object ? { source: readFileSync(path, 'utf8'), object } : null;
   }
   const listed = tryGit(root, ['ls-files', '-z', '--', 'test', 'docs']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'cannot inventory tracked fixture readers');
@@ -455,7 +439,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     const source = readFileSync(path, 'utf8');
     if (!data.reads.some(row => row.file === file) && !cell.paths.some(([from]) => source.includes(from.split('/').at(-1)))) continue;
     const moves = cell.paths.map(([from, to]) => [from, to]);
-    const uses = fixtureSourceEdits(source, { file, moves, readSource, dataReads: data.reads, mentionsOnly: true });
+    const uses = rememberedFixtureEdits(fixtureSourceEdits, source, { file, moves, readSource, objectOf: path => blobs.get(path) ?? null, dataReads: data.reads, mentionsOnly: true });
     matchedDataReads.push(...uses.matchedDataReads ?? []);
     const before = uses.problems.some(problem => unsupportedSite(problem, file, source))
       ? baseUnsupported(root, base, file, { moves, dataReads: data.reads }) : new Map();
@@ -479,6 +463,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   }
   const main = lintBaseline ? { baseline: lintBaseline, report } : mainCellLintReport(root, { importsIn, commonJsIn }); // main counted now, never a stored file [C7]
   for (const row of main ? cellLintGrowth({ ...report, transition: main.report.transition }, main.baseline, { enforcedOnly: true }) : []) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+  saveFixtureEdits();
   return problems;
 }
 
