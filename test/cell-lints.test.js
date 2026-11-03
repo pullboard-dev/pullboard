@@ -533,8 +533,9 @@ test('the actual discovered command loader reaches command run and its literal h
   const box = fixture(t);
   const source = fileURLToPath(new URL('../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    ['src/commands/index.js', 'src/discovery.js', 'packages/kernel/index.js'].includes(file)
+    ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
       || file.startsWith('packages/kernel/src/')) });
+  box.put('src/commands/index.js', readFileSync(join(source, 'apps/cli/src/shell/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../packages/"));
   box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
   box.put('src/commands/next.js', "import { routing } from '../routing.js'; export function run() { return routing(); } export const unused = 1;\n");
   box.put('src/routing.js', 'export function routing() { return 1; }\n');
@@ -668,7 +669,8 @@ test('discovered command reach requires the exact kernel front door and discover
   const box = fixture(t);
   const source = fileURLToPath(new URL('../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    file === 'src/commands/index.js' || file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
+    file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
+  box.put('src/commands/index.js', readFileSync(join(source, 'apps/cli/src/shell/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../packages/"));
   box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
   box.put('src/commands/next.js', 'export function run() {}\n');
   appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
