@@ -9,7 +9,14 @@ import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { ENGINE_CANDIDATE } from '../../../kernel/index.js';
-import { engineLeafDeclaration } from '../../../kernel/index.js';
+
+/** Recognize the canonical placeholder declaration automatic landing numbers, without executing candidate code. */
+function unnumberedEngine(source) {
+  const lines = source.split('\n');
+  const declarations = lines.filter(line => /^export const /u.test(line));
+  return lines.includes("import { unassignedEngine } from './engine-next.js';") && declarations.length === 1
+    && /^export const [A-Z][A-Z0-9_]*_ENGINE = unassignedEngine\(\);$/u.test(declarations[0]);
+}
 
 /**
  * Check out the commit detached in a scratch worktree and run its own `bin/cells-plan.js --check`, so a hand-landed
@@ -35,7 +42,7 @@ export function requireLandingPlanCheck(root, commit) {
     const pending = candidates.filter(path => {
       const file = join(tree, path);
       if (!lstatSync(file).isFile()) throw new Refused('LAND_PLAN_CHECK', `engine leaf ${path} must be a regular source file before recording merged`);
-      return engineLeafDeclaration(path, readFileSync(file, 'utf8'))?.number === null;
+      return unnumberedEngine(readFileSync(file, 'utf8'));
     });
     if (pending.length) throw new Refused('LAND_ENGINE_UNNUMBERED', `${commit.slice(0, 12)} leaves unnumbered engines: ${pending.join(', ')}; run amendLandingEngines during landing to assign their numbers, then record the resulting commit`);
     if (!hasPlan) return;
