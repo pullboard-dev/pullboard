@@ -1,3 +1,5 @@
+import { requireLandingCompanions } from './landing-composition-guards.js';
+import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
@@ -63,6 +65,7 @@ export async function mergeGroup(state, items) {
     if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
     const checked = store.checkedLandingCommit(state.board, item);
     if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
+    requireLandingCompanions(batch.root, state.board, [item], checked);
     const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
@@ -130,7 +133,10 @@ export async function mergeGroup(state, items) {
     throw error;
   }
   for (const change of doctrineCounts) state.say(`doctrine ${change.id}: ${change.before} -> ${change.count}`);
-  return { items: merged, conflicts, resolutions, tip: headCommit(batch.root), doctrineCounts };
+  const tip = headCommit(batch.root);
+  requireLandingCompanions(batch.root, state.board, merged, tip);
+  await requireLandingModuleResolution(batch.root, batch.base, tip);
+  return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 
 /** Allocate and stage engine history, then place it before amending that same item merge. */
