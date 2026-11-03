@@ -30,17 +30,17 @@ function gateFixture(box) {
 }
 
 /** Create a private initialized project with a real bare origin and active hooks. */
-function landProject() {
+function landProject({ withWorktree = true } = {}) {
   const box = sandbox();
   const commands = gateFixture(box);
-  const fixture = project(commands.gate, box);
+  const fixture = project(commands.gate, box, { withWorktree });
   const path = join(fixture.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   config.affectedTests = commands.affected;
   writeFileSync(path, JSON.stringify(config, null, 2));
   fixture.git(fixture.repo, 'add', 'pullboard.json');
   fixture.git(fixture.repo, 'commit', '-q', '-m', 'chore: configure landing');
-  fixture.git(fixture.web, 'merge', '-q', '--ff-only', 'main');
+  if (withWorktree) fixture.git(fixture.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
   fixture.git(box.dir, 'init', '-q', '--bare', remote);
   fixture.git(fixture.repo, 'remote', 'add', 'origin', remote);
