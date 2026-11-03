@@ -22,3 +22,9 @@ export function submitHandoffFailure(board, item) {
   return job?.state === 'red' && (job.agentId === item.item_owner || item.item_status === 'open') && job.digest === item.item_frozen_digest
     ? job.error : null;
 }
+
+/** Read the native terminal record for a dead job after its successor takes the item's queue slot [C7,V4]. */
+export function endedSubmitHandoff(board, job) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('submit_handoff_ended:' + job);
+  return row ? JSON.parse(row.meta_value) : null;
+}

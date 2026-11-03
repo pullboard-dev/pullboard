@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/native-board.js packages/gate/src/shell/main-audit-state.js packages/gate/src/shell/gate-run-receipt.js */
+/** @pullboard-module-loads apps/lib/index.js packages/gate/src/shell/main-audit-state.js packages/gate/src/shell/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -47,8 +47,8 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(join(repo,'test',name+'.test.js'),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
-  const { board: store }=await import(pathToFileURL(join(installed,'src/native-board.js')));
-  const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
+  const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));
+  const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');

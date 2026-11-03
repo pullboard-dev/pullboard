@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Stable API validation retains recorded flow facts and native clock boundaries [A2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { logEvent } from '../packages/store/index.js';

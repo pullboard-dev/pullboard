@@ -1,12 +1,19 @@
 /** @pullboard-module-loads apps/lib/src/shell/cli-hook-work.js apps/lib/src/shell/submit-handoff-worker.js */
 /**
- * The process capabilities the CLI entry hands to src/cli-main.js. The in-process entry and the resident board
+ * The process capabilities the CLI entry hands to apps/cli/src/shell/cli-main.js. The in-process entry and the resident board
  * process run commands with the same capabilities, so both compose them here [C7].
  */
 
 /** Load the native board only when a command asks for it. */
 export function loadNativeBoard() {
   return import('../apps/lib/index.js');
+}
+
+/** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
+export function gateWaitReporter(io) {
+  let report;
+  const ready = import('../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
+  return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
 }
 
 /** Compose process-only capabilities after a command actually requests them. */

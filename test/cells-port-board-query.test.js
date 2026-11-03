@@ -22,13 +22,13 @@ import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { lineSettings } from '../packages/state/index.js';
 import { routingCapacity } from '../src/routing-capacity.js';
-import { observeWorkers } from '../src/worker-scale.js';
+import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 test('the actual stats seats verify items and queue graphs have no board-query imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);
-  const provider = plan.cells.flatMap(cell => cell.paths).find(([from]) => from === 'src/board-query.js');
+  const provider = plan.cells.flatMap(cell => cell.paths).find(([, to]) => to === 'packages/store/src/shell/board-query.js');
   assert.ok(provider, 'the real committed plan retains the native query provider');
   const targets = new Set([...provider.slice(0, 2), mappedPath(map, provider[0])]);
   const { files, edges } = cellInventory(ROOT, { importsIn, commonJsIn });

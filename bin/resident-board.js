@@ -2,7 +2,7 @@
 /**
  * The resident board process: one per board checkout and CLI entry, started by the thin client on first use. It keeps
  * the CLI's modules loaded and the board open, holding read-only connections that read commands reuse, and runs each
- * forwarded command through src/cli-main.js, the same entry the in-process path uses, so a warm command pays only for
+ * forwarded command through apps/cli/src/shell/cli-main.js, the same entry the in-process path uses, so a warm command pays only for
  * its own work [H24,C7].
  *
  * Commands run one at a time, each with its own state: process.env reads and writes go to that command's environment,
@@ -104,8 +104,8 @@ function exitWhenDone() {
   if (retired && !inFlight.size) process.exit(0);
 }
 
-const { main, selectedToolEntry } = await import('../src/cli-main.js');
-const { loadNativeBoard, loadProcessPorts } = await import('./process-ports.js');
+const { main, selectedToolEntry } = await import('../apps/cli/src/shell/cli-main.js');
+const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
 const { holdReadConnections, openBoardReadOnly } = await import('../packages/store/index.js');
 const TRACE = baseEnv.PULLBOARD_RESIDENT_TRACE;
 const IDLE_CONNECTIONS = 4;
@@ -221,7 +221,7 @@ async function serve(socket, request) {
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
       send({ t: 'start' });
       try {
-        return await main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, stdin: process.stdin,
+        return await main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
           stdout: clientStream(store, 'out', request.tty?.stdout === true, request.tty?.columns),
           stderr: clientStream(store, 'err', request.tty?.stderr === true, request.tty?.columns) });
       } catch (error) {
@@ -315,7 +315,7 @@ function checkIdle({ exit = true } = {}) {
 
 // Load each served command's modules now, so the first command after a start is warm too.
 void (async () => {
-  const { COMMANDS } = await import('../src/commands/index.js');
+  const { COMMANDS } = await import('../apps/cli/src/shell/commands/index.js');
   const { RESIDENT_COMMANDS } = await import('./resident-client.js');
   await loadNativeBoard();
   await loadProcessPorts();

@@ -1,10 +1,10 @@
 /** Activity model and HTML assertions use plain input; the real Chrome wiring lives in activity-journey.test.js [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityModel } from '../../src/view/activity-model.js';
-import { activityFilters } from '../../src/view/activity-render.js';
-import { activityHtml } from '../../src/view/activity-render.js';
-import { activityWords } from '../../src/view/activity-words.js';
+import { activityModel } from '../../apps/view/src/core/view/activity-model.js';
+import { activityFilters } from '../../apps/view/src/core/view/activity-render.js';
+import { activityHtml } from '../../apps/view/src/core/view/activity-render.js';
+import { activityWords } from '../../apps/view/src/core/view/activity-words.js';
 import { now, at, items, agents, event, scannedBoard } from './activity-data.js';
 
 /** Prepare deterministic UTC test presentation; production retains browser-local labels. */

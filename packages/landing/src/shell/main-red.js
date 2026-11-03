@@ -1,7 +1,7 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { testClosures } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { checkoutCommonDir } from '../../../git/index.js';
 import { commandFact } from '../../../git/index.js';

@@ -7,11 +7,11 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, s
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createRelayAuth } from '../relay/auth.js';
-import { createGitHubClient } from '../relay/github.js';
-import { createRelayJournal } from '../relay/journal.js';
-import { createRelayRetention } from '../relay/retention.js';
-import { serveRelay } from '../relay/service.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayJournal } from '../apps/relay/index.js';
+import { createRelayRetention } from '../apps/relay/index.js';
+import { serveRelay } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
@@ -246,9 +246,9 @@ test('[H18] a never-uploaded link expires from its original link time without ma
 test('[H18] a move holding the shared process lock refreshes activity before an expiry decision', async (t) => {
   const box = await fixture(t);
   const code = `
-    import { createRelayAuth } from ${JSON.stringify(new URL('../relay/auth.js', import.meta.url).href)};
-    import { createRelayJournal } from ${JSON.stringify(new URL('../relay/journal.js', import.meta.url).href)};
-    import { createRelayRetention } from ${JSON.stringify(new URL('../relay/retention.js', import.meta.url).href)};
+    import { createRelayAuth } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
+    import { createRelayJournal } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
+    import { createRelayRetention } from ${JSON.stringify(new URL('../apps/relay/index.js', import.meta.url).href)};
     const [database, directory, backupsDirectory, board, clock] = process.argv.slice(1);
     const auth = createRelayAuth({ database, github: {} });
     const now = Number(clock);

@@ -5,6 +5,7 @@ import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
 import { declaredMachineSlots } from '../../../config/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,6 +36,26 @@ import {
   RunnerDropped,
   runnerSource,
 } from '../core/gate-policy-load.js';
+
+const AVOIDED_RUNNERS = new AsyncLocalStorage();
+
+/**
+ * Run `work` with these runner hosts avoided by every gate admission inside it, and return its result. The set is
+ * live: a host that fails during `work` joins it, so a requeue in the same scope also prefers another runner (#2516).
+ */
+export function withAvoidedRunners(hosts, work) {
+  return AVOIDED_RUNNERS.run(hosts instanceof Set ? hosts : new Set(hosts), work);
+}
+
+/**
+ * The runners an admission may use: every configured runner except avoided hosts, unless that leaves none.
+ * Why: a failed host must not take the same candidate again while another runner can, but with no alternative the
+ * run waits for the full pool (the failed host may recover) rather than for an empty one.
+ */
+export function preferOtherRunners(runners, avoided) {
+  const others = runners.filter(runner => !avoided.has(runner.host));
+  return others.length ? others : runners;
+}
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
@@ -88,12 +109,21 @@ export function settleReceipt(lease) {
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
-  options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
+  const remoteCheck = gateRunnersFirstEnabled() && (options.itemCheck === true || options.kind === 'review');
+  options = { ...options, runnerOnly: options.runnerOnly === true || remoteCheck,
+    executionServices: requireGateExecutionServices(options.executionServices) };
   // An awaited admission callback may own only unreferenced handles. Keep the gate alive until
   // it records a result or throws; its lease heartbeat deliberately does not keep Node running.
   const keepAlive = setInterval(() => {}, 1_000);
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
+    if (remoteCheck && ['RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED'].includes(error?.code)) {
+      const attempts = error.infrastructureAttempts ?? (error.infrastructureAttempt ? [error.infrastructureAttempt] : []);
+      const hosts = [...new Set(attempts.flatMap(attempt => [attempt.runner, ...(attempt.runners ?? []).map(runner => runner.host)]).filter(Boolean))];
+      const refused = new Refused('RUNNER_UNAVAILABLE', `runner-first check has no available runner (${hosts.join(', ') || 'none admitted'}): ${error.message}`);
+      refused.infrastructureAttempts = attempts;
+      throw refused;
+    }
     if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
       && (options.runnerOnly || options.requiredExecutor?.kind === 'ssh')) {
       const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
@@ -188,6 +218,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const capacityProvider = () => machineSlots(settingsProvider()).gate;
   const source = runnerSource(root);
   const retryInfrastructure = (infrastructureRetry || itemCheck || kind === 'review') && (itemCheck || kind === 'review');
+  const avoided = AVOIDED_RUNNERS.getStore() ?? new Set();
   const infrastructureAttempts = [];
   const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
@@ -219,7 +250,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
-    runnerProvider: () => effectiveRunners(loadMachineSettings()),
+    runnerProvider: () => preferOtherRunners(effectiveRunners(loadMachineSettings()), avoided),
     runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(settingsProvider()),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
@@ -250,6 +281,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
       timed(lease).tracker.mark('actionAt');
       try {
         const result = await action(lease);
+        if (lease.runner && runnerOnly && (itemCheck || kind === 'review') && result?.timedOut === true) {
+          throw new RunnerDropped(lease.runner.host, { reason: 'run-timeout' });
+        }
         if (infrastructureAttempts.length) {
           infrastructureAttempts.push({ kind: 'retry', code: null, runner: lease.runner?.host ?? 'local',
             outcome: result?.isGreen === false || result?.state === 'red' ? 'check-red' : 'completed', at: new Date().toISOString() });
@@ -265,9 +299,14 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw error;
         }
-        // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
+        // Unverified cleanup belongs to the runner; runner-only checks retain remote admission on retry.
         const setup = error instanceof Refused && error.code === 'RUNNER_SETUP';
         const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error.code);
+        // A runner's own failure names its host and avoids it for the requeue, here and in a later whole-submit attempt.
+        if (lease.runner && error && typeof error === 'object' && (error instanceof RunnerDropped || cleanup || setup || error.code === 'RUNNER_WAIT_DEADLINE')) {
+          error.runnerHost ??= lease.runner.host;
+          avoided.add(lease.runner.host);
+        }
         const boundedRetry = retryInfrastructure || setup || ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error?.code)
           || infrastructureAttempts.some(attempt => ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(attempt.code));
         if (!(error instanceof RunnerDropped || cleanup || setup) || !lease.runner || !lease.requeueRunner) {

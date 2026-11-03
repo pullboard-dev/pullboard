@@ -1,5 +1,5 @@
 import { flakyProject, writeTarget, TITLE } from '../packages/git/tests/flakes-fixture.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
@@ -8,7 +8,7 @@ import { landingPorts } from './landing-ports-fixture.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -28,9 +28,9 @@ import { nudgeSourceAdvances } from '../packages/git/index.js';
 import { runMainAudits } from '../packages/gate/index.js';
 import { hasSourceAdvanceJobs } from '../packages/sandbox/index.js';
 import { runSourceAdvances } from '../packages/sandbox/index.js';
-import { context } from '../src/cli.js';
-import { ordered } from '../src/cli.js';
-import { withBoard } from '../src/cli.js';
+import { context } from '../apps/cli/index.js';
+import { ordered } from '../apps/cli/index.js';
+import { withBoard } from '../apps/cli/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { readMainAudit } from '../packages/gate/index.js';

@@ -267,7 +267,7 @@ import {
 
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
-import * as self from '../../../../src/native-board.js';
+import * as self from './native-board.js';
 import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
