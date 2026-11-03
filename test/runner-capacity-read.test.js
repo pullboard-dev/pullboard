@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { readRunnerCapacities } from '../src/runner-capacity-read.js';
-import { runnerUtilization } from '../src/runner-utilization.js';
+import { readRunnerCapacities } from '../packages/runners/index.js';
+import { runnerUtilization } from '../packages/runners/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 
 /** Isolate only this fixture's machine path; every database and settings file is genuinely read from disk. */

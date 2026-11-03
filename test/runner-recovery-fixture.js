@@ -24,7 +24,7 @@ import {
   claimRunnerLaunch,
   recordRunnerCompletion,
   runnerHealthReply,
-} from '../src/runner-transport.js';
+} from '../packages/runners/index.js';
 import { recoverUnavailableRunners } from '../packages/resources/index.js';
 
 /** Open only a private queue; it has no configured machine hosts or leases. */

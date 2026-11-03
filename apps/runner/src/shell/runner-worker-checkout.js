@@ -253,6 +253,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', ...negotiationTip(measured.reusedCommit), cache, `refs/pullboard/candidates/${spec.commit}`], env);
       await git(S, root, ['checkout', '--detach', 'FETCH_HEAD'], env);
     }
+    // A trunk commit main lands mid-job is fetched from here before a read, never refused as missing (#2534).
+    if (spec.origin) await git(S, root, ['config', '--local', '--replace-all', 'pullboard.fetchSource', spec.origin], env);
     warm = snapshotWarmCheckout({ directory: warmPool, root, commit: spec.commit, tree: spec.tree, lease: cacheLease, borrowed: warm });
     if (spec.trunk) {
       if (candidateHistory.has(spec.trunk.commit)) {
@@ -330,7 +332,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
 }
 
 /** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers. */
-export async function installDependencies(S, root, runnerRoot, env, tracker) {
+export async function installDependencies(S, root, runnerRoot, env, tracker, api) {
   const packageFile = join(root, 'package.json');
   if (!existsSync(packageFile)) return;
   const packageText = readFileSync(packageFile, 'utf8');
@@ -345,18 +347,23 @@ export async function installDependencies(S, root, runnerRoot, env, tracker) {
     }
     return;
   }
-  const cacheRoot = join(runnerRoot, 'cache', 'npm');
-  const contentCache = join(cacheRoot, 'content');
-  mkdirSync(contentCache, { recursive: true, mode: 0o700 });
-  chmodSync(cacheRoot, 0o700); chmodSync(contentCache, 0o700);
-  // node_modules is job-local because package lifecycle scripts may create sibling artifacts.
-  // Reuse only npm's content-addressed download cache, never a prior job's installed tree.
-  rmSync(join(root, 'node_modules'), { recursive: true, force: true });
-  const npm = spawnOwned(S, 'npm', ['ci', '--cache', contentCache], {
-    cwd: root, env, stdio: ['ignore', 'ignore', 'ignore'],
-  });
-  const result = await npm.closed;
-  await tracker.stopDescendants();
-  await drainOwned(S, npm);
-  if (result.error || result.code !== 0 || result.signal) throw new Error('committed npm dependencies could not be installed');
+  const admission = await acquireResourceApi(api, { name: 'cache-npm', capacity: 1, scope: 'machine', root: runnerRoot,
+    repo: runnerRoot, agent: `pullboard-ssh-npm-${S.workerId}`, kind: 'dependency-cache',
+    onWait: () => assertTransportLive(S) }, join(runnerRoot, 'cache', 'resource-pool'));
+  try {
+    const cacheRoot = join(runnerRoot, 'cache', 'npm');
+    const contentCache = join(cacheRoot, 'content');
+    mkdirSync(contentCache, { recursive: true, mode: 0o700 });
+    chmodSync(cacheRoot, 0o700); chmodSync(contentCache, 0o700);
+    // node_modules is job-local because package lifecycle scripts may create sibling artifacts.
+    // Reuse only npm's content-addressed download cache, never a prior job's installed tree.
+    rmSync(join(root, 'node_modules'), { recursive: true, force: true });
+    const npm = spawnOwned(S, 'npm', ['ci', '--cache', contentCache], {
+      cwd: root, env, stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    const result = await npm.closed;
+    await tracker.stopDescendants();
+    await drainOwned(S, npm);
+    if (result.error || result.code !== 0 || result.signal) throw new Error('committed npm dependencies could not be installed');
+  } finally { admission.release(); }
 }

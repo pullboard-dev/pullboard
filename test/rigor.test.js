@@ -24,6 +24,7 @@ import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../packages/state/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { newRigorNotices, undraftedRigor } from '../packages/rigor/index.js';
+import { runCheckAt } from '../packages/rigor/index.js';
 import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
@@ -680,7 +681,6 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
 
 
 test('a timed-out proof drains only its captured process group before removing its worktree [D1,D3,S1]', async () => {
-  const { runCheckAt } = await import('../packages/rigor/index.js');
   const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
   const box = freshBoard();
   const helper = join(box.repo, 'hold-proof.mjs');

@@ -16,7 +16,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../packages/seats/index.js';
-import { projectState } from '../src/cli/view-state.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';

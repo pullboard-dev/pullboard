@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-const LEGACY_ENTRY = fileURLToPath(new URL('../src/runners.js', import.meta.url));
+const LEGACY_ENTRY = fileURLToPath(new URL('../packages/runners/src/shell/runners.js', import.meta.url));
 const ENTRY = fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url));
 
 test('the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {

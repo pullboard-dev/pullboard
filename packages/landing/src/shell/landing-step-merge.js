@@ -29,12 +29,28 @@ export async function save(state, patch) {
   return state.batch;
 }
 
+/**
+ * A batch's own worktree left dirty by its staged steps (engine numbers, docs) is reset to the batch base once and
+ * merged again; dirty a second time, the batch stops as blocked with its refusal recorded. Why: the dirty refusal used
+ * to leave the batch adoptable, so every automatic wake retried it and refused again every few seconds (#2624).
+ */
+async function resetDirtyOnce(state) {
+  if (!state.batch.dirtyReset) {
+    git(state.batch.root, ['reset', '--hard', '--quiet', state.batch.base]);
+    git(state.batch.root, ['clean', '-fdq']);
+    await save(state, { dirtyReset: true });
+    if (isClean(state.batch.root) && !untracked(state.batch.root).length) return;
+  }
+  await save(state, { state: 'blocked', refusal: { code: 'LAND_DIRTY', at: state.board.clock.now().toISOString() } });
+  throw new Refused('LAND_DIRTY', `landing batch ${state.batch.id} left its worktree dirty again after one reset; it is blocked and will not retry; inspect ${state.batch.root}`);
+}
+
 /** Merge one ordered group from the immutable batch base, preserving each first-containing commit. */
 export async function mergeGroup(state, items) {
   await state.checkLease();
   const { batch } = state;
-  if (!isClean(batch.root) || untracked(batch.root).length) throw new Refused('LAND_DIRTY', 'the landing worktree has unfinished edits; inspect its recorded path before adopting');
-  git(batch.root, ['checkout', '--detach', batch.base]);
+  if (!isClean(batch.root) || untracked(batch.root).length) await resetDirtyOnce(state);
+  git(state.batch.root, ['checkout', '--detach', state.batch.base]);
   // Every message is built and checked before the first merge, so a bad one cannot land half a batch.
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
     landingContext(batch.root, batch.base, state.config, (item) => store.checkedLandingCommit(state.board, item)));

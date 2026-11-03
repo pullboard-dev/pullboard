@@ -238,7 +238,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)});
     const { moveArgs } = await import(${JSON.stringify(new URL('../index.js', import.meta.url).href)});
     const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main, undefined, undefined, undefined, apiBoardOpeners);

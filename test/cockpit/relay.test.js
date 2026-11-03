@@ -145,7 +145,7 @@ export async function createTransport({ onUpdate, onOpenBoard }) {
         .end(cockpitPage('', { readOnly: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
     }
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(moduleSource);
-    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL('../../src/view.css', import.meta.url)));
+    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url)));
     if (!url.pathname.startsWith('/fixture/')) return response.writeHead(404).end();
     methods.push(request.method);
     if (request.method !== 'GET') return response.writeHead(405).end();
@@ -221,7 +221,7 @@ test('served connection reaches an authenticated API on another origin and path 
   const apiBase = `http://127.0.0.1:${apiServer.address().port}/mirror`;
   const pageServer = createServer((req, res) => {
     if (req.url === '/phone/index.html') return res.writeHead(200, { 'content-type': 'text/html' }).end(cockpitPage('', { apiBase, apiHeaders: { authorization: `Bearer ${credential}` }, stylesheet: 'view.css' }));
-    if (req.url === '/phone/view.css') return res.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(resolve(import.meta.dirname, '../../src/view.css')));
+    if (req.url === '/phone/view.css') return res.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url)));
     res.writeHead(404).end();
   });
   await new Promise((resolve) => pageServer.listen(0, '127.0.0.1', resolve));

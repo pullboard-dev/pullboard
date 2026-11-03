@@ -46,7 +46,7 @@ function fixture(t, mode) {
   cpSync(committedToolingSnapshot(ROOT, box.env), tooling, { recursive: true, filter: path => basename(path) !== '.git' });
   const marker = join(box.dir, 'tooling-moves.log');
   const transition = join(box.dir, 'tooling-transition.mjs');
-  const parser = join(tooling, 'src/runner-module-parser.js');
+  const parser = join(tooling, 'packages/runners/src/shell/runner-module-parser.js');
   writeFileSync(transition, `import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { assertRunnerModuleParserCurrent } from ${JSON.stringify(pathToFileURL(parser).href)};
@@ -57,13 +57,13 @@ export function moveTooling() {
   appendFileSync(${JSON.stringify(marker)}, 'move\\n');
   appendFileSync(${JSON.stringify(parser)}, '\\n// private tooling generation ' + (count + 1) + '\\n');
   if (${JSON.stringify(mode)} !== 'dirty') {
-    execFileSync('git', ['add', 'src/runner-module-parser.js'], { cwd: ${JSON.stringify(tooling)}, stdio: 'pipe' });
+    execFileSync('git', ['add', 'packages/runners/src/shell/runner-module-parser.js'], { cwd: ${JSON.stringify(tooling)}, stdio: 'pipe' });
     execFileSync('git', ['commit', '-q', '-m', 'test: land private tooling generation'], { cwd: ${JSON.stringify(tooling)}, stdio: 'pipe' });
   }
   assertRunnerModuleParserCurrent();
 }
 `);
-  const submitFile = join(tooling, 'src/commands/submit.js');
+  const submitFile = join(tooling, 'apps/cli/src/shell/commands/submit.js');
   const source = readFileSync(submitFile, 'utf8');
   const anchor = '  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };';
   assert.ok(source.includes(anchor), 'the fixture injects at the real owned submit boundary');

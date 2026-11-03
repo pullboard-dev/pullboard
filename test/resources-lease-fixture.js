@@ -14,7 +14,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../packages/seats/index.js';
-import { serveView } from '../src/commands/view.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Build the resource test's child programs with the importing test's absolute module URLs. */
