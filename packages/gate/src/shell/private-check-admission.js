@@ -1,5 +1,6 @@
 /** Admit every command in a private check, including its supplemental proof files [C7,V4]. */
-import { checkNeedsBrowser, explicitCheckFiles } from './browser-admission.js';
+import { checkNeedsBrowser } from './browser-admission.js';
+import { explicitCheckFiles } from './browser-admission.js';
 import { checkNeedsGui } from './gui-admission.js';
 
 /** Classify the complete execution before taking its single lease; a pure frozen check cannot hide a browser supplement. */
