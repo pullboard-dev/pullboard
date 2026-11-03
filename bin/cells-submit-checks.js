@@ -1,3 +1,4 @@
+import { shimCountProblems } from '../packages/codemap/index.js';
 import { shimImportProblems } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { inventoryCache } from './cells-inventory-cache.js';
@@ -291,6 +292,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
+  problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
     const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
