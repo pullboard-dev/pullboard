@@ -45,7 +45,7 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
 for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -78,7 +78,7 @@ test('a GUI-marked shard waits for a local slot when runner GUI capability is un
 recordRunnerGui(${JSON.stringify(HOST)}, null);
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -118,7 +118,7 @@ recordRunnerGui(${JSON.stringify(HOST)}, false);
 import assert from 'node:assert/strict';
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -161,7 +161,7 @@ test('six shards land on six different runners [C7,V4]', (t) => {
   }
   const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -475,7 +475,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
-  const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
+  const script = `const { runLandingShards } = await import(${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)});
 const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('../packages/kernel/index.js')});
