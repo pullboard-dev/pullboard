@@ -182,7 +182,7 @@ test('a check output survives the browser launch guard [V18,V2]', () => {
   const probe = sandbox();
   const observed = join(probe.dir, 'guard-stdio.json');
   const preload = join(probe.dir, 'observe-guard.mjs');
-  const guard = pathToFileURL(resolve(import.meta.dirname, '../src/browser-slot-guard.js')).href;
+  const guard = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/src/shell/browser-slot-guard.js')).href;
   // Observe only the node -e check writer. Other CLI processes legitimately use their own stdio.
   writeFileSync(preload, `
 const fs = process.getBuiltinModule('node:fs');
