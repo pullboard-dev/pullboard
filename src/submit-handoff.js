@@ -156,3 +156,28 @@ export async function recoverItemSubmitHandoff(ctx, itemId, actor) {
   const job = withBoardRead(ctx, board => submitHandoff(board, itemId));
   await recoverSubmitHandoff(ctx, itemId, actor, job);
 }
+
+/**
+ * A newer head replaces this seat's queued or running gate for the item: its worker's process group is stopped, which
+ * frees its gate and runner slot, and the job ends with SUBMIT_HANDOFF_REPLACED. Why: waiting on a gate whose source is
+ * already superseded cost builders about 15 minutes each (#2592). Returns null, so the caller queues the new head.
+ */
+export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
+  if (job?.agentId !== actor || !['queued', 'running'].includes(job.state)) return job;
+  const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+  await withFileLock(join(directory, 'recovery.guard.sqlite'), async () => {
+    let worker = null;
+    try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); } catch { /* A queued job may not have launched yet. */ }
+    // The worker leads its own detached process group; the group holds its gate, its runner connection and its slot.
+    if (worker?.job === job.id && Number.isSafeInteger(worker.pid) && worker.pid > 1 && !deadWorker(worker, job)) {
+      try { process.kill(-worker.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    }
+    const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_REPLACED',
+      `a newer head replaced this gate at ${job.commit.slice(0, 12)}`, 'read the newer gate with pullboard show <id>'), { caller: 'seat' }) };
+    writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
+    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+      { agentId: actor, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+  });
+  ctx.io.say(`replaced the queued gate for #${itemId} at ${job.commit.slice(0, 12)}; the new head gates instead`);
+  return null;
+}
