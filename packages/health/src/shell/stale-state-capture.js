@@ -15,6 +15,9 @@ import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
+import { itemPinned } from '../../../store/index.js';
+import { PINNED_CLAIM_RELEASE_MS } from '../../../store/index.js';
+import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../src/pinned-claim-lapse-engine.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
@@ -109,7 +112,9 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     }
     if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];
-    if (row.idleMs >= CLAIM_IDLE_RELEASE_MS) {
+    // A pinned item blocks the coordinator's order, so its idle claim lapses after 30 minutes instead of 40.
+    const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
+    if (row.idleMs >= (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS)) {
       // Nothing keeps a claim stalled past 40 minutes; the handoff says what was pinned, or why nothing could be.
       return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
