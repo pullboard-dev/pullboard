@@ -1,5 +1,5 @@
 import { mainPolicy } from '../../packages/sandbox/index.js';
-import { claimWorktrees } from '../../packages/activity/index.js';
+import { recordedClaimWorktrees } from '../../packages/activity/index.js';
 import { claimOverlapLines } from '../../packages/activity/index.js';
 import { claimOverlaps } from '../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
@@ -133,7 +133,8 @@ function otherLaneWork(me, item, reasons) {
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
   const items = store.listItems(board), agents = store.listAgents(board);
-  const workingFiles = claimWorktrees(items, agents);
+  // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
+  const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);

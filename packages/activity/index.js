@@ -5,3 +5,5 @@ export { CLAIM_INTERRUPT_WINDOW_MS, classifyActivityDelivery } from './src/core/
 export { readActivityCursor, saveActivityCursor, activityWorkingFiles, activityMainFiles } from './src/shell/activity-inbox.js';
 export { budgetInbox } from './src/core/inbox-budget.js';
 export { claimWorktrees, claimOverlapLines } from './src/shell/claim-worktrees.js';
+export { recordClaimWorktrees } from './src/shell/worktree-observations.js';
+export { recordedClaimWorktrees } from './src/shell/worktree-observations.js';

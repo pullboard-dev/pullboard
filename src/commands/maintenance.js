@@ -5,6 +5,8 @@ import { actOn } from '../cli.js';
 import { context } from '../cli.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { Refused } from '../../packages/kernel/index.js';
+import { sweepClaims } from '../../packages/health/index.js';
+import { ordered } from '../cli.js';
 import { maintenanceCommandPorts } from '../worktree-maintenance-command.js';
 import { maintenanceSummary } from '../worktree-maintenance.js';
 import { runWorktreeMaintenance } from '../worktree-maintenance.js';
@@ -20,6 +22,8 @@ export async function run(io, { first, second, rest, values }) {
     return scheduled.code ?? 0;
   }
   if (values.key !== undefined) throw new Refused('USAGE', '--key belongs only to the registered maintenance timer');
+  // The claim sweep runs first: it records worktree files and releases idle claims before any cleanup (#2427).
+  await actOn(io, (opened, board, me) => sweepClaims(opened, board, me.id, ordered));
   const report = await actOn(io, async (opened, _board, me) =>
     runWorktreeMaintenance(opened.info.root, mainPolicy(opened.info.root).config, maintenanceCommandPorts(opened, me.id)));
   if (report.enabled) {
