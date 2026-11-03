@@ -1,7 +1,7 @@
 /** A runner job reports its result before cleanup; a slow cleanup runs on in the background and never delays the gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, watch, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -59,7 +59,11 @@ catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.
   assert.ok(outcome.ms < SLOW_CLEANUP_MS, `the result came back in ${outcome.ms} ms, before the ${SLOW_CLEANUP_MS} ms cleanup`);
   // The cleanup still runs to the end in the background: the job directory goes away.
   const jobs = join(remoteHome, '.pullboard-runner', 'jobs');
-  const deadline = Date.now() + 20_000; // Budget: the slow cleanup plus the worker's own drain.
-  while (existsSync(jobs) && readdirSync(jobs).length > 0 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+  const gone = () => !existsSync(jobs) || readdirSync(jobs).length === 0;
+  // The directory's own change events say when the cleanup finished; the test timeout bounds a cleanup that never does.
+  await new Promise(resolve => {
+    const watcher = watch(jobs, () => { if (gone()) { watcher.close(); resolve(); } });
+    if (gone()) { watcher.close(); resolve(); }
+  });
   assert.deepEqual(existsSync(jobs) ? readdirSync(jobs) : [], [], 'the background cleanup removed the job directory');
 });
