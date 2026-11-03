@@ -15,6 +15,7 @@ import { focusReviewFirst } from '../../packages/roadmap/index.js';
 import { focusReasons } from '../../packages/roadmap/index.js';
 import { milestoneFocus } from '../../packages/roadmap/index.js';
 import { mainLaneWork } from '../next-steps.js';
+import { nextWithReleaseCooldown } from '../next-release-cooldown.js';
 import * as store from '../../packages/store/index.js';
 import { withBoardRead } from '../cli-context.js';
 import { agentDisplayName } from '../cli-context.js';
@@ -154,7 +155,7 @@ function nextPick(ctx, board, values) {
   if (mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
     return { autoReview: mandatory.item, item: mandatory.item, reasons: [] };
   }
-  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
+  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const { item, reasons, shared } = picked;
