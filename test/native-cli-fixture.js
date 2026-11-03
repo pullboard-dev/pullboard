@@ -2,7 +2,7 @@
 import { fileURLToPath } from 'node:url';
 import { main as cliMain } from '../src/cli-main.js';
 import { HOOK_WORKER } from '../apps/lib/index.js';
-import { launchRelaySender } from '../src/relay-sender-main.js';
+import { launchRelaySender } from '../apps/lib/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';
 const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
