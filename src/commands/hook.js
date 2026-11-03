@@ -19,6 +19,7 @@ import * as store from '../board.js';
 import { pendingCommitSignoffProblem } from '../../packages/commits/index.js';
 import { prepareCommitMetadata } from '../../packages/commits/index.js';
 import { landingBatchOwnsRoot } from '../../packages/landing/index.js';
+import { fixStagedImportBindings } from '../../packages/commits/index.js';
 import { landingRows } from '../../packages/commits/src/core/landing-rows.js';
 import {
   hookRead,
@@ -91,7 +92,7 @@ export async function hookCommand(io, { first, second }) {
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
-    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
     if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
