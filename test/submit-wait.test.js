@@ -50,6 +50,10 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
   await child.closed;
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(onBoard(box, board => store.verdictsFor(board, 1).length), 0, 'gate completion requires no review');
+  // A green submit starts a detached review comparison that records two facts (pending, then its result) on its own clock;
+  // a verdict or health scan made before the second would be raced by it and read as a board change mid-scan.
+  await helpers.waitFor(() => onBoard(box, board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n >= 2),
+    'the background review comparison to record its result');
   const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
   if (builderHeartbeatOffsetMs) {
     onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by),
