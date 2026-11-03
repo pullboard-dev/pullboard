@@ -31,7 +31,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
-import { HELP } from '../src/cli.js';
+import { HELP } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';

@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { copyPackageSubset } from './package-copy-fixture.js';
 import { createHash } from 'node:crypto';
-import { generatedDocDrift } from '../src/generated-docs.js';
+import { generatedDocDrift } from '../apps/cli/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { GENERATED_DOC_PATHS } from '../packages/merge/index.js';
 import { resolveMechanicalIndex } from '../packages/merge/index.js';

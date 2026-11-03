@@ -103,10 +103,10 @@ import {
   executeMove,
   serveApi,
 } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import {
   main,
-} from '../src/cli.js';
+} from '../apps/cli/index.js';
 import {
   fetchFresh,
 } from './http-fixture.js';

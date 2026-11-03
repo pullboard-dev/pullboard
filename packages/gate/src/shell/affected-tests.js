@@ -30,7 +30,7 @@ const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 // A computed-import test may declare the repository modules it can load, in its leading comment header only.
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
-const COMMAND_REGISTRY = 'src/commands/index.js';
+const COMMAND_REGISTRY = 'apps/cli/src/shell/commands/index.js';
 const GLOBAL = new Set(['bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /**
@@ -354,10 +354,10 @@ function buildGraph(root, commit, prior, probe) {
       sourceTreeReaders: new Set(), docInputs: new Map(), imports: new Map(), commonJs: new Map(), utilities: new Set() };
     addModules(g, g.paths, probe);
   }
-  // Discovery is not an import: the command registry loads each src/commands module, and machine.js reads each
+  // Discovery is not an import: the command registry loads each apps/cli/src/shell/commands module, and machine.js reads each
   // src/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
   for (const module of g.paths) {
-    const reader = module.startsWith('src/commands/') && COMMAND_CANDIDATE.test(module.slice('src/commands/'.length)) ? COMMAND_REGISTRY
+    const reader = module.startsWith('apps/cli/src/shell/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/shell/commands/'.length)) ? COMMAND_REGISTRY
       : module.startsWith('src/') && ENGINE_CANDIDATE.test(module.slice('src/'.length)) ? 'src/machine.js' : null;
     if (!reader) continue;
     if (!g.reverse.has(module)) g.reverse.set(module, new Set());

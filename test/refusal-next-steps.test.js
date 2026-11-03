@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { Refused } from '../packages/kernel/core.js';
 import { recordedRefusal, refusalFromReceipt, RECORDED_GENERIC_NEXT } from '../packages/state/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { commandOutput as lightCommandOutput } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

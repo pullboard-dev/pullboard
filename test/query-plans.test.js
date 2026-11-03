@@ -31,7 +31,7 @@ import {
 } from '../packages/spec/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const SERVE = pathToFileURL(resolve(import.meta.dirname, '../src/cli/view-state.js')).href;
+const SERVE = pathToFileURL(resolve(import.meta.dirname, '../apps/cli/src/shell/cli/view-state.js')).href;
 const ITEMS = 1_000;
 const EVENTS = 45_000;
 const SHOUTS = 23_000;

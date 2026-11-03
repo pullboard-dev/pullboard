@@ -2,7 +2,7 @@ import { viewApiPorts } from '../../../apps/view/index.js';
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import { apiBoardOpeners } from '../../../test/board-fixture.js';
 
-import { refusalDocument } from '../../../src/next-step-words.js';
+import { refusalDocument } from '../../../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';

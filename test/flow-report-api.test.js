@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { logEvent } from '../packages/store/index.js';
