@@ -29,6 +29,8 @@ const SKIPPED = new Set(['node_modules', 'work']);
  * @returns {string[]}
  */
 export function walk(root, pattern) {
+  const only = restrictedFiles();
+  if (only) return only.filter(name => pattern.test(name) && isWalkable(root, name)).sort(byText);
   const found = [];
   const pending = [resolve(root)];
   while (pending.length) {
@@ -45,6 +47,28 @@ export function walk(root, pattern) {
     }
   }
   return found.sort(byText);
+}
+
+/**
+ * The repo-relative files a doctrine hold narrowed this run to, from PULLBOARD_CHECK_FILES (a JSON
+ * array), or null for the whole tree. Why: a count can only rise in files the item changed, so
+ * submit scans just those and the check finishes in milliseconds.
+ *
+ * @returns {string[] | null}
+ */
+function restrictedFiles() {
+  const raw = process.env.PULLBOARD_CHECK_FILES;
+  if (!raw) return null;
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter(name => typeof name === 'string') : null;
+  } catch { return null; } // a malformed list means no narrowing: scan everything
+}
+
+/** True when a narrowed path is a regular file the full walk would also have visited. */
+function isWalkable(root, name) {
+  if (name.split('/').some(part => SKIPPED.has(part) || part.startsWith('.'))) return false;
+  try { return lstatSync(join(root, name)).isFile(); } catch { return false; } // a deleted file has nothing to scan
 }
 
 /** Compare by UTF-16 code units, so the order never depends on the machine's locale. */

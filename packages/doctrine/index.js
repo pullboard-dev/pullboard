@@ -2,3 +2,4 @@
 export * from './src/shell/doctrine-checks.js';
 export * from './src/shell/doctrine-rulings.js';
 export * from './src/shell/doctrine.js';
+export * from './src/shell/doctrine-fast.js';
