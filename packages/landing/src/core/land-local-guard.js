@@ -29,6 +29,8 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
 export function requireLocalGuardClassification(state, gate) {
   if (state.config.flakes?.rerun !== true) return;
   const recorded = gate.flakeDiagnostics?.observations ?? [];
+  // No measurement exists to classify after an observer error; diagnose will isolate each failing file once.
+  if (gate.flakeDiagnostics?.error && !recorded.length) return;
   if (gate.flakeDiagnostics?.error || !recorded.length || recorded.some(row => !row.recorded || row.classification === 'unclassified')) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk red has no complete classified diagnostic; inspect its recorded gate');
   }
