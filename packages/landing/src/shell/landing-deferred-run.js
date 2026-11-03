@@ -5,7 +5,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import {
   headCommit,

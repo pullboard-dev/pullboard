@@ -64,8 +64,8 @@ function linkedBoardCount(database) {
   finally { db.close(); }
 }
 
-const relaySetupURL = new URL('../src/relay-setup.js', import.meta.url).href;
-const relayMachineURL = new URL('../src/relay-machine.js', import.meta.url).href;
+const relaySetupURL = new URL('../packages/link/index.js', import.meta.url).href;
+const relayMachineURL = new URL('../packages/link/index.js', import.meta.url).href;
 const relayDeviceKeysURL = new URL('../packages/keys/index.js', import.meta.url).href;
 
 /** Call the shared setup flow with a private caller signal and credential-free output streams. */

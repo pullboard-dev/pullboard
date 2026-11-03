@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { closeBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { closeBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';

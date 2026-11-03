@@ -28,7 +28,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -36,6 +36,7 @@ import { fileCuts } from './cells-plan-cuts.js';
 import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
+import { ownedStayProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
@@ -109,6 +110,8 @@ export function planWrites(root, plan, name) {
 export function writePlan(root, plan) {
   const entries = entryPlacementProblems(root, plan);
   if (entries.length) throw new Refused('CELLS_ENTRY', entries.join('; '));
+  const owned = ownedStayProblems(plan);
+  if (owned.length) throw new Refused('CELLS_STAY_OWNER', `${owned.join('; ')}; name an existing cell with --owner`);
   const retired = retiredProblems(root, plan);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   // Persist authoritative rows; readers derive summaries from the exact rows they return.
@@ -145,7 +148,7 @@ export function readPlan(root, read = file => readFileSync(join(root, file), 'ut
 }
 
 /** Append one explicit placement; preserve every existing row, cut, contract and ordering decision. */
-export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false } = {}) {
+export function placePath(root, file, { cell, stay = false, part = 'shell', entry = false, owner } = {}) {
   if (typeof file !== 'string' || !inPlanScope(file) || file.split('/').some(piece => !piece || piece === '.' || piece === '..')
     || /[\0\r\n\\]/u.test(file) || stay === Boolean(cell) || typeof entry !== 'boolean' || !['core', 'shell'].includes(part)) {
     throw new Refused('CELLS_UNPLACED', 'use --place <in-scope path> with exactly one --cell <existing cell> or --stay');
@@ -153,6 +156,7 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
   const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', file]);
   if (tracked.status !== 0 || !lstatSync(join(root, file)).isFile()) throw new Refused('CELLS_UNPLACED', `stage a regular source file before placing it: ${file}`);
   const plan = readPlan(root);
+  if (owner !== undefined) return ownStay(root, plan, file, { stay, entry, owner });
   if (entry) {
     const destination = plan.cells.find(row => row.name === cell);
     if (!destination?.name.startsWith('app:') || stay || part !== 'shell') throw new Refused('CELLS_ENTRY', 'a process entry needs the shell of an existing app cell');
@@ -184,6 +188,24 @@ export function placePath(root, file, { cell, stay = false, part = 'shell', entr
     if (plan.cells.some(row => row.paths.some(([from, to]) => from === target || to === target))) throw new Refused('CELLS_UNPLACED', `the placement target already belongs to a path: ${target}`);
     entry.paths.push([file, target, 'rule']);
   }
+  writePlan(root, plan);
+  return plan;
+}
+
+/**
+ * Give a stay an owner cell: the file keeps its path, and the plan check and cut walk count it as that cell's file.
+ * Why: deployed entries such as relay/server.mjs keep their path, yet belong to the app that serves them (#2576).
+ */
+function ownStay(root, plan, file, { stay, entry, owner }) {
+  if (!stay || entry || typeof owner !== 'string') throw new Refused('CELLS_STAY_OWNER', 'use --stay <path> --owner <cell>');
+  if (!plan.cells.some(row => row.name === owner)) throw new Refused('CELLS_STAY_OWNER', `choose an existing cell for --owner: ${owner}`);
+  if (plan.cells.some(row => row.paths.some(([from, to]) => from === file || to === file))) {
+    throw new Refused('CELLS_STAY_OWNER', `${file} is planned to move; only a stay can have an owner`);
+  }
+  const row = plan.stays.find(value => value.path === file);
+  if (row?.owner !== undefined && row.owner !== owner) throw new Refused('CELLS_STAY_OWNER', `${file} is already owned by ${row.owner}; retain its existing owner`);
+  if (row) row.owner = owner;
+  else plan.stays.push({ path: file, reason: 'explicit bounded placement: stays in place during the move', owner });
   writePlan(root, plan);
   return plan;
 }
@@ -364,7 +386,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
-      try { workerFiles = new Set(Object.keys(runnerPackage(root).files)); }
+      try { workerFiles = runnerWorkerFiles(root, { importsIn, commonJsIn, files: sharedInventory().files.keys() }); }
       catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
     }
     return workerFiles.has(from) && workerFiles.has(to);
@@ -536,22 +558,23 @@ function main(argv) {
     writePlan(root, computePlan(root));
     return 0;
   }
+  if (mode === '--stay') return main(['--place', rest[0], '--stay', ...rest.slice(1)]);
   if (mode === '--place') {
     const [file, ...options] = rest;
-    const allowed = new Set(['--cell', '--part', '--stay', '--entry']);
+    const allowed = new Set(['--cell', '--part', '--stay', '--entry', '--owner']);
     const values = {};
     for (let i = 0; i < options.length; i++) {
       const flag = options[i];
-      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--entry | --part core|shell], or --place <path> --stay');
+      if (!allowed.has(flag) || Object.hasOwn(values, flag)) throw new Refused('CELLS_PLAN_MODE', 'use --place <path> --cell <cell> [--entry | --part core|shell], or --place <path> --stay [--owner <cell>]');
       values[flag] = ['--stay', '--entry'].includes(flag) ? true : options[++i];
       if (values[flag] === undefined) throw new Refused('CELLS_PLAN_MODE', `supply the value for ${flag}`);
     }
-    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true });
+    placePath(root, file, { cell: values['--cell'], stay: values['--stay'] === true, part: values['--part'] ?? 'shell', entry: values['--entry'] === true, owner: values['--owner'] });
     return 0;
   }
   if (mode === '--check') return cachedCellsRun(root, [mode], () => {
     const plan = readPlan(root), missing = unplanned(root, plan), stale = stalePlanRows(root, plan);
-    const entries = entryPlacementProblems(root, plan);
+    const entries = [...entryPlacementProblems(root, plan), ...ownedStayProblems(plan)];
     for (const problem of entries) console.error(problem);
     for (const path of missing) console.error(`not in ${PLAN_FILE}: ${path}`);
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
@@ -595,7 +618,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

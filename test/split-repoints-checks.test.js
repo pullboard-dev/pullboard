@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { ENGINE_REGISTRY, ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 import { prepareTrainLanding, prepareNativeTrainLanding } from '../packages/landing/index.js';
 import { recordTrainLanding } from '../packages/landing/index.js';

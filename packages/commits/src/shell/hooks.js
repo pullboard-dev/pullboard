@@ -262,15 +262,15 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  */
 export function stagedPaths(root, base = null) {
   const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
-  const touched = [];
+  const touched = [], companion = new Set(base ? [] : JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593: a companion's own paths
   const written = [];
   let index = 0;
   while (index < fields.length - 1) {
     const status = fields[index] ?? '';
     const isMove = /^[RC]/.test(status);
-    const paths = fields.slice(index + 1, index + (isMove ? 3 : 2));
+    const paths = fields.slice(index + 1, index + (isMove ? 3 : 2)).filter(path => !companion.has(path));
     touched.push(...paths);
-    if (!status.startsWith('D')) written.push(paths.at(-1) ?? '');
+    if (!status.startsWith('D') && paths.length) written.push(paths.at(-1));
     index += isMove ? 3 : 2;
   }
   return { touched, written };

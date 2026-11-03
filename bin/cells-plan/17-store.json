@@ -154,18 +154,7 @@
   ["src/rework-family-routing.js","packages/store/src/core/rework-family-routing.js","rule"]
  ],
  "reexports": [
-  "src/board-event-log.js",
-  "src/board-item-read.js",
-  "src/board-link-state.js",
-  "src/board-query.js",
-  "src/board-read-auxiliary.js",
-  "src/board-read-open.js",
-  "src/board-store-guards.js",
-  "src/board.js",
-  "src/exchange.js",
-  "src/history.js",
-  "src/native-user-directory.js",
-  "src/seat-presence.js"
+  "src/board.js"
  ],
  "imports": [
   {"cell":"kernel","imports":33,"before":true},

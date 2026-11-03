@@ -1,1 +1,0 @@
-export { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, relayMachineOwner, relayPersonRoot, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from '../packages/link/index.js';

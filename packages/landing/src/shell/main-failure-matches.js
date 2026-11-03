@@ -1,6 +1,7 @@
 import { blockingFailures } from '../../../verify/index.js';
 /** Match completely accounted test failures without granting a file-wide main-red exemption [V4,B3]. */
 import { createHash } from 'node:crypto';
+import { secretsIn } from '../../../commits/index.js';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from './land.js';
 import {
@@ -37,6 +38,19 @@ function diagnostics(output, root) {
       ? createHash('sha256').update(JSON.stringify([MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics(row.lines, root)])).digest('hex') : null }));
 }
 
+/** Extract the first safe diagnostic line without changing the failure signature. */
+function firstError(lines, root) {
+  const index = lines.findIndex(line => line.startsWith('error:'));
+  if (index < 0) return null;
+  let value = lines[index].slice('error:'.length).trim();
+  if (!value || /^[|>][-+]?$/u.test(value)) value = lines.slice(index + 1).find(line => line.trim())?.trim() ?? '';
+  value = value.replace(/^['"]|['"]$/gu, '');
+  // Normalize before truncating so varying checkout path lengths cannot change the retained prefix.
+  value = normalizedFailureDiagnostics([`error: ${value}`], root)[0].slice('error: '.length).slice(0, 1024);
+  if (!value) return null;
+  return secretsIn([{ path: 'main failure output', line: 1, text: value }]).length ? '[redacted error]' : value;
+}
+
 /** Legacy coarse outcomes remain useful, but old detailed hashes cannot authorize equality under a new scheme. */
 export function cachedFailureSignatures(outcome, file) {
   const failures = outcome.failures;
@@ -60,7 +74,10 @@ export function failureSignatures(run, root, { raw = false } = {}) {
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
-    .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature })) : null;
+    .every(row => row.file && row.signature) ? failures.map((failure, index) => {
+      const error = firstError(details[index].lines, executionRoot);
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}) };
+    }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
 

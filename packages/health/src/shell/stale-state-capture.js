@@ -4,7 +4,7 @@ import { ENGINE_VERSION } from '../../../state/index.js';
 import { staleInstant } from '../../../../src/board-stale-state-policy.js';
 import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
-import { staleStateSnapshot } from '../core/stale-state-query.js';
+import { staleStateSnapshot } from './stale-state-snapshot.js';
 import { observeStaleWork } from './stale-work-observation.js';
 import { releaseBlockingItems } from '../core/stale-state-blockers.js';
 import { CLAIM_STALL_MS } from '../core/stale-state-query.js';
@@ -14,6 +14,10 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
 import { redReturnLeaseHolds } from '../../../store/index.js';
+import { submitGateInFlight } from '../../../store/index.js';
+import { itemPinned } from '../../../store/index.js';
+import { PINNED_CLAIM_RELEASE_MS } from '../../../store/index.js';
+import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../src/pinned-claim-lapse-engine.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
@@ -92,6 +96,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
   snapshot.claims = snapshot.claims.flatMap(row => {
+    // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
+    if (submitGateInFlight(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
@@ -106,7 +112,9 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     }
     if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];
-    if (row.idleMs >= CLAIM_IDLE_RELEASE_MS) {
+    // A pinned item blocks the coordinator's order, so its idle claim lapses after 30 minutes instead of 40.
+    const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
+    if (row.idleMs >= (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS)) {
       // Nothing keeps a claim stalled past 40 minutes; the handoff says what was pinned, or why nothing could be.
       return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }

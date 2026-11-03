@@ -1,11 +1,11 @@
 /** Release grouping, item rows and shipping HTML use explicit presentation data [N26,N38,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readMilestoneModel } from '../../src/view/roadmap-render.js';
-import { milestoneRowHtml } from '../../src/view/roadmap-render.js';
-import { roadmapCardsHtml } from '../../src/view/roadmap-render.js';
-import { roadmapRemainingCount } from '../../src/view/roadmap-render.js';
-import { roadmapSummary } from '../../src/view/roadmap-summary.js';
+import { readMilestoneModel } from '../../apps/view/src/shell/view/roadmap-render.js';
+import { milestoneRowHtml } from '../../apps/view/src/shell/view/roadmap-render.js';
+import { roadmapCardsHtml } from '../../apps/view/src/shell/view/roadmap-render.js';
+import { roadmapRemainingCount } from '../../apps/view/src/shell/view/roadmap-render.js';
+import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
 
 test('Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
   const modern = readMilestoneModel({ name: 'Next', items: [1, 2], shipped: null, summary: { total: 8, landed: 3, left: 5 } },

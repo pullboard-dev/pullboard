@@ -12,7 +12,7 @@ import {
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
-import * as relayOutput from '../../../../../packages/link/index.js';
+import { detailLines } from '../../../../../packages/link/index.js';
 import { describeMove } from '../../../../../packages/outbox/index.js';
 import { refusalLine } from '../../../../../packages/outbox/index.js';
 import { DEFAULT_RELAY } from '../../../../../packages/link/index.js';
@@ -142,7 +142,7 @@ export async function run(io, { first, second, rest, values }) {
     : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root, io);
   io.result?.(result);
   const boardName = listApiProjects().find((project) => project.root === ctx.info.root)?.name ?? basename(ctx.info.root);
-  for (const line of relayOutput.detailLines(result, boardName, { describeMove, refusalLine })) io.say(line);
+  for (const line of detailLines(result, boardName, { describeMove, refusalLine })) io.say(line);
   return 0;
 }
 

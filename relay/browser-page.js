@@ -13,7 +13,7 @@ import { lex } from '../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
-const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../src/view/stage.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
+const STYLES = readFileSync(new URL('../apps/view/src/shell/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../apps/view/src/shell/view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../apps/view/src/shell/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../apps/view/src/shell/view/stage.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 

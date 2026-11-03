@@ -20,6 +20,12 @@ import {
   proofReceipts,
 } from "./board-query.js";
 import { Refused } from "../../../kernel/index.js";
+
+/**
+ * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
+ * failing (#2521), and a gate whose bounded infrastructure retries were spent (#2516).
+ */
+const INFRASTRUCTURE_CODES = new Set(['GIT_READ_INFRASTRUCTURE', 'GATE_INFRA_EXHAUSTED']);
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 
@@ -158,6 +164,11 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     if (result?.code !== 1 || !result.error || typeof result.error.code !== 'string' || !result.error.code
       || typeof result.error.message !== 'string' || typeof result.error.next !== 'string') {
       throw new Refused('BAD_SUBMIT_HANDOFF', 'retain the exact canonical refusal document before completing this queued gate');
+    }
+    if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
+      // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
+      insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
+      return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;

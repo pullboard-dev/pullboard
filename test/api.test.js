@@ -1,8 +1,8 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
@@ -500,8 +500,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.deepEqual(readFileSync(dbFile), before, 'the removed environment override cannot migrate the shared board');
   const relayProbe = join(linked, '.schema-relay-probe.mjs');
   writeFileSync(relayProbe, `
-    import { localRecords } from './src/relay.js';
-    import { openBoard } from './src/native-board.js';
+    import { localRecords } from './packages/link/index.js';
+    import { openBoard } from './apps/lib/index.js';
     try {
       localRecords(openBoard, process.env.PULLBOARD_FIXTURE_REPO, (board) => board.db.prepare('PRAGMA user_version').get());
       console.log(JSON.stringify({ code: 'UNEXPECTED_OPEN' }));
@@ -525,7 +525,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
     import { serveApi } from './src/api.js'; import { viewApiPorts } from './src/view-api-ports.js'; import { refusalDocument } from './src/next-step-words.js';
-    import { openBoard, openBoardForRead } from './src/native-board.js';
+    import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
@@ -578,7 +578,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const mutationProbe = join(unguarded, '.schema-mutation-probe.mjs');
   writeFileSync(mutationProbe, `
     import { closeBoard } from './src/board.js';
-    import { openBoard } from './src/native-board.js';
+    import { openBoard } from './apps/lib/index.js';
     const board = openBoard(process.env.PULLBOARD_FIXTURE_BOARD, undefined, { isMain: false });
     closeBoard(board);
   `);

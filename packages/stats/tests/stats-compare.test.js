@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { serveApi } from '../../api/index.js';
 import { fetchFresh } from '../../../test/http-fixture.js';

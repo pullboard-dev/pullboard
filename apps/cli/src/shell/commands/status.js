@@ -61,9 +61,9 @@ export async function run(io, { values }) {
   const ctx = context(io);
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
-  const relay = hasRelayState ? await import('../../../../../packages/link/index.js') : null;
+  const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
-    ? await import('../../../../../packages/link/index.js') : null;
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: relay?.relayLinked ?? (() => false) }, readers);

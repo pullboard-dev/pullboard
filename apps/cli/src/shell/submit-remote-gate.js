@@ -1,6 +1,6 @@
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
-import { shellWord } from '../../../../packages/runners/index.js';
 import { effectiveRunners } from '../../../../packages/runners/index.js';
+import { shellWord } from '../../../../packages/runners/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -108,8 +108,9 @@ try {
   if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
-  if (error?.name !== 'Refused') throw error;
-  result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
+  if (error?.retryable === true && error.code === 'GIT_READ_INFRASTRUCTURE') result.infra = { code: error.code, message: String(error.message) };
+  else if (error?.name !== 'Refused') throw error;
+  else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
 `;
@@ -174,6 +175,9 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   return { value, directory, sha256: phase.sha256 };
 }
 
+/** How many times the runner analysis repeats when its Git read fails for infrastructure reasons. */
+const ANALYSIS_INFRA_ATTEMPTS = 3;
+
 /**
  * Run placement, static checks, composition, cells, test selection and browser admission on the runner.
  * The controller supplies only data it already holds (pinned commits, its config, the board's cut rows).
@@ -184,7 +188,14 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
     browserFreeChecks: request.browserFreeChecks === true, cutRows };
-  const { value, directory, sha256 } = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data }, lease, artifactDirectory);
+  let step;
+  /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
+  for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
+    step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data }, lease, artifactDirectory);
+    if (!step.value.infra) break;
+  }
+  if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true });
+  const { value, directory, sha256 } = step;
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
     throw new Refused('CELLS_SUBMIT', 'the board\'s cut authority changed while the remote analysis ran; submit again from a fresh snapshot');
