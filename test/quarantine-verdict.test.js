@@ -57,16 +57,14 @@ import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from
 import {receiptRecorder} from './packages/flakes/index.js';
 import {context,ordered,withBoard,resourceAgent,freezer} from './src/cli.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
 import {QUARANTINE_VERDICT_ENGINE} from './src/quarantine-verdict-engine.js';
 import {quarantineVerdictSnapshot,flakeQuarantines,validateQuarantineVerdict,validateQuarantineGate,recordGateRun,quarantineWaivers,validateQuarantineProofIds,validateQuarantineLandingProof} from './packages/flakes/index.js';
 import {receiptBlockingGreen,nativeProofBlockingGreen,blockingFailures} from './packages/verify/index.js';
 import {proofRunReceipt} from './packages/store/index.js';
-import submitMove from './src/moves/submit.js';
-import verifyMove from './src/moves/verify.js';
-import finishMove from './src/moves/finishLandingBatch.js';
+import {submit as submitMove,verify as verifyMove,finishLandingBatch as finishMove} from './packages/moves/index.js';
 import {checkTrainLandingReceipt,readTrainLandingReceipt} from './packages/landing/index.js';
 import {runLocalLandingGuard} from './packages/landing/index.js';
 import {gateGroup} from './packages/landing/index.js';
