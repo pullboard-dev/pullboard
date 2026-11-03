@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 test('the repository static style command enforces its source rules [C7]', () => {
   const before = performance.now();

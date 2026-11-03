@@ -1,7 +1,7 @@
 /** Commit complete shipped-source fixtures without exceeding the native staged-diff scan bound [C7]. */
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';

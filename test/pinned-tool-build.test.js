@@ -13,7 +13,7 @@ import { gatedToolBuild } from '../src/pinned-tool-publish.js';
 import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
 import { configFromSource } from '../packages/config/index.js';
 import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

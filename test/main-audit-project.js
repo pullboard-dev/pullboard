@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

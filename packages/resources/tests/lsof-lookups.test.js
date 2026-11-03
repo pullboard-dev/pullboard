@@ -14,7 +14,7 @@ import {
   readMachineMemory,
   memoryVerdict,
 } from '../src/shell/resources.js';
-import { toolSourcePath } from '../../runners/src/shell/package-files.js';
+import { toolSourcePath } from '../../runners/index.js';
 import { cleanupFailureReport } from '../../../test/cleanup-diagnostics.js';
 
 /** Inject only the documented OS-tool boundary; all production parsing and failure rendering still run. */

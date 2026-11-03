@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles, toolSourcePath } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles, toolSourcePath } from '../packages/runners/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';

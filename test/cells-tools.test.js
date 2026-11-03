@@ -18,7 +18,7 @@ import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
 import { styleSources } from '../packages/codemap/index.js';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));

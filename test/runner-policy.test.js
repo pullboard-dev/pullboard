@@ -16,7 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPolicyRecord } from '../packages/runners/index.js';
 import { RUNNER_POLICY_FILE } from '../packages/runners/index.js';
 import { gitPath } from '../src/git.js';

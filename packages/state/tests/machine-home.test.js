@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Real machine-storage permission refusals preserve the shared queue location [I1,C7,Q4]. */
-import { copyPackageFiles } from '../../runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../../runners/index.js';
 import assert from 'node:assert/strict';
 import {
   appendFileSync,

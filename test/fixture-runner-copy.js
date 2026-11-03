@@ -2,7 +2,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { join, posix } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../packages/gate/index.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';

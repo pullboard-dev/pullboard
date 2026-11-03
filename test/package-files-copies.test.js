@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles, packageFiles, toolSourcePath } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles, packageFiles, toolSourcePath } from '../packages/runners/index.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
 function fixture(t, files = ['src', 'packages/*/src']) {
