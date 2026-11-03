@@ -99,9 +99,20 @@ function itemProject() {
 function assertFailureSummary(result, code) {
   assert.equal(result.code, 1);
   const text = [result.out, result.err].join('\n');
-  const lineCount = text.trim().split('\n').length;
-  assert.ok(lineCount < (code === 'CHECK_RED' ? 80 : 40), `${code} output is bounded (${lineCount} lines)`);
-  if (code === 'CHECK_RED') assert.match(text, /last output lines \(up to 40\):/u);
+  if (code === 'CHECK_RED') {
+    const marker = 'last output lines (up to 40):';
+    const start = text.indexOf(marker);
+    const end = text.indexOf('\nfull output file:', start);
+    assert.ok(start >= 0 && end > start, 'CHECK_RED includes its bounded output tail and full-log pointer');
+    const tail = text.slice(start + marker.length, end).trim();
+    const tailLines = tail ? tail.split('\n').length : 0;
+    assert.ok(tailLines <= 40, `CHECK_RED tail is bounded to 40 lines, got ${tailLines}`);
+    const remaining = text.slice(0, start) + text.slice(end + 1);
+    assert.ok(remaining.trim().split('\n').length < 40, 'CHECK_RED digest and wrapper are bounded apart from its tail');
+  } else {
+    const lineCount = text.trim().split('\n').length;
+    assert.ok(lineCount < 40, `${code} output is bounded (${lineCount} lines)`);
+  }
   assert.match(text, new RegExp(code));
   for (const value of ['first failing case', 'second failing case', 'first failure detail', 'second failure detail']) {
     assert.ok(text.includes(value), `${code} retains ${value}`);
