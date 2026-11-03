@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../packages/config/index.js';
@@ -13,6 +13,13 @@ import { runFixtureChild } from './fixture-child.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
+
+/** Give the real project seat the model required by the current join contract. */
+function outputBudgetProject() {
+  const box = helpers.sandbox();
+  box.env.PULLBOARD_MODEL = 'Output budget fixture';
+  return helpers.project('true', box);
+}
 
 /** Arguments a reader passes by default; every other command runs bare. */
 const DEFAULT_ARGS = { list: ['web'], show: ['1'], log: [], why: ['1'] };
@@ -48,13 +55,13 @@ function ratchetProblems(measured, baseline) {
 
 /** A real project whose board holds hundreds of long items and shouts, so unbounded reads would overflow. */
 function seeded() {
-  const box = helpers.project('true');
+  const box = outputBudgetProject();
   // @pullboard-board-file journey: the real CLI subprocesses read this seeded project board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     for (let index = 0; index < 300; index += 1) {
       store.addItem(board, { by: 'coordinator', lane: 'web', title: `Seeded budget item ${index} ${'with a long readable title '.repeat(3)}`,
-        criterion: 'The seeded behaviour is observable.', specIds: ['G1'] });
+        criterion: 'The seeded behaviour is observable [test]', specIds: ['G1'] });
     }
     for (let index = 0; index < 200; index += 1) store.shout(board, { from: 'coordinator', to: 'web-1', text: `Seeded note ${index} ${'x'.repeat(120)}`, lanes: ['web'] });
   } finally { store.closeBoard(board); }
@@ -65,7 +72,6 @@ test('every measured command prints within its committed baseline and declared b
   const box = seeded();
   const measured = {};
   const unlisted = Object.keys(COMMANDS).filter(command => !Object.hasOwn(BASELINE, command) && !Object.hasOwn(EXCLUDED, command));
-  assert.deepEqual(unlisted, [], 'every command is measured against a baseline or excluded with a reason');
   for (const command of Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name))) {
     // A refusal still prints its default text; only stdout lands in a reader's context as output.
     const result = runFixtureChild(process.execPath, [helpers.BIN, command, ...(DEFAULT_ARGS[command] ?? [])],
@@ -73,6 +79,7 @@ test('every measured command prints within its committed baseline and declared b
     measured[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
   }
   assert.deepEqual(ratchetProblems(measured, BASELINE), [], JSON.stringify(measured));
+  assert.deepEqual(unlisted, [], 'every command is measured against a baseline or excluded with a reason');
   const full = box.run(box.repo, 'list', 'web', '--detail');
   assert.ok(Buffer.byteLength(full.out) > DEFAULT_OUTPUT_BUDGET, '--detail still prints every row');
   const bounded = box.run(box.repo, 'list', 'web');
@@ -110,7 +117,7 @@ test('streams and reference pages are declared unbounded, and a single long line
 });
 
 test('inbox after a read shows nothing old: a delivered interrupt comes back only as its id [N26,R2]', () => {
-  const box = helpers.project('true');
+  const box = outputBudgetProject();
   // @pullboard-board-file journey: the real CLI subprocesses read this answered decision as an interrupt.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
