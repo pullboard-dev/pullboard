@@ -7,6 +7,7 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { requireLocalGuardClassification } from '../packages/landing/src/core/land-local-guard.js';
 import { diagnose } from '../packages/landing/src/shell/landing-step-diagnose.js';
 import { completeGate } from '../packages/landing/src/shell/landing-completion.js';
 import { failureSignatures } from '../packages/landing/src/shell/main-failure-matches.js';
@@ -129,6 +130,9 @@ test('an observer error without observations isolates each failing file once; re
     write: async (_operation, [options]) => options.batch,
   };
   const failures = [{ file: MAIN_RED, name: 'main-red-case' }, { file: MAIN_RED, name: 'another case' }];
+  assert.doesNotThrow(() => requireLocalGuardClassification(state, { flakeDiagnostics: { error: 'observer failed', observations: [] } }),
+    'the local-trunk boundary permits the same isolate fallback');
+  assert.throws(() => requireLocalGuardClassification(state, { flakeDiagnostics: { observations: [] } }), { code: 'LAND_DIAGNOSTIC' });
   const callsBefore = readFileSync(box.calls, 'utf8').trim().split('\n').length;
   const result = await diagnose(state, failures, { flakeDiagnostics: { error: 'observer failed', observations: [] } });
   assert.deepEqual(result, [], 'the reproducible red remains attributable');
