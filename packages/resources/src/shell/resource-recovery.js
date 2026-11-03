@@ -73,7 +73,9 @@ export function cleanupCharges(db) {
   for (const row of db.prepare("SELECT host, failure FROM runner_unavailable WHERE detail = 'CLEANUP_UNVERIFIED'").all()) {
     let pending;
     try { pending = JSON.parse(row.failure)?.pending; } catch { pending = null; }
-    charges.set(row.host, Array.isArray(pending) && pending.length ? pending.length : 1);
+    // One job is one slot however often its failure is recorded; an unidentified failure counts on its own.
+    const jobs = Array.isArray(pending) ? new Set(pending.map(entry => recoveryIdentity(entry) ? entry.request + ':' + entry.nonce : Symbol('unknown'))) : new Set();
+    charges.set(row.host, Math.max(1, jobs.size));
   }
   return charges;
 }

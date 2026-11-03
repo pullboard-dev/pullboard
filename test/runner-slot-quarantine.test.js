@@ -144,3 +144,17 @@ test('run-tests keeps the runner job marker for its test children [C7]', () => {
   const source = readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /delete env(?:\.PULLBOARD_RUNNER_JOB|\[['"]PULLBOARD_RUNNER_JOB['"]\])/u, 'test children and their CLI descendants stay marked');
 });
+
+test('one job recorded twice still costs one slot [C7]', async t => {
+  const { dir, pool } = machine(t);
+  const runners = [{ host: 'same-job-host', slots: 2, browser: 0 }, { host: 'fallback-host', slots: 2, browser: 0 }];
+  (await acquire(dir, runners)).release();
+  const recovery = { version: 1, launchFence: 1, request: 'job-twice', nonce: '00000000-0000-4000-8000-000000000002', tooling: 'b'.repeat(64) };
+  const db = new DatabaseSync(pool);
+  try {
+    initializeRunnerRecovery(db);
+    for (let n = 0; n < 2; n++) recordRunnerFailure(db, 'same-job-host', 'cleanup-unverified', { reason: 'cleanup-timeout', recovery });
+  } finally { db.close(); }
+  const lease = await acquire(dir, runners);
+  try { assert.equal(lease.runner.host, 'same-job-host', 'its other slot stays usable'); } finally { lease.release(); }
+});
