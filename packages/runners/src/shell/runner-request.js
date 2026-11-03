@@ -66,7 +66,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
     const reuse = process.env.PULLBOARD_TEST_REUSE !== '0';
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
-    const exchange = reuse ? await (await import('../../../../src/test-action-transfer.js')).prepareTestResultExchange(root, command, selected.commit) : null;
+    const exchange = reuse ? await (await import('../../../gate/index.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
     const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).filter(entry => entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
       && !/[\\\r\n\0]/u.test(entry.file) && entry.file.split('/').every(part => part && part !== '.' && part !== '..'))

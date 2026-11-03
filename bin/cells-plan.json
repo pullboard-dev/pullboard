@@ -377,11 +377,11 @@
     },
     {
       "path": "bin/runner-controller.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
+      "reason": "bin/ stays in place during the move (dry run section 1)", "owner": "app:runner"
     },
     {
       "path": "bin/timed-shell.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
+      "reason": "bin/ stays in place during the move (dry run section 1)", "owner": "app:runner"
     },
     {
       "path": "bin/update-docs.js",

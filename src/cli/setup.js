@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import * as store from '../board.js';
 import { withBoard } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
-import * as gateConfig from '../gate-config.js';
+import { settingCommand } from '../../packages/gate/index.js';
 import { detectGate } from '../init.js';
 import { laneNames } from '../../packages/seats/index.js';
 import { applyStep } from '../../packages/spec/index.js';
@@ -124,7 +124,7 @@ export function boardSetup(ctx, card, identity, { decisions: capturedDecisions }
       question: detectedGate
         ? `Ask the person: which command proves the build works? Suggested: ${detectedGate}.`
         : 'Ask the person: if this board has no build, use `pullboard spec check` to check its spec and practice files; a second agent review checks the actual work. Or choose a custom gate command.',
-      command: gateConfig.settingCommand(ctx.info.root, detectedGate || 'pullboard spec check') },
+      command: settingCommand(ctx.info.root, detectedGate || 'pullboard spec check') },
     { number: 4, done: card.all.length > 0, question: 'Ask the person: what is the first small piece we should build?',
       command: `pullboard add ${quote(lane)} 'First small piece' --specs ${quote(approved[0]?.id ?? 'G1')} --criterion 'Describe what the person will be able to do'` },
     { number: 5, done: card.viewOpened,

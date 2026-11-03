@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/browser-admission.js */
+/** @pullboard-test-loads packages/gate/src/shell/browser-admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import assert from 'node:assert/strict';
@@ -686,7 +686,7 @@ test('short slots behave the same with gate.browserByLaunch on [C7]', async () =
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
   const named = `${quote(process.execPath)} bin/run-tests.js test/gate-resource.test.js`;
-  const guard = pathToFileURL(resolve(root, 'src/browser-slot-guard.js')).href;
+  const guard = pathToFileURL(resolve(root, 'packages/gate/index.js')).href;
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'NODE_OPTIONS'));
   assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['test/gate-resource.test.js'], 'with gate.browserByLaunch off');
   assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['test/gate-resource.test.js'], 'with gate.browserByLaunch on');
