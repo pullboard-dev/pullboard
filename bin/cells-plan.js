@@ -21,8 +21,7 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
-import { readCellLintBaseline } from '../packages/codemap/index.js';
-import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
+import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
@@ -456,9 +455,8 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
     problems.push(`unreachable front door ${cell.frontDoor}; ${cellRoot} must remain reachable from a production app through its front door`);
   }
-  if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) {
-    for (const row of cellLintGrowth(report, lintBaseline ?? readCellLintBaseline(root), { enforcedOnly: true })) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
-  }
+  const main = lintBaseline ? { baseline: lintBaseline, report } : mainCellLintReport(root, { importsIn, commonJsIn }); // main counted now, never a stored file [C7]
+  for (const row of main ? cellLintGrowth({ ...report, transition: main.report.transition }, main.baseline, { enforcedOnly: true }) : []) problems.push(`cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
   return problems;
 }
 

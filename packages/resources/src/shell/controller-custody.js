@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { leaseTokenDigest } from './controller-disposition.js';
+import { openPoolReadOnly } from './pool-lock.js';
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
 export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable }, sourceRoot) {
@@ -152,7 +153,7 @@ export function orphanedControllerLeases(db, { sameProcess }) {
 export function controllerLeaseHealth(now, { processStarted, machineHome, sameProcess }) {
   const expectedPool = join(machineHome(), 'resources.sqlite');
   if (!existsSync(expectedPool)) return [];
-  const pool = realpathSync(expectedPool), db = new DatabaseSync(pool, { readOnly: true });
+  const pool = realpathSync(expectedPool), db = openPoolReadOnly(pool);
   try {
     const rows = orphanedControllerLeases(db, { sameProcess }).map(({ token: _token, controller_identity: _identity, cause, ...holder }) => ({ ...holder, problem: cause }));
     const orphanPids = new Set(rows.map(row => row.controllerPid));
@@ -194,12 +195,13 @@ export function controllerRegistrationPorts({ pool, open, update, processStarted
       if (owner.pool !== pool() || identity.controllerPid !== process.pid
         || identity.started !== processStarted(process.pid)
         || parentPid !== process.pid && parentPid !== process.ppid) return null;
-      const db = new DatabaseSync(owner.pool, { readOnly: true });
+      const db = openPoolReadOnly(owner.pool);
       try {
         const holder = db.prepare('SELECT pid,started,runner,controller_identity FROM holder WHERE token=?').get(owner.token);
         if (!holder || holder.pid !== parentPid || holder.started !== identity.holderStarted
           || holder.controller_identity !== JSON.stringify(identity)) return null;
-        const row = db.prepare('SELECT since,detail FROM runner_unavailable WHERE host=?').get(holder.runner);
+        // Another job's unverified cleanup costs that job's slot only; it never stops this one (#2513).
+        const row = db.prepare("SELECT since,detail FROM runner_unavailable WHERE host=? AND detail <> 'CLEANUP_UNVERIFIED'").get(holder.runner);
         return row ? { host: holder.runner, since: row.since, reason: row.detail } : null;
       } finally { db.close(); }
     },

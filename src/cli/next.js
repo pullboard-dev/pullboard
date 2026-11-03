@@ -1,5 +1,5 @@
 import { mainPolicy } from '../../packages/sandbox/index.js';
-import { claimWorktrees } from '../../packages/activity/index.js';
+import { recordedClaimWorktrees } from '../../packages/activity/index.js';
 import { claimOverlapLines } from '../../packages/activity/index.js';
 import { claimOverlaps } from '../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
@@ -15,7 +15,7 @@ import { focusReviewFirst } from '../../packages/roadmap/index.js';
 import { focusReasons } from '../../packages/roadmap/index.js';
 import { milestoneFocus } from '../../packages/roadmap/index.js';
 import { mainLaneWork } from '../next-steps.js';
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
 import { withBoardRead } from '../cli-context.js';
 import { agentDisplayName } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
@@ -133,7 +133,8 @@ function otherLaneWork(me, item, reasons) {
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
   const items = store.listItems(board), agents = store.listAgents(board);
-  const workingFiles = claimWorktrees(items, agents);
+  // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
+  const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
@@ -175,10 +176,17 @@ function nextPick(ctx, board, values) {
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
   if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
-  if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
+  if (!item) {
+    const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
+      || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
+    return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
+      ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
+  }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (!held && item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
+    return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped };
 }
 

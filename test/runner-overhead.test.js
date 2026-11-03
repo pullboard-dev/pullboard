@@ -140,7 +140,7 @@ console.log(JSON.stringify({green:result.isGreen,phases:result.executionPhases,o
   writeFileSync(calls, '');
   await execute();
   const inventory = readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 1, 'twenty-one retained refs take one bounded tip inventory');
+  assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 2, 'retained cache tips and the received candidate each take one bounded validation batch');
   assert.ok(inventory.filter(args => args[1] === '-t').length < 10, 'there is no per-retained-ref type-check loop');
 });
 test('doctrine phases sum complete sequential observations and reject gaps [C7]', () => {
