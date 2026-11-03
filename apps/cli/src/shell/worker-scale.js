@@ -221,7 +221,7 @@ export async function scaleWorkers(io, values, deps) {
   const running = new Map(); // seat id -> { child }
   const retired = new Set(); // A completed exit handoff requires a fresh seat, never the old worktree binding.
   const parked = []; // joined worker worktrees whose agent process has exited, reused before making another
-  const quiet = sink => ({ say() {}, err: message => io.err?.(message), result: value => { sink.value = value; } });
+  const quiet = sink => ({ ...io, say() {}, err: message => io.err?.(message), result: value => { sink.value = value; } });
   const ports = {
     observe: () => deps.withBoard(ctx, board => {
       const observed = observeWorkers(board, { lane, managed: [...running.keys()], now: now() });
