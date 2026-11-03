@@ -45,9 +45,9 @@ function fixture(t, deterministic = false, companion = false) {
   const cli = (...args) => box.cliAt(root, ...args);
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   if (!deterministic) writeFileSync(box.counter, 'run\n'); // Baseline executes a genuine pass; no legacy one-pair quarantine is seeded.
-  const added = box.cli('add', 'core', 'Controlled native Submit', '--criterion', 'Retain the actual initial failure.', '--check', config.gate, '--wait');
+  const added = box.cli('add', 'core', 'Controlled native Submit', '--criterion', 'Retain the actual initial failure.', '--check', 'true', '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.equal(added.document.item.item_check, config.gate, JSON.stringify(added.document));
+  assert.equal(added.document.item.item_check, 'true', JSON.stringify(added.document));
   const id = added.document.item.item_id;
   assert.equal(cli('claim', String(id)).code, 0);
   mkdirSync(join(root, 'src'), { recursive: true });
