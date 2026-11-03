@@ -338,22 +338,21 @@ function composeMain(root, tip, commit) {
 }
 
 /**
- * The main a hold judges against, and the candidate it measures: the primary checkout's commit whenever it is newer
- * than the handed accepted main, with a candidate that lacks it composed with it; the handed main only when the primary
- * checkout is behind it, or when the hold runs in the primary checkout itself, whose HEAD is the candidate.
+ * The main a hold judges against, and the candidate it measures: the primary checkout's commit unless it is behind the
+ * handed accepted main, or the hold runs in the primary checkout itself, whose HEAD is the candidate; a candidate that
+ * lacks that main is always composed with it, even when the handed main already is current.
  * Why: main lands every few minutes, so a queued gate's main has usually moved; that alone never refuses (#2575).
  */
 function currentMain(root, mainCommit, commit) {
   let tip = null;
-  try { tip = mainCheckout(root)?.commit ?? null; } catch { return { main: mainCommit, commit }; }
-  if (!tip || tip === mainCommit) return { main: mainCommit, commit };
+  try { tip = mainCheckout(root)?.commit ?? null; } catch { /* No primary checkout: the handed main stands. */ }
   const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
   const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
-  if (gitDir && gitDir === commonDir) return { main: mainCommit, commit };
+  if (gitDir && gitDir === commonDir) tip = null;
   const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
-  if (ancestor(tip, commit)) return { main: tip, commit };
-  if (ancestor(tip, mainCommit)) return { main: mainCommit, commit };
-  return { main: tip, commit: composeMain(root, tip, commit) };
+  const main = tip && !(tip !== mainCommit && ancestor(tip, mainCommit)) ? tip : mainCommit;
+  // Whichever main stands, the counted tree is the candidate composed with it, never a candidate missing it.
+  return { main, commit: ancestor(main, commit) ? commit : composeMain(root, main, commit) };
 }
 
 /** The machine-wide file caching one rule's measured problems at one main tree. */

@@ -90,3 +90,12 @@ test('only a real merge conflict with current main refuses [C7]', () => {
   const commit = commitAll(box.item, 'feat: rewrite the stylesheet main also changed');
   assert.throws(() => holdQueued(box, commit), (error) => error.code === 'MERGE_CONFLICT' && error.message.includes(box.main.slice(0, 12)));
 });
+
+test('a behind candidate is composed even when the handed baseline is current main [C7]', () => {
+  const box = repo();
+  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  const commit = commitAll(box.item, 'feat: change the app behind the handed current main');
+  const [result] = holdDoctrine(box.item, { mainCommit: box.main, commit, timeoutMs: 60000 });
+  assert.equal(result.holds, true);
+  assert.equal(result.count, 1, 'the counted candidate must carry current main problem');
+});
