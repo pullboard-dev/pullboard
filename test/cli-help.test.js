@@ -10,7 +10,7 @@ import { runCliInProcess } from './cli-in-process-fixture.js';
 import { after, test } from 'node:test';
 import { HELP } from '../apps/cli/index.js';
 import { resultCommands } from '../apps/cli/index.js';
-import * as helpDeclaration from '../src/help.js';
+import * as helpDeclaration from '../apps/cli/index.js';
 import { importStyleViolations } from './import-style-helpers.js';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../packages/config/index.js';

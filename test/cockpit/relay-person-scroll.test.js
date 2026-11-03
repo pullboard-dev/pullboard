@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { press } from './stable.js';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { machine, project, fetchLive, startView, target, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('a person request never moves the reading position under a 6× CPU throttle [N26]', { timeout: 120_000 }, async t => { // budget: hang-only ceiling for real Chrome startup, private board setup and the sixfold request journey.
