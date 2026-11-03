@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** The public agents payload names the same canonical vendor as native eligibility [A1,V4,B26]. */
 import { apiBoardOpeners } from './board-fixture.js';
 

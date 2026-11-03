@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { sharedRowHtml } from '../../src/view/row-component.js';
+import { sharedRowHtml } from '../../apps/view/index.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('shared row variants retain their layout and the default row expands in place in Chrome [N26]', { timeout: 90_000 }, async () => {
