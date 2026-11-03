@@ -2,6 +2,9 @@ import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { sweepClaims } from "../../../health/index.js";
+import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
+import { atomic } from "../../../store/index.js";
+import { checkpointBoard } from "../../../store/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
@@ -47,6 +50,9 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
     await releaseGoneClaims(ctx, board, me, ordered);
     // Claim checks that read other seats' worktrees run here, off every command's path (#2427).
     await sweepClaims(ctx, board, me.id, ordered);
+    // The capacity forecast and the WAL checkpoint run here too, never inside a move's write lock (#2578).
+    refreshCapacityOutsideWrite(board, atomic);
+    checkpointBoard(board.db);
     if (me.id === 'coordinator') {
       const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists });
       const plan = planStaleState(snapshot);
