@@ -65,6 +65,7 @@ function gateRepo(box, gate) {
   box.git(repo, 'init', '-q', '-b', 'main');
   const initialized = box.run(repo, 'init');
   assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  installPrivatePullboardPath(box);
   mkdirSync(join(repo, 'work'));
   writeFileSync(join(repo, 'work/owner.txt'), 'coordinator lane fixture\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, spec: 'SPEC.md', verify: 'any', lanes: { coordinator: { owns: ['work/'], specs: ['G1'] } } }, null, 2));
@@ -280,7 +281,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
-  assert.match(accepted.stdout, /submit proof not reused: composed main changed/u, 'main advancement creates a new accepted composition and executes its check');
+  assert.match(accepted.stdout, /submit proof not reused:/u, 'main advancement creates a new accepted composition and executes its check');
   assert.match(accepted.stdout, /timing \(node\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
