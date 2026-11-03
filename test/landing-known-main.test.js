@@ -53,7 +53,7 @@ function redMainProject() {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   box.env.LAND_SUPPRESS_RED = '1';
   try {
-    assert.equal(commitFile(box, box.repo, MAIN_RED, 'RED NAME:main-red-case\n', 'test(web): a case red on main [G1]').status, 0);
+    assert.equal(commitFile(box, box.repo, MAIN_RED, '// RED NAME:main-red-case\n', 'test(web): a case red on main [G1]').status, 0);
   } finally { delete box.env.LAND_SUPPRESS_RED; }
   return box;
 }
@@ -97,7 +97,7 @@ function landBatch(box, itemId) {
 
 test('a batch red only in a case red on main lands and names that case as known-main [B3,C7]', () => {
   const box = redMainProject();
-  const entry = acceptedItem(box, 1, 'PASS\n');
+  const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
   assert.equal(result.error, null, JSON.stringify(result.lines));
@@ -112,16 +112,17 @@ test('a batch holding a main red and a case passing on base fails only on the me
   const box = redMainProject();
   box.env.LAND_SUPPRESS_RED = '1';
   try {
-    assert.equal(commitFile(box, box.repo, 'web/land-1.test.js', 'PASS\n', 'test(web): establish passing base case [G1]').status, 0);
+    assert.equal(commitFile(box, box.repo, 'web/land-1.test.js', '// PASS\n', 'test(web): establish passing base case [G1]').status, 0);
   } finally { delete box.env.LAND_SUPPRESS_RED; }
   const base = runFixtureChild(process.execPath, [join(box.dir, 'land-gate.cjs'), '--alone', 'web/land-1.test.js'],
     { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
   assert.equal(base.status, 0, `the case passes on the actual base main: ${base.stderr}\n${base.stdout}`);
-  const entry = acceptedItem(box, 1, 'RED NAME:batch-red-case\n');
+  const entry = acceptedItem(box, 1, '// RED NAME:batch-red-case\n');
   box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
   assert.notEqual(result.batch.state, 'landed');
   assert.equal(result.merged, null, 'the batch-only red keeps the item off main');
+  assert.ok(result.batch.knownMain, JSON.stringify(result));
   assert.deepEqual(result.batch.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']], 'the main red is named as known-main');
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
   assert.ok(result.batch.culprits.some(culprit => culprit.id === entry.item), `the batch-only case makes its item the culprit: ${JSON.stringify(result.batch)}`);
