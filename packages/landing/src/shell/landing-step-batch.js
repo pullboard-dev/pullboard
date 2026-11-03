@@ -235,7 +235,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', supersededByMain: trunk.commit }, revision: batch.revision }]);
     batch = null;
   } else if (batch && interrupted?.lost) {
-    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
+    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', message: 'the recorded landing worktree is missing or unfinished', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
     batch = null;
   }
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
@@ -272,7 +272,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       await save(state, { ...build, conflicts: [...state.batch.conflicts, ...build.conflicts] });
       for (const entry of state.batch.blocked ?? []) say(entry.code === 'LAND_FILE_OVERLAP'
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
-        : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}`);
+        : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
       if (!build.items.length) await save(state, { state: 'blocked' });
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
@@ -313,7 +313,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     }
   } catch (error) {
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
-      try { await save(state, { refusal: { code: error.code ?? 'LAND_BATCH_REFUSED', at: board.clock.now().toISOString() } }); }
+      try { await save(state, { refusal: { code: error.code ?? 'LAND_BATCH_REFUSED', message: String(error.message ?? '').replace(/\s+/gu, ' ').slice(0, 400), at: board.clock.now().toISOString() } }); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
     if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;

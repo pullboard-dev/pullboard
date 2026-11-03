@@ -1458,6 +1458,10 @@
       "path": "src/move-history/221.json",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
+    },
+    {
+      "path": "src/verified-item-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

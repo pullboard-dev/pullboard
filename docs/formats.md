@@ -874,4 +874,6 @@ The main-red failure-lines engine retains the first safe error line for each aut
 
 The pinned-claim lapse engine releases a claim on a coordinator-pinned item after 30 minutes without a commit, submit or check, where other claims are released after 40. Older moves replay with the 40-minute rule.
 
+The verified-item hold engine lets `pullboard hold <id>` hold a verified item that has not landed. The hold keeps its accept and keeps it out of landing batches until `pullboard hold <id> --off`; older moves replay with holds on open or claimed items only.
+
 The release-quality hold engine counts a holder’s BLOCKED, BUDGET, or INELIGIBLE release toward an automatic released-twice hold. Maintenance, routing, and OTHER releases do not count; OTHER is free-form and cannot prove quality provenance. Older engine moves keep their original replay behavior.

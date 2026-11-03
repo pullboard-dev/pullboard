@@ -41,7 +41,7 @@ async function resetDirtyOnce(state) {
     await save(state, { dirtyReset: true });
     if (isClean(state.batch.root) && !untracked(state.batch.root).length) return;
   }
-  await save(state, { state: 'blocked', refusal: { code: 'LAND_DIRTY', at: state.board.clock.now().toISOString() } });
+  await save(state, { state: 'blocked', refusal: { code: 'LAND_DIRTY', message: 'the landing worktree has uncommitted changes', at: state.board.clock.now().toISOString() } });
   throw new Refused('LAND_DIRTY', `landing batch ${state.batch.id} left its worktree dirty again after one reset; it is blocked and will not retry; inspect ${state.batch.root}`);
 }
 
