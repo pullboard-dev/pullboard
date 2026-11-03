@@ -15,7 +15,7 @@ import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../packages/store/index.js';
 import { proofStats } from '../../packages/stats/index.js';
 import { compareFlowWindows } from '../../packages/stats/index.js';
-import { portableSnapshot } from '../../src/serve.js';
+import { portableSnapshot } from '../../apps/view/index.js';
 import { viewProofSummary } from '../../src/view-state-summary.js';
 import { exportView } from '../../src/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';

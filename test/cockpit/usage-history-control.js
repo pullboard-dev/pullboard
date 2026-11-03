@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { lifecycleEvent, lifecycleMove } from '../../packages/items/index.js';
-import { replayItem } from '../../src/view/pipeline-model.js';
-import { timelineHtml } from '../../src/view/timeline-render.js';
-import { activityModel } from '../../src/view/activity-model.js';
+import { replayItem } from '../../apps/view/index.js';
+import { timelineHtml } from '../../apps/view/index.js';
+import { activityModel } from '../../apps/view/index.js';
 
 /** Exercise the actual served functions with native accounting receipts supplied by the writer journey. */
 export function assertUsagePresentation(events, itemId, board) {

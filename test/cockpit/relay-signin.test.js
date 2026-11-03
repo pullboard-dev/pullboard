@@ -186,7 +186,7 @@ test('view sign-in keeps its key and intents inside the authenticated machine vi
   const box = await relayClientFixture(t);
   box.providerState.deviceAuthorized = false;
   const serveModule = new URL('../../src/commands/view.js', import.meta.url).href;
-  const viewModule = new URL('../../src/serve.js', import.meta.url).href;
+  const viewModule = new URL('../../apps/view/index.js', import.meta.url).href;
   const machineModule = new URL('../../packages/link/index.js', import.meta.url).href;
   const result = await box.script(`
 import { request } from 'node:http';

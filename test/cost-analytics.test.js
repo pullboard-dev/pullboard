@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Private cost cohorts, native model names and statistically honest comparisons [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

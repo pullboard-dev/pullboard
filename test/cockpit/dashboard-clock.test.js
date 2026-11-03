@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-import { viewApiPorts } from '../../src/view-api-ports.js';
+import { viewApiPorts } from '../../apps/view/index.js';
 /** A real cached native HTTP board refreshes Dashboard pace even when it has no milestone [N26,A2]. */
 import { apiBoardOpeners } from '../board-fixture.js';
 

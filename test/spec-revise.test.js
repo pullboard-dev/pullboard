@@ -12,7 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { personNeedsState } from '../src/needs-state.js';
+import { personNeedsState } from '../apps/view/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import {

@@ -1,7 +1,7 @@
 /** The pullboard init command, in its own module so an item adding another command never edits these lines. */
 import {
   keepViewRunning,
-} from '../background-view.js';
+} from '../../apps/view/index.js';
 import {
   installedBlueprints,
   landEach,
