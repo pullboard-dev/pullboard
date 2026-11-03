@@ -1,8 +1,8 @@
 /** Cross-board envelopes live beside existing opaque board records, under the same retention [E32,H16,H17]. */
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../packages/kernel/index.js';
-import { boardLinkEnvelope } from '../packages/store/index.js';
-import { boardLinkEnvelopeDigest } from '../packages/store/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
+import { boardLinkEnvelope } from '../../../../packages/store/index.js';
+import { boardLinkEnvelopeDigest } from '../../../../packages/store/index.js';
 
 /** Check optional additive storage without creating tables on an incoming-page read. */
 function installed(db) {

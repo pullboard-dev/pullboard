@@ -1,6 +1,9 @@
 /** Board-authorized opaque upload notices; contents stay with the board's device keys [H5,H17]. */
-import { apiJson, readApiBody } from '../packages/api/index.js';
-import { Refused } from '../packages/kernel/index.js';
+import {
+  apiJson,
+  readApiBody,
+} from '../../../../packages/api/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Reuse the normal live board authorization and journal lifetime for this bounded metadata record. */
 export function createUploadStatusHandler({ authorize, withJournal, sender }) {
