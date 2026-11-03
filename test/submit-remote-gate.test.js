@@ -40,7 +40,7 @@ export function record(root, step, url) { appendFileSync(join(root, '.git', 'tru
  * Build a controller repository whose main holds recording tooling and whose candidate replaces every tool with a bomb,
  * plus a separate runner clone checked out at the candidate.
  */
-function fixture(t, { red = false } = {}) {
+function fixture(t, { red = false, flaky = 0 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'submit-remote-gate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const env = gitEnv();
@@ -54,7 +54,15 @@ function fixture(t, { red = false } = {}) {
   put('package.json', '{"type":"module"}\n');
   put('bin/record.js', RECORD);
   put('packages/items/index.js', `import { record } from '../../bin/record.js';
-export function requirePlannedSource(root) { record(root, 'placement', import.meta.url); }
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+export function requirePlannedSource(root) {
+  record(root, 'placement', import.meta.url);
+  const seen = join(root, '.git', 'placement-reads');
+  const reads = existsSync(seen) ? Number(readFileSync(seen, 'utf8')) : 0;
+  writeFileSync(seen, String(reads + 1));
+  if (reads < ${flaky}) throw Object.assign(new Error('the accepted cells-plan presence could not be read from Git'), { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
+}
 export function requireSubmitComposition(root) { record(root, 'composition', import.meta.url); }
 `);
   put('packages/gate/index.js', `import { record } from '../../bin/record.js';
@@ -170,6 +178,16 @@ test('a red remote step returns its refusal to the queued submit, and altered ou
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, () => [{ item_id: ++reads > 1 ? 8 : 7 }]), fakeRunner(box), join(box.dir, 'moved')),
     { code: 'CELLS_SUBMIT' });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), { runner: null }, join(box.dir, 'none')), { code: 'RUNNER_SOURCE' });
+});
+
+test('a trunk Git read failure on the runner repeats the analysis and never refuses the builder [C7]', async t => {
+  const flaky = fixture(t, { flaky: 1 });
+  const { value } = await controllerSpawns(() => remoteSubmitAnalysis(flaky.controller, request(flaky), fakeRunner(flaky), join(flaky.dir, 'artifacts')));
+  assert.deepEqual(value.cells.cells, ['trusted-main'], 'the second attempt passes placement');
+  assert.equal(readFileSync(join(flaky.runner, '.git', 'placement-reads'), 'utf8'), '2');
+  const down = fixture(t, { flaky: 99 });
+  await assert.rejects(remoteSubmitAnalysis(down.controller, request(down), fakeRunner(down), join(down.dir, 'artifacts')),
+    error => error.name !== 'Refused' && error.code === 'GIT_READ_INFRASTRUCTURE' && error.retryable === true);
 });
 
 test('queued submits go remote when a runner is registered or runners-only is set [V4,C7]', () => {

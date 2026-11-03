@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/gate.js packages/config/src/shell/config.js */
+/** @pullboard-module-loads packages/gate/index.js packages/config/src/shell/config.js */
 /** Real private SSH/worker fixtures for registration-time desktop observations [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
@@ -90,7 +90,7 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
       assert.equal(result.status, 0, result.context);
     }
     const tooling = committedToolingSnapshot(fileURLToPath(new URL('..', import.meta.url)), env);
-    const gate = pathToFileURL(join(tooling, 'src/gate.js')).href;
+    const gate = pathToFileURL(join(tooling, 'packages/gate/index.js')).href;
     const config = pathToFileURL(join(tooling, 'packages/config/src/shell/config.js')).href;
     const source = `import {runGate} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}

@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/browser-admission.js */
+/** @pullboard-test-loads packages/gate/src/shell/browser-admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import assert from 'node:assert/strict';

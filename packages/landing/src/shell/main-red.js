@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import {
   withGateSlot,
 } from '../../../gate/index.js';
-import { runMainComparison } from '../../../../src/gate-execution.js';
+import { runMainComparison } from '../../../gate/index.js';
 import {
   readGateReceipt,
   receiptBody,
