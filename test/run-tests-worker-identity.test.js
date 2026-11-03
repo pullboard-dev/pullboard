@@ -2,6 +2,7 @@
 /** Prove a landing worker obtains a bounded identity receipt before its body [C7,V4]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -44,6 +45,9 @@ test('worker identity is recorded before the file body', () => {
 });
 `);
   stageFixtureTests(fixture.root, ['test/worker-start.test.js']);
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: fixture.root, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=Pullboard fixture', '-c', 'user.email=fixture@example.invalid',
+    'commit', '-q', '-m', 'test: commit worker identity fixture'], { cwd: fixture.root, stdio: 'ignore' });
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { appendFileSync } from 'node:fs';
