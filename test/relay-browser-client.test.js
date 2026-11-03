@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+import { press } from './cockpit/stable.js';
 
 /** The hosted page's real secure origin, answered from memory: no network is used. */
 const ORIGIN = 'https://app.pullboard.dev/';
@@ -297,7 +298,8 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   assert.equal(cookie.success, true);
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
-  try { await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
+  await press(chrome, "document.querySelector('[data-tab=items]')");
+  try { await chrome.waitFor('document.querySelector("[data-pane=items]") && !document.querySelector("[data-pane=items]").hidden && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
   catch (error) {
     const state = await chrome.evaluate('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
     error.message += '; fixture browser state: ' + JSON.stringify(state);
