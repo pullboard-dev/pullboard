@@ -46,3 +46,4 @@ export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
+export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, showReviewPacket } from './src/shell/review-packet.js';
