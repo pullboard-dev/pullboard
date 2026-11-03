@@ -53,7 +53,6 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.equal(received?.shout_text, 'An authenticated remote message');
   assert.ok(!document(await box.cli('inbox')).shouts.some(row => row.shout_id === sent.id), 'the coordinator is not the addressee');
   assert.ok(!document(await second.cliAt(sender.path, 'inbox')).shouts.some(row => row.shout_id === sent.id), 'the sender is not the addressee');
-  document(await second.cliAt(sender.path, 'claim', String(initialItemId)));
   assert.equal(document(await box.cliAt(recipient.path, 'whoami')).address, initial.address, 'pairing and synchronization do not rename a seat');
 
   const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
@@ -62,6 +61,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
   assert.notEqual(ungranted.code, 0);
   assert.equal(ungranted.document.error.code, 'SEAT_ADDRESS_BOARD');
+  document(await second.cliAt(sender.path, 'claim', String(initialItemId)));
 
   const link = JSON.parse(readFileSync(join(second.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
   const tokenId = link.agentTokens[sender.id].id;
