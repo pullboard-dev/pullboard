@@ -48,7 +48,7 @@ test('the hook refuses a commit with two import bindings on one line, using the 
   const box = staticProject();
   const started = performance.now();
   const refused = commitSource(box, 'src/two.js', "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
-  assert.ok(performance.now() - started < 1000, 'static refusal finishes under one second');
+  assert.ok(performance.now() - started < 1000, 'static refusal finishes under one second'); // budget: item #2571's frozen requirement sets the one-second ceiling.
   assert.notEqual(refused.status ?? refused.code, 0, 'the commit is refused');
   assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, /src\/two\.js:1: one import binding per line \(2 bindings\)/u);
 });
