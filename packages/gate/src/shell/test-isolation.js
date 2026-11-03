@@ -15,7 +15,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runtimeCaptureSource } from '../../../sandbox/index.js';
-import { childJournalPreloadSource } from './child-journal-preload.js';
+import { childJournalPreloadSource } from './child-journal-source.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/shell/machine-home.js). */
 export const ACCOUNT_HOME_ENV = 'PULLBOARD_ACCOUNT_HOME';
