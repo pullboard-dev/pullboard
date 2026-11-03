@@ -33,7 +33,7 @@ import { refusalRecord } from '../core/runner-source-hold.js';
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
-  if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
+  if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
   }
   if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
