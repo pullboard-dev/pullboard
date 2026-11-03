@@ -1,3 +1,8 @@
+import { dependencyCustodyQuiet } from './stranded-dependency.js';
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
+import { strandedDependency } from './stranded-dependency.js';
+import { observeDependencyWork } from './stranded-dependency.js';
+import { dependencyWaiters } from '../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
@@ -35,19 +40,20 @@ const HANDOFF_FILES = 200;
  * Pin the holder's last commit to a board ref and list the files its claim changed, so a released claim keeps its
  * work. A worktree that cannot be read still releases (#1225 row 7): the handoff then says why nothing was pinned.
  */
-export function pinClaimHandoff(board, row, item) {
+export function pinClaimHandoff(board, row, item, workRoot = null) {
   const unpinned = why => ({ head: null, pin: null, changedFiles: [], changedCount: 0, unpinned: why });
   const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor);
   if (!seat?.agent_path) return unpinned('the seat has no registered worktree');
+  const root = workRoot ?? seat.agent_path;
   const env = cleanGitEnvironment();
-  const head = tryGit(seat.agent_path, ['rev-parse', '--verify', 'HEAD^{commit}'], { env });
+  const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}'], { env });
   if (head.status !== 0) return unpinned('the seat worktree has no readable commit');
   const commit = head.stdout.trim();
   const pin = `refs/pullboard/handoffs/${row.id}/${commit.slice(0, 12)}`;
-  if (tryGit(seat.agent_path, ['update-ref', pin, commit], { env }).status !== 0) return unpinned(`the board ref for ${commit.slice(0, 12)} could not be written`);
+  if (tryGit(root, ['update-ref', pin, commit], { env }).status !== 0) return unpinned(`the board ref for ${commit.slice(0, 12)} could not be written`);
   const base = /^[0-9a-f]{40,64}$/u.test(item.item_claim_head ?? '') ? item.item_claim_head : null;
-  const committed = base ? tryGit(seat.agent_path, ['diff', '--name-only', '--no-renames', base, commit], { env }) : { status: 0, stdout: '' };
-  const dirty = tryGit(seat.agent_path, ['status', '--porcelain', '--untracked-files=all'], { env });
+  const committed = base ? tryGit(root, ['diff', '--name-only', '--no-renames', base, commit], { env }) : { status: 0, stdout: '' };
+  const dirty = tryGit(root, ['status', '--porcelain', '--untracked-files=all'], { env });
   const all = committed.status === 0 && dirty.status === 0
     ? [...new Set([...committed.stdout.split('\n'), ...dirty.stdout.split('\n').map(line => line.slice(3))].filter(Boolean))].sort() : [];
   return { head: commit, pin, changedFiles: all.slice(0, HANDOFF_FILES), changedCount: all.length,
@@ -98,8 +104,17 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
     if (submitGateInFlight(board, byId.get(row.id))) return [];
+    const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && dependencyWaiters(board, row.id).length;
+    if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
+    if (!lapsedOnly && dependencyCandidate) {
+      const item = byId.get(row.id);
+      const work = observeDependencyWork(board, item);
+      if (!work) return [];
+      const dependency = strandedDependency(board, item, row, at.getTime(), snapshot.limits.dependency, work);
+      if (dependency) return [{ ...dependency, handoff: pinClaimHandoff(board, dependency, item, dependency.workRoot) }];
+    }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {

@@ -183,3 +183,5 @@ export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectio
 export { STRICT_RENAME_ENGINE } from '../../src/strict-rename-engine.js';
 
 export { DEAD_HANDOFF_RETRY_ENGINE } from '../../src/dead-handoff-retry-engine.js';
+
+export { STRANDED_DEPENDENCY_ENGINE } from '../../src/stranded-dependency-engine.js';

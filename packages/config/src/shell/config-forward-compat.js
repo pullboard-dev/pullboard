@@ -24,7 +24,7 @@ function schema(base) {
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
       'affectedTests', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health']),
     testConcurrency: fields(['files', 'browser']),
-    health: fields(['sentinel', 'stuck', 'holds', 'release']),
+    health: fields(['sentinel', 'stuck', 'holds', 'release', 'dependencyIdle']),
   };
 }
 
