@@ -32,8 +32,8 @@ function fixture(t, deterministic = false, companion = false) {
   config.flakes = { rerun: true, quarantine: true };
   config.gate = 'node tooling/bin/run-tests.js test/alternating.test.mjs';
   config.affectedTests = 'node tooling/bin/run-tests.js';
-  config.submitGate = 'landing';
-  config.submitDeferAbove = 20;
+  delete config.submitGate;
+  delete config.submitDeferAbove;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
   // This synthetic consumer project has no cells-plan authority; the installed runtime is copied unchanged.
   rmSync(join(box.root, 'tooling/bin/cells-plan.json'), { force: true });
