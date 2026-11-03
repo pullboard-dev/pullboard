@@ -1,6 +1,7 @@
 import { requireTestTierAccount } from '../../../gate/index.js';
 import { selectTestTiers } from '../../../gate/index.js';
 import { requireSealedSkips } from '../../../gate/index.js';
+import { landingRunFiles } from '../../../gate/index.js';
 import { packageHashesAt } from '../../../gate/index.js';
 import { TEST_TIERS_FILE } from '../../../gate/index.js';
 import { testTierCommand } from '../../../gate/index.js';
@@ -63,9 +64,9 @@ function batchAffectedTests(state) {
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
-    const proven = submittedUnits(state, commit);
-    const units = testTiers.units.filter(file => !proven.has(file));
-    return { full: false, mandatory: [], testTiers, files: [...new Set([...testTiers.journeys, ...units, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
+    // A5: an item proves once; landing adds only the composition's journeys and units no submit already proved.
+    const files = landingRunFiles(testTiers, submittedUnits(state, commit));
+    return { full: false, mandatory: [], testTiers, files: [...new Set([...files, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
   }
   const selection = state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
@@ -223,7 +224,7 @@ function submittedUnits(state, commit) {
   for (const entry of state.batch.items) {
     const event = store.events(state.board, { itemId: entry.id }).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
-    const files = detail?.commit === entry.commit ? detail.submissionProof?.files ?? [] : [];
+    const files = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof?.files ?? [] : [];
     if (!files.length) continue;
     const [then, now] = packageHashesAt(root, [entry.commit, commit]);
     for (const file of files) {
