@@ -1379,6 +1379,11 @@
       "path": "src/strict-rename-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
+    },
+    {
+      "path": "src/live-release-placement-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+
     }
   ],
   "retired": [

@@ -9,7 +9,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGate } from '../packages/gate/index.js';
-import { runnerExecutionServices } from '../src/runners.js';
+import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';
 import { receiptStore } from '../packages/gate/index.js';

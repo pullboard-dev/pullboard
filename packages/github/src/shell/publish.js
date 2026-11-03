@@ -4,7 +4,7 @@
  * run and, for each failing file, the items landed since the last published head whose merges touched it. The same
  * red head is not run again; publish waits for a new head.
  */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../../../landing/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
