@@ -14,6 +14,7 @@ import { composeItemPatches } from "./item-patch-compose.js";
 import { validateItemPatchInput } from "./item-patch-review.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../src/item-patch-submit-engine.js";
 import { Refused } from "../../../kernel/index.js";
+import { claimedItemRoot } from '../../../../src/item-folder-identity.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -50,7 +51,7 @@ export function sealItemPatchFollow(board, id, options) {
     || !(item.item_lease_until > board.clock.now().toISOString())) {
     throw new Refused('NOT_YOURS', 'claim this item before following its companions');
   }
-  const root = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
+  const root = claimedItemRoot(board, item);
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!SHA.test(options.commit ?? '') || !root || !file
     || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
@@ -120,7 +121,7 @@ export function sealItemPatchSubmit(board, id, options) {
   if (!binding) throw new Refused('ITEM_PATCH_CHANGED', 'submit must prove the attached companions on their exact composed source');
   const item = board.nativePorts.getItem(board, id);
   const root = board.enginePorts?.submitHandoffBoardRoot?.(board, id, options.agentId)
-    ?? board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
+    ?? claimedItemRoot(board, item);
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
     if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)) throw new Error('foreign board');
