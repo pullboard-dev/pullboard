@@ -9,7 +9,7 @@ import {
   prepareBarCoverage,
 } from '../../../../../packages/verify/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
-/** Inspect, enable and independently sign acceptance bars [B4,V1,V2,H16]. */
+/** Inspect, enable, sign and repair acceptance bars [B4,V1,V2,H16]. */
 import { getItem } from '../../../../../packages/store/index.js';
 import {
   barReadiness,
@@ -23,10 +23,25 @@ import {
   personMode,
 } from '../cli.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { sweepFullSuiteBars } from '../full-suite-bar-sweep.js';
 
 /** Run the board-scoped readiness setting or show/sign one exact revision. */
 export async function run(io, { first, second, rest, values }) {
   return actOn(io, async (ctx, board, me) => {
+    if (first === 'sweep-full-suite') {
+      if (second || rest.length) throw new Refused('USAGE', 'pullboard bar sweep-full-suite');
+      const result = await sweepFullSuiteBars({
+        board,
+        agent: me.id,
+        listItems: store.listItems,
+        edit: (id, change) => ordered(ctx, board, 'editItem', [id, change]),
+      });
+      io.result?.(result);
+      io.say(`S10 full-suite bar sweep edited ${result.changed.length} item(s), skipped ${result.skipped.length}`);
+      for (const row of result.changed) io.say(`#${row.id}: removed ${JSON.stringify(row.removed)}`);
+      for (const row of result.skipped) io.say(`#${row.id}: skipped ${row.code}: ${row.reason}`);
+      return 0;
+    }
     if (first === 'ready') {
       if (rest.length || second && !['on', 'off'].includes(second)) throw new Refused('USAGE', 'pullboard bar ready [on|off]');
       const setting = second ? await ordered(ctx, board, 'setBarReady', [{ agentId: me.id, enabled: second === 'on' }]) : barReadySetting(board);

@@ -29,6 +29,8 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
+import { stripPerItemFullSuiteCriterion } from "../../../items/index.js";
+import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../src/per-item-full-suite-engine.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
@@ -48,14 +50,29 @@ import { persistShout } from "./board-shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen = false }) {
+  if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
+    || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
+    || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
+    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined
+    || barActor !== undefined || referenceAuthors !== undefined || referenceAuthority !== undefined)) {
+    throw new Refused('COORDINATOR_ONLY', 'preserving a frozen bar is limited to the coordinator’s exact S10 criterion strip');
+  }
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
     const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
+    if (preserveFrozen) {
+      const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+      const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
+      if (engine < PER_ITEM_FULL_SUITE_ENGINE) throw new Refused('ENGINE_VERSION', `S10 bar preservation requires engine ${PER_ITEM_FULL_SUITE_ENGINE}; upgrade Pullboard`);
+      if (!stripped.removed.length || stripped.criterion !== next.item_criterion || criterion !== next.item_criterion) {
+        throw new Refused('S10', 'a frozen bar can be preserved only when this edit removes exactly its full-suite or CI clause');
+      }
+    }
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
-    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder, preserveFrozen,
       sha256: text => createHash('sha256').update(text).digest('hex') });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
@@ -82,6 +99,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
+      ...(next.item_criterion !== item.item_criterion && reason === 'S10 full-suite strip' ? { previousCriterion: item.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),

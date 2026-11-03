@@ -103,6 +103,7 @@ export const workHelp = `Work
   pullboard bar sign <id> --note "..." [--coverage-file <json>]  another parent judges buildability and repeatable grading; edits clear the signature
                                         claim.barTestFiles configures project test-path globs (Node test/spec files by default)
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
+  pullboard bar sweep-full-suite       coordinator: remove full-suite/CI pass clauses from active bars; refused rows are listed
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
