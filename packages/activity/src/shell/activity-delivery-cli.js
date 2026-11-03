@@ -73,8 +73,6 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
   /** Project and, unless `quiet`, record one delivery; a quiet pass returns null where it would have to write. */
   const deliverOn = async (board, quiet) => {
     const me = whoAmI(ctx, board);
-    // Any unread direct message already requires the writing pass; avoid projecting the feed twice.
-    if (quiet && directShouts && store.inbox(board, me.id, { markRead: false }).length) return null;
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
     const local = readActivityCursor(ctx.info.root, me.id, store.boardId(board));
     const projected = readActivityDelivery(board, me.id, { sessionStart: local.sessionStart, afterSubmit,
