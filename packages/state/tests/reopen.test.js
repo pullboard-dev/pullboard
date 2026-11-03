@@ -894,7 +894,17 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
 
 test('retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
-  const { commit } = await submitFixture(box);
+  /** Await real production commands; fixture moves do not start an unrelated next-work search. */
+  const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--wait');
+  assert.equal(added.code, 0, added.err);
+  const claimedFirst = await command(box.web, 'claim', '1');
+  assert.equal(claimedFirst.code, 0, claimedFirst.err);
+  const built = commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): page [G1]');
+  assert.equal(built.status, 0, built.stderr);
+  const submitted = await command(box.web, 'submit', '1', '--wait', '--no-next');
+  assert.equal(submitted.code, 0, submitted.err);
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   config.claim = { reopenFirstRefusalMinutes: 30 };
@@ -906,14 +916,14 @@ test('retained main controls builder first refusal during detached review [B13,B
     'the candidate does not carry the enabled setting');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
-    const rejected = (await fixtureCommand(box, box.repo, 'verify', '1', 'reject', '--as', 'coordinator', '--reason', 'OTHER', '--clause', 'The page renders.', '--note', 'the private proof requires rework'));
+    const rejected = await command(box.repo, 'verify', '1', 'reject', '--no-next', '--as', 'coordinator', '--reason', 'OTHER', '--clause', 'The page renders.', '--note', 'the private proof requires rework');
     assert.equal(rejected.code, 0, rejected.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), main);
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  assert.equal((await fixtureCommand(box, other, 'join', 'web', '--model', 'Other private builder')).code, 0);
-  const refused = (await fixtureCommand(box, other, 'claim', '1', '--json'));
+  assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder')).code, 0);
+  const refused = await command(other, 'claim', '1', '--json');
   assert.equal(refused.code, 1, refused.out);
   const error = JSON.parse(refused.out).error;
   assert.equal(error.code, 'REOPEN_HELD_FOR_BUILDER');
@@ -924,9 +934,9 @@ test('retained main controls builder first refusal during detached review [B13,B
   assert.equal(window.builder, 'web-1');
   assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
   assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  const released = (await fixtureCommand(box, box.web, 'release', '1', '--reason', 'BLOCKED'));
+  const released = await command(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next');
   assert.equal(released.code, 0, released.err);
-  const claimed = (await fixtureCommand(box, other, 'claim', '1'));
+  const claimed = await command(other, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
 });
 
