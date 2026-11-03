@@ -29,7 +29,7 @@ function fixture(t) {
   setTime('2026-02-01T00:00:00.000Z');
   register(board, { lane: 'coordinator', path: '/actors/coordinator' });
   setTime('2026-02-01T00:01:00.000Z');
-  register(board, { lane: 'web', path: '/actors/web-builder', family: 'legacy-family' });
+  register(board, { lane: 'web', path: '/actors/web-builder' });
   return { board, setTime };
 }
 
@@ -199,5 +199,6 @@ test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
     notesPerSubmit: [],
     bars: {},
     caught: { counts: { sentBack: 0, conflict: 0, redHead: 0, flake: 0, stuck: 0 }, total: 0, entries: [] },
+    workFreeReleases: [],
   }, 'an empty board has no bar corrections and nothing caught');
 });

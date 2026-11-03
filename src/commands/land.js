@@ -87,7 +87,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
-    maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), due: Boolean(values.due), onWait: gateWaitReporter(io) });
+    maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: gateWaitReporter(io) });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;
@@ -100,10 +100,23 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
 }
 
 
-/** Run board-owned landing after acceptance; the caller catches this entire post-verdict effect. */
-export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding } = {}) {
+/** How long an accept's landing wake waits, so accepts made together coalesce into one landing [B35]. */
+export const LANDING_COALESCE_MS = 10_000;
+
+/**
+ * Run board-owned landing after acceptance; the caller catches this entire post-verdict effect.
+ * An agent session hands landing to the board's own worker: the main checkout belongs to the coordinator's session,
+ * so landing there from a reviewer's session was refused NOT_YOUR_CHECKOUT and nothing landed (#2499). The worker
+ * holds no session, and one pending wake absorbs every accept made before it fires.
+ */
+export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding, session = agentSessionDigest, now = Date.now } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
+  if (session()) {
+    await schedule(root, new Date(now() + LANDING_COALESCE_MS).toISOString(), new URL('../../bin/automatic-landing.js', import.meta.url));
+    ctx.io.say?.('the board lands this accept from the main checkout shortly; no command is needed there');
+    return true;
+  }
   const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
   const result = await actOn(io, async (landing, board) => {
     const policy = mainPolicy(root);
@@ -115,7 +128,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
         if (item.item_status !== 'verified' || item.item_merged_commit) return null;
         return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
       },
-      execute: () => executeBoardLanding(landing, board, io) });
+      execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
   });
   if (result?.deferredUntil) {
     await schedule(root, result.deferredUntil, new URL('../../bin/automatic-landing.js', import.meta.url));
