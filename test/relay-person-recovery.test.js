@@ -21,7 +21,7 @@ const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
-const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
+const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href;
 const PORTS_MODULE = pathToFileURL(resolve(import.meta.dirname, './board-fixture.js')).href;
 after(cleanupFixtureChildren);
 

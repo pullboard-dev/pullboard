@@ -10,7 +10,7 @@ import {
 } from 'node:path';
 import { loadConfig } from '../../../config/index.js';
 import { repoInfo } from '../../../../src/git.js';
-import { listApiProjects } from '../../../../src/projects.js';
+import { listApiProjects } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 /**
@@ -18,10 +18,10 @@ import { Refused } from '../../../kernel/core.js';
  *
  * @param {string} root this repo's root
  * @param {{ project?: string }} config this repo's config
- * @param {() => { root: string, name: string, project: string }[]} [projects] the registry reader
+ * @param {() => { root: string, name: string, project: string }[]} projects the registry reader, passed in by the caller
  * @returns {{ root: string, name: string }[]} empty when the config names no project
  */
-export function projectSiblings(root, config, projects = listApiProjects) {
+export function projectSiblings(root, config, projects) {
   if (!config?.project) return [];
   const here = resolve(root);
   return projects()

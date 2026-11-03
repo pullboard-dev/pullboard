@@ -8,7 +8,7 @@ import {
   codeIsFromMain,
   repoInfo,
 } from "../../../../src/git.js";
-import { listApiProjects } from "../../../../src/projects.js";
+import { listApiProjects } from "../../../seats/index.js";
 import { workProgress } from './work-progress.js';
 import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
@@ -31,7 +31,7 @@ export function resolveMilestoneProjectReference(reference, projects) {
 
 /** Collect unambiguous registered aliases for one local item before milestone cleanup. */
 export function localMilestoneAliases(root, board, id, ports) {
-  const { milestones } = roadmapPorts(ports, ["milestones"]);
+  const { milestones, listApiProjects } = roadmapPorts(ports, ["milestones", "listApiProjects"]);
   const projects = listApiProjects();
   const localRoot = resolve(root);
   const aliases = new Set();
@@ -48,7 +48,7 @@ export function localMilestoneAliases(root, board, id, ports) {
 
 /** Withdraw through ordered moves, then remove every local milestone alias and report the result. */
 export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered, ports) {
-  roadmapPorts(ports, ["milestones"]);
+  roadmapPorts(ports, ["milestones", "listApiProjects"]);
   await ordered(ctx, board, 'withdraw', [id, { agentId: me.id, reason }]);
   const removals = milestoneReferencesToRemove(board, [id, ...localMilestoneAliases(ctx.info.root, board, id, ports)], ports);
   const left = removals.map(({ name }) => name);
@@ -69,7 +69,7 @@ export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered
 export function milestoneRoadmap(root, board, options = {}) {
   const ports = roadmapPorts(options.ports, ["closeBoard", "getItem", "laneHolds", "listItems", "openBoard", "roadmap", "eventsOfKinds", "openDecisions", "PERSON", "workQueue"]);
   const { closeBoard, getItem, laneHolds, listItems, openBoard, roadmap } = ports;
-  const projects = (options.projects ?? listApiProjects)();
+  const projects = (options.projects ?? roadmapPorts(options.ports, ["listApiProjects"]).listApiProjects)();
   let hiddenExternal = 0;
   const externalItems = new Map();
   const hidden = () => ({ id: `external-${++hiddenExternal}`, title: 'External item', status: 'unavailable' });

@@ -3,7 +3,7 @@ import { blockingFailures } from "../../../verify/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../src/known-main-autofile-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { laneOf } from "../../../../src/lanes.js";
+import { laneOf } from "../../../seats/core.js";
 import { unownedMainReds } from "./known-main-reworks.js";
 import { linkKnownMainReworks } from "./known-main-reworks.js";
 import { validateItemAddition } from "../shell/board-add-item.js";

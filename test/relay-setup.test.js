@@ -281,7 +281,7 @@ async function phoneAndJoinedComputer(t) {
 /** Run relay devices on the linked computer and keep its text lines and its board name. */
 async function devicesText(box, args) {
   const cliModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href);
-  const projectsModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/projects.js')).href);
+  const projectsModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href);
   const result = await box.script(`
 import { main } from ${cliModule};
 import { listApiProjects } from ${projectsModule};
