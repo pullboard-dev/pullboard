@@ -29,7 +29,7 @@ import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 import { seatFamily } from '../src/family-declaration.js';
 import { parentSessionDigest as parentSessionDigestOf } from '../packages/items/index.js';
 import { familyName } from '../packages/verify/index.js';
-import { withOpenedBoard } from '../src/cli-read-context.js';
+import { withOpenedBoard } from '../apps/cli/index.js';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';

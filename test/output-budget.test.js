@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../packages/config/index.js';
-import { COMMANDS } from '../src/commands/index.js';
+import { COMMANDS } from '../apps/cli/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const helpers = createE2eHelpers();

@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 import { after, test } from 'node:test';
-import { HELP, resultCommands } from '../src/cli.js';
+import { HELP, resultCommands } from '../apps/cli/index.js';
 import * as helpDeclaration from '../src/help.js';
 import { importStyleViolations } from './import-style-helpers.js';
 import { pathToFileURL } from 'node:url';

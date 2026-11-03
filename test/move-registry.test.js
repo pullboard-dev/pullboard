@@ -28,7 +28,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MOVE_REGISTRY } from '../src/move-registry.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
-import { NEXT_STEPS } from '../src/next-step-words.js';
+import { NEXT_STEPS } from '../apps/cli/index.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
 import { registryFixtureBoard } from './move-registry-fixture.js';
 import { importsIn } from '../packages/gate/index.js';

@@ -13,7 +13,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';

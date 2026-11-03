@@ -11,7 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import { logEvent } from '../packages/store/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { apiHttpFixture } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';

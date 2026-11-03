@@ -6,9 +6,9 @@ import { landingExecutionServices } from '../packages/landing/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
-import { context } from '../src/cli.js';
-import { ordered } from '../src/cli.js';
-import { withBoard } from '../src/cli.js';
+import { context } from '../apps/cli/index.js';
+import { ordered } from '../apps/cli/index.js';
+import { withBoard } from '../apps/cli/index.js';
 import { runMainAudits } from '../packages/gate/index.js';
 import { mainAuditDirectory } from '../packages/gate/index.js';
 import { waitMainAudit } from '../packages/gate/index.js';

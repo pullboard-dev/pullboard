@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { Refused } from '../packages/kernel/core.js';

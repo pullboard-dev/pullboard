@@ -1,6 +1,6 @@
 /** Compose the real native board for in-process CLI tests [C7]. */
 import { fileURLToPath } from 'node:url';
-import { main as cliMain } from '../src/cli-main.js';
+import { main as cliMain } from '../apps/cli/index.js';
 import { HOOK_WORKER } from '../src/cli-hook-work.js';
 import { launchRelaySender } from '../src/relay-sender-main.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';

@@ -1,5 +1,5 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
-import { shellWord } from '../src/cli-read-context.js';
+import { shellWord } from '../apps/cli/index.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { configFromSource } from '../packages/config/index.js';

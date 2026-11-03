@@ -26,3 +26,15 @@ export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run
 export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/shell/generated-docs.js";
 export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from "./src/shell/submit-handoff-origin.js";
 export { sealSubmitHandoffQueue } from "./src/shell/submit-handoff-seal.js";
+export { cli$context as context } from "./index.js";
+export { cli$withBoard as withBoard } from "./index.js";
+export { cliContext$withBoardRead as withBoardRead } from "./index.js";
+export { cli$main as main } from "./index.js";
+export { cliReadContext$shellWord as shellWord } from "./index.js";
+export { cli$ordered as ordered } from "./index.js";
+export { cli$HELP as HELP } from "./index.js";
+export { cli$relayOutboxSetting as relayOutboxSetting } from "./index.js";
+export { cli$freezer as freezer } from "./index.js";
+export { cockpit$cockpitPage as cockpitPage } from "./index.js";
+export { commandsStatus$run as run } from "./index.js";
+export { nextSteps$NEXT_STEPS as NEXT_STEPS } from "./index.js";

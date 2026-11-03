@@ -15,7 +15,7 @@ import { claim as claimStoredItem, closeBoard, register as registerStoredAgent }
 import { openBoard } from '../src/native-board.js';
 import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';

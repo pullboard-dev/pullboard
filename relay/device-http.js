@@ -1,6 +1,6 @@
 /** Person-authorized account device enrollment and opaque key delivery [H5,H15,H17]. */
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { devicePublicKey } from '../packages/keys/index.js';
 import { approvalContext } from '../packages/link/index.js';

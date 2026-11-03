@@ -5,7 +5,7 @@ import {
   apiStatus,
   readApiBody,
 } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 const ROUTE = /^\/api\/v1\/boards\/([0-9a-f]{32})\/key-requests(?:\/([A-Za-z0-9_-]{22}))?$/u;

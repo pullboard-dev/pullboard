@@ -13,7 +13,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { pipelineStats, pipelineLimit, pipelineLines } from '../packages/stats/index.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 

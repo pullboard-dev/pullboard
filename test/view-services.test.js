@@ -14,9 +14,9 @@ import { main } from './native-cli-fixture.js';
 import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { exportView } from '../src/serve.js';
 import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
-import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
-import { refusalDocument } from '../src/next-step-words.js';
-import { nativeBoardOpeners } from '../src/cli-context.js';
+import { cockpitPage as unprovidedPage } from '../apps/cli/index.js';
+import { refusalDocument } from '../apps/cli/index.js';
+import { nativeBoardOpeners } from '../apps/cli/index.js';
 import * as nativeBoard from '../src/native-board.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 

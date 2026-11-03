@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { briefFiles } from '../packages/items/index.js';
 import { briefSections } from '../packages/spec/index.js';
-import { parseProblems, sweepItems } from '../src/sweep.js';
+import { parseProblems, sweepItems } from '../apps/cli/index.js';
 
 const ROOT = '/repo';
 

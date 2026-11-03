@@ -1,6 +1,6 @@
 /** Red submit diagnostics release the seat and share the machine pool [V4,C7,Q4,B7]. */
 // The subprocess invokes this entry point; retain its import edges for future affected-test selection.
-import '../src/cli.js';
+import '../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

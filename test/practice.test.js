@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ROLES, installSkills, promptFor, withoutFrontMatter } from '../src/skills.js';
+import { ROLES, installSkills, promptFor, withoutFrontMatter } from '../apps/cli/index.js';
 import { lintSpec, parseSpec } from '../packages/spec/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { practiceTemplate } from '../packages/config/index.js';

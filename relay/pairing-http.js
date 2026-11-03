@@ -1,6 +1,6 @@
 /** Authenticated, no-store HTTP boundary for one-use client-encrypted pairing envelopes [H15,H17]. */
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { PAIR_PACKAGE_BODY_BYTES } from '../packages/link/index.js';
 

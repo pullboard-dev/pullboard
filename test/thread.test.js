@@ -8,7 +8,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { relayPresentation, relaySnapshot } from '../packages/pages/index.js';
 import { test } from 'node:test';
