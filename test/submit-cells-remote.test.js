@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { remoteSubmitCells, submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
+import { remoteSubmitCells, submitCellsRemoteCommand } from '../apps/cli/src/shell/submit-cells-remote.js';
 
 test('remote cells loads pinned main tooling and treats candidate tooling as data [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'cells-remote-test-'));

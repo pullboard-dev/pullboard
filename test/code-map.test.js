@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js packages/codemap/src/shell/code-map.js src/commands/map.js src/commands/merged.js src/commands/index.js src/commands/next.js src/commands/claim.js packages/codemap/src/shell/map-slice-say.js src/cli-main.js src/cli-help.js src/help.js src/land.js packages/config/src/shell/templates.js test/board-submit-fixture.js */
+/** @pullboard-test-loads src/board.js packages/codemap/src/shell/code-map.js apps/cli/src/shell/commands/map.js apps/cli/src/shell/commands/merged.js apps/cli/src/shell/commands/index.js apps/cli/src/shell/commands/next.js apps/cli/src/shell/commands/claim.js packages/codemap/src/shell/map-slice-say.js apps/cli/src/shell/cli-main.js apps/cli/src/shell/cli-help.js apps/cli/src/core/help.js src/land.js packages/config/src/shell/templates.js test/board-submit-fixture.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';

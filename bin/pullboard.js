@@ -51,7 +51,7 @@ const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1])
 if (handed !== null) process.exit(handed);
 
 // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-const { main, selectedToolEntry, asksVersion } = await import('../src/cli-main.js');
+const { main, selectedToolEntry, asksVersion } = await import('../apps/cli/src/shell/cli-main.js');
 // Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
 if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {

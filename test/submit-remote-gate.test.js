@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { remoteSubmitAnalysis } from '../src/submit-remote-gate.js';
-import { remoteGateWanted } from '../src/submit-remote-gate.js';
+import { remoteSubmitAnalysis } from '../apps/cli/src/shell/submit-remote-gate.js';
+import { remoteGateWanted } from '../apps/cli/src/shell/submit-remote-gate.js';
 
 // Captured before any patching, so the fake runner's own processes never count as the controller's.
 const unpatchedExecFileSync = childProcess.execFileSync;

@@ -176,7 +176,7 @@ function tourSteps(stdout) {
 
 /** Create private loader fixtures that vary only the production tour module. */
 function createTourVariantHarness(box) {
-  const moduleUrl = new URL('../src/tour.js', import.meta.url).href;
+  const moduleUrl = new URL('../apps/cli/src/shell/tour.js', import.meta.url).href;
   const loader = join(box.dir, 'tour-variant-loader.mjs');
   const timerGuard = join(box.dir, 'tour-timer-guard.mjs');
   writeFileSync(loader, `

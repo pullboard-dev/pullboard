@@ -9,10 +9,10 @@ import { randomUUID } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
-import { gatedToolBuild } from '../src/pinned-tool-publish.js';
-import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
+import { gatedToolBuild } from '../apps/cli/src/shell/pinned-tool-publish.js';
+import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
 import { configFromSource } from '../packages/config/index.js';
-import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
+import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
 import { copyPackageFiles } from '../src/package-files.js';
 
 const e2e = createE2eHelpers();

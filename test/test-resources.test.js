@@ -544,7 +544,7 @@ test('later executable assignments retain every possible browser launch value [C
 test('reviewed executor imports stay browser-free only at their exact call sites [C7,O5]', async t => {
   const repository = resolve(import.meta.dirname, '..');
   const entries = [
-    ['src/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
+    ['apps/cli/src/shell/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
     ['packages/sentinels/src/shell/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
     ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],

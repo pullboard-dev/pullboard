@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/cli.js src/board-event-log.js */
+/** @pullboard-test-loads src/board.js apps/cli/src/shell/cli.js src/board-event-log.js */
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

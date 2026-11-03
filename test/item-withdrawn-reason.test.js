@@ -9,7 +9,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
 import { openBoard } from '../src/native-board.js';
 import { closeBoard } from '../src/native-board.js';
-import { projectState } from '../src/cli/view-state.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../packages/store/index.js';

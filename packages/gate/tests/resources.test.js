@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/shell/test-file-pool.js';

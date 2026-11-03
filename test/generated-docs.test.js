@@ -69,13 +69,13 @@ test('two command items from one main regenerate real Git conflicts without a bu
   box.git('add', '.'); box.git('commit', '-qm', 'beta command declaration');
   const beta = box.git('rev-parse', 'HEAD');
   const historical = recordedTrunkMerge(join(box.root, '.git'), alpha, beta, { version: 2 });
-  assert.ok(historical.includes('src/help/additions.js'), 'old policy retains its actual historical conflict');
+  assert.ok(historical.includes('apps/cli/src/core/help/additions.js'), 'old policy retains its actual historical conflict');
   assert.equal(recordedTrunkMerge(join(box.root, '.git'), alpha, beta, { version: 3 }), null, 'new policy proves generated-only conflicts mechanically');
   assert.deepEqual(mechanicalConflictFiles(box.root, alpha, beta), [], 'health uses the same current policy');
   const merged = runFixtureChild('git', ['merge', '--no-commit', '--no-ff', 'alpha'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(merged.status, 1, 'plain Git really produced generated-output conflicts');
   const files = box.git('diff', '--name-only', '--diff-filter=U').split('\n');
-  assert.ok(files.includes('docs/api.md') && files.includes('src/help/additions.js'));
+  assert.ok(files.includes('docs/api.md') && files.includes('apps/cli/src/core/help/additions.js'));
   assert.ok(files.every(file => GENERATED_DOC_PATHS.includes(file)), 'source additions merge without shared registry edits');
   const resolved = resolveMechanicalIndex(box.root, files);
   assert.deepEqual(resolved.files, [], JSON.stringify(resolved));
@@ -121,13 +121,13 @@ test('authored narrative conflicts stay real while v1/v2 receipts retain their e
 test('duplicate or symlinked command declarations refuse before any generated copy changes [C7,A1]', t => {
   const box = docsRepository(t);
   const copies = new Map(GENERATED_DOC_PATHS.map(file => [file, readFileSync(join(box.root, file))]));
-  const file = join(box.root, 'src/command-docs/duplicate.json');
+  const file = join(box.root, 'apps/cli/src/shell/command-docs/duplicate.json');
   copyPackageSubset(resolve(import.meta.dirname, '..'), box.root,
-    [{ path: 'src/command-docs/heartbeat.json', as: 'src/command-docs/duplicate.json' }]);
+    [{ path: 'apps/cli/src/shell/command-docs/heartbeat.json', as: 'apps/cli/src/shell/command-docs/duplicate.json' }]);
   assert.notEqual(box.node('bin/update-docs.js').status, 0);
   for (const [name, bytes] of copies) assert.deepEqual(readFileSync(join(box.root, name)), bytes);
   unlinkSync(file);
-  symlinkSync(join(box.root, 'src/command-docs/heartbeat.json'), file);
+  symlinkSync(join(box.root, 'apps/cli/src/shell/command-docs/heartbeat.json'), file);
   assert.notEqual(box.node('bin/update-docs.js').status, 0);
   for (const [name, bytes] of copies) assert.deepEqual(readFileSync(join(box.root, name)), bytes);
 });

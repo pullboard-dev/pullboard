@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/commands/withdraw.js src/commands/handoff.js src/worktree-maintenance-command.js packages/state/index.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/withdraw.js apps/cli/src/shell/commands/handoff.js apps/cli/src/shell/worktree-maintenance-command.js packages/state/index.js */
 /** Private CLI lifecycle cases for dirty withdrawal and completed seat takeover [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
