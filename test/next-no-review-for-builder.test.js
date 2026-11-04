@@ -68,7 +68,7 @@ test('explicit build intent skips an eligible mandatory aged review [N2,B13]', a
   const box = await fixture(t);
   const review = box.add('Eligible mandatory first review');
   box.submit(review);
-  const build = box.add('Explicit build work');
+  const build = box.add('Explicit build work', { brief: 'Files: web/explicit-build.js\nTest: explicit build intent selects independent work.' });
   reviewsFirst(box);
   box.advance(16 * 60_000);
 
