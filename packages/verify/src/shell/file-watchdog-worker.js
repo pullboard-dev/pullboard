@@ -15,6 +15,15 @@ let tree = processTreeCpu(process.pid);
 let treeMicros = 0;
 let outputStamp = 0;
 let killed = false;
+// Finished cases and the last case start/finish, so the wall can tell a slow file that still progresses from a stuck one.
+const finished = [];
+let lastFinishAt = null;
+const hardWallMs = workerData.wallMs * 3;
+
+/** The durations of finished cases, bounded so a long file's TIMEOUT line stays one readable line. */
+function finishedSummary() {
+  return JSON.stringify(finished.slice(-40));
+}
 
 /** Signal only this worker's own process; the existing runner custody drains its descendants. */
 function hung(reason, wall = false) {
@@ -25,11 +34,11 @@ function hung(reason, wall = false) {
     // Past even the load-scaled wall: a TIMEOUT that names the slowest case still running, not a plain failure.
     const [slowest] = [...startedAt].sort((a, b) => a[1] - b[1]);
     const running = slowest ? `${tests.get(slowest[0])} (running ${Math.round(performance.now() - slowest[1])}ms)` : name;
-    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case ${JSON.stringify(running)}: ${reason}\n`);
+    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case ${JSON.stringify(running)}: ${reason}; finished cases ${finishedSummary()}\n`);
     process.kill(process.pid, 'SIGKILL');
     return;
   }
-  writeSync(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}\n`);
+  writeSync(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}; finished cases ${finishedSummary()}\n`);
   process.kill(process.pid, 'SIGKILL');
 }
 
@@ -42,11 +51,28 @@ function activity() {
 parentPort.on('message', message => {
   if (message.type === 'output') activity();
   if (message.type === 'test') {
-    if (message.name === null) { tests.delete(message.id); startedAt.delete(message.id); }
+    if (message.name === null) {
+      lastFinishAt = performance.now();
+      if (startedAt.has(message.id)) finished.push({ name: tests.get(message.id), ms: Math.round(lastFinishAt - startedAt.get(message.id)) });
+      tests.delete(message.id); startedAt.delete(message.id);
+    }
     else { tests.set(message.id, message.name); startedAt.set(message.id, performance.now()); }
   }
 });
-setTimeout(() => hung(`whole-file wall limit ${workerData.wallMs}ms`, true), workerData.wallMs);
+/**
+ * The wall bounds a stuck file, not a slow one. Past the wall a file keeps running while cases keep finishing
+ * (each already bounded by its own per-case timeout), until none finishes for a quiet window or three walls pass.
+ * A file where no case has finished by the wall is stuck, and fails at the wall as before.
+ */
+function wallCheck() {
+  const now = performance.now();
+  const sinceFinish = lastFinishAt === null ? Infinity : now - lastFinishAt;
+  if (sinceFinish > workerData.idleMs) hung(`whole-file wall limit ${workerData.wallMs}ms`, true);
+  else if (now - startedWorkerAt >= hardWallMs) hung(`whole-file wall limit ${workerData.wallMs}ms, hard stop at three times the wall while cases were still finishing`, true);
+  else setTimeout(wallCheck, 250);
+}
+const startedWorkerAt = performance.now();
+setTimeout(wallCheck, workerData.wallMs);
 setInterval(() => {
   const beforeSample = process.cpuUsage();
   const current = processTreeCpu(process.pid);
