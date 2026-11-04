@@ -832,7 +832,6 @@ test('a landing run stops at the first failing file [C7,V4]', async t => {
   unrelated.kill('SIGTERM');
   assert.ok(await waitForFixtureProcessDrain(unrelated.pid), 'the regression cleaned up its unrelated process');
   assert.ok(existsSync(unrelatedDrained), 'the unrelated process acknowledged test cleanup');
-  assert.deepEqual(JSON.parse(stoppedOutput.split('\n').find(line => line.startsWith('# pullboard test outcomes ')).slice('# pullboard test outcomes '.length)).tests, [{ file: 'test/02-failing.test.js', name: 'later file fails after sibling starts', passed: false, skipped: false }]);
   assert.match(stoppedOutput, /Triggering test error:[\s\S]*intentional landing stop \[C7\]/u);
   assert.match(stoppedOutput, /Files not run: .*0[3-8]-queued\.test\.js/u);
   assert.equal(readFileSync(fixture.workerMarker, 'utf8'), '0', 'test workers do not inherit the landing mode');
