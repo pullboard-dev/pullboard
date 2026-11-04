@@ -5,6 +5,9 @@ import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 import { checkoutHistory } from './runner-worker-checkout.js';
 import { installDependencies } from './runner-worker-checkout.js';
 import { beginCleanup } from './runner-worker-cleanup.js';
+import { assertDiskFree } from './runner-disk-sweep.js';
+import { diskFloorBytes } from './runner-disk-sweep.js';
+import { sweepRunnerDiskForWorker } from './runner-disk-sweep.js';
 import { releaseDrainedLease } from './runner-worker-cleanup.js';
 import { reportCleanupTimeout } from './runner-worker-cleanup.js';
 import { outputSink } from './runner-worker-command.js';
@@ -68,6 +71,25 @@ export async function main(S) {
   let setupStep = 'runner directories';
   let gui = null;
   let final = { code: 1, signal: null, root: '' };
+  /** Send the one result receipt before any slow cleanup; a lost transport has no one to tell. */
+  async function reportResult() {
+    if (S.transportLost) return;
+    try {
+      if (lease?.executionAdmission) {
+        const endLoad = sampleRunnerLoad();
+        final.executionAdmission = { ...lease.executionAdmission, ...lease.timingEvidence(), finishedAt: endLoad.at, load: { ...lease.executionAdmission.load, end: endLoad } };
+      }
+      final.testRuntimes = runtimeCapture?.finish() ?? null;
+      final.executionPhases = phases.finish();
+      final.sourcePreparation = sourceMetrics;
+      S.cleanupStage = 'result receipt';
+      await receipt(spec, { ...final, gui }, sink);
+      S.resultSent = true;
+    } catch (error) {
+      try { process.stderr.write(`PULLBOARD_RUNNER_RESULT_UNSENT ${S.workerId} ${String(error?.code ?? error?.name).slice(0, 64)}\n`); } catch { /* A dead transport has no one to tell. */ }
+      S.transportDrop();
+    }
+  }
   try {
     const runnerHome = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
     const runnerRoot = spec.root ?? join(runnerHome, '.pullboard-runner');
@@ -88,6 +110,9 @@ export async function main(S) {
     const base = join(runnerRoot, 'jobs');
     mkdirSync(base, { recursive: true, mode: 0o700 });
     chmodSync(base, 0o700);
+    setupStep = 'disk sweep';
+    assertDiskFree(await sweepRunnerDiskForWorker(runnerRoot, spec.id, Date.now() + 60_000, api, machineHomePath), diskFloorBytes(machineHomePath));
+    setupStep = 'job directories';
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;
     recordRunnerOwner(runDirectory, processCensus);
@@ -97,7 +122,12 @@ export async function main(S) {
     mkdirSync(root, { mode: 0o700 }); mkdirSync(privateHome, { mode: 0o700 }); mkdirSync(temporary, { mode: 0o700 });
     writeFileSync(join(privateHome, 'npm-userconfig'), '', { mode: 0o600 });
     writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
-    pinSourceCacheJob(runDirectory, spec);
+    const pinLease = await acquireResourceApi(api, {
+      name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
+      repo: runnerRoot, agent: `pullboard-ssh-pin-${spec.id}`, kind: 'source-cache',
+      onWait: () => assertTransportLive(S),
+    }, join(runnerRoot, 'cache', 'resource-pool'));
+    try { pinSourceCacheJob(runDirectory, spec); } finally { pinLease.release(); }
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
     phases.mark('capacityWaitMs');
@@ -130,7 +160,7 @@ export async function main(S) {
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
-      await installDependencies(S, root, runnerRoot, env, tracker);
+      await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
@@ -160,6 +190,8 @@ export async function main(S) {
         sourceUnchanged: false, problem: { stage: 'check', message } } } : {}) };
   } finally {
     phases.mark('cleanupMs');
+    // The result goes out first: the controller returns on this receipt while cleanup below continues here (#2538).
+    await reportResult();
     beginCleanup(S);
     S.cleanupStage = 'final descendants';
     if (tracker) await tracker.stopDescendants();
@@ -183,14 +215,8 @@ export async function main(S) {
     }
     if (lease) {
       S.cleanupStage = 'lease release';
-      try {
-        if (lease.executionAdmission) {
-          const endLoad = sampleRunnerLoad();
-          final.executionAdmission = { ...lease.executionAdmission, ...lease.timingEvidence(), finishedAt: endLoad.at, load: { ...lease.executionAdmission.load, end: endLoad } };
-        }
-      } finally { await releaseDrainedLease(S, lease); }
+      await releaseDrainedLease(S, lease);
     }
-    final.testRuntimes = runtimeCapture?.finish() ?? null;
     const custody = tracker?.cleanupState();
     const drained = S.ownedChildren.size === 0 && (!custody || !custody.uncertain && !custody.censusFailure && !custody.pending.length && !custody.live.length);
     if (recoveryRoot && runDirectory && drained) {
@@ -201,13 +227,11 @@ export async function main(S) {
     // No filesystem writes follow final removal; health separately requires this exact directory to be absent.
     if (runDirectory && (!S.cleanupTimedOut || drained)) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch { /* Best effort: health separately requires this exact directory to be absent. */ } }
   }
-  if (S.transportLost || S.cleanupTimedOut) { clearTimeout(S.cleanupTimer); clearTimeout(S.phaseCleanupTimer); process.exitCode = 1; stopReading(); return; }
-  S.cleanupStage = 'result receipt';
-  final.executionPhases = phases.finish();
-  final.sourcePreparation = sourceMetrics;
-  await receipt(spec, { ...final, gui }, sink);
+  // Past the receipt a slow or failed cleanup is only a leftover for the sweep (#2525); it never turns the result red.
   clearTimeout(S.cleanupTimer);
   clearTimeout(S.phaseCleanupTimer);
-  process.exitCode = 0;
+  // The result is already delivered, so the cleanup budget no longer applies; sweep leftovers after each job.
+  if (recoveryRoot && api) await sweepRunnerDiskForWorker(recoveryRoot, S.workerId, Date.now() + 60_000, api, process.env.PULLBOARD_MACHINE_HOME ?? join(userInfo().homedir, '.pullboard'));
+  process.exitCode = S.resultSent ? 0 : 1;
   stopReading();
 }

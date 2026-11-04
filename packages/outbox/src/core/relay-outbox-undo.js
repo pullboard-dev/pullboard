@@ -4,8 +4,6 @@
  * inverted changesets, newest first, so the board is exactly as the relay last ordered it; replaying the relay's
  * records and making the queued moves again on top costs only the rows they touch, never a whole-board restore.
  */
-import { suspendStoreGuards } from '../../../../src/board-store-guards.js';
-import { atomic } from '../../../../src/board-event-log.js';
 
 /** SQLite's changeset conflict type for a row whose values changed, and the answers to a conflict. */
 const CHANGED = 1;
@@ -178,11 +176,14 @@ function legacyRowConflict(db, bytes) {
  * taking back an unordered move is the one exception, so they are lifted inside this transaction only, as a
  * snapshot restore lifts them.
  *
+ * The store's transaction and guard-lifting bindings come in as `ports`, because the store's shell owns them [C7].
+ *
+ * @param {{ atomic: (board: any, work: () => void) => any, suspendStoreGuards: (board: any) => () => void }} ports
  * @param {any} board
  * @param {{ changes?: string[], sequences?: { name: string, seq: number }[] }[]} entries - Oldest first.
  * @returns {string | null}
  */
-export function undoQueued(board, entries) {
+export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries) {
   const db = board.db;
   let conflict = null;
   const callbacks = callbackConflicts(db);

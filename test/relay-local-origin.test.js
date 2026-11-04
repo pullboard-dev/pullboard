@@ -2,7 +2,7 @@
 /** A hosted WebKit page opens an authenticated loopback board without a mixed-content fetch [H5,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { machine, project, startView } from './cockpit/fixture.js';
 import { findWebkitExecutable, startWebkit } from './webkit-fixture.js';

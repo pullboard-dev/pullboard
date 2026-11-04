@@ -1,5 +1,5 @@
 /** Real Git ranges and native gate receipts for receipt-based pre-push decisions [C7]. */
-import { shellWord } from '../src/cli-read-context.js';
+import { shellWord } from '../apps/cli/index.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { configFromSource } from '../packages/config/index.js';
@@ -73,7 +73,7 @@ test('push ranges check first parents, direct commits, new refs and all ref reco
 
 /** Run the actual private receipt writer through normal gate admission in this isolated fixture. */
 function nativeReceipt(box, { landing = false, red = false, unparsed = false } = {}) {
-  const module = new URL('../src/gate.js', import.meta.url).href;
+  const module = new URL('../packages/gate/index.js', import.meta.url).href;
   const source = `import {readFileSync} from 'node:fs'; import {runGate} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
@@ -131,10 +131,10 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
 function nativeSmoke(box) {
   const module = new URL('../packages/sandbox/src/shell/push-receipt-smoke.js', import.meta.url).href;
   const source = `import {runPushReceiptSmoke} from ${JSON.stringify(module)};
-import {checkNeedsBrowser} from ${JSON.stringify(new URL('../src/browser-admission.js', import.meta.url).href)};
-import {checkNeedsGui} from ${JSON.stringify(new URL('../src/gui-admission.js', import.meta.url).href)};
-import {runProfiledShellAsync,withGateSlot} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
-${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
+import {checkNeedsBrowser} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+import {checkNeedsGui} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+import {runProfiledShellAsync,withGateSlot} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+${executionServicesSource(new URL('../packages/gate/index.js', import.meta.url).href)}
 try { const run=await runPushReceiptSmoke(process.cwd(),{executionServices,agent:'coordinator'},
 {checkNeedsBrowser,checkNeedsGui,runProfiledShellAsync,withGateSlot});
 console.log(JSON.stringify({green:run.isGreen,policy:run.policyCommit,output:run.output})); }

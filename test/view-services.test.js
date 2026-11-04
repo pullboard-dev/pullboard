@@ -11,14 +11,14 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { main } from './native-cli-fixture.js';
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
-import { exportView } from '../src/serve.js';
-import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
-import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
-import { refusalDocument } from '../src/next-step-words.js';
-import { nativeBoardOpeners } from '../src/cli-context.js';
-import * as nativeBoard from '../src/native-board.js';
-import { projectState } from '../src/cli/view-state.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
+import { exportView } from '../apps/view/index.js';
+import { serveView, projectState as unprovidedProjectState } from '../apps/view/index.js';
+import { cockpitPage as unprovidedPage } from '../apps/cli/index.js';
+import { refusalDocument } from '../apps/cli/index.js';
+import { nativeBoardOpeners } from '../apps/cli/index.js';
+import * as nativeBoard from '../apps/lib/index.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
 function missingService(name) {
@@ -77,10 +77,10 @@ test('an export refuses missing services before reading a board or writing outpu
   assert.equal(existsSync(output), false, 'a refused export writes no snapshot');
 });
 
-/** @pullboard-test-input src/commands/view.js */
+/** @pullboard-test-input apps/cli/src/shell/commands/view.js */
 test('the actual CLI composition serves and exports a private real board [N26,C7]', t => {
   const box = approvedViewFixture(t);
-  const module = new URL('../src/commands/view.js', import.meta.url).href;
+  const module = new URL('../apps/cli/src/shell/commands/view.js', import.meta.url).href;
   const output = join(box.dir, 'snapshot');
   const program = `
 import assert from 'node:assert/strict';

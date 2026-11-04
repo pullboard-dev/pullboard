@@ -4,7 +4,10 @@
 /** Census reuse keeps actual V8 parsing, opaque imports and fresh loader/error behavior [C7,O5]. */
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { withImportParseCache } from '../packages/gate/index.js';
@@ -19,9 +22,22 @@ function compilerCalls(t) {
   return () => calls;
 }
 
+/** Give this test a private machine cache so other checkouts cannot lend it prior compiler results. */
+function isolateMachineHome(t) {
+  const home = mkdtempSync(join(tmpdir(), 'pullboard-parse-cache-'));
+  const before = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => {
+    if (before === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = before;
+    rmSync(home, { recursive: true, force: true });
+  });
+}
+
 const SOURCE = "import value from './leaf.js'; export default value;";
 
 test('one census reuses exact real compilation bytes but exposes independent results [C7]', t => {
+  isolateMachineHome(t);
   const calls = compilerCalls(t);
   withImportParseCache(() => {
     assert.deepEqual(commonJsIn([SOURCE]), [false]);
@@ -33,7 +49,7 @@ test('one census reuses exact real compilation bytes but exposes independent res
     assert.equal(calls(), 2, 'changed bytes require an actual fresh compiler result');
   });
   assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);
-  assert.equal(calls(), 3, 'a completed census cannot lend its cache to the next caller');
+  assert.equal(calls(), 2, 'machine-wide cache reuse survives the census boundary');
 });
 
 test('cached and uncached real parser results agree for computed, quoted, invalid and CommonJS source [C7]', () => {
@@ -66,6 +82,7 @@ test('foreign NODE_OPTIONS disable compile reuse even when the option is accepte
 });
 
 test('a subprocess error is not a cached compiler observation [C7]', t => {
+  isolateMachineHome(t);
   const original = childProcess.spawnSync;
   let calls = 0;
   t.mock.method(childProcess, 'spawnSync', (...args) => ++calls === 1

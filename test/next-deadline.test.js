@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { nextProgress } from '../packages/sandbox/index.js';
-import { startNextProgressMonitor } from '../src/next-progress-monitor.js';
+import { startNextProgressMonitor } from '../apps/cli/src/shell/next-progress-monitor.js';
 import { fixture } from './next-take-fixture.js';
 import {
   privateFixtureFiles,
@@ -154,7 +154,7 @@ test('the real progress worker reports during synchronous private SQLite work be
   const files = privateFixtureFiles('next-sync-phase-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   const progressModule = new URL('../packages/sandbox/src/shell/next-take.js', import.meta.url).href;
-  const monitorModule = new URL('../src/next-progress-monitor.js', import.meta.url).href;
+  const monitorModule = new URL('../apps/cli/src/shell/next-progress-monitor.js', import.meta.url).href;
   files.write('phase.mjs', `
 import { DatabaseSync } from 'node:sqlite';
 import { nextProgress } from ${JSON.stringify(progressModule)};

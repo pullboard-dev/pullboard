@@ -1,5 +1,5 @@
 /** Exercise the public no-options board opener from branch code on shared and private files [A5,A6,C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -112,7 +112,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   // still install here; only the repository-shared path is protected from unmerged declarations.
   const createPrivate = run(process.execPath, ['--input-type=module', '-e', `
     import { closeBoard } from './src/board.js';
-    import { openBoard } from './src/native-board.js';
+    import { openBoard } from './apps/lib/index.js';
     const board = openBoard(${JSON.stringify(privateFile)});
     closeBoard(board);
   `], main, env);
@@ -125,7 +125,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   // isMain. It reads and performs an ordinary claim using the existing main-board schema.
   const directProbe = run(process.execPath, ['--input-type=module', '-e', `
     import { closeBoard, getItem, claim } from './src/board.js';
-    import { openBoard } from './src/native-board.js';
+    import { openBoard } from './apps/lib/index.js';
     const board = openBoard(${JSON.stringify(sharedFile)});
     try {
       const before = getItem(board, ${itemId});
@@ -162,7 +162,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   try { lowered.exec('PRAGMA user_version = 1'); } finally { lowered.close(); }
   const privateProbe = run(process.execPath, ['--input-type=module', '-e', `
     import { closeBoard } from './src/board.js';
-    import { openBoard } from './src/native-board.js';
+    import { openBoard } from './apps/lib/index.js';
     const board = openBoard(${JSON.stringify(privateFile)});
     closeBoard(board);
   `], branch, env);

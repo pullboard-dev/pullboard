@@ -5,8 +5,8 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { SETTING_FORMS } from '../../src/help.js';
-import { settingsContentHtml } from '../../src/view/settings-render.js';
+import { SETTING_FORMS } from '../../apps/cli/index.js';
+import { settingsContentHtml } from '../../apps/view/index.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 /** What the page reports about the scope on screen, measured in the browser, not read from the markup. */

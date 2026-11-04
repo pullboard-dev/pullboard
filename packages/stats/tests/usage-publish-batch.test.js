@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { logEvent } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
@@ -15,8 +15,8 @@ import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
 import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { applyEngineMove } from '../../state/index.js';
-import { declaredMoveActor } from '../../../src/move-registry.js';
-import { minimumMoveEngine } from '../../../src/move-registry.js';
+import { declaredMoveActor } from '../../moves/index.js';
+import { minimumMoveEngine } from '../../moves/index.js';
 
 /** A private joined repository and historical events are fixture data, not measured provider usage. */
 function fixture(t, count = 48) {
@@ -52,7 +52,7 @@ test('a real claim publishes all 48 pending revisions in one transaction and ret
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,claimOrdered,freezer,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};
+    import * as nativeBoard from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io),holds=[],operations=[];io.onOrderedMove=event=>operations.push(event.operation);
     await withBoard(ctx,async board=>{
@@ -110,7 +110,7 @@ test('1001 pending revisions progress across bounded commands and never duplicat
   const checkpoint=pathToFileURL(join(helpers.BIN,'../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code=`import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};
+    import * as nativeBoard from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     const operations=[],io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
     const ctx=context(io);await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));
     console.log(JSON.stringify({operations}));`;

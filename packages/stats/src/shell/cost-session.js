@@ -1,18 +1,11 @@
 /** Locate only the caller's native session and keep transcript bytes on its machine [N2]. */
-import { createHash } from 'node:crypto';
 import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { nativeUsage } from './cost-provider.js';
+import { cursorSnapshot } from './cost-cursor.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 import { unknownInputSplit } from './cost-read.js';
-
-/** Hash a private prefix so truncation or replacement never becomes historical spend. */
-function hash(bytes) {
-  return createHash('sha256').update(bytes).digest('hex');
-}
 
 /** Search native directories without following symlinks or reading other sessions' contents. */
 function findSession(directory, identity, provider) {
@@ -40,30 +33,19 @@ export function sessionSource(environment = process.env) {
   return file ? { provider, file } : null;
 }
 
-/** Add provider counts without silently rounding overflow or masking an unknown field. */
-function add(left, right) {
-  return left !== null && right !== null && Number.isSafeInteger(left + right) ? left + right : null;
-}
-
-/** Read cumulative per-model native totals together with a private append-only source anchor. */
-export function sessionSnapshot(source, previous, cutoff = Infinity) {
+/**
+ * Read cumulative per-model native totals together with a private append-only source anchor.
+ * A log is trusted by its file identity and length: a replaced or truncated file stays unknown. With `cursors`
+ * (the private ledger's per-file offsets) only bytes appended since the last checkpoint are read.
+ */
+export function sessionSnapshot(source, previous, cutoff = Infinity, cursors) {
   if (!source) return null;
   try {
     const stat = lstatSync(source.file);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    const bytes = readFileSync(source.file);
-    if (previous && (stat.dev !== previous.dev || stat.ino !== previous.ino || bytes.length < previous.bytes || hash(bytes.subarray(0, previous.bytes)) !== previous.sha256)) return null;
-    const usage = nativeUsage(source, bytes, cutoff);
+    if (previous && (stat.dev !== previous.dev || stat.ino !== previous.ino || stat.size < previous.bytes)) return null;
     // Readable bytes without a native usage record establish no counter baseline, including an empty file.
-    if (!usage) return null;
-    const events = usage.filter((event) => event.at <= cutoff);
-    const totals = Object.create(null);
-    for (const event of events) {
-      const model = event.model ?? 'unknown';
-      const total = totals[model] ?? Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, 0]));
-      totals[model] = Object.fromEntries(['inputTokens', 'outputTokens', ...SPLIT_COUNTS].map(name => [name, add(total[name], event[name])]));
-    }
-    return { totals, model: events.at(-1)?.model ?? null, dev: stat.dev, ino: stat.ino, bytes: bytes.length, sha256: hash(bytes) };
+    return cursorSnapshot(source, stat, cutoff, cursors);
   } catch { return null; }
 }
 

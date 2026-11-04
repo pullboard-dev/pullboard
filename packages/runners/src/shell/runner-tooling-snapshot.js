@@ -12,9 +12,7 @@ import { createRunnerModuleParser } from './runner-module-parser.js';
 
 const readers = new WeakMap();
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
-const CONTROLLER_STEPS = ['src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js',
-  'src/runner-request.js', 'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
-  'packages/runners/index.js', 'packages/runners/src/shell/runners.js',
+const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/shell/runners.js',
   'packages/runners/src/shell/runner-source-scan.js', 'packages/runners/src/shell/runner-history-pack.js',
   'packages/runners/src/shell/runner-remote-tooling.js', 'packages/runners/src/shell/runner-request.js',
   'packages/runners/src/shell/runner-result.js', 'packages/runners/src/shell/runner-dispatch.js',

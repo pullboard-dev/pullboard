@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../packages/link/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
@@ -16,12 +16,12 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
-const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
 const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/store/index.js')).href;
-const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
+const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
-const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
-const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
+const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
+const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href;
 const PORTS_MODULE = pathToFileURL(resolve(import.meta.dirname, './board-fixture.js')).href;
 after(cleanupFixtureChildren);
 

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { closeBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { closeBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { itemReviewPolicy } from '../packages/verify/index.js';
@@ -15,7 +15,7 @@ import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { healthLines } from '../packages/health/index.js';
-import { withOpenedBoard } from '../src/cli-read-context.js';
+import { withOpenedBoard } from '../apps/cli/index.js';
 import { atomic } from '../packages/store/index.js';
 
 const LEASE = 3_600_000;

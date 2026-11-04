@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { machine, project, build, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 /** Record real health transitions after the private fixture's native review. */

@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import * as store from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { TIME_PHASES } from '../index.js';

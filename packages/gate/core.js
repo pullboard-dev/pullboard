@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
-import { readTestOutcomes } from '../../src/test-outcomes.js';
-import { formatTestOutcomes } from '../../src/test-outcomes.js';
+import { readTestOutcomes } from './src/shell/test-outcomes.js';
+import { formatTestOutcomes } from './src/shell/test-outcomes.js';
 
 /** Accept only bounded worker-owned source measurements, never arbitrary receipt objects or paths. */
 export function sourcePreparationFields(value) {
@@ -27,8 +27,9 @@ export function sourcePreparationFields(value) {
  * block, and a final `# fail N` that equals the failures read. Anything after that summary other
  * than summary counts or the package manager's own failure report means something else failed,
  * so the stage is unaccounted and null is returned [B3,R3].
+ * Known-main comparisons alone may opt into cancelled children, with each cancellation explicitly counted.
  */
-export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = false } = {}) {
+export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = false, allowCancelled = false } = {}) {
   const lines = output.split('\n');
   // Check every diagnostic position, including records before TAP's final count.
   const outcomes = readTestOutcomes(output, outcomeRunId);
@@ -45,6 +46,7 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
     if (yaml !== null) {
       if (line === `${yaml}...`) { yaml = null; continue; }
       const location = /^\s*location:\s*['"]?(.+?):\d+(?::\d+)?['"]?\s*$/u.exec(line);
+      if (active && allowCancelled && /^\s*failureType:\s*['"]?cancelledByParent['"]?\s*$/u.test(line)) active.cancelled = true;
       if (active && nativeLeaves && outcomes && /^\s*failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)) active.aggregate = true;
       if (active && location) {
         const path = location[1];
@@ -70,15 +72,17 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
     if (stopped) cancelled = Number(stopped[1]);
   }
   // Native outcomes authenticate actual test bodies. A describe/parent aggregate adds no independent failed body.
-  const leaves = nativeLeaves && outcomes ? failures.filter(row => !(row.aggregate && row.file
+  const actual = allowCancelled ? failures.filter(row => !row.cancelled) : failures;
+  if (allowCancelled && failures.filter(row => row.cancelled).length !== cancelled) return null;
+  const leaves = nativeLeaves && outcomes ? actual.filter(row => !(row.aggregate && row.file
     && outcomes.some(outcome => outcome.file === row.file)
-    && !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name))) : failures;
-  if (yaml !== null || !version || summary === null || summary < 1 || summary !== leaves.length || cancelled !== 0) return null;
+    && !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name))) : actual;
+  if (yaml !== null || !version || summary === null || summary < 1 || summary !== leaves.length || !allowCancelled && cancelled !== 0) return null;
   if (nativeLeaves && outcomes && (outcomes.filter(row => !row.passed && !row.skipped).length !== leaves.length
     || leaves.some(row => !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name && !outcome.passed && !outcome.skipped)))) return null;
   // Only the controller's authenticated component may name a native diagnostic invocation.
   const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || nativeLines.has(line));
-  return trailer ? nativeLeaves ? leaves.map(({ name, file }) => ({ name, file })) : failures : null;
+  return trailer ? nativeLeaves ? leaves.map(({ name, file }) => ({ name, file })) : actual : null;
 }
 
 /**
@@ -88,7 +92,7 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
  * that left no status or failed without its own complete TAP account. Waivers only ever subtract
  * these [B3,R3].
  */
-export function accountedFailures(gate, root, { nativeLeaves = false } = {}) {
+export function accountedFailures(gate, root, { nativeLeaves = false, allowCancelled = false } = {}) {
   if (gate.isGreen || !Array.isArray(gate.stages) || !gate.stages.length) return null;
   // Only the authenticated worker checkout may relocate remote failure locations.
   const executionRoot = gate.executionRoot ?? root;
@@ -97,13 +101,13 @@ export function accountedFailures(gate, root, { nativeLeaves = false } = {}) {
     if (!Number.isInteger(stage.status)) return null;
     if (stage.pipeline !== undefined) {
       // In a pipeline each failing component must explain itself; a forwarded account credits no one else [B3,R3].
-      const own = pipelineFailures(stage.pipeline, executionRoot, { nativeLeaves });
+      const own = pipelineFailures(stage.pipeline, executionRoot, { nativeLeaves, allowCancelled });
       if (!own || (stage.status === 0) !== (own.length === 0)) return null;
       failures.push(...own);
       continue;
     }
     if (stage.status === 0) continue;
-    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot, { outcomeRunId: stage.testOutcomeRunId, nativeLeaves }) : null;
+    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot, { outcomeRunId: stage.testOutcomeRunId, nativeLeaves, allowCancelled }) : null;
     if (!own) return null;
     failures.push(...own);
   }
@@ -116,11 +120,11 @@ export function accountedFailures(gate, root, { nativeLeaves = false } = {}) {
  * own output. A setup step that fails beside a consumer printing a waived test's TAP has no account
  * of its own, so it is an independent red no waiver names, and it voids the run.
  */
-function pipelineFailures(components, root, { nativeLeaves }) {
+function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
   if (!Array.isArray(components) || components.some((entry) => !Number.isInteger(entry?.status))) return null;
   const failures = [];
   for (const { status, output, testOutcomeRunId } of components.filter((entry) => entry.status !== 0)) {
-    const own = status === 1 ? tapFailures(output ?? '', root, { outcomeRunId: testOutcomeRunId, nativeLeaves }) : null;
+    const own = status === 1 ? tapFailures(output ?? '', root, { outcomeRunId: testOutcomeRunId, nativeLeaves, allowCancelled }) : null;
     if (!own) return null;
     failures.push(...own);
   }

@@ -2,6 +2,7 @@
 import { Refused } from "../../../kernel/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { RIGOR_AUTO_ENGINE } from "../../../state/index.js";
+import { VERIFIED_ITEM_HOLD_ENGINE } from "../../../../src/verified-item-hold-engine.js";
 
 /** Hold an open or already claimed item under the existing coordinator authority. */
 export function applyItemHold(board, id, { agentId, reason, until }, dependencies) {
@@ -15,8 +16,10 @@ export function applyItemHold(board, id, { agentId, reason, until }, dependencie
   if (!text) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${id} "why"`);
   return atomic(board, () => {
     const item = getItem(board, id);
-    if (!['open', 'claimed'].includes(item.item_status)) {
-      throw new Refused('ITEM_NOT_OPEN', `item #${id} is ${item.item_status}; only open or claimed items can be held`);
+    // A verified item can be held out of landing batches from this engine on; it keeps its accept [C7].
+    const holdable = (board.executionEngineVersion ?? ENGINE_VERSION) >= VERIFIED_ITEM_HOLD_ENGINE ? ['open', 'claimed', 'verified'] : ['open', 'claimed'];
+    if (!holdable.includes(item.item_status) || item.item_merged_commit) {
+      throw new Refused('ITEM_NOT_OPEN', `item #${id} is ${item.item_status}; only open, claimed or verified items can be held`);
     }
     const at = now(board);
     setItem(board, id, { item_hold_reason: text, item_hold_by: agentId, item_hold_at: at });
