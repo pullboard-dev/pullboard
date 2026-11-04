@@ -161,10 +161,11 @@ function gitCall(cwd, args, env) {
 
 /**
  * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
- * Why a branch: a detached clone has no accepted main, so bin/run-tests.js refused before any test and every
- * comparison came back a red that proved nothing (#2950).
+ * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
+ * accepted main, so bin/run-tests.js refused a main comparison before any test and it came back a red that proved
+ * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
  */
-export async function withMainCheckout(root, commit, run) {
+export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
   const directory = join(tmpdir(), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
@@ -172,9 +173,9 @@ export async function withMainCheckout(root, commit, run) {
   try {
     const cloned = gitCall(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], env);
     if (cloned.status !== 0) return { unavailable: 'temporary main checkout could not be prepared' };
-    // On main's own branch name, so tools that look up accepted main (test budgets) find the compared commit (#2950).
-    const branch = (mainCheckout(root)?.branch ?? 'refs/heads/main').replace(/^refs\/heads\//u, '');
-    const selected = gitCall(checkout, ['checkout', '--quiet', '--force', '-B', branch, commit], env);
+    // A main comparison sits on main's own branch name, so tools that look up accepted main (test budgets) find it (#2950).
+    const branch = onMainBranch ? (mainCheckout(root)?.branch ?? 'refs/heads/main').replace(/^refs\/heads\//u, '') : null;
+    const selected = gitCall(checkout, branch ? ['checkout', '--quiet', '--force', '-B', branch, commit] : ['checkout', '--quiet', '--force', '--detach', commit], env);
     if (selected.status !== 0) return { unavailable: 'the exact main commit could not be checked out temporarily' };
     const clean = gitCall(checkout, ['status', '--porcelain', '--untracked-files=all'], env);
     const head = gitCall(checkout, ['rev-parse', '--verify', 'HEAD^{commit}'], env);
@@ -384,7 +385,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
           return measure(false);
         }
-      });
+      }, { onMainBranch: true });
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (pinned) pinnedEntries[path] = measured;
       else await withComparisonCache(root, onWait, () => {
