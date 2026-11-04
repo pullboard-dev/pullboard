@@ -31,9 +31,12 @@ function bindBoardRepository(board) {
 /** Record a synthetic board move without claiming that this fixture ran a gate. */
 export function submitFixture(board, id, options) {
   bindBoardRepository(board);
+  const policyCommit = options.policyCommit
+    ?? (board.gitRoot ? board.enginePorts.sandboxPolicyReads.mainPolicy(board.gitRoot).commit : undefined);
   return submit(board, id, {
     submissionProof: { version: 1, files: [], full: false, deferred: true,
       reason: 'synthetic board-state fixture; no gate execution' },
+    ...(policyCommit ? { policyCommit } : {}),
     ...options,
   });
 }
