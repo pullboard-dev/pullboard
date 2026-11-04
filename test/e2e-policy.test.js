@@ -211,7 +211,7 @@ test('replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3
   assert.equal(existsSync(join(box.web, 'coordinator.txt')), false, 'Git normally shows the replacement tree');
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 1);
-  assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
+  assert.equal(JSON.parse(submitted.out).error.code, 'DIRTY', 'the underlying tree differs from the visible one, so submit refuses before the lane check');
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: 'synthetic unchecked tree' }); }
   finally { store.closeBoard(board); }
