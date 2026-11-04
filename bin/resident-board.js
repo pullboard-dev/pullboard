@@ -24,6 +24,14 @@ import {
   connect,
   createServer,
 } from 'node:net';
+import {
+  endThen,
+  flushesDue,
+  lockPath,
+  pathIdentity,
+  processAlive,
+  releaseOwnSocket,
+} from './resident-socket.js';
 
 // Node 22 announces that node:sqlite is experimental; the in-process entry drops that notice, and so does this one.
 const emitWarning = process.emitWarning;
@@ -35,6 +43,8 @@ process.emitWarning = (warning, ...rest) => {
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
 const MAX_AGE_MS = Number(process.env.PULLBOARD_RESIDENT_MAX_AGE_MS) || 60 * 60_000;
+/** How often a listening process checks that the socket path is still its own. */
+const REPLACED_CHECK_MS = Number(process.env.PULLBOARD_RESIDENT_REPLACED_CHECK_MS) || 2_000;
 /**
  * The process's clock: wall time, or the milliseconds in the file PULLBOARD_RESIDENT_CLOCK names, so a test can move
  * idle and age time without waiting for it.
@@ -53,6 +63,17 @@ let queue = Promise.resolve();
 const inFlight = new Set();
 let lastActive = clock();
 let retired = false;
+/** The identity of the socket file this process bound, so it never unlinks or serves a successor's socket. */
+let ownSocket = null;
+/** When each client response still being written was queued; a retired process exits only when none are left. */
+const flushing = new Set();
+/**
+ * How long a retired process waits for clients to read their last responses. Why a bound: a client that stops reading
+ * would otherwise keep an orphan alive; the replaced check plus this stays within 5 s of a takeover.
+ */
+const FLUSH_MS = Number(process.env.PULLBOARD_RESIDENT_FLUSH_MS) || 2_000;
+/** Wall time when this process retired, for the flush bound. */
+let retiredAt = null;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
 const activeEnv = () => running?.env ?? baseEnv;
@@ -85,23 +106,59 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 
 /** Remove the socket and pid file this process made, leaving a successor's in place. */
 function release() {
-  try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
-  if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+  // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
+  if (process.platform === 'win32') {
+    try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+    return;
+  }
+  releaseOwnSocket(socketPath, ownSocket, pidFile);
 }
+
+/** The socket path's file identity now, or null when nothing is there. */
+const socketIdentity = () => pathIdentity(socketPath);
+
+/** Whether another process now owns the socket path: this one can no longer be reached and must not linger. */
+function replaced() {
+  return process.platform !== 'win32' && ownSocket !== null && socketIdentity() !== ownSocket;
+}
+
+/** Whether the process named by the pid file is alive and is not this one. */
+function holderAlive() {
+  try { return processAlive(Number(readFileSync(pidFile, 'utf8').trim())); } catch { return false; }
+}
+
 
 /** Stop taking commands and free the socket path for a successor now; exitWhenDone ends the process. */
 function retire(reason) {
   if (retired) return;
   retired = true;
+  retiredAt = Date.now();
+  setTimeout(exitWhenDone, FLUSH_MS + 1);
   trace(`retire:${reason}`, null);
   release();
-  server.close();
+  // Why no server.close(): Node unlinks a Unix socket's path when its server closes, whoever holds the path by then.
+  // With the path released nothing new connects; a connection already queued is answered stale.
   closeConnections();
 }
 
-/** Exit a retired process once its running commands have finished. */
+/**
+ * Exit a retired process once its running commands have finished and each response is written or has had its own
+ * flush window, counted from when it was queued or the process retired, whichever is later.
+ */
 function exitWhenDone() {
-  if (retired && !inFlight.size) process.exit(0);
+  if (!retired || inFlight.size) return;
+  const now = Date.now();
+  if (flushesDue(flushing, retiredAt, now, FLUSH_MS)) process.exit(0);
+}
+
+/** Send a client its last line, holding a retired process's exit until the line is written. */
+function finish(socket, value) {
+  const entry = { at: Date.now() };
+  flushing.add(entry);
+  trace(`respond:${value.t}`, null);
+  // A retired process checks again when this response's window ends, if its client is still not reading.
+  if (retired) setTimeout(exitWhenDone, FLUSH_MS + 1);
+  endThen(socket, JSON.stringify(value) + '\n', () => { flushing.delete(entry); exitWhenDone(); });
 }
 
 const { main, selectedToolEntry } = await import('../apps/cli/src/shell/cli-main.js');
@@ -206,7 +263,7 @@ async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
   if (retired || request.code !== loadedCode || clock() - bornAt > MAX_AGE_MS) {
     retire(request.code !== loadedCode ? 'code' : 'age');
-    return socket.end(JSON.stringify({ t: 'stale' }) + '\n', exitWhenDone);
+    return finish(socket, { t: 'stale' });
   }
   const store = { env: { ...request.env }, cwd: request.cwd,
     send: (frame, chunk) => send({ t: frame, d: typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8') }) };
@@ -216,6 +273,9 @@ async function serve(socket, request) {
   const run = async () => {
     running = store;
     try {
+      // A command still queued when the process retired never starts here: its client runs it in-process instead, so
+      // only the command already running holds a retired process open.
+      if (retired) return null;
       if (!enterDirectory(store.cwd)) return null;
       // A pinned tool build runs its own entry, which the in-process path starts.
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
@@ -238,7 +298,7 @@ async function serve(socket, request) {
     inFlight.delete(store);
     lastActive = clock();
   }
-  socket.end(JSON.stringify(status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 }) + '\n', exitWhenDone);
+  finish(socket, status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 });
 }
 
 const server = createServer((socket) => {
@@ -255,7 +315,7 @@ const server = createServer((socket) => {
     // A tick asks for the idle check now, so a test drives retirement by its clock rather than by waiting.
     if (request.t === 'tick') {
       const idle = checkIdle({ exit: false });
-      return socket.end(JSON.stringify({ t: idle ? 'retired' : 'busy' }) + '\n', exitWhenDone);
+      return finish(socket, { t: idle ? 'retired' : 'busy' });
     }
     void serve(socket, request);
   });
@@ -270,44 +330,70 @@ function failed(error) {
 process.on('uncaughtException', failed);
 process.on('unhandledRejection', failed);
 
-/** Listen at the board's socket path, unless a live resident process already does. */
-function listen(retry = true) {
-  server.once('error', (error) => {
-    if (error.code !== 'EADDRINUSE' || !retry) {
-      process.stderr.write(`pullboard resident: cannot listen at ${socketPath}: ${error.code ?? error.message}\n`);
-      process.exit(0);
-    }
-    const probe = connect(socketPath);
-    probe.on('connect', () => {
-      probe.destroy();
-      process.stderr.write(`pullboard resident: another resident process already listens at ${socketPath}\n`);
-      process.exit(0);
+/**
+ * Listen at the board's socket path, unless a live resident process already does. Why the lock from the bind until the
+ * pid file names this process: two starters that both find the holder dead must not both unlink, or the second deletes
+ * the first's new socket; and a retiring process must not remove a pid file a starter has just written.
+ */
+function listen() {
+  const unlock = process.platform === 'win32' ? () => {} : lockPath(socketPath);
+  /** Leave the path to the process that holds it, freeing the lock first. */
+  const leave = (message) => {
+    unlock?.();
+    process.stderr.write(`pullboard resident: ${message}\n`);
+    process.exit(0);
+  };
+  if (!unlock) return leave(`another resident process is starting at ${socketPath}`);
+  const bind = (retry) => {
+    server.once('error', (error) => {
+      if (error.code !== 'EADDRINUSE' || !retry) return leave(`cannot listen at ${socketPath}: ${error.code ?? error.message}`);
+      const probe = connect(socketPath);
+      probe.on('connect', () => {
+        probe.destroy();
+        leave(`another resident process already listens at ${socketPath}`);
+      });
+      probe.on('error', () => {
+        // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
+        if (holderAlive()) return leave(`the resident process at ${socketPath} is alive but busy`);
+        if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+        bind(false);
+      });
     });
-    probe.on('error', () => {
-      if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Raced with another. */ }
-      listen(false);
+    server.listen(socketPath, () => {
+      if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
+      ownSocket = socketIdentity();
+      // The pid file names the live holder that keeps a busy resident's path from being taken over; without it a busy
+      // moment would let a starter take this path, so a process that cannot name itself does not serve.
+      try { writeFileSync(pidFile, `${process.pid}\n`); } catch (error) {
+        try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+        return leave(`cannot record the resident process in ${pidFile}: ${error.code ?? error.message}`);
+      }
+      unlock();
+      // Idle time counts from when the process can serve, never from a slow start under load.
+      lastActive = clock();
+      watchIdle();
+      // A parent watching this process learns it serves from this line; a client-started one discards it.
+      process.stdout.write('listening\n');
     });
-  });
-  server.listen(socketPath, () => {
-    if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
-    try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* The pid file only helps people and tests find it. */ }
-    // Idle time counts from when the process can serve, never from a slow start under load.
-    lastActive = clock();
-    watchIdle();
-    // A parent watching this process learns it serves from this line; a client-started one discards it.
-    process.stdout.write('listening\n');
-  });
+  };
+  bind(true);
 }
 listen();
 
-/** Retire once nothing has run for the idle limit; the watch starts only when the process is listening. */
+/** Retire once nothing has run for the idle limit, or at once when a successor owns the socket path. */
 function watchIdle() {
-  setInterval(checkIdle, Math.min(IDLE_MS, 30_000)).unref();
+  setInterval(checkIdle, Math.min(IDLE_MS, REPLACED_CHECK_MS)).unref();
 }
 
-/** Retire when nothing has run for the idle limit; true when this check retired the process. */
+/** Retire when nothing has run for the idle limit or the socket path is another's; true when this check retired it. */
 function checkIdle({ exit = true } = {}) {
-  if (retired || inFlight.size || clock() - lastActive <= IDLE_MS) return false;
+  if (!retired && replaced()) {
+    retire('replaced');
+    if (exit) exitWhenDone();
+    return true;
+  }
+  if (retired) { if (exit) exitWhenDone(); return false; }
+  if (inFlight.size || clock() - lastActive <= IDLE_MS) return false;
   retire('idle');
   if (exit) exitWhenDone();
   return true;
