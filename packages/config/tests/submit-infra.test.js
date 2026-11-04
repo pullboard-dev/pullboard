@@ -141,7 +141,7 @@ async function infraBox(t, { edit, existing = true, requireInfraNote = true, fil
   commitAll(box);
   box = await builderRepo(box, { requireInfraNote });
   const added = await box.coordinator('add', 'build', 'Infra note fixture', '--criterion', 'the submit handles the changed fixture path',
-    '--check', 'true', '--brief', `Files:\n- ${files.join('\n- ')}\nChange: exercise infrastructure-note handling for the submitted path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
+    '--check', 'true', '--route', 'strong', '--brief', `Files:\n- ${files.join('\n- ')}\nChange: exercise infrastructure-note handling for the submitted path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
   assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   assert.equal((await box.run('claim', '1')).code, 0);
   edit(box);
@@ -202,7 +202,7 @@ test('a gate named by a quoted path or a shell separator receives a drafted note
     commitAll(box);
     box = await builderRepo(box, { extraOwns: ['gate.js'] });
     const added = await box.coordinator('add', 'build', 'Gate named by a path', '--criterion', 'the submit handles the changed gate path',
-      '--check', 'true', '--brief', `Files:\n- ${file}\nChange: exercise infrastructure-note handling for the gate path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
+      '--check', 'true', '--route', 'strong', '--brief', `Files:\n- ${file}\nChange: exercise infrastructure-note handling for the gate path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
     assert.equal((await box.run('claim', '1')).code, 0);
     put(box.root, file, 'process.exit(0); // edited after the claim\n');
