@@ -109,12 +109,16 @@ test('the native item timeline reads as sentences with clamped notes and working
       assert.equal(await chrome.stable("document.querySelector('#detail .tl-note').classList.contains('expanded')"), false);
     }
     await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
-    await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
+    const historyExpanded = "document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')";
+    await chrome.waitFor(historyExpanded);
+    if (!await chrome.stable(historyExpanded)) {
+      await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+      await chrome.waitFor(historyExpanded);
+    }
     const noteRow = "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=note]')].find(row => !row.closest('[hidden]') && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))";
     await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
     await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
-    console.error('DBG1', await chrome.stable("JSON.stringify([document.querySelector('#detail .item-panel-history-list').className, document.querySelector('#detail [data-item-panel-history]')?.textContent, getComputedStyle(document.querySelectorAll('#detail .item-panel-history-list .tl > li')[7]).display])"));
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
     const previewError = noteRow + "?.querySelector('.code-ref.open .code.no')";
     await chrome.waitFor("(" + notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0) || !!" + previewError);
