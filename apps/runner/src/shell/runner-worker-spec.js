@@ -11,6 +11,34 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Name the first top-level rule a work specification breaks, or '' when none.
+ * Why: the controller records this fixed text, so a refusal says which field failed without echoing any value.
+ */
+function firstBrokenRule(value) {
+  const rules = [
+    ['work specification is not an object with version 1', () => !value || value.version !== 1],
+    ['work specification id is malformed', () => !/^[A-Za-z0-9_-]{1,100}$/u.test(value.id)],
+    ['work specification commit is malformed', () => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)],
+    ['work specification tree is malformed', () => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.tree)],
+    ['work specification commit and tree lengths differ', () => value.commit.length !== value.tree.length],
+    ['work specification repoId is malformed', () => !/^[a-f0-9]{64}$/u.test(value.repoId ?? '')],
+    ['work specification command is empty', () => typeof value.command !== 'string' || !value.command.trim()],
+    ['work specification pipefail is not boolean', () => typeof value.pipefail !== 'boolean'],
+    ['work specification slots is not a positive integer', () => !Number.isSafeInteger(value.slots) || value.slots < 1],
+    ['work specification browser is not a count', () => !Number.isSafeInteger(value.browser) || value.browser < 0],
+    ['work specification browserRequired is not boolean', () => typeof value.browserRequired !== 'boolean'],
+    ['work specification requires a browser the runner lacks', () => value.browserRequired && value.browser < 1],
+    ['work specification guiRequired is not boolean', () => value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'],
+    ['work specification timing is not boolean', () => value.timing !== undefined && typeof value.timing !== 'boolean'],
+    ['work specification browserByLaunch is not boolean', () => value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean'],
+    ['work specification runtime files are missing', () => !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'],
+    ['work specification runtime digest is missing', () => typeof value.runtime.sha256 !== 'string'],
+  ];
+  for (const [message, broken] of rules) if (broken()) return message;
+  return '';
+}
+
 /** Parse and strictly validate the controller's one-shot work specification. */
 export async function readSpec(S) {
   let buffered = Buffer.alloc(0);
@@ -51,21 +79,8 @@ export async function readSpec(S) {
     process.stdin.resume();
   });
   const value = spec;
-  if (!value || value.version !== 1 || !/^[A-Za-z0-9_-]{1,100}$/u.test(value.id)
-    || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)
-    || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.tree)
-    || value.commit.length !== value.tree.length
-    || !/^[a-f0-9]{64}$/u.test(value.repoId ?? '')
-    || typeof value.command !== 'string' || !value.command.trim()
-    || typeof value.pipefail !== 'boolean' || !Number.isSafeInteger(value.slots) || value.slots < 1
-    || !Number.isSafeInteger(value.browser) || value.browser < 0
-    || typeof value.browserRequired !== 'boolean'
-    || value.browserRequired && value.browser < 1
-    || value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'
-    || (value.timing !== undefined && typeof value.timing !== 'boolean')
-    || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
-    || !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'
-    || typeof value.runtime.sha256 !== 'string') throw new Error('invalid work specification');
+  const rule = firstBrokenRule(value);
+  if (rule) throw new Error(rule);
   if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');
   if (value.trustedMode !== undefined) {
     const mode = privateCheckEnvelope(value.trustedMode);
