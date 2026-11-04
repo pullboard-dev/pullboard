@@ -135,6 +135,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
         const target = withBoardRead(ctx, board => ({ boardId: store.boardId(board), seat: store.listAgents(board).find(agent => agent.agent_id === route.seat) }));
