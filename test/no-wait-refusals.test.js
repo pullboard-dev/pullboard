@@ -1,6 +1,8 @@
 /** Busy, held and pending work always has an actionable next step [C7,N41,N42]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { nextSteps$NEXT_STEPS, nextSteps$nextStepFor } from '../apps/cli/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -11,6 +13,9 @@ after(e2e.cleanup);
 function project() {
   const box = e2e.sandbox();
   box.env.PULLBOARD_MODEL = 'No-wait fixture model';
+  // Resume prose needs no view daemon writing into the fixture while its cleanup removes Git metadata.
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ view: { background: false } }));
   return e2e.project('true', box);
 }
 
