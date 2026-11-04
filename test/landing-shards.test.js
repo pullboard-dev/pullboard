@@ -1,13 +1,13 @@
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
 import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, watch, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -43,9 +43,9 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: GUI-marked private fixture');
   const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -76,9 +76,9 @@ test('a GUI-marked shard waits for a local slot when runner GUI capability is un
   const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, null);
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -116,9 +116,9 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, false);
 import assert from 'node:assert/strict';
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 let release;
@@ -159,9 +159,9 @@ test('six shards land on six different runners [C7,V4]', (t) => {
       { cwd: box.repo, env: box.env, encoding: 'utf8' });
     assert.equal(added.status, 0, added.context);
   }
-  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
-import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/landing-shards.js')).href)};
+  const script = `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(SOURCE, 'packages/gate/index.js')).href)}
+import { runLandingShards } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)};
 import { parseProcessCensus } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/kernel/src/core/process-census.js')).href)};
 const root = ${JSON.stringify(box.repo)};
 const calls = [];
@@ -475,7 +475,7 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
 async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const url = name => JSON.stringify(pathToFileURL(join(SOURCE, 'src', name)).href);
   const files = NAMES.map(name => `./test/${name}.test.js`);
-  const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
+  const script = `const { runLandingShards } = await import(${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)});
 const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
 const { Refused } = await import(${url('../packages/kernel/index.js')});
@@ -680,7 +680,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   writeFileSync(join(box.repo,'test/a.test.js'),source);
   for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
-  const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';
@@ -713,6 +713,45 @@ await withGateSlot(process.cwd(),async lease=>{
     assert.equal(terminal.report.complete,false,terminal.output);
     assert.equal(terminal.report.cleanupVerified,true,'cleanup and completed coverage are separate facts');
     // A file may publish a terminal cancelled summary; that does not make collection complete.
+  } finally {
+    await stopGroup(child, closed);
+  }
+});
+
+test('a shard the landing stops blames none of its aborted in-flight files [C7,V4]', {timeout:90_000}, async t => {
+  const box=fixture({runner:false});
+  t.after(()=>rmSync(box.dir,{recursive:true,force:true}));
+  const ready=join(box.dir,'stop-ready');
+  const source=`import {test} from 'node:test';import {writeFileSync} from 'node:fs';test('in-flight body [C7]',async()=>{writeFileSync(${JSON.stringify(ready)},'ready');setInterval(()=>{},1000);await new Promise(()=>{});});\n`;
+  writeFileSync(join(box.repo,'test/a.test.js'),source);
+  for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
+  git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: a shard stopped mid-file');
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
+  const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
+  const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {withGateSlot} from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}import {gateSlotEnvironment} from ${JSON.stringify(resourceUrl)};
+await withGateSlot(process.cwd(),async lease=>{
+ const child=spawn(process.execPath,['bin/run-tests.js','test/a.test.js'],{cwd:process.cwd(),env:{...process.env,...gateSlotEnvironment(lease),PULLBOARD_LANDING_RUN:'1',PULLBOARD_LANDING_SHARD:'1/2'},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+ const closed=once(child,'close');
+ process.once('message',()=>child.kill('SIGTERM'));
+ process.send({runner:child.pid});
+ const[code,signal]=await closed;
+ process.send({terminal:true,code,signal,output});
+},{ executionServices,remote:false,browser:true,agent:'shard-stop-fixture'});process.disconnect();`;
+  const child=spawn(process.execPath,['--input-type=module','-e',program],{cwd:box.repo,env:box.env,detached:true,stdio:['ignore','pipe','pipe','ipc']});
+  const messages=[];child.on('message',m=>messages.push(m));child.stdout.resume();let stderr='';child.stderr.on('data',b=>stderr+=b);const closed=new Promise(resolve=>child.once('close',(code,signal)=>resolve({code,signal})));
+  try {
+    // The body writes its marker once it runs; wait on the directory's change events, not on a timer.
+    await new Promise(resolve=>{const watcher=watch(box.dir,()=>{if(existsSync(ready)){watcher.close();resolve();}});if(existsSync(ready)){watcher.close();resolve();}});
+    assert.equal(existsSync(ready),true,'the file was running when the landing stopped the shard');
+    child.send('stop-shard');
+    const ended=await closed;assert.equal(ended.code,0,stderr);
+    const terminal=messages.find(m=>m.terminal);assert.ok(terminal,stderr);
+    assert.equal(terminal.code,1,terminal.output);
+    assert.match(terminal.output,/stopped by the landing after another shard failed/u,terminal.output);
+    assert.doesNotMatch(terminal.output,/Landing gate stopped early after/u,'the aborted in-flight file is never named as the shard\'s failure');
   } finally {
     await stopGroup(child, closed);
   }

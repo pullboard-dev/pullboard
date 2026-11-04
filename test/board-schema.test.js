@@ -1,5 +1,5 @@
 /** Main owns declaration upgrades; valid old stamps and manual drift remain distinct [M3,A5,A6,C7,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { MACHINE } from '../packages/state/index.js';
 import { storeTriggers } from '../packages/state/index.js';
 import { SCHEMA_DIGEST } from '../packages/store/index.js';

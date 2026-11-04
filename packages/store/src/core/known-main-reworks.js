@@ -100,3 +100,58 @@ export function ambiguousMainReds(known, items, exclude) {
   return known.failures.map(failure => ({ file: failure.file, name: failure.name, candidates: ownersOf(failure, items, exclude).map(item => item.item_id).sort((a, b) => a - b) }))
     .filter(row => row.candidates.length > 1);
 }
+
+/**
+ * Split exact known main failures into those with at most one owning repair and those with several candidate owners.
+ * A case red on both main and the item is known-main whoever owns it; only the proof's owner link needs a single repair,
+ * so the ambiguous cases are reported by name and never fail the gate (#2528).
+ */
+export function splitAmbiguousMainReds(known, items, exclude) {
+  const ambiguous = ambiguousMainReds(known, items, exclude);
+  const clear = { ...known, failures: known.failures.filter(failure => !ambiguous.some(row => row.file === failure.file && row.name === failure.name)) };
+  return { clear, ambiguous };
+}
+
+/**
+ * Whether a recorded check baseline names, by file and case, the cases its check fails at exactly this main commit. A
+ * baseline that names failing cases without their files cannot tell the same name in two files apart, so it is re-taken.
+ */
+function namesCasesAt(baseline, main) {
+  return baseline?.main === main && (baseline.result === 'green'
+    || baseline.result === 'red' && Array.isArray(baseline.testEvidence?.failedCases) && baseline.testEvidence.failedCases.length > 0);
+}
+
+/**
+ * Open Main red repairs whose check names one of the files and whose recorded check baseline cannot say which cases
+ * fail on this main: none recorded, taken on another main, or red with no case names (#2594). Each is re-taken first.
+ */
+export function mainRedBaselinesToRetake(items, files, exclude, main) {
+  return items.filter(item => files.some(file => covers(item, file, exclude)) && !namesCasesAt(item.item_check_baseline, main));
+}
+
+/**
+ * Split failures into those an open Main red repair's check fails on this main, by its current baseline, and the rest.
+ * A case such a repair already fails on main is known main and never fails another item's check (#2594).
+ *
+ * @param {{ file: string, name: string }[]} failures
+ * @param {object[]} items
+ * @param {number} exclude
+ * @param {string} main
+ * @param {Map<number, object>} [baselines] - Baselines re-taken on this main, by item id; they replace the recorded ones.
+ */
+export function mainRedItemCases(failures, items, exclude, main, baselines = new Map()) {
+  const owned = [], rest = [];
+  for (const failure of failures) {
+    const titles = [failure.name, failure.name.replace(/\s*\[[^\]]*\]\s*$/u, '')];
+    const owner = items.filter(item => covers(item, failure.file, exclude)).find(item => {
+      const baseline = baselines.get(item.item_id) ?? item.item_check_baseline;
+      // A case is the same case only in the same file: X in A failing on main says nothing about X in B (#2594).
+      return namesCasesAt(baseline, main) && baseline.result === 'red'
+        && baseline.testEvidence.failedCases.some(row => row.file === failure.file
+          && (titles.includes(row.name) || titles.includes(row.name.replace(/\s*\[[^\]]*\]\s*$/u, ''))));
+    });
+    if (owner) owned.push({ ...failure, item: owner.item_id });
+    else rest.push(failure);
+  }
+  return { owned, rest };
+}

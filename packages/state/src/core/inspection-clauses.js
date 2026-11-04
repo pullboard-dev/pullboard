@@ -7,10 +7,12 @@ const CLAUSE = /^\s*(\d+)[.)]\s+(\S.*)$/u;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
-/** The clauses of a criterion, or [] when it is free text: two or more lines numbered 1, 2, ... in order. */
-export function criterionClauses(criterion) {
-  const found = String(criterion ?? '').split(/\r?\n/u).map(line => CLAUSE.exec(line)).filter(Boolean);
-  if (found.length < 2 || found.some((match, index) => Number(match[1]) !== index + 1)) return [];
+/** The clauses of a criterion, or [] when it is free text: two or more sequential numbered lines by default; single includes every numbered line for authoring validation. */
+export function criterionClauses(criterion, { single = false } = {}) {
+  const text = String(criterion ?? '');
+  const lines = single ? text.replace(/(?:^|[ \t])(\d+)[.)]\s+/gu, '\n$1. ') : text;
+  const found = lines.split(/\r?\n/u).map(line => CLAUSE.exec(line)).filter(Boolean);
+  if (found.length < (single ? 1 : 2) || !single && found.some((match, index) => Number(match[1]) !== index + 1)) return [];
   return found.map(match => ({ number: Number(match[1]), text: match[2].trim(), kind: DECLARED.exec(match[2])?.[1] ?? null }));
 }
 

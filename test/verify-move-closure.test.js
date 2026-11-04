@@ -10,7 +10,7 @@ import { importsIn } from '../packages/gate/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { MOVE_CANDIDATE, MOVE_FILE, discovered } from '../packages/kernel/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -38,7 +38,7 @@ function closure(entries, read) {
 }
 
 const WORKER = ['src/runner-worker.js'];
-const MOVES = discovered(readdirSync(join(ROOT, 'src/moves')), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `src/moves/${file}`);
+const MOVES = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => discovered(readdirSync(join(ROOT, folder)), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `${folder}/${file}`));
 const SOURCES = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT))).map(({ file, body }) => [file, body.toString('utf8')]));
 /** Read only the bounded working inventory, never a path outside it. */
 const read = file => {

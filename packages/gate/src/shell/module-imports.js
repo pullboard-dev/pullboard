@@ -1,6 +1,8 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { importParseScopes } from './module-import-cache-state.js';
+import { storedCompilations } from './parse-result-store.js';
+import { foreignNodeOptions } from './test-isolation.js';
 import {
   mkdtempSync,
   rmSync,
@@ -39,6 +41,13 @@ const PARSER = [
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
 function compileSources(sources) {
+  if (foreignNodeOptions(process.env.NODE_OPTIONS)) return compileFresh(sources);
+  const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
+  return storedCompilations(epoch, sources, compileFresh);
+}
+
+/** Compile in a child Node, with no stored result consulted. */
+function compileFresh(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
@@ -100,6 +109,9 @@ function look(sources) {
   }
   return sources.map(source => copyCompilation(cache.get(source) ?? observed.get(source)));
 }
+
+/** Real V8 compile results for each source, for a caller that wraps the parser to observe what it is asked to parse. */
+export const compileModules = look;
 
 /** Whole-word import matching is also used by conservative CPU classification. */
 const IMPORT = /(?<![\p{ID_Continue}$\u200c\u200d#])import(?![\p{ID_Continue}$\u200c\u200d])/gu;

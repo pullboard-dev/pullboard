@@ -51,7 +51,7 @@ function policy(box, runnersOnly, runnerWaitMs = 80) {
 
 /** Require native CLI success before using any fixture result as setup evidence. */
 function succeeded(result) {
-  assert.equal(result.code, 0, result.err || result.out);
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return result;
 }
 
@@ -125,12 +125,12 @@ for(const attempt of [1,2]) {
     // Native bar baseline setup may itself have run the command; it is not the subject submission.
     rmSync(marker, { force: true });
     policy(box, true);
-    const refused = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    const refused = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
     assert.notEqual(refused.code, 0, refused.out);
     assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
     assert.equal(existsSync(marker), false, 'no frozen or diagnostic local body ran');
     policy(box, false);
-    succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
+    succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
     assert.equal(readFileSync(marker, 'utf8'), 'ran', 'opt-out still runs the actual frozen check');
   });
 
@@ -154,7 +154,7 @@ for(const attempt of [1,2]) {
     assert.ok(settings.gateSlots > 0, 'local capacity remains available throughout this control');
     assert.equal(settings.gate.runnersFirst, false, 'runner-only does not depend on runner-first preference');
     const commit = box.git(box.web, 'rev-parse', 'HEAD');
-    const submitted = JSON.parse(succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json')).out);
+    const submitted = JSON.parse(succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json')).out);
     const profile = JSON.parse(readFileSync(submitted.gate.check.profilePath, 'utf8'));
     assert.equal(profile.executionRunner, HOST);
     assert.equal(profile.executionSource?.commit, commit);
@@ -199,20 +199,20 @@ process.exit(lines.length?1:0);
     rmSync(marker, { force: true });
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
-    const rose = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    const rose = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
     assert.notEqual(rose.code, 0, rose.out);
-    assert.equal(JSON.parse(rose.out).error.code, 'RATCHET_ROSE', rose.err || rose.out);
+    assert.equal(JSON.parse(rose.out).error.code, 'RATCHET_ROSE', `${rose.err}\n${rose.out}`);
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
-    const broken = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+    const broken = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
     assert.notEqual(broken.code, 0, broken.out);
-    assert.equal(JSON.parse(broken.out).error.code, 'RATCHET_UNCOUNTED', broken.err || broken.out);
+    assert.equal(JSON.parse(broken.out).error.code, 'RATCHET_UNCOUNTED', `${broken.err}\n${broken.out}`);
     writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
     writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
     box.git(box.web, 'add', '-A');
     box.git(box.web, 'commit', '-q', '-m', 'feat(web): preserve private count [G1]');
     const commit = box.git(box.web, 'rev-parse', 'HEAD');
-    succeeded(box.run(box.web, 'submit', String(id), '--no-next', '--json'));
+    succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
     const observations = readFileSync(marker, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
     assert.ok(observations.some(row => row.commit === base), 'touched existing problem really exercised the baseline command');
@@ -227,16 +227,15 @@ process.exit(lines.length?1:0);
       && row.checkedSource.tree === row.executionSource.tree && row.privateCheck.sourceUnchanged), 'all counted observations bind actual unchanged source');
   });
 
-  test('native verify runner-only refuses before the actual check and opt-out still verifies [C7,V4]', t => {
-    const { project, item, reviewer, marker } = verificationProject(t, { checked: true });
-    rmSync(marker, { force: true });
-    policy(project, true);
-    const refused = project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json');
-    assert.notEqual(refused.code, 0, refused.out);
-    assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
-    assert.equal(existsSync(marker), false, 'the review check and guard diagnostics cannot execute locally');
-    policy(project, false);
-    succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
-    assert.equal(readFileSync(marker, 'utf8'), 'check-ran');
+  test('native verify reuses its sealed submit proof under either runner policy [C7,V4]', async t => {
+    for (const runnersOnly of [true, false]) await t.test(`runner-only ${runnersOnly} [C7,V4]`, child => {
+      const { project, item, reviewer, marker } = verificationProject(child, { checked: true });
+      assert.equal(readFileSync(marker, 'utf8'), 'check-ran', 'submit executed the real frozen check');
+      rmSync(marker, { force: true });
+      policy(project, runnersOnly);
+      const verified = succeeded(project.run(reviewer, 'verify', String(item), 'accept', '--no-next', '--json'));
+      assert.equal(JSON.parse(verified.out).check, 'green');
+      assert.equal(existsSync(marker), false, 'the sealed proof requires no new local or remote body');
+    });
   });
 }

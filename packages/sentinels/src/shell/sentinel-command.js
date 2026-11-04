@@ -1,6 +1,11 @@
+import { wakeReviewCapacity } from './review-capacity-wake.js';
 import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
+import { sweepClaims } from "../../../health/index.js";
+import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
+import { atomic } from "../../../store/index.js";
+import { checkpointBoard } from "../../../store/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
@@ -40,10 +45,17 @@ export function resumeSentinels({ ctx, withBoard }) {
 }
 
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, healthOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, healthOnly = false }) {
+  // Dead submit workers end before the board scan, so the sweep never reports a gate as running with no worker (#2627).
+  await sweepSubmitHandoffs?.();
   return withBoard(ctx, async board => {
     const me = whoAmI(ctx, board);
     await releaseGoneClaims(ctx, board, me, ordered);
+    // Claim checks that read other seats' worktrees run here, off every command's path (#2427).
+    await sweepClaims(ctx, board, me.id, ordered);
+    // The capacity forecast and the WAL checkpoint run here too, never inside a move's write lock (#2578).
+    refreshCapacityOutsideWrite(board, atomic);
+    checkpointBoard(board.db);
     if (me.id === 'coordinator') {
       const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists });
       const plan = planStaleState(snapshot);
@@ -66,6 +78,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
         catch (error) { if (!(error instanceof Refused) || error.code !== 'HEALTH_SCAN_STALE') throw error; }
       }
     }
+    if (enabled && me.id === 'coordinator' && ctx.info.isMain) await wakeReviewCapacity(ctx, board, ordered);
     const health = recordedHealthFindings(board);
     if (healthOnly || !enabled || !dueSentinels(board).length) {
       ctx.io.result?.({ sentinels: [], health });
@@ -82,9 +95,9 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
 }
 
 /** Keep command parsing separate from the CLI's process and server setup. */
-export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus }) {
+export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, healthOnly: Boolean(values['health-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, healthOnly: Boolean(values['health-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

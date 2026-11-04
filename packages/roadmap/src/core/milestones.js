@@ -19,6 +19,7 @@ import {
 import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";
+import { LIVE_RELEASE_PLACEMENT_ENGINE } from "../../../../src/live-release-placement-engine.js";
 import { placementFor } from "./placement.js";
 import { placementNote } from "./placement.js";
 
@@ -297,7 +298,7 @@ export function placeNewItem(board, id, item, ports) {
   const entries = milestones(board);
   /** The row for a local id, or null when it is not on this board. */
   const itemOf = ref => { try { return ref === null ? null : itemById(board, ref) ?? null; } catch { return null; } };
-  let placed = placementFor(entries, item, itemOf);
+  let placed = placementFor(entries, item, itemOf, { liveReleases: engineOf(board) >= LIVE_RELEASE_PLACEMENT_ENGINE });
   if (placed.index >= 0) {
     const full = [];
     let index = placed.index;

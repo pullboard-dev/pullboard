@@ -2,10 +2,14 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  existsSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
+import { shellWord } from '../../runners/index.js';
 import {
   after,
   test,
@@ -13,8 +17,22 @@ import {
 import { parseCommitMessage } from "../src/core/commit-message.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
+
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const projects = [];
+after(async () => {
+  for (const box of projects) await drainComparisons(box);
+  e2e.cleanup();
+});
+
+/** Await the fixture's actual diagnostic child result before another phase uses its files or removes its repository. */
+async function drainComparisons(box, signal) {
+  const directory = join(box.repo, '.git/pullboard/review-comparisons');
+  const jobs = existsSync(directory) ? readdirSync(directory).map(job => join(directory, job)) : [];
+  await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
+    'owned comparison workers have closed', { signal });
+}
 const { sandbox, commitFile } = e2e;
 
 /** The 36 approved rows Z1..Z36, in spec order. */
@@ -30,11 +48,20 @@ function localProject() {
   assert.equal(initialized.code, 0, initialized.err);
   const configFile = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
+  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', landing: { ...config.landing, manualOverride: true }, lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), `# Message fixture\n\n## Goals\n- G1 [approved, must] The result exists. | gate: true\n${ROWS.map((id) => `- ${id} [approved, must] Row ${id} holds. | gate: true`).join('\n')}\n`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure local landing');
-  return { ...box, repo };
+  const run = box.run;
+  /** Finish fixture jobs before reading their state or removing their Git source. */
+  const command = (cwd, ...args) => {
+    if (args[0] === 'add' || args[0] === 'submit') args.push('--wait');
+    if (args[0] === 'submit' || args[0] === 'verify') args.push('--no-next');
+    return run(cwd, ...args);
+  };
+  const project = { ...box, repo, run: command };
+  projects.push(project);
+  return project;
 }
 
 /** Add one web item and a builder worktree that claims it. */
@@ -117,4 +144,38 @@ test('a rowless feat item lands under feat(merge) through the real hooks, and a 
   assert.notEqual(merge, base);
   assert.equal(box.git(box.repo, 'log', '-1', '--format=%B', merge), `feat(merge): rowless feature\n\nPullboard-Item: #${rowless.id}`,
     'the item keeps its feat type with no brackets and no Pullboard-Rows trailer');
+});
+
+
+test('a docs-only item lands green after both selected shard files complete without AbortError [C7,V4]', async t => {
+  const box = localProject();
+  const log = join(box.dir, 'completed-docs-shard');
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.gate = `PULLBOARD_LANDING_SHARD=1/1 ${shellWord(process.execPath)} ${shellWord(resolve(import.meta.dirname, '../../../bin/run-tests.js'))} test/docs-one.test.js test/docs-two.test.js`;
+  config.lanes.web.owns = ['docs/'];
+  writeFileSync(configFile, JSON.stringify(config));
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  for (const name of ['one', 'two']) writeFileSync(join(box.repo, `test/docs-${name}.test.js`), `import { test } from 'node:test';
+import { appendFileSync } from 'node:fs';
+test('docs shard ${name} completes [G1]', () => { appendFileSync(${JSON.stringify(log)}, '${name}\\n'); });
+`);
+  box.git(box.repo, 'add', 'pullboard.json', 'test');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: configure two real landing shard files [G1]');
+  const entry = claimedItem(box, 'Land a docs-only note', ['G1'], 'docs/note.md');
+  buildAndAccept(box, entry, 'docs(web): add only a landing note [G1]');
+  await drainComparisons(box, t.signal);
+  const changed = box.git(entry.path, 'diff', '--name-only', 'main...HEAD');
+  assert.equal(changed, 'docs/note.md', 'the item changes only documentation');
+  writeFileSync(log, '');
+  const run = box.run(box.repo, 'land', '--max', '1', '--json');
+  assert.equal(run.code, 0, run.err + run.out);
+  const landed = JSON.parse(run.out);
+  assert.deepEqual(landed.landed, [entry.id]);
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').sort(), ['one', 'two'], 'both actual shard files complete once');
+  assert.ok(landed.batch.gateResults.length > 0, 'a real landing gate is recorded');
+  for (const gate of landed.batch.gateResults) {
+    assert.equal(gate.isGreen, true);
+    assert.doesNotMatch(readFileSync(gate.logPath, 'utf8'), /AbortError|This operation was aborted/u);
+  }
 });

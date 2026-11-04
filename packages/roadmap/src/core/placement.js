@@ -6,12 +6,22 @@ function localId(value) {
   return typeof value === 'string' && /^[1-9]\d*$/u.test(value) ? Number(value) : null;
 }
 
-/** Choose the spec or lane release, raised to every prerequisite's release, and retain unavailable inputs. */
-export function placementFor(entries, { lane, specIds = [], after = [] }, itemOf) {
+/**
+ * Choose the spec or lane release, raised to every prerequisite's release, and retain unavailable inputs. Under the
+ * live-release engine the spec and lane rules consider only releases still holding unlanded work.
+ */
+export function placementFor(entries, { lane, specIds = [], after = [] }, itemOf, { liveReleases = true } = {}) {
   const catalog = entries.map((entry, index) => ({ entry, index }));
   const open = catalog.filter(({ entry }) => !entry.shipped);
-  /** Find the first open release containing a live item that supplies this input. */
-  const holding = matches => open.find(({ entry }) => entry.items.some(ref => {
+  // A release never recorded shipped whose items have all landed (merged to main) or been withdrawn is history, not a
+  // home: its old items must not pull new work into it by spec row or lane. An accepted item not yet merged is still
+  // unlanded work, as work progress and milestone ship read it [C7].
+  const live = !liveReleases ? open : open.filter(({ entry }) => entry.items.some(ref => {
+    const row = itemOf(localId(ref));
+    return Boolean(row) && row.item_status !== 'withdrawn' && !row.item_merged_commit;
+  }));
+  /** Find the first unshipped release still holding unlanded work that contains a live item supplying this input. */
+  const holding = matches => live.find(({ entry }) => entry.items.some(ref => {
     const id = localId(ref), row = id === null ? null : itemOf(id);
     return Boolean(row) && row.item_status !== 'withdrawn' && matches(row);
   }));

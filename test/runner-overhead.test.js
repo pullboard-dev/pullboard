@@ -13,17 +13,17 @@ import {
 } from 'node:test';
 import {
   validateCacheTips,
-} from '../src/runner-overhead.js';
+} from '../packages/runners/index.js';
 import { startRunnerPhases } from '../packages/gate/index.js';
 import { runnerPhaseFields } from '../packages/gate/index.js';
 import { runnerPhaseLine } from '../packages/gate/index.js';
-import { doctrineExecutionPhases } from '../src/commands/submit.js';
-import { runnerUtilization } from '../src/runner-utilization.js';
+import { doctrineExecutionPhases } from '../apps/cli/index.js';
+import { runnerUtilization } from '../packages/runners/index.js';
 import {
   receiptLine,
   recordReceipt,
 } from '../packages/gate/index.js';
-import { localRunnerDescriptor } from '../src/runner-load.js';
+import { localRunnerDescriptor } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import {
@@ -140,7 +140,7 @@ console.log(JSON.stringify({green:result.isGreen,phases:result.executionPhases,o
   writeFileSync(calls, '');
   await execute();
   const inventory = readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 1, 'twenty-one retained refs take one bounded tip inventory');
+  assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 2, 'retained cache tips and the received candidate each take one bounded validation batch');
   assert.ok(inventory.filter(args => args[1] === '-t').length < 10, 'there is no per-retained-ref type-check loop');
 });
 test('doctrine phases sum complete sequential observations and reject gaps [C7]', () => {

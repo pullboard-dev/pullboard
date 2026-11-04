@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import { request as boardLinkRequest } from '../packages/link/index.js';
 import {
   personSigningCase,
@@ -103,10 +103,10 @@ import {
   executeMove,
   serveApi,
 } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import {
   main,
-} from '../src/cli.js';
+} from '../apps/cli/index.js';
 import {
   fetchFresh,
 } from './http-fixture.js';
@@ -116,7 +116,7 @@ import {
 } from '../packages/pages/index.js';
 import {
   snapshotState,
-} from '../relay/browser-model.js';
+} from '../apps/relay/index.js';
 import {
   unpackRelease,
 } from './release-archive.js';

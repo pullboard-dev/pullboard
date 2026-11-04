@@ -18,7 +18,7 @@ import { testNameProblems } from '../bin/checks/test-names.js';
 import { emptyCatchProblems } from '../bin/checks/empty-catch.js';
 import { testInputProblems } from '../bin/checks/test-inputs.js';
 import * as store from '../src/board.js';
-import { openBoard, draftSpecRow } from '../src/native-board.js';
+import { openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { loadDoctrine } from '../src/doctrine.js';
@@ -388,7 +388,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
       "import { readFileSync } from 'node:fs';",
       "import { resolve } from 'node:path';",
       "const ROOT = resolve(import.meta.dirname, '..');",
-      "const pending = [[resolve(ROOT, 'src/help.js')]];",
+      "const pending = [[resolve(ROOT, 'src/queued-walk-target.js')]];",
       'for (const file of pending.pop()) readFileSync(file, \'utf8\');',
       '',
     ].join('\n');

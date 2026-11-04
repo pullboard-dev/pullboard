@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/commands/maintenance.js src/commands/release.js src/worktree-maintenance-command.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/maintenance.js apps/cli/src/shell/commands/release.js apps/cli/src/shell/worktree-maintenance-command.js */
 /** Exercise ordinary CLI output and release cleanup in a disposable native board [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

@@ -73,7 +73,7 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     const ready = join(box.dir, 'holder-ready');
     const release = join(box.dir, 'holder-release');
     const holderSource = join(box.dir, 'holder.mjs');
-    const gate = new URL('../src/gate.js', import.meta.url).href;
+    const gate = new URL('../packages/gate/index.js', import.meta.url).href;
     writeFileSync(holderSource, `import { withGateSlot } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}\nimport { existsSync, writeFileSync } from 'node:fs';\nawait withGateSlot(process.cwd(), async () => { writeFileSync(${JSON.stringify(ready)}, 'ready'); while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 20)); }, { executionServices, remote: false, agent: 'private-holder', kind: 'check' });\n`);
     const holder = helpers.launch(box, reviewer, process.execPath, [holderSource]);

@@ -2,7 +2,7 @@ import { prepareFlakeLanding } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
@@ -24,6 +24,7 @@ import { bisect } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
+import { refusalRecord } from '../core/runner-source-hold.js';
 
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
@@ -32,7 +33,7 @@ import { finishTrunk } from './landing-step-publish.js';
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
-  if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
+  if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
   }
   if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
@@ -85,7 +86,8 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
-    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }] });
+    // The refusal is kept with its code so a RUNNER_SOURCE count across these blocked batches can hold the items [C7].
+    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
     return;
   }

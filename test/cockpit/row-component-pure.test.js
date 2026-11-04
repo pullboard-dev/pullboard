@@ -1,7 +1,7 @@
 /** Pure shared-row content and attribute contracts; layout remains in the Chrome journey [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { sharedRowHtml } from '../../src/view/row-component.js';
+import { sharedRowHtml } from '../../apps/view/src/core/view/row-component.js';
 
 test('shared row data is escaped in every variant and cannot add executable attributes [N26]', () => {
   const text = '<script>unexpected()</script>"&';
