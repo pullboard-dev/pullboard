@@ -51,7 +51,8 @@ test('Agent Floor labels use explicit locale and timezone with stable pure-rende
 test('the floor\'s headline counts live agents, builders, reviewers and 24-hour landings from the board [N26]', () => {
   const { model, floor, html } = floorAt(seeded.now);
   const headline = section(html, 'Headline');
-  assert.match(headline, /<h1>3 agents, 1 building, 1 reviewing, <em>2 landed in 24 hours\.<\/em><\/h1>/u);
+  assert.match(headline, /<h1><em>2 landed in 24 hours\.<\/em> 2 peak agents\.<\/h1>/u);
+  assert.equal(floor.numbers.peak, model.peak, 'the floor and the Dashboard count the same peak');
   assert.equal(floor.numbers.landed, model.totals.day, 'the floor and the Dashboard count the same landings');
   assert.equal(floor.numbers.building, model.claims.length, 'the floor and the Dashboard count the same builders');
 });
