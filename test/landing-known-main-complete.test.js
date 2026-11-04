@@ -1,39 +1,34 @@
 /** A complete selected Node run lets an exact-main red land only after later work runs [B3,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const SOURCE = resolve(import.meta.dirname, '..');
 const MAIN_RED = 'web/land-9.test.js';
 const LATER_FILE = 'web/land-99.test.js';
 
 /** Make the configured affected-test command run real Node test files with landing continuation semantics. */
-function realNodeGate(box) {
-  writeFileSync(join(box.dir, 'land-gate.cjs'), [
-    "const fs = require('node:fs'); const { spawnSync } = require('node:child_process'); const path = require('node:path');",
-    "const args = process.argv.slice(2).filter(arg => arg !== '--alone');",
-    "const files = args.length ? args : fs.readdirSync(path.join(process.cwd(), 'web')).filter(name => /^land-\\d+\\.test\\.js$/u.test(name)).map(name => './web/' + name).sort();",
-    "let status = 0; for (let index = 0; index < files.length; index++) { const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', files[index]], { cwd: process.cwd(), env: process.env, encoding: 'utf8' }); process.stdout.write(run.stdout || ''); process.stderr.write(run.stderr || ''); if (run.status !== 0) status = run.status || 1; if (run.status && process.env.PULLBOARD_LANDING_COLLECT_ALL !== '1') { for (const skipped of files.slice(index + 1)) process.stdout.write('Interrupted test files: ' + skipped + '\\n'); break; } } process.exitCode = status;",
-  ].join('\n'));
-}
-
 /** Prepare a separate-publish landing project with one exact-main red and one passing selected test. */
 function realNodeMainProject() {
   const box = landProject({ withWorktree: false });
+  copyPackageFiles(SOURCE, box.repo);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node bin/run-tests.js', affectedTests: 'node bin/run-tests.js',
+    landing: { manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
-  realNodeGate(box);
   const red = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('main-red-case', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('main red'); });\n";
   const pass = "import { test } from 'node:test'; test('later-passing-case', () => {});\n";
   box.env.LAND_SUPPRESS_RED = '1';
@@ -50,7 +45,7 @@ function realNodeItem(box, number, red, later) {
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(box.run(path, 'join', 'web').code, 0);
   const added = box.run(box.repo, 'add', 'web', `Real Node landing fixture ${number}`, '--specs', 'G1',
-    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node --test ${MAIN_RED} ${LATER_FILE}`, '--json');
+    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node bin/run-tests.js ${MAIN_RED} ${LATER_FILE}`, '--json');
   assert.equal(added.code, 0, added.err);
   const entry = { path, item: JSON.parse(added.out).item.item_id, file: MAIN_RED };
   assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
