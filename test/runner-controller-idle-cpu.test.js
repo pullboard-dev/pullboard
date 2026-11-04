@@ -37,7 +37,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
   const realGit = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
   writeFileSync(join(gitBin, 'git'), `#!/bin/sh\necho "$PPID" >> ${JSON.stringify(gitCalls)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
   chmodSync(join(gitBin, 'git'), 0o755);
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   // The parent samples the controller's CPU each second from outside it; the controller itself has no timer to wake.
   const script = `
     import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
