@@ -46,8 +46,9 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
 }
 
 /** Insert an already validated ordinary or companion child without bypassing check or bar recording. */
-export function insertItem(board, item, { command, cleanTitle, evidenceWarnings = [] }) {
-  const { by, lane, criterion, specIds, parentId, after, brief, route, checkBaseline, barActor, reviewFamily } = item;
+export function insertItem(board, item, { command, cleanTitle, brief: normalizedBrief = item.brief, evidenceWarnings = [] }) {
+  const { by, lane, criterion, specIds, parentId, after, route, checkBaseline, barActor, reviewFamily } = item;
+  const brief = normalizedBrief;
   const baseline = normalizeCheckBaseline(by, command, checkBaseline);
   const at = now(board);
   const result = board.db
@@ -88,7 +89,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     validateReferences(brief, { actor: proof?.actor ?? by,
       authors: proof?.authors ?? referenceAuthors, authority: proof?.authority ?? referenceAuthority });
   }
-  checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
+  const normalizedBrief = checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
   if (parentId !== null) {
     const parent = itemById(board, parentId);
     if (parent.item_lane !== lane) {
@@ -99,5 +100,5 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     }
   }
   validateItemDependencies(board, null, after);
-  return { command, cleanTitle, evidenceWarnings };
+  return { command, cleanTitle, brief: normalizedBrief, evidenceWarnings };
 }
