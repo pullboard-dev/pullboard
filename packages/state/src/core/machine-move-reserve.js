@@ -10,9 +10,7 @@ import { SOURCE_STATE_REFUSAL } from './machine-shared.js';
 export const MOVES = [
   {
     verb: 'reserve', from: ['submitted'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
-    alsoRefuses: [
-      { code: 'NO_POLICY', rule: 'a reserve reads the available committed coordinator policy', next: 'restore and commit pullboard.json, then run the command again' },
-      SOURCE_STATE_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
+    alsoRefuses: [SOURCE_STATE_REFUSAL, { code: 'BAD_DEPENDENCIES', rule: 'persisted prerequisites contain only positive local item ids or exact repo#id references', next: 'restore the item dependencies from their ordered history, then retry' }],
     guards: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'itemExists', IN_STATE, 'reviewCooldownElapsed', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'],
     sets: ['item_review_by', 'item_review_until'], command: 'pullboard next --verify',
   },

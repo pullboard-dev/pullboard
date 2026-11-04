@@ -155,6 +155,8 @@ const CAUGHT = {
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
   'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  // An unknown code map keeps the file collision; every read inside it is caught.
+  '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
