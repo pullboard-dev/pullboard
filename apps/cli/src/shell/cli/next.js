@@ -38,6 +38,9 @@ import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { claimFreezer } from './claim.js';
 import { dirtyFiles } from './submit.js';
+import { commandObservation } from '../../../../../packages/git/index.js';
+import { statusPaths } from '../../../../../packages/git/index.js';
+import { worktreeStatus } from '../../../../../packages/git/index.js';
 
 /** Label the holder at the start of a generated wait reason without rewriting its quoted reason. */
 export function displayedWait(reason, agents, config) {
@@ -61,7 +64,12 @@ function warmFiles(ctx, board, me) {
     .sort((first, second) => second.item_updated_at.localeCompare(first.item_updated_at))
     .slice(0, 3)
     .flatMap((item) => store.itemFiles(item));
-  return [...new Set([...recent, ...dirtyFiles(ctx.info.root)])];
+  // One next reads this seat's edits once, however many of its steps warm from them.
+  // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
+  let dirty;
+  try { const { changed, untracked } = statusPaths(worktreeStatus(ctx.info.root)); dirty = [...changed, ...untracked]; }
+  catch { dirty = commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
+  return [...new Set([...recent, ...dirty])];
 }
 
 /**
@@ -101,7 +109,7 @@ export async function nextOnce(ctx, values) {
     if (picked.autoReview) return { retry: true, retryDetail: { phase: 'first-review reservation', item: picked.autoReview.item_id, code: 'REVIEW_BECAME_MANDATORY' } };
     if (!picked.claim) return picked;
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
-    const { me: holder, item, held, shared, reasons, reviewSkipped } = picked;
+    const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = picked;
     const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
@@ -112,7 +120,8 @@ export async function nextOnce(ctx, values) {
       throw error;
     }
     const itemFolder = await openNextFolder(target, board, holder, item.item_id);
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
+      ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
 }
 
@@ -164,7 +173,7 @@ function nextPick(ctx, board, values) {
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
-  const { item, reasons, shared } = picked;
+  const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
@@ -194,6 +203,6 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
-  return { claim: true, me, item, held, shared, reasons, reviewSkipped };
+  return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
 

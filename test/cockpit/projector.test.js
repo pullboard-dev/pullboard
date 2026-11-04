@@ -7,7 +7,7 @@ import * as store from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
 import * as serve from '../../apps/cli/src/shell/cli/view-state.js';
 import { addMilestone } from '../../src/board-milestones.js';
-import { projectItemState } from '../../src/api.js';
+import { projectItemState } from '../../packages/api/index.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
 
 /**
