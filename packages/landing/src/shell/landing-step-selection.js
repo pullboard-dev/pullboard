@@ -114,6 +114,11 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   return { ready, blocked };
 }
 
+/** With landing.perItem on, a landing takes one verified item; otherwise the caller's limit stands [C7]. */
+export function perItemMaximum(config, maximum = Infinity) {
+  return config?.landing?.perItem === true ? 1 : maximum ?? Infinity;
+}
+
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
 export function idleLanding(board, trunk) {
   const lease = landingLeaseState(board);
