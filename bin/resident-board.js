@@ -264,6 +264,9 @@ async function serve(socket, request) {
   const run = async () => {
     running = store;
     try {
+      // A command still queued when the process retired never starts here: its client runs it in-process instead, so
+      // only the command already running holds a retired process open.
+      if (retired) return null;
       if (!enterDirectory(store.cwd)) return null;
       // A pinned tool build runs its own entry, which the in-process path starts.
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
