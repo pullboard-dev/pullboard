@@ -52,7 +52,10 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   assert.equal(submitted.code, 0, submitted.out + '\n' + submitted.err);
   const record = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(record.item_status, 'submitted');
-  assert.equal(record.item_commit, candidate, `the submitted commit is the candidate (newer main ${newerMain})`);
+  assert.doesNotThrow(() => box.git(box.web, 'merge-base', '--is-ancestor', candidate, record.item_commit),
+    `the submitted source retains the item candidate (newer main ${newerMain})`);
+  assert.doesNotThrow(() => box.git(box.web, 'merge-base', '--is-ancestor', newerMain, record.item_commit),
+    `the submitted source includes newer main (candidate ${candidate})`);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, `submit does not rewrite the coordinator checkout (candidate ${candidate})`);
-  assert.deepEqual(submissionPaths(box.web, reclaimed, candidate, { mainCommit: newerMain }), ['web/reclaimed.txt']);
+  assert.deepEqual(submissionPaths(box.web, reclaimed, record.item_commit, { mainCommit: newerMain }), ['web/reclaimed.txt']);
 });
