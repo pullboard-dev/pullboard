@@ -41,7 +41,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   writeFileSync(runner, `require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));\n`);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const state = { batch: { root: box.repo, base, items: proof === null ? [] : [{ id: 1, commit }] }, board: {}, config: {
-    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [],
+    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false },
   } };
   const frozen = JSON.stringify({ check: 'node --test test/a.test.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');
@@ -85,12 +85,14 @@ test('the frozen criterion and submission proof contribute their complete file u
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a stale submission cannot broaden landing beyond a source-matched union [C7,S10]', () => {
-  assert.throws(() => plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true }), { code: 'LAND_DIAGNOSTIC' });
+test('a stale submission neither narrows nor stops landing: the merged change selects its tests [C7,S10,#2897]', () => {
+  const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true });
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a full fallback proof cannot make landing run an unbounded selection [C7,S10]', () => {
-  assert.throws(() => plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true }), { code: 'LAND_DIAGNOSTIC' });
+test('a full fallback proof does not stop landing: the merged change selects its tests [C7,S10,#2897]', () => {
+  const { files } = plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true });
+  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
 test('a frozen moved test resolves through the submitted source map [C7,S10]', () => {

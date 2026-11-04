@@ -74,7 +74,7 @@ function project() {
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', practice: 'DOCTRINE.md',
-    landing: { manualOverride: true },
+    landing: { perItem: false, manualOverride: true },
     lanes: { app: { owns: ['app/'], specs: ['G1'] }, docs: { owns: ['docs/'], specs: ['G1'] } }, shared: [] }, null, 2) + '\n');
   writeFileSync(join(root, 'SPEC.md'), '# Watch fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
   writeFileSync(join(root, 'DOCTRINE.md'), '');

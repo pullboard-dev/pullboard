@@ -37,6 +37,10 @@ import {
   withMachineHomeWrite,
 } from './machine-home.js';
 import { Refused } from '../../../kernel/index.js';
+import { capturedRequestOf } from './holder-liveness.js';
+import { dispatchRelaunch } from './holder-liveness.js';
+import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';
+import { reclaimHolders } from './holder-liveness.js';
 import {
   initializeRunnerRecovery,
   recordRunnerFailure,
@@ -65,6 +69,7 @@ import {
 export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/index.js';
 
 const LEASE_MS = 20_000;
+const GATE_WAITER_HEARTBEAT_MS = 120_000;
 const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
 const PROCESS_IDENTITY_CACHE_MS = 3_000;
@@ -149,6 +154,7 @@ function openQueue(file) {
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL, landing INTEGER NOT NULL DEFAULT 0, item_check INTEGER NOT NULL DEFAULT 0, browser INTEGER NOT NULL DEFAULT 0, item TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', runner TEXT NOT NULL DEFAULT '', short_slot INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS holder_name ON holder(name);
+      CREATE TABLE IF NOT EXISTS liveness_event (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, item TEXT NOT NULL DEFAULT '', pid INTEGER NOT NULL, detail TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL, landing INTEGER NOT NULL DEFAULT 0, item_check INTEGER NOT NULL DEFAULT 0, browser INTEGER NOT NULL DEFAULT 0, item TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', remote INTEGER NOT NULL DEFAULT 0, short_eligible INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS runner_unavailable (host TEXT PRIMARY KEY, since TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS runner_rotation (pool TEXT PRIMARY KEY, next_host TEXT NOT NULL DEFAULT '');
@@ -176,6 +182,9 @@ function openQueue(file) {
       if (!columns.includes('lease_until')) db.exec(`ALTER TABLE ${table} ADD COLUMN lease_until TEXT NOT NULL DEFAULT ''`);
       if (table === 'holder' && !columns.includes('runner')) db.exec("ALTER TABLE holder ADD COLUMN runner TEXT NOT NULL DEFAULT ''");
       if (table === 'holder' && !columns.includes('short_slot')) db.exec('ALTER TABLE holder ADD COLUMN short_slot INTEGER NOT NULL DEFAULT 0');
+      if (table === 'holder' && !columns.includes('terminating')) db.exec('ALTER TABLE holder ADD COLUMN terminating INTEGER NOT NULL DEFAULT 0');
+      if (table === 'holder' && !columns.includes('request')) db.exec("ALTER TABLE holder ADD COLUMN request TEXT NOT NULL DEFAULT ''");
+      if (table === 'holder' && !columns.includes('relaunched')) db.exec('ALTER TABLE holder ADD COLUMN relaunched INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('gui')) db.exec('ALTER TABLE waiter ADD COLUMN gui INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('remote')) db.exec('ALTER TABLE waiter ADD COLUMN remote INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('short_eligible')) db.exec('ALTER TABLE waiter ADD COLUMN short_eligible INTEGER NOT NULL DEFAULT 0');
@@ -350,18 +359,17 @@ function update(db, action) {
   try {
     pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
-    for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM holder').all()) {
-      if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
-        db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
-      }
-    }
-    for (const row of db.prepare('SELECT token, pid, started, heartbeat FROM waiter').all()) {
-      if (!alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
+    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, sameProcess, leaseMs: LEASE_MS });
+    for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
+      // A live but hung gate process cannot retain a queue place indefinitely.
+      const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
+      if (staleGate || !alive(row.pid) || (row.heartbeat < cutoff && !sameProcess(row.pid, row.started))) {
         db.prepare('DELETE FROM waiter WHERE token = ?').run(row.token);
       }
     }
     const result = action();
     db.exec('COMMIT');
+    for (const relaunch of relaunches) dispatchRelaunch(relaunch);
     return result;
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* Preserve the original transaction failure. */ }
@@ -574,8 +582,10 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
         // Live load: skip overloaded runners, prefer healthy ones, take the most headroom, or queue (#2509).
         ({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now));
         if (!selected) return null;
-      } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
-        // Flexible work preserves browser capacity whenever a compatible browser-free host is available.
+      } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)
+        && !(restriction?.kind === 'ssh' && restriction.hosts && compatible[0].host === restriction.host)) {
+        // Flexible work preserves browser capacity whenever a compatible browser-free host is available,
+        // except that a free explicitly preferred host keeps its place [Q1,Q2,E27].
         selected = compatible.find(runner => runner.browser === 0);
       }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
@@ -717,12 +727,14 @@ function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, 
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Exclusions for admission and local-memory status; unverified cleanups exclude a runner only once they cost every slot. */
+/** Exclude quarantined hosts; an unverified cleanup costs only its slot until every slot is charged. */
 function unavailableRunnerHosts(db, now, runners = []) {
   const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => row.healing === 1 && row.probe_until > now || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
+      .filter(row => row.detail !== 'CLEANUP_UNVERIFIED'
+        || row.healing === 1 && row.probe_until > now
+        || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
@@ -978,7 +990,7 @@ export function requiredExecutorOf(value) {
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, infrastructureRetry?: boolean, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, capturedRequest?: {argv: string[], cwd?: string}, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, infrastructureRetry?: boolean, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
@@ -998,6 +1010,7 @@ export async function takeResource(options) {
   const gui = options.gui === true;
   const remote = options.remote === true;
   const runnerOnly = options.runnerOnly === true;
+  const capturedRequest = capturedRequestOf(options.capturedRequest);
   if (options.runnerDeadlineAt !== undefined && (!Number.isSafeInteger(options.runnerDeadlineAt) || options.runnerDeadlineAt <= 0 || !runnerOnly)) throw new Refused('BAD_RESOURCE_METADATA', 'runnerDeadlineAt must be a positive captured runner-only deadline');
   const restriction = requiredExecutorOf(options.requiredExecutor);
   const requiredExecutor = restriction ? JSON.stringify(restriction) : '';
@@ -1148,13 +1161,14 @@ export async function takeResource(options) {
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, token, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
-          if (resume && initialTicket) {
+          if (resume && initialTicket && name !== 'gate') {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
             db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
             return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
           }
+          // A removed gate ticket has lost its priority, including any saved release-order ticket.
           queuedAt = new Date().toISOString();
-          const rejoined = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
+          const rejoined = db.prepare('INSERT INTO waiter(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, name === 'gate' ? null : resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
           db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
           initialTicket = Number(rejoined.lastInsertRowid);
           return { acquired: false, state: { ...snapshot(db, name, order), position: waiterPosition(db, name, initialTicket, { order, shortCapacity: options.shortCapacityProvider?.() ?? 0 }), rejoined: true } };
@@ -1209,7 +1223,7 @@ export async function takeResource(options) {
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
           const holderName = executor.host ? runnerResourceName(executor.host) : name;
-          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1);
+          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware, request, relaunched) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1, capturedRequest, Number(process.env[LIVENESS_RELAUNCH_ENV] === '1'));
           db.prepare('UPDATE holder SET runner_execution = ? WHERE token = ?').run(Number(options.runnerExecution === true), token);
           return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, lateRunnerDispatch: lateDispatch, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
         }
@@ -1480,3 +1494,4 @@ export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth
 
 export { runnerBoardFile } from './controller-custody.js';
 export { runnerItemState } from './controller-custody.js';
+export { runnerItemSources } from './controller-custody.js';
