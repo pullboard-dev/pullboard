@@ -41,7 +41,7 @@ test(scenario === 'unreadable item status'
     import { spawnSync } from 'node:child_process';
     import { DatabaseSync } from 'node:sqlite';
     import { withGateSlot } from ${JSON.stringify(gate)};
-    import { Refused } from ${JSON.stringify(url('refused.js'))};
+    import { Refused } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/kernel/index.js')).href)};
     import { runnerLeaseHealth } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};
     ${executionServicesSource(gate)}
     const root = ${JSON.stringify(sourceRoot)}, requests = ${JSON.stringify(requests)};
@@ -71,7 +71,7 @@ test(scenario === 'unreadable item status'
     const db = new DatabaseSync(join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), { readOnly: true });
     const before = db.prepare('SELECT pid,started,repo,item,browser FROM holder').all();
     const initialProblems = runnerLeaseHealth().filter(row=>row.problem);
-    const children = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' }).split(String.fromCharCode(10))
+    const children = execFileSync('/bin/ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split(String.fromCharCode(10))
       .map(line => line.trim().split(/ +/u))
       .filter(row => Number(row[1]) === process.pid && row.slice(2).join(' ').includes('runner-controller.js'))
       .map(row => Number(row[0]));
