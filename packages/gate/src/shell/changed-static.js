@@ -11,7 +11,13 @@ import { testInputProblems } from '../../../../bin/checks/test-inputs.js';
 import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
-import { fixedWallMargins } from '../../../../test/wall-clock-budgets.js';
+/**
+ * The timing-margin scan lives with the tests (#2658, #2670 move it). A runner tooling copy without test/ has no test
+ * files to scan, so a missing module finds nothing there instead of failing the whole gate package at load.
+ */
+let fixedWallMargins = () => [];
+try { ({ fixedWallMargins } = await import('../../../../test/wall-clock-budgets.js')); }
+catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; }
 
 /**
  * Judge only the named files with the static checks the gate runs on changed files.
