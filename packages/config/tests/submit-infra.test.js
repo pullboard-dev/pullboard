@@ -111,9 +111,9 @@ async function privateRepo(t) {
 }
 
 /** Create a real joined builder while the coordinator stays on its unchanged trunk. */
-async function builderRepo(box, { requireInfraNote = true } = {}) {
+async function builderRepo(box, { requireInfraNote = true, extraOwns = [] } = {}) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  config.lanes = { build: { owns: ['src/', 'test/'], specs: ['G'] } };
+  config.lanes = { build: { owns: ['src/', 'test/', ...extraOwns], specs: ['G'] } };
   if (requireInfraNote) config.submit = { requireInfraNote: true };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
@@ -200,7 +200,7 @@ test('a gate named by a quoted path or a shell separator receives a drafted note
     put(box.root, 'pullboard.json', JSON.stringify({ gate, spec: 'SPEC.md' }));
     put(box.root, file, 'process.exit(0);\n');
     commitAll(box);
-    box = await builderRepo(box);
+    box = await builderRepo(box, { extraOwns: ['gate.js'] });
     const added = await box.coordinator('add', 'build', 'Gate named by a path', '--criterion', 'the submit handles the changed gate path',
       '--check', 'true', '--brief', `Files:\n- ${file}\nChange: exercise infrastructure-note handling for the gate path.\nTest: verify the note behavior for the changed file.\nOut of scope: product behavior.`);
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
