@@ -99,9 +99,11 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 /** Remove the socket and pid file this process made, leaving a successor's in place. */
 function release() {
   // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
-  // The socket goes before the pid file, so a successor never finds the path held with no live holder named.
-  releaseOwnSocket(socketPath, ownSocket);
-  try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+  if (process.platform === 'win32') {
+    try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+    return;
+  }
+  releaseOwnSocket(socketPath, ownSocket, pidFile);
 }
 
 /** The socket path's file identity now, or null when nothing is there. */
@@ -117,8 +119,6 @@ function holderAlive() {
   try { return processAlive(Number(readFileSync(pidFile, 'utf8').trim())); } catch { return false; }
 }
 
-/** The path lock while this process takes over a stale socket path, released once its pid file names it. */
-let takeover = null;
 
 /** Stop taking commands and free the socket path for a successor now; exitWhenDone ends the process. */
 function retire(reason) {
@@ -309,46 +309,49 @@ function failed(error) {
 process.on('uncaughtException', failed);
 process.on('unhandledRejection', failed);
 
-/** Listen at the board's socket path, unless a live resident process already does. */
-function listen(retry = true) {
-  server.once('error', (error) => {
-    if (error.code !== 'EADDRINUSE' || !retry) {
-      process.stderr.write(`pullboard resident: cannot listen at ${socketPath}: ${error.code ?? error.message}\n`);
-      process.exit(0);
-    }
-    const probe = connect(socketPath);
-    probe.on('connect', () => {
-      probe.destroy();
-      process.stderr.write(`pullboard resident: another resident process already listens at ${socketPath}\n`);
-      process.exit(0);
+/**
+ * Listen at the board's socket path, unless a live resident process already does. Why the lock from the bind until the
+ * pid file names this process: two starters that both find the holder dead must not both unlink, or the second deletes
+ * the first's new socket; and a retiring process must not remove a pid file a starter has just written.
+ */
+function listen() {
+  const unlock = process.platform === 'win32' ? () => {} : lockPath(socketPath);
+  /** Leave the path to the process that holds it, freeing the lock first. */
+  const leave = (message) => {
+    unlock?.();
+    process.stderr.write(`pullboard resident: ${message}\n`);
+    process.exit(0);
+  };
+  if (!unlock) return leave(`another resident process is starting at ${socketPath}`);
+  const bind = (retry) => {
+    server.once('error', (error) => {
+      if (error.code !== 'EADDRINUSE' || !retry) return leave(`cannot listen at ${socketPath}: ${error.code ?? error.message}`);
+      const probe = connect(socketPath);
+      probe.on('connect', () => {
+        probe.destroy();
+        leave(`another resident process already listens at ${socketPath}`);
+      });
+      probe.on('error', () => {
+        // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
+        if (holderAlive()) return leave(`the resident process at ${socketPath} is alive but busy`);
+        if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+        bind(false);
+      });
     });
-    probe.on('error', () => {
-      // Why the lock: two starters that both find the holder dead must not both unlink, or the second deletes the first's
-      // new socket. Under it the holder is checked again, since a starter that just finished names itself there.
-      takeover = process.platform === 'win32' ? () => {} : lockPath(socketPath);
-      // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
-      if (!takeover || holderAlive()) {
-        takeover?.();
-        process.stderr.write(`pullboard resident: the resident process at ${socketPath} is alive but busy\n`);
-        process.exit(0);
-      }
-      if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
-      listen(false);
+    server.listen(socketPath, () => {
+      if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
+      ownSocket = socketIdentity();
+      // The pid file names the live holder that keeps a busy resident's path from being taken over.
+      try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* A starter then finds no live holder named. */ }
+      unlock();
+      // Idle time counts from when the process can serve, never from a slow start under load.
+      lastActive = clock();
+      watchIdle();
+      // A parent watching this process learns it serves from this line; a client-started one discards it.
+      process.stdout.write('listening\n');
     });
-  });
-  server.listen(socketPath, () => {
-    if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
-    ownSocket = socketIdentity();
-    // The pid file names the live holder that keeps a busy resident's path from being taken over.
-    try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* A starter then finds no live holder named. */ }
-    takeover?.();
-    takeover = null;
-    // Idle time counts from when the process can serve, never from a slow start under load.
-    lastActive = clock();
-    watchIdle();
-    // A parent watching this process learns it serves from this line; a client-started one discards it.
-    process.stdout.write('listening\n');
-  });
+  };
+  bind(true);
 }
 listen();
 

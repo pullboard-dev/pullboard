@@ -1,20 +1,20 @@
 /**
- * Socket-path ownership for the resident board process [H24]. Every change to an existing socket path, a stale path
- * taken over or a retiring owner's path removed, happens under one exclusive lock file beside it, so a check and the
- * unlink that follows it can never interleave with another process's. Binding a free path needs no lock: a bind never
- * replaces a file. These live apart from bin/resident-board.js, which starts a server when imported, so a test can
- * prove them on real sockets.
+ * Socket-path ownership for the resident board process [H24]. Every start, from its bind or takeover until its pid
+ * file names it, and every retirement's removal of its socket and pid file, runs under one exclusive path lock, so no
+ * check and the unlink that follows it can interleave with another process's. The lock is an exclusive SQLite
+ * transaction on a file beside the socket. Why SQLite: its lock is the kernel's, so a process that dies releases it
+ * with nothing to detect or break. These live apart from bin/resident-board.js, which starts a server when imported,
+ * so a test can prove them on real sockets.
  */
 import {
-  closeSync,
-  linkSync,
-  openSync,
   readFileSync,
-  renameSync,
   statSync,
   unlinkSync,
-  writeSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
+
+/** Loaded on first lock, after the resident has quieted node:sqlite's experimental notice. */
+let DatabaseSync = null;
 
 /** A path's file identity now, or null when nothing is there. */
 export function pathIdentity(path) {
@@ -27,57 +27,50 @@ export function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
 }
 
-/** The process id a file names, or NaN. */
-function pidIn(file) {
-  try { return Number(readFileSync(file, 'utf8').trim()); } catch { return Number.NaN; }
-}
-
 /**
- * Take the path lock, or return null when a live process holds it. A lock whose holder died is moved aside and
- * checked once more, so a lock taken fresh by a live process in between is put back instead of broken.
+ * Take the socket path's lock without waiting, or return null when another process holds it.
  *
  * @param {string} path The socket path the lock guards.
- * @returns {(() => void)|null} The release function.
+ * @returns {(() => void)|null} The release function; calling it again does nothing.
  */
 export function lockPath(path) {
-  const lock = `${path}.lock`;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const fd = openSync(lock, 'wx', 0o600);
-      try { writeSync(fd, `${process.pid}\n`); } finally { closeSync(fd); }
-      return () => { if (pidIn(lock) === process.pid) try { unlinkSync(lock); } catch { /* Already gone. */ } };
-    } catch (error) { if (error?.code !== 'EEXIST') return null; }
-    if (processAlive(pidIn(lock))) return null;
-    const aside = `${lock}.${process.pid}.stale`;
-    try { renameSync(lock, aside); } catch { continue; }
-    // Why: another process may have broken the dead lock and taken a fresh one just before this rename.
-    if (processAlive(pidIn(aside))) {
-      try { linkSync(aside, lock); } catch { /* A newer lock is in place. */ }
-      try { unlinkSync(aside); } catch { /* Already gone. */ }
-      return null;
-    }
-    try { unlinkSync(aside); } catch { /* Already gone. */ }
+  let db = null;
+  try {
+    DatabaseSync ??= createRequire(import.meta.url)('node:sqlite').DatabaseSync;
+    db = new DatabaseSync(`${path}.lock`, { timeout: 0 });
+    db.exec('BEGIN EXCLUSIVE');
+  } catch {
+    try { db?.close(); } catch { /* Never opened. */ }
+    return null;
   }
-  return null;
+  let held = true;
+  return () => {
+    if (!held) return;
+    held = false;
+    try { db.exec('COMMIT'); } catch { /* Closing ends the transaction too. */ }
+    try { db.close(); } catch { /* Already closed. */ }
+  };
 }
 
 /**
- * Remove the socket path only while it is still this process's socket, under the path lock. When the lock is busy the
- * path is left as it is: a stale socket is taken over later, and a live one is never removed.
+ * Remove the socket path and pid file only while they are still this process's, under the path lock. When the lock
+ * is busy both are left as they are: a starter holding it finds this process live, and once it exits the path is stale
+ * and taken over then.
  *
  * @param {string} path The socket path.
  * @param {string|null} own The identity of the socket this process bound.
+ * @param {string} pidFile The file that names the path's live holder.
  * @returns {boolean} True when this process's own socket was removed.
  */
-export function releaseOwnSocket(path, own) {
-  if (process.platform === 'win32' || !own) return false;
+export function releaseOwnSocket(path, own, pidFile) {
   const unlock = lockPath(path);
   if (!unlock) return false;
   try {
-    if (pathIdentity(path) !== own) return false;
-    unlinkSync(path);
-    return true;
-  } catch { return false; } finally { unlock(); }
+    const mine = own !== null && pathIdentity(path) === own;
+    if (mine) try { unlinkSync(path); } catch { /* Already gone. */ }
+    try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+    return mine;
+  } finally { unlock(); }
 }
 
 /**

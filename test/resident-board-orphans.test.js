@@ -44,6 +44,22 @@ async function listenAt(path, onConnection = () => {}) {
   return server;
 }
 
+const SOCKET_MODULE = new URL('../bin/resident-socket.js', import.meta.url).href;
+
+/** A separate process that tries the path lock and holds it if taken, reporting which. */
+async function lockHolder(path, { expectLocked = true } = {}) {
+  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', [
+    `const { lockPath } = await import(${JSON.stringify(SOCKET_MODULE)});`,
+    `const unlock = lockPath(${JSON.stringify(path)});`,
+    "process.stdout.write(unlock ? 'locked\\n' : 'busy\\n');",
+    "process.stdin.on('end', () => { unlock?.(); process.exit(0); }).resume();",
+  ].join('\n')], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const exited = new Promise(done => child.on('exit', done));
+  const answer = await within(new Promise(done => child.stdout.setEncoding('utf8').on('data', chunk => done(chunk.trim()))), 15_000, 'the lock holder answers');
+  if (expectLocked) assert.equal(answer, 'locked');
+  return { child, exited, locked: answer === 'locked', stop: async () => { child.stdin.end(); await exited; } };
+}
+
 /** Whether a client can connect at the path now. */
 const reachable = path => new Promise(done => {
   const client = connect(path);
@@ -112,26 +128,31 @@ test('releasing the socket removes only this process\'s own socket, even when a 
   const successor = await listenAt(path);
   const theirs = identity(path);
   try {
-    assert.equal(releaseOwnSocket(path, own), false);
+    assert.equal(releaseOwnSocket(path, own, join(dir, 'd.pid')), false);
     assert.equal(identity(path), theirs, 'the successor keeps its socket at the path');
     assert.equal(await reachable(path), true, 'the successor still answers at the path');
-    assert.deepEqual(readdirSync(dir).filter(name => name.startsWith('d.sock.')), [], 'no lock file is left');
+    assert.deepEqual(readdirSync(dir).filter(name => name.startsWith('d.sock.') && name !== 'd.sock.lock'), [], 'nothing else is left beside it');
   } finally {
     await new Promise(done => successor.close(done));
     await new Promise(done => mine.close(done));
   }
   const again = await listenAt(join(dir, 'e.sock'));
   const ownAgain = identity(join(dir, 'e.sock'));
-  // While another live process holds the path lock, even this process's own socket stays: no check races an unlink.
-  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+  const epid = join(dir, 'e.pid');
+  writeFileSync(epid, `${process.pid}\n`);
+  // While another live process holds the path lock, even this process's own socket and pid file stay.
+  const holder = await lockHolder(join(dir, 'e.sock'));
   try {
-    writeFileSync(join(dir, 'e.sock.lock'), `${holder.pid}\n`);
-    assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), false);
+    assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain, epid), false);
     assert.equal(identity(join(dir, 'e.sock')), ownAgain, 'a busy lock leaves the path as it is');
-  } finally { holder.kill('SIGKILL'); rmSync(join(dir, 'e.sock.lock'), { force: true }); }
-  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), true);
+    assert.equal(existsSync(epid), true, 'and the pid file');
+  } finally { await holder.stop(); }
+  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain, epid), true);
   assert.equal(existsSync(join(dir, 'e.sock')), false, 'a process\'s own socket is removed');
-  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), false, 'an empty path is left alone');
+  assert.equal(existsSync(epid), false, 'with its own pid file');
+  writeFileSync(epid, '999999\n');
+  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain, epid), false, 'an empty path is left alone');
+  assert.equal(readFileSync(epid, 'utf8'), '999999\n', 'another process\'s pid file is left alone');
   await new Promise(done => again.close(done));
 });
 
@@ -207,20 +228,21 @@ test('two residents starting at one stale path at once leave exactly one listeni
   }
 });
 
-test('a path lock left by a dead process is broken, and one held by a live process is not [C7,H24]', () => {
+test('the path lock is exclusive while its holder lives and free once it dies, with nothing to break [C7,H24]', async () => {
   const path = join(dir, 'i.sock');
-  writeFileSync(`${path}.lock`, '999999\n');
+  const holder = await lockHolder(path);
+  try { assert.equal(lockPath(path), null, 'a live holder keeps its lock'); }
+  finally { holder.child.kill('SIGKILL'); await holder.exited; }
   const unlock = lockPath(path);
-  assert.equal(typeof unlock, 'function', 'a dead holder\'s lock is taken');
-  assert.equal(readFileSync(`${path}.lock`, 'utf8').trim(), String(process.pid));
+  assert.equal(typeof unlock, 'function', 'a killed holder\'s lock is free');
+  const second = await lockHolder(path, { expectLocked: false });
+  try { assert.equal(second.locked, false, 'another process cannot take it meanwhile'); }
+  finally { await second.stop(); }
   unlock();
-  assert.equal(existsSync(`${path}.lock`), false);
-  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
-  try {
-    writeFileSync(`${path}.lock`, `${holder.pid}\n`);
-    assert.equal(lockPath(path), null, 'a live holder keeps its lock');
-    assert.equal(readFileSync(`${path}.lock`, 'utf8').trim(), String(holder.pid));
-  } finally { holder.kill('SIGKILL'); rmSync(`${path}.lock`, { force: true }); }
+  unlock();
+  const after = lockPath(path);
+  assert.equal(typeof after, 'function', 'a released lock is free');
+  after();
 });
 
 test('an orphaned resident finishes the client response in flight, then exits within 5 s [C7,H24]', async () => {
