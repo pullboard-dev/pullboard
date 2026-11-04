@@ -1,3 +1,5 @@
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { SUBMIT_INFRASTRUCTURE_CODES } from '../../../state/index.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
 import {
   boardWriteSnapshot,
@@ -133,6 +135,7 @@ export function startSubmitHandoff(board, id, options) {
       const projection = requireSubmitHandoffHookProof(board, id, job, options.hookProjection);
       return { started: false, job: record(board, id, { ...job, hookProjection: { ...projection, at: now(board) } }) };
     }
+    if (options.retryJob) return { started: false, job: retryStoppedHandoff(board, id, job, options.retryJob) };
     if (job.state !== 'queued') return { started: false, job };
     const item = getItem(board, id);
     if (item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== job.digest) {
@@ -167,10 +170,12 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       throw new Refused('BAD_SUBMIT_HANDOFF', 'retain the exact canonical refusal document before completing this queued gate');
     }
     if (result.error.code === 'SUBMIT_HANDOFF_DEAD' && (board.executionEngineVersion ?? ENGINE_VERSION) >= DEAD_HANDOFF_RETRY_ENGINE) {
-      return endDeadHandoff(board, id, item, job, result.error, options.retryJob);
+      if ((board.executionEngineVersion ?? ENGINE_VERSION) < INFRA_HANDOFF_RECOVERY_ENGINE) return endDeadHandoff(board, id, item, job, result.error, options.retryJob);
+      return recordInfrastructureStop(board, id, job, result.error);
     }
-    if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
+    if ((INFRASTRUCTURE_CODES.has(result.error.code) || ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE && SUBMIT_INFRASTRUCTURE_CODES.has(result.error.code))) && item.item_status !== 'submitted') {
       // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
+      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE) return recordInfrastructureStop(board, id, job, result.error);
       insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
       return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
@@ -219,5 +224,30 @@ function endDeadHandoff(board, id, item, job, error, retryJob) {
     main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree, digest: job.digest,
     companionDigest: job.companionDigest, leaseMs: job.leaseMs, state: 'queued', at: now(board),
     recoveryRetries: retries + 1, retryOf: job.id };
+  return record(board, id, next);
+}
+
+/** Persist one infrastructure stop and notify the coordinator once only after the two automatic retries [C7]. */
+function recordInfrastructureStop(board, id, job, error) {
+  const exhausted = (job.infrastructureRetries ?? 0) >= 2;
+  if (exhausted && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
+    text: `Queued gate #${id} exhausted two healthy-executor recovery retries (${error.code}); restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+  return record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board),
+    ...(exhausted ? { infrastructureNotified: true } : {}) });
+}
+
+/** Derive a successor only from the stopped native candidate; the caller probes health outside the writer [C7,V4]. */
+function retryStoppedHandoff(board, id, job, retryJob) {
+  if (!JOB.test(retryJob) || retryJob === job.id) throw new Refused('BAD_SUBMIT_HANDOFF', 'recovery needs a fresh job identity');
+  const item = getItem(board, id);
+  if (job.state !== 'infrastructure' || !['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
+    || (job.infrastructureRetries ?? 0) >= 2 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
+    || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
+    || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run('submit_handoff_ended:' + job.id, JSON.stringify(job));
+  const next = { ...job, id: retryJob, state: 'queued', at: now(board),
+    infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id };
+  for (const field of ['error', 'completedAt', 'startedAt', 'hookProjection', 'infrastructureNotified']) delete next[field];
   return record(board, id, next);
 }

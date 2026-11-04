@@ -7,6 +7,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
+import * as nativeBoard from '../apps/lib/index.js';
+import { recoverInfrastructureHandoffs } from '../apps/cli/src/shell/submit-handoff.js';
+import { loadConfig } from '../packages/config/index.js';
+import { writeBoardCommand } from '../packages/store/index.js';
+import { randomUUID } from 'node:crypto';
+import { INFRASTRUCTURE_CODES } from '../apps/lib/index.js';
+import { SUBMIT_INFRASTRUCTURE_CODES } from '../packages/state/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { endedSubmitHandoff } from '../packages/store/index.js';
@@ -118,7 +125,7 @@ test('one sweep ends a killed worker as infrastructure and retries its exact can
   for (const field of ['commit', 'tree', 'main', 'executionCommit', 'executionTree', 'digest', 'companionDigest']) {
     assert.equal(after.job[field], job[field], `same-candidate recovery preserves ${field}`);
   }
-  assert.equal(after.job.recoveryRetries, 1);
+  assert.equal(after.job.infrastructureRetries, 1);
   assert.equal(after.item.item_status, 'claimed');
   assert.equal(after.item.item_owner, before.item_owner);
   assert.equal(after.item.item_lease_until, before.item_lease_until, 'recovery does not replace or renew the claim');
@@ -145,15 +152,15 @@ test('a dead handoff on an item its seat no longer holds also ends within one sw
 });
 
 
-test('three same-candidate crash retries are bounded and exhaustion stays infrastructure [C7,V4]', async t => {
+test('two same-candidate crash retries are bounded and exhaustion stays infrastructure [C7,V4]', async t => {
   const box = fixture(t);
   let job = await killedRunningHandoff(box);
   const commit = job.commit;
-  for (let retry = 1; retry <= 3; retry += 1) {
+  for (let retry = 1; retry <= 2; retry += 1) {
     sweep(box);
     const next = state(box, box.id, job.id);
     assert.equal(next.ended.state, 'infrastructure');
-    assert.equal(next.job.recoveryRetries, retry);
+    assert.equal(next.job.infrastructureRetries, retry);
     assert.equal(next.job.commit, commit);
     assert.notEqual(next.job.id, job.id);
     job = next.job;
@@ -162,10 +169,73 @@ test('three same-candidate crash retries are bounded and exhaustion stays infras
   }
   sweep(box);
   const after = state(box, box.id, job.id);
-  assert.equal(after.job.id, job.id, 'no fourth retry is queued');
+  assert.equal(after.job.id, job.id, 'no third retry is queued');
   assert.equal(after.job.state, 'infrastructure');
-  assert.equal(after.job.recoveryRetries, 3);
+  assert.equal(after.job.infrastructureRetries, 2);
   assert.equal(after.job.error.code, 'SUBMIT_HANDOFF_DEAD');
   assert.equal(after.item.item_status, 'claimed');
   assert.equal(after.returns, 0, 'infrastructure never becomes a builder red');
+});
+
+
+test('an infrastructure-stopped candidate waits for health, retries twice, and notifies once without builder red [C7,V4]', async t => {
+  const box = fixture(t);
+  let job = await killedRunningHandoff(box);
+  const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  /** Retain the actual canonical infrastructure refusal through the native board command. */
+  function stop(current, code) {
+    return writeBoardCommand(board, 'completeSubmitHandoff', [box.id, { agentId: current.agentId, job: current.id,
+      result: { code: 1, error: { code, message: 'fixture executor exhausted infrastructure retries', next: 'restore the executor' } } }], current.agentId);
+  }
+  try {
+    stop(job, 'GATE_INFRA_EXHAUSTED');
+    const ctx = { file: box.boardFile, info: { root: box.repo, commonDir: join(box.repo, '.git'), isMain: true },
+      config: loadConfig(box.repo), clock: { now: () => new Date() }, nativeBoard, io: { err() {} } };
+    assert.equal(await recoverInfrastructureHandoffs(ctx, { healthy: async () => false,
+      launch: async () => assert.fail('an unhealthy executor must not launch') }), 0);
+    assert.equal(state(box, box.id).job.id, job.id);
+    for (let retry = 1; retry <= 2; retry++) {
+      sweep(box);
+      const next = state(box, box.id, job.id);
+      assert.equal(next.ended.state, 'infrastructure');
+      assert.equal(next.job.infrastructureRetries, retry);
+      for (const field of ['commit', 'tree', 'main', 'executionCommit', 'executionTree', 'digest', 'companionDigest']) {
+        assert.equal(next.job[field], job[field], `recovery preserves ${field}`);
+      }
+      job = next.job;
+      await box.helpers.waitFor(() => state(box, box.id).job?.state === 'running', 'recovered worker runs', 120000); // budget: real worker readiness ceiling, no timing assertion.
+      await killWorker(box, job);
+      stop(job, 'GATE_INFRA_EXHAUSTED');
+    }
+    sweep(box);
+    sweep(box);
+    const after = state(box, box.id);
+    assert.equal(after.job.id, job.id);
+    assert.equal(after.job.state, 'infrastructure');
+    assert.equal(after.item.item_status, 'claimed');
+    assert.equal(after.returns, 0);
+    const notices = board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all()
+      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted two healthy-executor recovery retries`));
+    assert.equal(notices.length, 1);
+  } finally { board.db.close(); }
+});
+
+test('board and worker share infrastructure codes, including runner retry exhaustion which never returns builder red [C7,V4]', t => {
+  assert.equal(INFRASTRUCTURE_CODES, SUBMIT_INFRASTRUCTURE_CODES);
+  const box = fixture(t);
+  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'ready\n', 'feat(web): infrastructure fixture candidate [G1]').status, 0);
+  const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  try {
+    const item = getItem(board, box.id);
+    const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
+      executionCommit: box.git(box.web, 'rev-parse', 'HEAD'), executionTree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
+      digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 };
+    const queued = writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner);
+    const done = writeBoardCommand(board, 'completeSubmitHandoff', [box.id, { agentId: item.item_owner, job: queued.job.id,
+      result: { code: 1, error: { code: 'RUNNER_INFRA_RETRY_EXHAUSTED', message: 'executor retries exhausted', next: 'restore runner' } } }], item.item_owner);
+    assert.equal(done.state, 'infrastructure');
+    assert.equal(state(box, box.id).returns, 0);
+    assert.equal(getItem(board, box.id).item_status, 'claimed');
+  } finally { board.db.close(); }
 });

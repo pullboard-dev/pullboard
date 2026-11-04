@@ -1,7 +1,8 @@
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../../src/infra-handoff-recovery-engine.js';
 /** Routing for an observational queued-submit move; no gate authority is added [C7,V4,H16]. */
 import { SUBMIT_HANDOFF_ENGINE } from "../../../../../src/submit-handoff-engine.js";
 /** New queued moves never replay as an older synchronous submission. */
-function minimumEngine() { return SUBMIT_HANDOFF_ENGINE; }
+function minimumEngine(args) { return args?.[1]?.retryJob ? INFRA_HANDOFF_RECOVERY_ENGINE : SUBMIT_HANDOFF_ENGINE; }
 /** Retain the existing sender-to-actor binding. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: 'startSubmitHandoff', engine: SUBMIT_HANDOFF_ENGINE,

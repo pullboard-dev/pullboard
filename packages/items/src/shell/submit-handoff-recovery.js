@@ -19,8 +19,8 @@ import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/index.js';
 
 /** Validate source custody before copying any tools or offering a new native queue identity. */
-export function prepareDeadHandoffRetry(commonDir, item, job, directory) {
-  if ((job.recoveryRetries ?? 0) >= 3) return null;
+export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0 } = {}) {
+  if (retries >= limit) return null;
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   if (request.job !== job.id || request.item !== item || request.commit !== job.commit || request.commonDir !== commonDir
     || (request.companion?.commit ?? job.commit) !== job.executionCommit || (request.companion?.tree ?? job.tree) !== job.executionTree
