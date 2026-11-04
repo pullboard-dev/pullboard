@@ -734,9 +734,15 @@ function emptyRepo() {
 test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
   const waiting = PUBLISHED.rules.length + PUBLISHED.questions.length;
 
-  // A known name: init as usual, then the blueprint, in one command, with one summary line.
+  // A known and a local blueprint are added together: init sets up the board once, and stores
+  // starter checks without running them.
   const known = emptyRepo();
-  const started = known.run('init', '--blueprint', 'web-app', '--verbose');
+  const checked = join(known.repo, 'checked.json');
+  writeFileSync(checked, JSON.stringify({ blueprint: 1, name: 'checked', title: 'Checked plan', version: 1,
+    kind: 'practice', prefix: 'K', rules: [{ key: 'K1', text: 'Checks are stored as written.', why: 'The receiving project decides when to run them.' }],
+    defaults: [], questions: [], items: [{ key: '1', title: 'Checked starter', cites: ['K1'], after: [], lane: 'core', route: 'light',
+      criterion: 'The checked starter is filed.', brief: 'Files:\n- web/checked.js\nTest:\n- test/checked.test.js checks the starter', check: 'true' }] }));
+  const started = known.run('init', '--blueprint', 'web-app', '--blueprint', 'checked.json', '--verbose');
   assert.equal(started.status, 0, started.stdout + started.stderr);
   const summary = started.stdout.split('\n').filter((line) => line.startsWith(`added the ${PUBLISHED.title} blueprint:`));
   assert.equal(summary.length, 1, started.stdout);
@@ -748,10 +754,16 @@ test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
   assert.equal(rows.length, waiting + PUBLISHED.defaults.length);
   assert.ok(rows.every((row) => row.status !== 'approved'), 'nothing is approved');
   const items = JSON.parse(known.run('list', '--json').stdout).items ?? [];
-  assert.equal(items.length, PUBLISHED.items.length, 'each starter item is filed once');
+  assert.equal(items.length, PUBLISHED.items.length + 1, 'each starter item is filed once');
+  const checkedItem = items.find((item) => item.item_title === 'Checked starter');
+  assert.ok(checkedItem, 'the checked starter is filed with the other blueprint items');
+  assert.equal(checkedItem.item_check, 'true', 'its check is stored as written');
+  assert.equal(checkedItem.item_check_baseline ?? null, null, 'no check baseline was started');
+  assert.match(started.stdout, /checks stored, not run: #\d+(?:, #\d+)*; no check baseline ran/u,
+    'the summary says starter checks were stored, not run');
   assert.ok(existsSync(join(known.repo, 'pullboard.json')) && existsSync(join(known.repo, 'DOCTRINE.md')), 'init set the repository up as usual');
 
-  // An unknown name: refused before anything is written, naming the bundled blueprints.
+  // Unknown names and URLs are refused before anything is written, naming the bundled blueprints.
   const unknown = emptyRepo();
   const refused = unknown.run('init', '--blueprint', 'no-such-blueprint', '--json');
   assert.notEqual(refused.status, 0);
@@ -760,29 +772,11 @@ test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
   assert.match(refusal.message, /web-app/u, 'the refusal lists the bundled blueprints');
   assert.deepEqual(readdirSync(unknown.repo).filter((name) => name !== '.git'), [], 'nothing is written');
   assert.equal(existsSync(join(unknown.repo, '.git', 'pullboard')), false, 'no board is created');
-
-  // A URL is refused unfetched and leaves the repository untouched. A starter that carries a check
-  // is filed with that check stored, exactly as pullboard blueprint add files it.
-  const remote = emptyRepo();
-  const fetched = remote.run('init', '--blueprint', 'https://example.invalid/web-app.json', '--json');
+  const fetched = unknown.run('init', '--blueprint', 'https://example.invalid/web-app.json', '--json');
   assert.notEqual(fetched.status, 0);
   assert.equal(JSON.parse(fetched.stdout).error.code, 'BLUEPRINT_URL');
-  assert.deepEqual(readdirSync(remote.repo).filter((name) => name !== '.git'), [], 'a URL writes nothing');
-  assert.equal(existsSync(join(remote.repo, '.git', 'pullboard')), false, 'a URL creates no board');
-  const outside = mkdtempSync(join(tmpdir(), 'pullboard-blueprint-check-'));
-  const withCheck = join(outside, 'checked.blueprint.json');
-  writeFileSync(withCheck, JSON.stringify({ ...PUBLISHED, items: PUBLISHED.items.map((item, index) => (index === 0 ? { ...item, check: 'true' } : item)) }));
-  const checkedRepo = emptyRepo();
-  const checked = checkedRepo.run('init', '--blueprint', withCheck, '--verbose');
-  assert.equal(checked.status, 0, checked.stdout + checked.stderr);
-  assert.match(checked.stdout, /checks stored, not run: #\d+(?:, #\d+)*; no check baseline ran/u, 'the summary says the checks were not run');
-  const filed = JSON.parse(checkedRepo.run('list', '--json').stdout).items ?? [];
-  assert.equal(filed.length, PUBLISHED.items.length, 'every starter is filed, the checked one included');
-  const starter = filed.find((item) => item.item_title === PUBLISHED.items[0].title);
-  assert.ok(starter, 'the checked starter is on the board');
-  assert.equal(starter.item_check, 'true', 'its check is stored as written');
-  assert.equal(starter.item_check_baseline ?? null, null, 'no check baseline was started');
-  rmSync(outside, { recursive: true, force: true });
+  assert.deepEqual(readdirSync(unknown.repo).filter((name) => name !== '.git'), [], 'a URL writes nothing');
+  assert.equal(existsSync(join(unknown.repo, '.git', 'pullboard')), false, 'a URL creates no board');
 
   // Run from a subdirectory, a relative path names a file there: init reads it once, before
   // writing anything, and adds that very blueprint.
