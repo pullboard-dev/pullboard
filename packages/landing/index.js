@@ -17,6 +17,7 @@ export * from "./src/shell/landing-host.js";
 export * from "./src/core/landing-main-notices.js";
 export * from "./src/core/landing-message.js";
 export * from "./src/shell/landing-resource.js";
+export { takeLandingResource } from "./src/shell/landing-resource.js";
 export * from "./src/shell/landing-shards.js";
 export * from "./src/shell/landing-test-policy.js";
 export * from "./src/core/landing-waivers.js";

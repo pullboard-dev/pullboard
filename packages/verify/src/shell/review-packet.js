@@ -62,11 +62,12 @@ function reviewPacketPath(commonDir, id, head) {
 }
 
 /** The stored packet for this head, or null when none was built. */
-function readReviewPacket(commonDir, id, head) {
+function readReviewPacket(commonDir, id, head, criterionDigest) {
   try {
     const path = reviewPacketPath(commonDir, id, head);
     const packet = path && JSON.parse(readFileSync(path, 'utf8'));
-    return packet?.version === VERSION && packet.item === Number(id) && packet.head === head ? packet : null;
+    return packet?.version === VERSION && packet.item === Number(id) && packet.head === head
+      && packet.criterionDigest === criterionDigest ? packet : null;
   } catch { return null; }
 }
 
@@ -291,7 +292,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
  * exists yet (a packet from another machine's gate, or one built before this release).
  */
 function loadReviewPacket(root, commonDir, inputs) {
-  const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit);
+  const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit, inputs.item.item_frozen_digest);
   if (stored) return stored;
   const packet = buildReviewPacket(root, inputs, { commonDir });
   if (packet) storeReviewPacket(commonDir, packet);
@@ -340,7 +341,7 @@ export async function reviewPacketLines(ctx, id, readBoard) {
 export function reviewPacketReadNote(commonDir, item, read, decision) {
   if (read === undefined) return '';
   if (decision !== 'ACCEPT') throw new Refused('USAGE', '--read records the packet clauses an accept read; a reject names its clause with --clause');
-  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit);
+  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
   if (!packet) throw new Refused('USAGE', `no review packet for #${item.item_id} at ${item.item_commit.slice(0, 12)}; read pullboard show ${item.item_id} --review first`);
   const all = packet.clauses.map(clause => clause.n);
   const numbers = String(read).trim() === 'all' ? all : String(read).split(',').map(part => Number(part.trim()));
@@ -349,4 +350,18 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
   }
   const rerun = reviewRerunClauses(packet);
   return `\nreview packet ${packet.head.slice(0, 12)}: read clauses ${[...new Set(numbers)].sort((a, b) => a - b).join(', ')}; no recorded run: ${rerun.join(', ') || 'none'}`;
+}
+
+/**
+ * What the stored packet at the item's head says an accept must rerun: null with no packet, otherwise
+ * the clause numbers with no recorded run. An empty list lets accept record the verdict from the packet.
+ *
+ * Why: the packet is stored only after a green gate at that exact head, so a clause it covers was already
+ * proved there; rerunning it in a fresh checkout repeats minutes of work and proves nothing new.
+ * A failure recorded at head always forces the frozen check.
+ */
+export function reviewPacketRerun(commonDir, item) {
+  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
+  if (!packet) return null;
+  return { head: packet.head, rerun: reviewRerunClauses(packet), failures: packet.failures?.length ?? 0 };
 }
