@@ -85,7 +85,7 @@ export async function run(io, args) {
     brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
     reviewFamily: values['review-family'],
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    route: values.route ?? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)),
+    route: values.route ?? (values.check ? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)) : 'strong'),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
