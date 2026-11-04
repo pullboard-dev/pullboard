@@ -318,6 +318,9 @@ export function nextFor(board, options) {
 function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
+  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
+  if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
