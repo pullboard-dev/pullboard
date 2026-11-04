@@ -4,7 +4,7 @@
 .stage-word { color: var(--ink); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
 .stage-detail { color: var(--ink-muted); font: 400 var(--text-2xs)/var(--leading-snug) var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage-mark { border-radius: var(--radius-sm); padding: 0 var(--space-1); background: var(--surface-2); color: var(--ink-muted); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); white-space: normal; }
-.stage-mark.gate { color: var(--warn); } .stage-mark.no { color: var(--reject); }
+.stage-mark.gate { color: var(--warn); } .stage-mark.no { color: color-mix(in srgb, var(--mark-back) 50%, var(--ink)); }
 .row .item-stage { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; }
 .pipeline-copy, .dash-item-copy { display: grid; gap: var(--space-0); min-width: 0; }
 .pipeline-copy .item-stage { margin-top: var(--space-1); }

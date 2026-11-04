@@ -8,6 +8,11 @@
   --ink: light-dark(#121a17, #e7ece9); --ink-muted: light-dark(#4c5852, #9caba3); --ink-faint: light-dark(#7a887f, #6a776f);
   --accent: light-dark(#08915f, #34d89e); --accent-strong: light-dark(#067049, #4ee3ac); --accent-soft: light-dark(#dcefe6, #10231c); --on-accent: light-dark(#f4fbf7, #05201a);
   --warn: light-dark(#a2660f, #e4b25a); --warn-soft: light-dark(#f2e6cf, #241d10); --reject: light-dark(#bd4437, #f0776b); --reject-soft: light-dark(#f4e0dc, #271613);
+  /* The stage palette: the one place a stage color is written. Every dot, bar segment, chip and row icon takes its stage from these (stage-colors.html, 31 Oct) [N26]. */
+  --stage-merged: light-dark(#067a50, #30ad79); --stage-review: light-dark(#d4a020, #b38529); --stage-building: light-dark(#285c99, #3a6ab0);
+  --stage-ready: light-dark(#a383e6, #9d80e0); --stage-gated: light-dark(#8a968f, #5d6b64); --mark-back: light-dark(#c4473a, #d26059);
+  --mark-held: light-dark(#6f7d75, #8a978f);
+  --stage-stripe: repeating-linear-gradient(135deg, var(--stage-merged) 0 2px, color-mix(in srgb, var(--stage-merged) 35%, var(--surface)) 2px 4px);
   --blue: light-dark(#3f6f9e, #6ba7d6); --blue-soft: light-dark(#e1eaf3, #142231); --violet: light-dark(#6b4fc8, #ab9cf2); --violet-soft: light-dark(#ebe6fa, #1e1934);
   --shade: light-dark(rgba(18,26,23,.05), rgba(0,0,0,.4)); --shade-far: light-dark(rgba(18,26,23,.28), rgba(0,0,0,.7));
   --shadow: 0 1px 2px var(--shade), 0 12px 34px -18px var(--shade-far);
@@ -280,12 +285,12 @@ a.ghost { color: var(--ink); }
 .roadmap-stage-counts > div { display: flex; justify-content: space-between; gap: var(--space-2); padding: var(--space-3) var(--space-3); border-radius: var(--radius-lg); background: var(--surface-2); }
 .roadmap-stage-counts dt { display: flex; align-items: center; gap: var(--space-2); color: var(--ink-muted); font-size: var(--text-xs); }
 .roadmap-stage-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
-.roadmap-stage-swatch.landed, .roadmap-stage-swatch.merged { background: var(--accent); }
-.roadmap-stage-swatch.landing, .roadmap-stage-swatch.accepted { background: var(--accent-strong); }
-.roadmap-stage-swatch.review, .roadmap-stage-swatch.submitted { background: var(--violet); }
-.roadmap-stage-swatch.building, .roadmap-stage-swatch.claimed { background: var(--blue); }
-.roadmap-stage-swatch.waiting, .roadmap-stage-swatch.open { background: var(--ink-faint); }
-.roadmap-stage-swatch.held { background: var(--warn); }
+.roadmap-stage-swatch.landed, .roadmap-stage-swatch.merged { background: var(--stage-merged); }
+.roadmap-stage-swatch.landing, .roadmap-stage-swatch.accepted { background: var(--stage-stripe); }
+.roadmap-stage-swatch.review, .roadmap-stage-swatch.submitted { background: var(--stage-review); }
+.roadmap-stage-swatch.building, .roadmap-stage-swatch.claimed { background: var(--stage-building); }
+.roadmap-stage-swatch.waiting, .roadmap-stage-swatch.open { background: var(--stage-ready); }
+.roadmap-stage-swatch.held { background: none; box-sizing: border-box; border: 1.5px dashed var(--mark-held); }
 .roadmap-stage-counts dd { margin: 0; font: var(--text-xs) var(--mono); }
 .roadmap-last-shipped { display: grid; gap: var(--space-1); margin: var(--space-4) 0 0; font-size: var(--text-xs); }
 .roadmap-last-shipped > span { color: var(--ink-faint); }
@@ -330,11 +335,11 @@ a.ghost { color: var(--ink); }
 .roadmap-state { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; }
 .roadmap-state svg { width: 12px; height: 12px; }
 .roadmap-state .dot { display: none; }
-.roadmap-state.building { background: var(--accent-soft); color: var(--accent-strong); }
-.roadmap-state.ready { background: var(--surface-2); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--line); }
-.roadmap-state.review { background: var(--blue-soft); color: var(--blue); }
-.roadmap-state.back { background: var(--reject-soft); color: var(--reject); }
-.roadmap-state.accepted, .roadmap-state.landed { background: var(--accent-soft); color: var(--accent); }
+.roadmap-state.building { background: color-mix(in srgb, var(--stage-building) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-building) 50%, var(--ink)); }
+.roadmap-state.ready { background: color-mix(in srgb, var(--stage-ready) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-ready) 50%, var(--ink)); }
+.roadmap-state.review { background: color-mix(in srgb, var(--stage-review) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-review) 50%, var(--ink)); }
+.roadmap-state.back { background: color-mix(in srgb, var(--mark-back) 16%, var(--surface)); color: color-mix(in srgb, var(--mark-back) 50%, var(--ink)); }
+.roadmap-state.accepted, .roadmap-state.landed { background: color-mix(in srgb, var(--stage-merged) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-merged) 50%, var(--ink)); }
 .roadmap-after { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; color: var(--ink-faint); font-size: var(--text-2xs); }
 .roadmap-after svg { flex: none; width: 12px; height: 12px; }
 .roadmap-after a { color: var(--ink-muted); font: 500 var(--text-2xs) var(--mono); }
@@ -476,7 +481,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 /* What a blocked row waits on stands at the right of its line, beside the gated badge. */
 .row .meta > .gate { margin-left: auto; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
-.dot.building { background: var(--blue); } .dot.verify { background: var(--warn); } .dot.back { background: var(--reject); } .dot.verified { background: var(--accent); }
+.dot.building { background: var(--stage-building); } .dot.verify { background: var(--stage-review); } .dot.back { background: var(--mark-back); } .dot.verified { background: var(--stage-merged); }
 /* A row holds its shape: the title takes the whole first line and the meta and chip share the second,
  * each line cut with an ellipsis, so every row in a list is as tall as the next. The whole title is the
  * row's tooltip and opens in the detail. */
@@ -502,11 +507,11 @@ input:disabled { background: var(--surface-2); color: var(--ink-muted); }
 .row-disclosure > summary::-webkit-details-marker { display: none; }
 .row-detail { padding: var(--space-3) var(--space-4); font-size: var(--text-sm); }
 .chip { font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: var(--tracking-label); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--ink-muted); white-space: nowrap; }
-.chip.ok { background: var(--accent-soft); color: var(--accent-strong); }
-.chip.warn { background: var(--warn-soft); color: var(--warn); }
-.chip.no { background: var(--reject-soft); color: var(--reject); }
-.chip.busy { background: var(--blue-soft); color: var(--blue); }
-.chip.free { background: var(--violet-soft); color: var(--violet); }
+.chip.ok { background: color-mix(in srgb, var(--stage-merged) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-merged) 50%, var(--ink)); }
+.chip.warn { background: color-mix(in srgb, var(--stage-review) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-review) 50%, var(--ink)); }
+.chip.no { background: color-mix(in srgb, var(--mark-back) 16%, var(--surface)); color: color-mix(in srgb, var(--mark-back) 50%, var(--ink)); }
+.chip.busy { background: color-mix(in srgb, var(--stage-building) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-building) 50%, var(--ink)); }
+.chip.free { background: color-mix(in srgb, var(--stage-ready) 16%, var(--surface)); color: color-mix(in srgb, var(--stage-ready) 50%, var(--ink)); }
 .chip.gate { background: none; color: var(--ink-muted); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 /* A stale verdict (#726) is a quiet word with a small dot beside the verified chip; its title says what main moved. */
 .chip.stale { background: none; color: var(--ink-muted); padding-inline: 0; }
@@ -1013,12 +1018,12 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .roadmap-summary-track { min-width: 0; }
 .roadmap-summary-bar { display: block; width: 100%; height: 10px; margin: 0; border-radius: var(--radius-sm); }
 .roadmap-summary-swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
-.roadmap-summary .landed { background: var(--accent); fill: var(--accent); }
-.roadmap-summary .landing { background: var(--accent-strong); fill: var(--accent-strong); }
-.roadmap-summary .review { background: var(--violet); fill: var(--violet); }
-.roadmap-summary .building { background: var(--blue); fill: var(--blue); }
-.roadmap-summary .waiting { background: var(--ink-faint); fill: var(--ink-faint); }
-.roadmap-summary .held { background: var(--warn); fill: var(--warn); }
+.roadmap-summary .landed { background: var(--stage-merged); fill: var(--stage-merged); }
+.roadmap-summary .landing { background: var(--stage-stripe); fill: var(--stage-merged); }
+.roadmap-summary .review { background: var(--stage-review); fill: var(--stage-review); }
+.roadmap-summary .building { background: var(--stage-building); fill: var(--stage-building); }
+.roadmap-summary .waiting { background: var(--stage-ready); fill: var(--stage-ready); }
+.roadmap-summary .held { background: none; fill: none; stroke: var(--mark-held); stroke-dasharray: 3 2; box-shadow: inset 0 0 0 1.5px var(--mark-held); }
 .roadmap-summary-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); color: var(--ink-muted); font-size: var(--text-sm); }
 .roadmap-summary-legend > [data-summary-state] { display: inline-flex; align-items: center; gap: var(--space-2); line-height: var(--leading-body); }
 .roadmap-summary-legend > .roadmap-held-link { color: inherit; font: inherit; font-weight: inherit; text-align: left; }
@@ -1048,11 +1053,11 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .roadmap-return { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--reject-soft); color: var(--reject); }
 .roadmap-event { display: inline; white-space: nowrap; }
 .roadmap-step { display: inline-block; width: 7px; height: 7px; margin-right: var(--space-2); border-radius: 50%; background: var(--ink-faint); }
-.roadmap-step.busy { background: var(--blue); }
-.roadmap-step.warn { background: var(--warn); }
-.roadmap-step.ok { background: var(--accent); }
-.roadmap-step.no { background: var(--reject); }
-.roadmap-step.free { background: var(--violet); }
+.roadmap-step.busy { background: var(--stage-building); }
+.roadmap-step.warn { background: var(--stage-review); }
+.roadmap-step.ok { background: var(--stage-merged); }
+.roadmap-step.no { background: var(--mark-back); }
+.roadmap-step.free { background: var(--stage-ready); }
 .roadmap-arrow { color: var(--ink-faint); }
 .roadmap-items { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); font-size: var(--text-xs); }
 
