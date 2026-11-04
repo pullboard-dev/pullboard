@@ -20,6 +20,8 @@ test('defaults, move refusals and the init loop never suggest a timed wait [N42,
     assert.doesNotMatch(step, /\bwait (?:for|until|on)\b/iu, code);
   }
   const template = readFileSync(new URL('../packages/config/src/shell/templates.js', import.meta.url), 'utf8');
+  const resume = readFileSync(new URL('../apps/cli/src/shell/commands/resume.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(resume, /--wait/u);
   assert.doesNotMatch(template, /--wait/u);
   assert.match(template, /next, build or review, commit, submit, next/u);
   assert.match(template, /When next has nothing for your seat, end your turn/u);
