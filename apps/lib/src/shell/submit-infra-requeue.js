@@ -23,6 +23,12 @@ const PAUSE_MS = 5_000;
 const NO_RUNNER_PAUSE_MS = 30_000;
 /** Reruns of the same candidate after its first infrastructure failure. */
 export const INFRA_RETRIES = 3;
+/** A busy board or locked slot database is contention, not a failed gate: it waits and retries before anything counts [C7]. */
+export const BUSY_CODES = Object.freeze(new Set(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED']));
+const BUSY_FIRST_MS = 5_000;
+const BUSY_CAP_MS = 60_000;
+/** The patience for one run of busy answers: one claim lease. */
+const BUSY_BUDGET_MS = 2 * 60 * 60 * 1000;
 /** Health waits before an attempt counts as exhausted: about 10 minutes with the default pause. */
 const HEALTH_WAITS = 20;
 
@@ -71,18 +77,31 @@ function pause(ms) {
  *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
  * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number }} [options]
- * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
+ * @returns {Promise<{ result: any, busyWaits: Array<{ code: string, seconds: number }>, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, busyBudgetMs = BUSY_BUDGET_MS, busyFirstMs = BUSY_FIRST_MS } = {}) {
   const attempts = [];
+  const busyWaits = [];
+  let busyMs = 0;
+  let busyStreak = 0;
   let avoided = new Set();
   for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
-      return { result, attempts, avoided: [...avoided] };
+      return { result, attempts, avoided: [...avoided], busyWaits };
     } catch (error) {
       const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
+      if (BUSY_CODES.has(code) && busyMs < busyBudgetMs) {
+        // Contention says nothing about the runner or the candidate: wait with backoff, then run the same candidate again.
+        const ms = Math.min(busyFirstMs * 2 ** busyStreak, BUSY_CAP_MS, busyBudgetMs - busyMs);
+        busyStreak += 1; busyMs += ms; attempt -= 1;
+        busyWaits.push({ code, seconds: Math.round(ms / 100) / 10 });
+        say(`queued gate hit ${code}: the board is busy, not a gate failure; waiting ${Math.round(ms / 1000)} s and running the same candidate again (no attempt counted)`);
+        await wait(ms);
+        continue;
+      }
+      busyMs = 0; busyStreak = 0;
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
       if (attempt > retries) throw exhausted(attempts, error);
