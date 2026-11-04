@@ -114,6 +114,7 @@ test('the native item timeline reads as sentences with clamped notes and working
     await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
     await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
+    console.error('DBG1', await chrome.stable(noteRow + "?.querySelector('.tl-body')?.innerHTML"));
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
     const previewError = noteRow + "?.querySelector('.code-ref.open .code.no')";
     await chrome.waitFor("(" + notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0) || !!" + previewError);
