@@ -118,6 +118,7 @@ for (const provider of ['codex', 'claude']) test(`synthetic ${provider} usage re
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const id = document(box.run(box.repo, 'add', 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
+    '--brief', 'Files: web/ready\nTest: synthetic usage is visible in native item and stats reads\nChange: seed a lightweight provider usage fixture.',
     '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
   const identity = 'input-split-fixture-' + provider;
   const directory = provider === 'codex' ? join(box.dir, 'codex', 'sessions') : join(box.dir, 'claude', 'projects', 'fixture');
