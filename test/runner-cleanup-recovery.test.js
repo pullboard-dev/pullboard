@@ -17,7 +17,9 @@ import { installSshStandIn } from './runner-ssh-fixture.js';
 /** Refuse one exact-health transport, then run the actual pinned worker on a private SSH host. */
 function observe(t, mode) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('true');
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'runner-cleanup-recovery-fixture';
+  const box = helpers.project('true', sandbox);
   const bin = join(box.dir, 'cleanup-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
   const worker = join(box.dir, 'worker'), requests = join(box.dir, 'requests.jsonl');
@@ -41,7 +43,7 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
   const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
   writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
     `process.stderr.write(${JSON.stringify('fixture exact-cleanup worker probe refused\n')}); ${failure}`));
-  const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
+  const url = path => pathToFileURL(join(import.meta.dirname, '..', path)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
     import { randomUUID } from 'node:crypto';
@@ -49,9 +51,9 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
     import { once } from 'node:events';
     import { existsSync, mkdirSync } from 'node:fs';
     import { join } from 'node:path';
-    import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
-    import { claimRunnerLaunch, runnerLaunchAllowed } from ${JSON.stringify(url('runner-transport.js'))};
+    import { probeRunnerHealth } from ${JSON.stringify(url('packages/runners/index.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('packages/resources/index.js'))};
+    import { claimRunnerLaunch, runnerLaunchAllowed } from ${JSON.stringify(url('packages/runners/index.js'))};
     const root=${JSON.stringify(root)};
     const runner={host:${JSON.stringify(HOST)},node:${JSON.stringify(node)},root,slots:1,browser:0};
     const db=new DatabaseSync(':memory:');
