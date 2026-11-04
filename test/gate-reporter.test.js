@@ -36,8 +36,6 @@ test('an aborted landing publishes the first failing file and test as a structur
       "  process.stderr.write('TRACE run-tests: before execution branch\\n');\n  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)"],
   ]);
   instrument('packages/gate/src/shell/test-file-dispatch.js', [
-    ["    const observe = ({ process: child }) => {", "    const observe = ({ process: child }) => { process.stderr.write('TRACE child observer: spawn event\\n');"],
-    ["    await Promise.all(owned.map(record => record.closed));", "    process.stderr.write('TRACE child observer: owned=' + owned.length + '\\n');\n    await Promise.all(owned.map(record => record.closed));\n    process.stderr.write('TRACE child observer: closed\\n');"],
     ["  const files = options.selectedFiles ?? options.files ?? [];", "  const files = options.selectedFiles ?? options.files ?? [];\n  process.stderr.write('TRACE dispatch: files=' + files.length + '\\n');"],
     ["      browser = await browserLease(file);", "      process.stderr.write('TRACE fileRun: start\\n');\n      browser = await browserLease(file);\n      process.stderr.write('TRACE fileRun: browser acquired\\n');"],
     ["      unlock = await acquire();", "      unlock = await acquire();\n      process.stderr.write('TRACE fileRun: queue acquired\\n');"],
