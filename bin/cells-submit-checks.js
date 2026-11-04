@@ -446,6 +446,12 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const title = typeof item.item_title === 'string' ? item.item_title : '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const source = commit;
+  // Generic repositories have no cells contract to analyze; determine that from accepted Git metadata before
+  // consulting or provisioning any inventory. Planned repositories still require their completed artifact below.
+  if (!git(root, ['ls-tree', '--name-only', acceptedMain, '--', 'bin/cells-plan.json']).trim()) {
+    return { acceptedMain, source, cells: [], existingCuts: [], problems: [], warnings: [], reorg: null,
+      ...(services.collectMachinery ? { machinery: [] } : {}) };
+  }
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
   // A diff confined to root test/ and docs/ touches no cell code, so the inventory rebuild (about half of each gate on
