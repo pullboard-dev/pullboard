@@ -1,47 +1,61 @@
-/** Landing leaves one item without its own test plan out of the batch, and the rest still land [C7,#2897]. */
+/** A landing item with no readable test plan falls back to running tests and lands; a missing plan never stops landing [C7,#2897]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
-import * as store from '../packages/store/index.js';
-import { openBoard } from '../apps/lib/index.js';
-import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
-import { itemLandingPlanMissing } from '../packages/landing/src/shell/landing-step-gate.js';
+import { after, test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { makeLandProjectFixtures } from './land-project-fixture.js';
+import { json } from './land-board-fixture.js';
 
-/** A real repository whose one commit is both trunk and each item's checked head, so freshness holds. */
-function repo(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-plan-missing-'));
-  const board = openBoard(':memory:', { now: () => new Date('2026-11-04T07:00:00.000Z') });
-  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
-  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' }).stdout.trim();
-  git('init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'file.js'), 'export const value = 1;\n');
-  git('add', '-A');
-  spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base'], { cwd: root });
-  return { root, board, head: git('rev-parse', 'HEAD') };
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+const { landProject, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
+
+/** Add, join and claim one item whose check is the given command, or no check at all. */
+function item(box, number, check) {
+  const file = `web/land-${number}.test.js`;
+  const path = join(box.dir, `land-${number}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
+  assert.equal(box.run(path, 'join', 'web').code, 0);
+  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`, '--route', 'strong',
+    ...(check ? ['--check', check(file)] : []), '--json');
+  assert.equal(added.code, 0, added.out + added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(path, 'claim', String(id)).code, 0);
+  return { path, item: id, file };
 }
 
-/** A verified, unlanded item at the given commit. */
-const verified = (id, commit) => ({ item_id: id, item_status: 'verified', item_merged_commit: null, item_commit: commit, item_hold_at: null, item_after: null });
+/** A literal test plan: the project's own focused runner on the item's test file. */
+const literal = box => file => `${box.affected} ${file}`;
+/** A check landing cannot read as a test plan: a helper script rather than the test runner. */
+const opaque = box => file => `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`;
 
-test('an item without a test plan leaves the batch and the other item stays ready [C7,#2897]', t => {
-  const { root, board, head } = repo(t);
-  const listed = [verified(7, head), verified(8, head)];
-  const selected = candidates(board, root, head, 8, { listItems: () => listed, planMissing: item => item.item_id === 8 });
-  assert.deepEqual(selected.ready.map(item => item.item_id), [7]);
-  assert.deepEqual(selected.blocked.map(entry => [entry.id, entry.code]), [[8, 'LAND_PLAN_MISSING']]);
-  assert.match(selected.blocked[0].message, /set its check or resubmit it/u);
+/** Submit and accept every entry through the real hooks, then run one plain land. */
+function landAll(box, entries) {
+  for (const entry of entries) submitItem(box, entry);
+  for (const entry of entries) acceptItem(box, entry);
+  return box.run(box.repo, 'land', '--json');
+}
+
+test('items with no check or an unreadable check land with a literal-plan item, with no LAND_DIAGNOSTIC [C7,#2897]', { timeout: 300_000 }, // budget: three real submits, accepts and one landing; hang ceiling only.
+() => {
+  const box = landProject();
+  const entries = [item(box, 1, literal(box)), item(box, 2, null), item(box, 3, opaque(box))];
+  const landed = landAll(box, entries);
+  assert.equal(landed.code, 0, landed.out + landed.err);
+  assert.doesNotMatch(landed.out + landed.err, /LAND_DIAGNOSTIC/u);
+  const result = JSON.parse(landed.out);
+  assert.equal(result.batch?.state, 'landed', landed.out);
+  assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map(entry => entry.item), 'all three items land');
+  for (const entry of entries) assert.ok(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, `#${entry.item} recorded its merge`);
 });
 
-test('without the plan check every fresh item is ready, as before [C7,#2897]', t => {
-  const { root, board, head } = repo(t);
-  const selected = candidates(board, root, head, 8, { listItems: () => [verified(7, head), verified(8, head)] });
-  assert.deepEqual(selected.ready.map(item => item.item_id), [7, 8]);
-});
-
-test('an item with no green submit proof has no landing plan [C7,#2897]', t => {
-  const { root, board, head } = repo(t);
-  assert.equal(itemLandingPlanMissing(root, board, verified(9, head), 'node bin/run-tests.js'), true);
+test('in a project whose test command is not Node, verified items with passing gates land [C7,#2897]', { timeout: 300_000 }, // budget: two real submits, accepts and one landing; hang ceiling only.
+() => {
+  const box = landProject();
+  const entries = [item(box, 1, opaque(box)), item(box, 2, opaque(box))];
+  const landed = landAll(box, entries);
+  assert.equal(landed.code, 0, landed.out + landed.err);
+  const result = JSON.parse(landed.out);
+  assert.equal(result.batch?.state, 'landed', landed.out);
+  assert.deepEqual([...result.landed].sort((a, b) => a - b), entries.map(entry => entry.item));
 });

@@ -51,7 +51,7 @@ export function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, planMissing = null } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems } = {}) {
   const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
@@ -80,8 +80,6 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
     const stale = projector.state(item);
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
-    // One item without its own test plan leaves the batch before the merge; the others keep landing [C7,#2897].
-    if (planMissing?.(item)) { blocked.push({ id: item.item_id, code: 'LAND_PLAN_MISSING', message: 'no source-matched submit proof or frozen check; set its check or resubmit it' }); continue; }
     const known = knownReds.find((entry) => entry.id === item.item_id && entry.commit === item.item_commit
       && (entry.reviewedCommit ?? entry.commit) === item.item_landing_commit);
     if (known && !known.tests.every((failure) => nativeLandingWaiverFor(board, failure, landingPorts))) {

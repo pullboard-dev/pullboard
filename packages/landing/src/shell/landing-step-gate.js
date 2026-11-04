@@ -64,16 +64,15 @@ function batchAffectedTests(state, readEvents, readItem) {
   const root = state.batch.root;
   const commit = headCommit(root);
   const submitted = submittedSelections(state.batch.items, readEvents, (entry, detail) => criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail));
-  if (state.batch.items.length && submitted === null && state.config.affectedTests?.trim()) {
-    throw new Refused('LAND_DIAGNOSTIC', 'the batch has no complete source-matched affected-test plan; refresh its items\' submit proofs before landing');
-  }
+  // No readable plan for some item falls back to selection over the merged change, then to the full gate; a missing
+  // plan never stops landing, so repos whose checks are not literal Node test commands still land (#2897).
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
     const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit }) : { files: submitted };
-    if (affected.full && affected.reason !== 'the change reaches every test file') throw new Refused('LAND_DIAGNOSTIC', `cannot establish the batch's affected files: ${affected.reason}`);
+    if (affected.full && affected.reason !== 'the change reaches every test file') return { full: true, fullGate: true, reason: affected.reason, mandatory, files: [] };
     const named = new Set(affected.files);
     // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
     const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
@@ -87,9 +86,16 @@ function batchAffectedTests(state, readEvents, readItem) {
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
+/** The project's own full configured gate, used when no narrower plan can be established [#2897]. */
+function fullGatePlan(state) {
+  const config = { ...state.config, [VALUE_GATE]: true };
+  return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+}
+
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
 export function batchGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
   const selection = batchAffectedTests(state, readEvents, readItem);
+  if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
     const command = testTierCommand(selection.testTiers, selection.files) || 'true';
     return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
@@ -102,21 +108,11 @@ export function batchGatePlan(state, { readEvents = id => store.events(state.boa
     const config = { ...state.config, [VALUE_GATE]: true };
     return { config, files: selection.files, subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
   }
-  if (selection.full && selection.reason !== 'the change reaches every test file') throw new Refused('LAND_DIAGNOSTIC', `cannot establish the batch's affected files: ${selection.reason}`);
+  if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
   const files = [...new Set([...selection.files, ...deferred])].sort();
   const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
   const config = { ...state.config, gate: command, [VALUE_GATE]: true };
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
-}
-
-/**
- * True when one verified item has no source-matched test plan of its own, so selection leaves it out of the batch
- * before the merge and the rest still land [C7,#2897].
- */
-export function itemLandingPlanMissing(root, board, item, runner) {
-  const entry = { id: item.item_id, commit: item.item_commit };
-  return submittedSelections([entry], id => store.events(board, { itemId: id }),
-    (row, detail) => criterionTestFiles(root, row, store.getItem(board, row.id), runner, detail)) === null;
 }
 
 /** Return a complete source-matched proof union, or null when any item lacks one. */
