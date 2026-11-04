@@ -829,7 +829,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
       assert.equal(opened.criterion, criterion, 'the exported item shows its criterion');
       assert.deepEqual(opened.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
         'the exported item shows both verdicts with their notes');
-      assert.deepEqual(opened.moves, ['add', 'claim', 'proof-run', 'submit', 'reject', 'claim', 'proof-run', 'submit', 'accept'], 'the exported thread shows every move including native proof receipts');
+      assert.deepEqual(opened.moves, ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'submit', 'accept'], 'the exported thread shows every move including native proof receipts');
       assert.deepEqual(opened.facts, ['The corrected greeting renders offline.'], 'the exported thread shows its fact');
       assert.ok(host.requests.some((request) => request.path.endsWith('/state.json')), 'the page reads the exported state file');
       assert.deepEqual(host.requests.filter((request) => !request.path.startsWith('/demo/') || request.status !== 200), [],
