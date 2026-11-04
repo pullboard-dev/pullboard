@@ -1,6 +1,7 @@
 /** Release review reservations when their agent heartbeat has been absent for two minutes [C7,V15]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { cli, fixture } from './next-take-fixture.js';
@@ -12,6 +13,15 @@ function independentReviewer(box, name) {
   const id = store.register(box.board, { lane: 'review', path, parent: `liveness-review-${name}`, family: 'Family Beta', route: 'strong' });
   store.heartbeatSeat(box.board, id);
   return { id, path };
+}
+
+/** Remove a reviewer's private heartbeat row to model a process that has exited. */
+function forgetHeartbeat(box, id) {
+  const file = box.board.db.prepare("PRAGMA database_list").all().find(row => row.name === 'main').file + '.presence.sqlite';
+  const presence = new DatabaseSync(file);
+  try {
+    presence.prepare('DELETE FROM heartbeat WHERE seat=?').run(JSON.stringify([store.boardId(box.board), id]));
+  } finally { presence.close(); }
 }
 
 test('a review reservation with no heartbeat for two minutes is available to the next reviewer [C7,V15]', async t => {
@@ -48,4 +58,21 @@ test('a reviewer heartbeat within two minutes keeps its reservation held [C7,V15
   assert.throws(() => store.reserveReview(box.board, id, {
     agentId: challenger.id, leaseMs: 30 * 60_000, policy: 'any',
   }), error => error.code === 'REVIEW_HELD');
+});
+
+test('a reviewer process with no heartbeat releases its reservation before the lease expires [C7,V15]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Review reservation whose owner process exited');
+  box.submit(id);
+  const holder = independentReviewer(box, 'holder-exited');
+  const successor = independentReviewer(box, 'successor-after-exit');
+  const reserved = await cli(box, holder.path, ['next', '--verify', String(id)]);
+  assert.equal(reserved.code, 0, reserved.out + reserved.err);
+  assert.ok(Date.parse(store.getItem(box.board, id).item_review_until) > box.clock.now().getTime(), 'the lease itself is still live');
+
+  forgetHeartbeat(box, holder.id);
+  const reclaimed = await cli(box, successor.path, ['next', '--verify']);
+  assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
+  assert.equal(reclaimed.document.item.item_id, id, 'the review returns to the queue when its process is gone');
+  assert.equal(store.getItem(box.board, id).item_review_by, successor.id, 'the successor takes the reservation');
 });
