@@ -60,10 +60,10 @@ export const nativeBoardRequired = false;
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
-  const prices = loadMachineSettings().costPrices;
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
+  const prices = loadMachineSettings().costPrices;
   const { item, queuedSubmit, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
