@@ -81,10 +81,12 @@ async function remoteCells(encoded) {
   const root = process.cwd();
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  /** Run a pinned command and retain its actionable refusal line for gate diagnostics. */
   const run = (command, args, options = {}, step = `command ${command}`) => {
     const result = spawnSync(command, args, { cwd: root, env, maxBuffer: 128 * 1024 ** 2, ...options });
     if (result.error || result.status !== 0) {
-      const diagnostic = result.stderr?.toString('utf8').split(/\r?\n/u).find(Boolean);
+      const lines = result.stderr?.toString('utf8').split(/\r?\n/u).map(line => line.trim()).filter(Boolean) ?? [];
+      const diagnostic = lines.findLast(line => /^(?:[A-Za-z]*Error|Refused):/u.test(line)) ?? lines[0];
       throw new Error(`${step} failed: ${diagnostic ?? result.error?.message ?? `exit ${result.status}`}`);
     }
     return result.stdout;
