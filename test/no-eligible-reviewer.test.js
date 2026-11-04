@@ -137,7 +137,7 @@ test('the sentinel names an already-submitted strict item that became unreviewab
   f.credit(id, 'core-2');
   const found = report().stuck.find(entry => entry.cause === 'NO_ELIGIBLE_REVIEWER');
   assert.ok(found, 'crediting a claude companion leaves no reviewer');
-  assert.ok(found.why.includes('builder core-1 (openai)') && found.why.includes('companion author core-2 (claude)'), found.why);
+  assert.ok(found.why.includes('builder core-1 (openai)') && found.why.includes('companion author core-2 (anthropic)'), found.why);
 });
 
 const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1 @@\n+x\n';

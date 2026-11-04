@@ -9,6 +9,7 @@
  * repo-relative with forward slashes, and nothing depends on the order the file system lists them.
  */
 import {
+  existsSync,
   lstatSync,
   readdirSync,
   readFileSync,
@@ -154,7 +155,7 @@ export function rootOf(argv = process.argv) {
  */
 export function runCheck(meta, find) {
   // Node resolves symlinks in a module's URL but not in argv, so compare real paths.
-  if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(meta.url))) report(find(rootOf()));
+  if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(meta.url))) report(find(rootOf()));
 }
 
 /** Preserve every selected working source file, including both compatibility shims and their mapped bodies. */

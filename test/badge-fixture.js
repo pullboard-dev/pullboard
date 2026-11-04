@@ -13,7 +13,7 @@ export function assertBadgeLanding(e2e) {
   assert.equal(reviewer.code, 0, reviewer.err);
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private badge landing');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
