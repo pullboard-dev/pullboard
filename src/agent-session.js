@@ -13,6 +13,7 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { AGENT_SESSION_IDS, AGENT_SHELL_MARKERS } from './person.js';
 import {
   holdsLease,
   takeResource,
@@ -27,6 +28,18 @@ import { Refused } from './refused.js';
 export const CHECKOUT_SESSION_TOKEN_ENV = 'PULLBOARD_CHECKOUT_SESSION_TOKEN';
 /** How long a hook waits for a checkout another command holds before it names the holder and stops (#906). */
 export const HOOK_CHECKOUT_WAIT_MS = 30_000;
+
+/**
+ * The caller's agent-session identity and checkout lease. A process that acts as its own seat, or as the view, must
+ * never inherit them: a scripted seat would be recorded under the caller's session and refused as self-verification
+ * (#952), and a view-spawned scan would be judged against a checkout that a later session of the same agent took over.
+ */
+export const CALLER_SESSION_NAMES = Object.freeze([...AGENT_SHELL_MARKERS, ...AGENT_SESSION_IDS, CHECKOUT_SESSION_TOKEN_ENV]);
+
+/** Copy an environment without the caller's agent session, so the child carries no session digest to bind with. */
+export function withoutCallerSession(environment = process.env) {
+  return Object.fromEntries(Object.entries(environment).filter(([name]) => !CALLER_SESSION_NAMES.includes(name)));
+}
 
 /** Take the checkout's lease, act under the one a parent command passed down, or stop after waitLimitMs naming the holder. */
 async function checkoutLease(info, name, agent, waitLimitMs) {

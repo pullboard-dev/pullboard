@@ -4,6 +4,10 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- The view's ten-minute health scan runs as the view, not as the agent shell that started it, so a coordinator takeover no longer leaves it refused NOT_YOUR_CHECKOUT every ten minutes with no health findings recorded.
+
 ## [0.9.3] - 2026-10-26
 
 Teams and many boards: a board now knows its people and their roles, each repo can keep a private board beside the team board, and every move completes locally at once.

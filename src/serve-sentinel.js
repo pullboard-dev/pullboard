@@ -1,6 +1,7 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { withoutCallerSession } from './agent-session.js';
 import { listProjects } from './projects.js';
 import { loadConfig } from './config.js';
 import { healthSentinelEnabled } from './settings.js';
@@ -15,11 +16,15 @@ function sentinelRunsFor(root) {
   return healthSentinelEnabled(loadConfig(root));
 }
 
-/** Run only the ordered health scan in one owned child and drain it on view shutdown. */
-function refreshBoard(root, signal, words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false) {
+/**
+ * Run only the ordered health scan in one owned child and drain it on view shutdown. The child runs as the view, not
+ * as the agent whose shell started it: with that shell's session markers it would bind the main checkout under a stale
+ * session and be refused NOT_YOUR_CHECKOUT every ten minutes once a later session of the agent took the checkout over.
+ */
+export function refreshBoard(root, signal, { words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false, start = spawn } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...words], {
-      cwd: root, env: process.env, stdio: 'ignore', signal,
+    const child = start(process.execPath, [CLI, ...words], {
+      cwd: root, env: withoutCallerSession(process.env), stdio: 'ignore', signal,
     });
     let timer;
     /** Bound shutdown of this exact child; never signal a peer or a process selected by name. */
@@ -39,7 +44,7 @@ function refreshBoard(root, signal, words = ['sentinel', 'run', '--health-only',
 
 /** Run the configured ordinary canary command; a failed round trip is a recorded observation. */
 function refreshCanary(root, signal) {
-  return refreshBoard(root, signal, ['relay', 'canary', 'run', '--json'], true);
+  return refreshBoard(root, signal, { words: ['relay', 'canary', 'run', '--json'], degradedIsExpected: true });
 }
 
 /** Start after the view listens; scans use the ordinary sentinel command so each board's off switch and ordering apply. */
