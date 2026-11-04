@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../packages/store/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 
 const QUIET_MS = 2 * 60_000;
 
