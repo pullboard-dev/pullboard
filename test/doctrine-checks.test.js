@@ -41,14 +41,14 @@ function commitWeb(box, files, message) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
-/** Create and claim a fresh web item whose worktree continues the prior candidate's files. */
-function nextWebItem(box, previous, title) {
+/** Create and claim a fresh web item from main so it cannot stack on an unverified candidate. */
+function nextWebItem(box, title) {
   const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.ok(Number.isSafeInteger(id) && id > 0, `the board returns a real item id: ${added.out}`);
   const web = join(box.dir, `web-${id}`);
-  const source = box.git(previous, 'rev-parse', 'HEAD');
+  const source = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
   assert.match(box.run(web, 'join', 'web').out, /joined as web-/);
   assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
@@ -106,7 +106,7 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.doesNotMatch(roseOutput, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
 
   // A later gate reports a new per-file problem even when the total falls.
-  const gainedItem = nextWebItem(box, box.web, 'Clear the old markers');
+  const gainedItem = nextWebItem(box, 'Clear the old markers');
   commitWebAt(box, gainedItem.web, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
   const gained = box.run(gainedItem.web, 'submit', String(gainedItem.id));
   const gainedOutput = `${gained.out}${gained.err}`;
@@ -116,7 +116,7 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
 
   // A fall passes and is shown as N, was M.
-  const fellItem = nextWebItem(box, gainedItem.web, 'Finish the page');
+  const fellItem = nextWebItem(box, 'Finish the page');
   commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
   const fell = box.run(fellItem.web, 'submit', String(fellItem.id));
   assert.equal(fell.code, 0, fell.err);
