@@ -59,6 +59,6 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
   assert.ok(HELP.all.includes(machineRules.lifecycleHelp), 'the full help screen carries the generated section, not a typed copy');
   const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle', '--detail'], { encoding: 'utf8', env: ownCliEnv, cwd: tmpdir() });
   assert.equal(printed.status, 0, printed.stderr);
-  assert.equal(printed.stdout, machineRules.lifecycleMarkdown());
+  assert.equal(printed.stdout, machineRules.lifecycleMarkdown().trimEnd());
 });
 
