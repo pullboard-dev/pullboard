@@ -17,7 +17,7 @@ export { createSshBoardLinkAuthority } from './src/shell/board-link-ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/shell/board-link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/shell/board-members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/shell/board-migrate.js';
-export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/shell/board-query.js';
+export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/shell/board-query.js';
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/shell/board-read-auxiliary.js';
 export { readBoardSnapshot } from './src/shell/board-read-open.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/shell/board-rehome.js';
@@ -83,7 +83,7 @@ export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, sub
 export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
-export { itemPinned, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
+export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
