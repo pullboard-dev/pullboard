@@ -32,6 +32,15 @@ import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 
 /**
+ * The proof a landing records: a green gate's tree and log, keeping the submit receipt it reused, or the waived
+ * proof for a red one [C7,#2902]. Why: the board must be able to name the receipt that proved a reused tree.
+ */
+export function landingProof(gate, waived) {
+  if (!gate.isGreen) return waived();
+  return { tree: gate.tree, failures: [], logPath: gate.logPath, ...(gate.reusedSubmitGate ? { reusedSubmitGate: gate.reusedSubmitGate } : {}) };
+}
+
+/**
  * A green submit gate that already ran exactly this merged tree, for the batch's one item at its frozen bar, or null
  * [C7,#2902]. Why: when main has not moved since the item's gate, landing re-ran the same tests on the same bytes.
  */
@@ -126,7 +135,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
-  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
+  const proof = landingProof(gate, () => waivedProof(state, gate));
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   await prepareFlakeLanding(state);
   await save(state, { state: 'trunk', proof });

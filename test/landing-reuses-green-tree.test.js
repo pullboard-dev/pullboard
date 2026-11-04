@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { provenTreeGate } from '../packages/landing/src/shell/landing-step-trunk.js';
+import { landingProof, provenTreeGate } from '../packages/landing/src/shell/landing-step-trunk.js';
 
 const TREE = 't'.repeat(40);
 const COMMIT = 'c'.repeat(40);
@@ -34,4 +34,14 @@ test('a different tree, commit, bar, gate state or a multi-item batch runs the p
   assert.equal(provenTreeGate(red.board, [{ id: red.id, commit: COMMIT }], TREE), null, 'a red gate proves nothing');
   const rebarred = fixture(t, { digest: 'old-digest' });
   assert.equal(provenTreeGate(rebarred.board, [{ id: rebarred.id, commit: COMMIT }], TREE), null, 'a changed bar needs its own run');
+});
+
+test('the landing proof keeps the reused submit receipt id, and a fresh gate run records none [C7,#2902]', t => {
+  const { board, id } = fixture(t);
+  const reused = provenTreeGate(board, [{ id, commit: COMMIT }], TREE);
+  assert.deepEqual(landingProof(reused, () => assert.fail('a green reuse needs no waiver')),
+    { tree: TREE, failures: [], logPath: null, reusedSubmitGate: 'job-1' });
+  assert.deepEqual(landingProof({ isGreen: true, tree: 'u'.repeat(40), logPath: '/log' }, () => null),
+    { tree: 'u'.repeat(40), failures: [], logPath: '/log' }, 'a changed tree ran its own gate, so no receipt is reused');
+  assert.equal(landingProof({ isGreen: false }, () => 'waived'), 'waived');
 });
