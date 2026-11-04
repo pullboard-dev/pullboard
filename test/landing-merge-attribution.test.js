@@ -54,7 +54,7 @@ test('first containing commit is exact across trunk, merge and absent sources wi
   git(realGit, root, ['fast-import', '--quiet'], { env, input });
 
   const chain = git(realGit, root, ['rev-list', '--first-parent', '--reverse', 'refs/heads/main']).split('\n');
-  const merge = chain[768];
+  const merge = chain[767];
   const sourceOnMain = chain[127];
   const feature = git(realGit, root, ['rev-parse', 'refs/heads/feature']);
   const orphan = git(realGit, root, ['rev-parse', 'refs/heads/orphan']);
