@@ -28,7 +28,7 @@ test('Dashboard API binds native summary leases, merge receipts and complete his
   });
   for (const title of ['Live builder', 'Merged work', 'Reserved review', 'Held open', 'First open', 'Second open']) {
     box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is represented by the actual API.',
-      '--check', 'test -f pullboard.json', '--wait');
+      '--check', 'test -f pullboard.json', '--brief', 'Files: pullboard.json\nTest: the fixture item shows in the API', '--wait');
   }
   build(box, alpha, 2, 'dashboard-merged.txt');
   build(box, alpha, 3, 'dashboard-review.txt');
