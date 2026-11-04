@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { flakyProject, TITLE } from '../packages/git/tests/flakes-fixture.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
 import { openBoard, flakeQuarantines, gateRuns } from '../apps/lib/index.js';
 import * as store from '../src/board.js';
 import { recordGateRun, requireSubmitDiagnosticAdmission, submitFlakePairs } from '../packages/flakes/index.js';
@@ -15,18 +15,12 @@ import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-eng
 import { proofRunReceipt } from '../packages/store/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 
-/** Drive fixture commands through the committed private tooling installation. */
-function toolingCli(box, cwd, args) {
-  const result = runFixtureChild(process.execPath, [join(box.root, 'tooling/bin/pullboard.js'), ...args, '--json'], { cwd, env: box.env, encoding: 'utf8' });
-  return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure };
-}
-
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */
 function fixture(t, deterministic = false, companion = false) {
-  const box = flakyProject(t);
-  box.cliAt = (cwd, ...args) => toolingCli(box, cwd, args);
-  box.cli = (...args) => box.cliAt(box.root, ...args);
-  copyCommittedPackageFiles({ repo: box.root, git: (_root, ...args) => box.git(...args) }, resolve(import.meta.dirname, '..'), { directory: 'tooling' });
+  const box = flakyProject(t, { beforeInit: ({ root, git }) => {
+    copyCommittedPackageFiles({ repo: root, git: (_root, ...args) => git(...args) }, resolve(import.meta.dirname, '..'));
+    return join(root, 'bin/pullboard.js');
+  } });
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
@@ -35,8 +29,8 @@ function fixture(t, deterministic = false, companion = false) {
   delete config.submitGate;
   delete config.submitDeferAbove;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
-  // This synthetic consumer project has no cells-plan authority; the installed runtime is copied unchanged.
-  rmSync(join(box.root, 'tooling/bin/cells-plan.json'), { force: true });
+  // Remove only the consumer's generated cells plan; keep the shipped runtime manifest and modules intact.
+  rmSync(join(box.root, 'bin/cells-plan.json'), { force: true });
   if (deterministic) writeFileSync(join(box.root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';\nimport {test} from 'node:test';\nimport {appendFileSync} from 'node:fs';\ntest(${JSON.stringify(TITLE)},()=>{appendFileSync(${JSON.stringify(box.counter)},'run\\n');assert.fail('deterministic controlled failure');});\n`);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: prepare controlled submit consumer');
   const made = box.cli('worktree', 'core');

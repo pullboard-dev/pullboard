@@ -27,8 +27,8 @@ import {
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
 
-/** Initialize a real private board and Git history; all gate commands use only this synthetic project. */
-export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false } = {}) {
+/** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
+export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false, beforeInit } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const root = join(scratch, 'repo'); mkdirSync(root);
@@ -39,17 +39,19 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
   /** Run Git only within this fixture with a private deterministic identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  let cliBin = BIN;
   /** Exercise the real CLI, retaining only its structured receipt for assertions. */
   const cliAt = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd, env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [cliBin, ...args, '--json'], { cwd, env, encoding: 'utf8' });
     return { code: result.status, document: result.stdout?.trim() ? JSON.parse(result.stdout) : null, failure: result.failure };
   };
   /** Keep the coordinator's normal command path separate from its actual joined worktrees. */
   const cli = (...args) => cliAt(root, ...args);
   git('init', '-q', '-b', 'main');
+  cliBin = beforeInit?.({ root, scratch, env, git }) ?? BIN;
   assert.equal(cli('init').code, 0);
   mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
-  symlinkSync(BIN, join(root, 'node_modules/.bin/pullboard'));
+  symlinkSync(cliBin, join(root, 'node_modules/.bin/pullboard'));
   appendFileSync(join(root, '.git/info/exclude'), '\nnode_modules/\n');
   const file = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
