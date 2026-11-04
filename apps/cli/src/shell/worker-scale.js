@@ -113,7 +113,7 @@ export function liveLocalSeats(board) {
     .map(seat => seat.agent_id);
 }
 
-/** Observe the planner's queue inputs and seats from one board read; managed seats count even before they beat. */
+/** Observe the planner's queue inputs and seats from one board read; a build counts only when next would offer it, so an item whose gate already covers its head adds no seat (#2884); managed seats count even before they beat. */
 export function observeWorkers(board, { lane, managed, inactive = [], route = 'strong', now = Date.now() }) {
   const items = store.listItems(board);
   const ids = [...new Set([...liveLocalSeats(board).filter(id => !inactive.includes(id)), ...managed])];
@@ -121,7 +121,7 @@ export function observeWorkers(board, { lane, managed, inactive = [], route = 's
     worth: readCapacity(board, now, { currentProofCounters, proofCounter }).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item) && store.canTake(route, item.item_route)).length,
-    builds: readyItems(board, store.foreignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions }).filter(item => item.item_lane === lane && store.canTake(route, item.item_route)).length,
+    builds: readyItems(board, store.foreignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions }).filter(item => item.item_lane === lane && store.canTake(route, item.item_route) && !store.gateAtHead(board, item)).length,
   };
 }
 

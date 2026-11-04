@@ -216,3 +216,22 @@ test('the board observation counts every live local seat and held claims and rev
   const plan = planWorkerScale({ ...observed, worth: 2, budget: parseWorkerBudget('40/day'), usedHours: 0, cycleHours: 1 });
   assert.deepEqual(plan.stop, [idle], 'K below the busy seats stops the idle seat only');
 });
+
+test('the scaler counts no build for open items whose gate already covers their head and plans no launch [B26,C7]', t => {
+  const at = Date.parse('2026-10-28T12:00:00Z');
+  const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
+  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
+  const ids = [];
+  for (let index = 0; index < 30; index += 1) ids.push(store.addItem(board, { by: 'coordinator', lane: 'web', title: `gated ${index}`, brief: `Files: web/gated${index}.js` }));
+  assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
+  const commit = id => String(id).padStart(40, 'c');
+  for (const id of ids) {
+    board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(commit(id), id);
+    board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`submit_handoff:${id}`,
+      JSON.stringify({ id: `job-${id}`, commit: commit(id), state: 'queued', at: new Date(at - 1000).toISOString() }));
+  }
+  const observed = observeWorkers(board, { lane: 'web', managed: [], now: at });
+  assert.equal(observed.builds, 0, 'a queued gate at the head leaves nothing to build');
+  const plan = planWorkerScale({ ...observed, worth: 5, budget: parseWorkerBudget('40/day'), usedHours: 0, cycleHours: 1 });
+  assert.equal(plan.launch, 0, 'one cycle plans 0 launches');
+});
