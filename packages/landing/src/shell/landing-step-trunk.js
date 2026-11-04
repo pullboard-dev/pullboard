@@ -14,6 +14,8 @@ import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
+import { unwaivedFailures } from './landing-step-failures.js';
+import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { returnCulprits } from './landing-step-diagnose.js';
@@ -33,8 +35,11 @@ import { refusalRecord } from '../core/runner-source-hold.js';
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
-  if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
-    throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
+  if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
+    // Named reds no waiver covers are enough to bisect: the board finds the culprits instead of stopping [C7,#2900].
+    const own = bisectableFailures(state.board, gate.failures, state.landingPorts);
+    if (!own) throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
+    return { ...gate, failures: own, unaccounted: true };
   }
   if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
   return gate;
@@ -68,9 +73,10 @@ export async function landOnTrunk(state) {
   try {
     gate = await quickGuards(state);
     if (!gate.isGreen && !waivedProof(state, gate)) {
-      const flakyFiles = await diagnose(state, gate.failures, gate);
+      const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
+      const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
-      const green = await bisect(state, state.batch.items, gate.failures, 'local-split', quickGuards);
+      const green = await bisect(state, state.batch.items, own, 'local-split', quickGuards);
       if (state.flaky || !green.length) {
         if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });
         return;
