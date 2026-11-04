@@ -226,8 +226,20 @@ async function publishApi2Checkpoint(box, boardId, sequence) {
 
   // The actual CLI runs inside relayClientFixture's isolated HOME/PULLBOARD_HOME and publishes through
   // the configured production page writer; it never touches the user's page-cache directory.
-  const published = await box.cli('status');
+  const publishPath = new RegExp(`^/api/v2/boards/${boardId}/uploads/[A-Za-z0-9-]+/publish$`, 'u');
+  const publishesBefore = box.calls.filter(call => call.method === 'POST' && publishPath.test(call.path)).length;
+  const previousCheckpointMode = box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
+  // bin/run-tests uses foreground checkpointing; keep this private writer deterministic in direct node --test runs too.
+  box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = '0';
+  let published;
+  try { published = await box.cli('status'); }
+  finally {
+    if (previousCheckpointMode === undefined) delete box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
+    else box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = previousCheckpointMode;
+  }
   assert.equal(published.code, 0, published.document?.error?.message);
+  const publishesAfter = box.calls.filter(call => call.method === 'POST' && publishPath.test(call.path)).length;
+  assert.ok(publishesAfter > publishesBefore, 'the actual CLI checkpoint publisher writes a new API2 root');
 
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(link.snapshotApiVersion, 2, 'the private board used the API2 paged snapshot writer');
