@@ -7,7 +7,6 @@
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
-  "landing": { "manualOverride": true },
   "submit": { "requireInfraNote": true, "handoff": true },
   "claim": { "reopenFirstRefusalMinutes": 30 },
   "submitInvariants": [
