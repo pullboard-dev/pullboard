@@ -85,10 +85,6 @@ function skippedReviewReasons(failures) {
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
 export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, reviewHeartbeats = null }) {
-  // Apply the same heartbeat lease when selection is a read-only preview as when it reserves atomically.
-  if (verify && reviewHeartbeats === null) {
-    reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
-  }
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });

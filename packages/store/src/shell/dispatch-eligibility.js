@@ -10,10 +10,10 @@ import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
  *
  * @param {any} board
  * @param {{ agent_id: string, agent_lane: string }} nativeSeat - The exact seat resolved by the caller.
- * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], releaseCooldown?: { minutes: number, now: number } | null }} [options]
+ * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], reviewHeartbeats?: Map<string, string | null> | null, releaseCooldown?: { minutes: number, now: number } | null }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map(), releaseCooldown = null } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map(), reviewHeartbeats = null, releaseCooldown = null } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -23,7 +23,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
     && store.reviewHolder(board, item) === agentId);
   if (heldReview) return { item: heldReview, review: true, held: true, reasons: [] };
-  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority, observeIdle });
+  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority, observeIdle, reviewHeartbeats });
   if (review.item) {
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
