@@ -54,7 +54,8 @@ export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedul
   const job = await withPending(directory, () => {
     const current = readMainAudit(file);
     const next = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at, by: process.pid,
-      ...(current?.running && running(current.running) ? { running: current.running } : {}) };
+      ...(current?.running && running(current.running) ? { running: current.running } : {}),
+      ...(current?.adopted ? { adopted: current.adopted } : {}) };
     saveMainAudit(file, next);
     return next;
   });
@@ -71,7 +72,7 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   const directory = automaticLandingDirectory(root);
   if (!await wait(directory, token, dueAt)) return false;
   const file = join(directory, 'pending.json');
-  const self = { pid: process.pid, started: processStart(process.pid) };
+  const self = { pid: process.pid, started: processStart(process.pid), at: new Date().toISOString() };
   let job = await withPending(directory, () => {
     const current = readMainAudit(file);
     if (!current || current.version !== 1 || repoInfo(current.root).commonDir !== repoInfo(root).commonDir) return null;
@@ -81,7 +82,7 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   });
   if (!job) return false;
   while (job) {
-    try { await run(job.root); }
+    try { await run(job.root, job.adopted); }
     catch (error) {
       const failed = { ...job, error: error.message };
       delete failed.running;
@@ -107,14 +108,21 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
 }
 
 /** Recover a durable obligation after a worker disappears; a live or uncertain timer keeps its custody. */
-export async function recoverAutomaticLanding(root, workerUrl) {
+export async function recoverAutomaticLanding(root, workerUrl, options = {}) {
   const directory = automaticLandingDirectory(root);
-  const job = readMainAudit(join(directory, 'pending.json'));
+  const file = join(directory, 'pending.json');
+  const job = readMainAudit(file);
   if (!job) return false;
   if (job.version !== 1 || repoInfo(job.root).commonDir !== repoInfo(root).commonDir) throw new Error('automatic landing repository changed');
   if (job.running && running(job.running)) return false;
   const timer = readMainAudit(join(directory, 'timer.json'));
   if (timer && running(timer)) return false;
-  await scheduleAutomaticLanding(job.root, job.dueAt, workerUrl);
+  if (job.running && !job.adopted) {
+    // The recorded worker is gone mid-batch: note its pid and how long the batch sat unattended, for the replacement to record (#2912).
+    const since = Date.parse(job.running.at ?? '') || Date.now();
+    const adopted = { pid: job.running.pid, gapSeconds: Math.max(0, Math.round((Date.now() - since) / 1000)), at: new Date().toISOString() };
+    await withPending(directory, () => { if (readMainAudit(file)?.id === job.id) saveMainAudit(file, { ...job, adopted }); });
+  }
+  await scheduleAutomaticLanding(job.root, job.dueAt, workerUrl, options);
   return true;
 }

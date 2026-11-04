@@ -18,7 +18,14 @@ import { events } from '../../../../../packages/store/index.js';
 export async function run(io, { first, second, rest, values }) {
   const ctx = personCommandContext(io, { main, ordered });
   const result = await sentinelCommand({ ctx, words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus,
-    sweepSubmitHandoffs: () => import('../submit-handoff.js').then(module => module.sweepDeadSubmitHandoffs(ctx)) });
+    sweepSubmitHandoffs: async () => {
+      await import('../submit-handoff.js').then(module => module.sweepDeadSubmitHandoffs(ctx));
+      // A landing worker that died mid-batch is replaced by the health sweep, not by a later lucky wake (#2912).
+      if (ctx.info?.isMain) {
+        try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(ctx.info.root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
+        catch (error) { io.err(`automatic landing recovery unavailable: ${error.code ?? error.name}: ${error.message}`); }
+      }
+    } });
   if (first === 'run' && second === undefined && ctx.info.isMain) {
     withBoard(ctx, board => { if (whoAmI(ctx, board).id === 'coordinator') recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events }); });
   }
