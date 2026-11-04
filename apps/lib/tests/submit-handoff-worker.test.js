@@ -10,6 +10,8 @@ import { test } from 'node:test';
 import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
 import { submitHandoffWorkerEntrypoint } from '../index.js';
+import { retryBusyHandoffWrite } from '../index.js';
+import { Refused } from '../../../packages/kernel/index.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
@@ -21,6 +23,24 @@ function document(result) {
   assert.equal(result.code, 0, result.err + result.out);
   return JSON.parse(result.out);
 }
+
+test('queued handoff retries an injected busy board write and records the pinned write wait [C7]', async () => {
+  let calls = 0;
+  const waits = [];
+  const board = { async write(candidate) {
+    assert.equal(candidate, 'pinned-candidate');
+    calls += 1;
+    if (calls === 1) throw new Refused('BOARD_BUSY', 'fixture board is busy');
+    return 'written';
+  } };
+  const out = await retryBusyHandoffWrite(() => board.write('pinned-candidate'), {
+    wait: async ms => waits.push(ms), busyBudgetMs: 10_000,
+  });
+  assert.equal(out.result, 'written');
+  assert.equal(calls, 2);
+  assert.deepEqual(waits, [5_000]);
+  assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 5 }]);
+});
 
 test('launched submit worker completes a native queued request without unsettled await [V4,H16,E18]', async t => {
   const helpers = createE2eHelpers();

@@ -33,7 +33,28 @@ import {
 import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { BUSY_CODES } from './submit-infra-requeue.js';
+import { infrastructureFailure } from './submit-infra-requeue.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
+
+/** Retry one native handoff write when board or slot storage is contended, retaining each wait for its receipt. */
+export async function retryBusyHandoffWrite(write, { wait = ms => new Promise(done => setTimeout(done, ms)), busyBudgetMs = 2 * 60 * 60 * 1000, busyFirstMs = 5_000 } = {}) {
+  const busyWaits = [];
+  let spent = 0;
+  let streak = 0;
+  while (true) {
+    try { return { result: await write(), busyWaits }; }
+    catch (error) {
+      const code = infrastructureFailure(error);
+      if (!BUSY_CODES.has(code) || spent >= busyBudgetMs) throw error;
+      const ms = Math.min(busyFirstMs * 2 ** streak, 60_000, busyBudgetMs - spent);
+      streak += 1;
+      spent += ms;
+      busyWaits.push({ code, seconds: Math.round(ms / 100) / 10 });
+      await wait(ms);
+    }
+  }
+}
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
@@ -100,17 +121,21 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
-    const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
+    const start = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }])), { busyBudgetMs: job.leaseMs });
+    const busyWaits = [...start.busyWaits];
+    const started = start.result;
     if (!started.started) return;
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
     const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), busyBudgetMs: job.leaseMs });
-    // The receipt of busy waits: each one's code and seconds, beside the submission it delayed.
-    writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(settled.busyWaits) + '\n', { mode: 0o600 });
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit } }]));
+    busyWaits.push(...settled.busyWaits);
+    const completed = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
+      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit } }])), { busyBudgetMs: job.leaseMs });
+    busyWaits.push(...completed.busyWaits);
+    // The receipt records each busy code and wait beside the submission it delayed.
+    writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });
   } catch (error) {
     await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }) });
     throw error;

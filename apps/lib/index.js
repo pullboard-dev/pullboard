@@ -4,7 +4,7 @@ export { advanceItemSource, beginSentinelRun, closeBoard, decideSentinel, decide
 export { HOOK_WORKER } from "./src/shell/cli-hook-work.js";
 export { SENDER_WORKER, launchRelaySender } from "./src/shell/relay-sender-main.js";
 export { runSubmitHandoffWorker } from "./src/shell/submit-handoff-worker.js";
-export { submitHandoffWorkerEntrypoint } from "./src/shell/submit-handoff-worker.js";
+export { submitHandoffWorkerEntrypoint, retryBusyHandoffWrite } from "./src/shell/submit-handoff-worker.js";
 export { superviseSubmitHandoffWorker } from "./src/shell/submit-handoff-worker.js";
 export { INFRASTRUCTURE_CODES, healthyExecutor, infrastructureFailure, submitUntilSettled } from "./src/shell/submit-infra-requeue.js";
 export { usageCheckpointWorkerEntrypoint } from "./src/shell/usage-checkpoint-worker.js";
