@@ -81,6 +81,23 @@ export function waivedFailures(board, failures, landingPorts) {
   return covered.every((entry) => entry.waiver) ? covered : null;
 }
 
+/**
+ * The failures no live person waiver covers. Why: a waived file that is red on main must never stop a batch from
+ * bisecting its own reds, or from landing the items that are green [C7,#2900].
+ */
+export function unwaivedFailures(board, failures, landingPorts) {
+  return (Array.isArray(failures) ? failures : []).filter((failure) => !(failure.file && nativeLandingWaiverFor(board, failure, landingPorts)));
+}
+
+/**
+ * The failures a red, unaccounted landing gate can bisect on: every unwaived failure, when each names its file; null
+ * when none remain or one is unnamed, which still needs a person to read the gate [C7,#2900].
+ */
+export function bisectableFailures(board, failures, landingPorts) {
+  const own = unwaivedFailures(board, failures, landingPorts);
+  return own.length && own.every((failure) => failure.file) ? own : null;
+}
+
 /** Project the live person waivers a landing run may read, so it does not stop early on one [B3]. */
 export function liveWaiverProjection(board, landingPorts) {
   const now = board.clock.now().getTime();

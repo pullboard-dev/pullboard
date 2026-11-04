@@ -1,3 +1,5 @@
+import { beginResourceWrite } from './resource-write-lock.js';
+import { resourceWriteError } from './resource-write-lock.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -142,7 +144,7 @@ function openQueue(file) {
   db.exec(`PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`);
   let transaction = false;
   try {
-    db.exec('BEGIN IMMEDIATE');
+    beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL DEFAULT '', agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL, landing INTEGER NOT NULL DEFAULT 0, item_check INTEGER NOT NULL DEFAULT 0, browser INTEGER NOT NULL DEFAULT 0, item TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', runner TEXT NOT NULL DEFAULT '', short_slot INTEGER NOT NULL DEFAULT 0);
@@ -228,7 +230,7 @@ function openQueue(file) {
       try { db.exec('ROLLBACK'); } catch { /* Preserve the migration error. */ }
     }
     db.close();
-    throw error;
+    throw resourceWriteError(error, file);
   }
   return db;
 }
@@ -344,7 +346,7 @@ function repoRoot(root) {
 
 /** Run a short serialized database update and discard dead or expired leases. */
 function update(db, action) {
-  db.exec('BEGIN IMMEDIATE');
+  beginResourceWrite(db, { timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
   try {
     pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
@@ -362,8 +364,8 @@ function update(db, action) {
     db.exec('COMMIT');
     return result;
   } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
+    try { db.exec('ROLLBACK'); } catch { /* Preserve the original transaction failure. */ }
+    throw resourceWriteError(error);
   }
 }
 
@@ -983,7 +985,7 @@ export function requiredExecutorOf(value) {
  * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
-  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false } = options;
+  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; request name "gate"');
   if (!Number.isSafeInteger(capacity) || capacity < (name === 'gate' && scope === 'machine' ? 0 : 1)) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be positive; only the machine gate accepts 0 with a registered runner');
@@ -1092,7 +1094,9 @@ export async function takeResource(options) {
         const activeHolders = name === 'gate' ? state.holders.filter(holder => !holder.runner).length : state.holders.length;
         // Growing a pool never strands a holder, so a caller that allows growth may raise it while held (3 Nov: handoff workers grew from 4 to 10 with jobs running).
         const grows = allowCapacityGrowth && currentCapacity > row.capacity;
-        if (!grows && (!allowIdleCapacityUpdate || activeHolders || state.line.length)) {
+        // A pool whose target fell (fewer runners) may shrink: holders above it finish, new takes wait [C7,#2944].
+        const shrinks = allowCapacityShrink && currentCapacity < row.capacity;
+        if (!grows && !shrinks && (!allowIdleCapacityUpdate || activeHolders || state.line.length)) {
           throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
         }
         db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(currentCapacity, name);

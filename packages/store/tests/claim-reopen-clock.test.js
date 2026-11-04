@@ -1,5 +1,4 @@
 import { REJECT_OPEN_ENGINE } from '../../state/index.js';
-import { CLAUSE_INSPECTION_ENGINE } from '../../../src/clause-inspection-engine.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { REJECTION_RETURN_ENGINE } from '../../state/index.js';
 import { MOVE_REGISTRY } from '../../moves/index.js';
@@ -16,7 +15,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
-import { repositoryBoardFile } from "../../../test/board-submit-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 
 const COMMIT = 'a'.repeat(40);
@@ -25,9 +23,9 @@ const TRUNK = 'b'.repeat(40);
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const board = openBoard(repositoryBoardFile(directory), { now: () => new Date(at) });
+  const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
   // These controls prove replay of the former first-refusal policy, not the current rejection rule.
-  board.executionEngineVersion = Math.min(REJECT_OPEN_ENGINE, CLAUSE_INSPECTION_ENGINE) - 1;
+  board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', family: 'Fixture Clock Builder Vendor', route: 'mid' });
