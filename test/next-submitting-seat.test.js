@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
-import { fixture } from './next-take-fixture.js';
+import { cli, fixture } from './next-take-fixture.js';
 
 /** Claim an item as the actor seat and start its submit handoff, as `submit --no-next` leaves it. */
 function submitting(box, title) {
@@ -37,6 +37,20 @@ test('next --take gives a seat with a running handoff a different item and no --
   assert.match(text.split(/\r?\n/u, 1)[0], new RegExp(`^claimed #${other}:`, 'u'));
   assert.doesNotMatch(text, new RegExp(`submit ${held}\\b[^\\n]*--wait|next --wait`, 'u'), 'no --wait hint for the held item');
   assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
+});
+
+test('a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
+  const box = await fixture(t);
+  submitting(box, 'Submit handoff frees the seat for review');
+  const waiting = box.add('Review waiting two minutes');
+  box.submit(waiting);
+  const build = box.add('Another open build', { brief: 'Files: web/other.js\nTest: the unrelated build stays open.' });
+  box.advance(2 * 60_000);
+  const offered = await cli(box, box.seats.actor.path, ['next']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, waiting);
+  assert.equal(offered.document.review, true);
+  assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
 test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {

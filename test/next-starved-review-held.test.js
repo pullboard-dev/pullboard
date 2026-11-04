@@ -53,7 +53,7 @@ test('a seat holding one claim and a seat holding two each get the starved revie
     assert.equal(offered.document.build.item_id, kept);
   }
   const said = await main(box, box.seats.actor.path, ['next']);
-  assert.match(said, /waited over 10 minutes without a reviewer/u);
+  assert.match(said, /waited over 5 minutes without a reviewer/u);
   assert.match(said, new RegExp(`build #${one} stays held with its lease and folder; after the verdict, pullboard next resumes it`, 'u'));
   assert.deepEqual({ one: holding(box, box.seats.actor, one), first: holding(box, box.seats.outside, first), second: holding(box, box.seats.outside, second) },
     before, 'offering the review leaves every held claim, lease and folder untouched');
@@ -76,7 +76,7 @@ test('a review waiting under the limit is not offered to a seat that holds a cla
   const one = box.add('Build held by the busy seat', { brief: 'Files: web/one.js\nTest: the held build keeps its lease.' });
   await claimed(box, box.seats.actor, one);
   const before = holding(box, box.seats.actor, one);
-  box.advance(9 * 60_000);
+  box.advance(4 * 60_000);
   const next = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(next.code, 0, next.out + next.err);
   assert.equal(next.document.item.item_id, one, 'the held build resumes; the fresh review waits for a free seat');

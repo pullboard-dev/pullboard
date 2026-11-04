@@ -21,7 +21,7 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   box.advance(11 * 60_000);
   const before = store.events(box.board);
   const finding = health(box).stuck.find(entry => entry.cause === 'REVIEW_STARVED' && entry.item === waiting);
-  assert.ok(finding, 'the default ten-minute threshold includes strict reviews');
+  assert.ok(finding, 'the default five-minute threshold includes strict reviews');
   assert.equal(finding.detail.ageMs, 11 * 60_000);
   assert.ok(finding.detail.eligible.includes(box.seats.outside.id));
   assert.deepEqual(store.events(box.board), before, 'health never writes board state');
@@ -33,6 +33,21 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   const builder = await cli(box, box.seats.builder.path, ['next']);
   assert.equal(builder.code, 0, builder.out + builder.err);
   assert.equal(builder.document.item.item_id, build, 'canonical self-review exclusion is preserved');
+});
+
+test('a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
+  const box = await fixture(t);
+  const oldest = box.add('Oldest review waiting two minutes');
+  box.submit(oldest);
+  const newer = box.add('Newer review');
+  box.submit(newer);
+  const build = box.add('Open build while reviews wait', { brief: 'Files: web/other.js\nTest: the unrelated build remains open.' });
+  box.advance(2 * 60_000);
+  const offered = await cli(box, box.seats.outside.path, ['next']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, oldest);
+  assert.equal(offered.document.review, true);
+  assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
 test('health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', async t => {
@@ -67,7 +82,7 @@ test('configured starvation waits select the oldest eligible review after a rese
   const other = store.reviewOffer(box.board, { ...who, agentId: box.seats.sibling.id, starveMinutes: 10 });
   assert.notEqual(other?.item.item_id, oldest, 'a live reservation stays exclusive');
   const configured = defaults();
-  assert.equal(configured.review.starveMinutes, 10);
+  assert.equal(configured.review.starveMinutes, 5);
   configured.review.starveMinutes = -1;
   assert.ok(configProblems(configured).some(problem => problem.includes('review.starveMinutes')));
 });
