@@ -27,6 +27,8 @@ function temporaryRepository() {
   const extracted = spawnSync('tar', ['-xf', '-', '-C', dir], { input: archive.stdout });
   assert.equal(extracted.status, 0, extracted.stderr?.toString());
   git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.name', 'pullboard-test');
+  git(dir, 'config', 'user.email', 'pullboard-test@example.invalid');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'chore: fixture base');
   return dir;
