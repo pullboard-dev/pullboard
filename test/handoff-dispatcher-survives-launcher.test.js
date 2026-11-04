@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,6 +15,7 @@ test('a handoff dispatcher is re-parented and survives its launcher process tree
   const entryDir = join(tools, 'bin');
   const marker = join(root, 'dispatcher.json');
   mkdirSync(entryDir, { recursive: true });
+  copyFileSync(join(import.meta.dirname, '../bin/handoff-worker-detach.js'), join(entryDir, 'handoff-worker-detach.js'));
   writeFileSync(join(entryDir, 'handoff-worker-dispatcher.js'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, session: process.env.AGENT_SESSION_TOKEN ?? null, home: process.env.PULLBOARD_MACHINE_HOME }));\nsetInterval(() => {}, 60_000);\n`);
   const module = pathToFileURL(join(import.meta.dirname, '../packages/resources/src/shell/handoff-worker-cap.js')).href;
