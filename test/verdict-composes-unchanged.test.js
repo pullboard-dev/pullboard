@@ -53,6 +53,12 @@ test('a conflicting or hunk-changing main edit keeps the verdict stale [E8,V8,#2
   const nearChecked = near.branch('item', list => { list[5] = '  "entry-05": "item",'; return list; });
   near.git('merge', '-q', '--ff-only', near.branch('context', list => { list[6] = '  "entry-06": "main",'; return list; }));
   assert.equal(composesUnchanged(near.root, { base: near.base, checked: nearChecked, tip: near.git('rev-parse', 'main'), paths: ['registry.json'] }), false, 'changed context');
+
+  const spaced = repo(t);
+  const spacedChecked = spaced.branch('item', list => { list[5] = '  "entry-05": "item",'; return list; });
+  spaced.git('merge', '-q', '--ff-only', spaced.branch('whitespace', list => { list[6] = `${list[6]}   `; return list; }));
+  assert.equal(composesUnchanged(spaced.root, { base: spaced.base, checked: spacedChecked, tip: spaced.git('rev-parse', 'main'), paths: ['registry.json'] }), false,
+    'a whitespace-only main edit beside the change is not byte-identical');
 });
 
 test('two items adding registry entries in sequence both stay fresh [E8,V8,#2896]', t => {

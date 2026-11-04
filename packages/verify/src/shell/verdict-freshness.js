@@ -21,7 +21,7 @@ function readGit(root, args) {
 function pathPatchId(root, from, to, path) {
   const diff = readGit(root, ['diff', '--no-renames', '--full-index', '--binary', from, to, '--', path]);
   if (!diff) return '';
-  const id = spawnSync('git', ['--no-replace-objects', 'patch-id', '--stable'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
+  const id = spawnSync('git', ['--no-replace-objects', 'patch-id', '--verbatim'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
   if (id.status !== 0) throw new Error('Git patch ids are unavailable');
   return id.stdout.split(' ')[0];
 }
