@@ -78,6 +78,7 @@ function recentCommit(row, now) {
  */
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
+  const seatQuietLimit = 2 * 60_000;
   const limit = staleStateLimits(ctx.config).claim;
   const cutoff = new Date(at.getTime() - limit).toISOString();
   const previous = Number(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lapsed_claim_scan_cursor'").get()?.meta_value ?? 0);
@@ -85,7 +86,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  if (!lapsedOnly) items.push(...liveClaims(board, actor).filter(item => !lapsed.has(item.item_id)));
+  const otherClaims = liveClaims(board, actor).filter(item => !lapsed.has(item.item_id));
+  items.push(...otherClaims);
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
   const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
@@ -100,6 +102,13 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     if (submitGateInFlight(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
+    const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
+    const worktreeMissing = !path || !existsSync(path);
+    const lastHeartbeat = row.heartbeatAt ?? row.claimAt;
+    const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
+      && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
+    if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: row.heartbeatAt ?? null,
+      worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {

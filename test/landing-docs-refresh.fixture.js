@@ -51,7 +51,7 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'relay', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', '-', '-C', box.repo], { input: archive.stdout, env });
@@ -63,7 +63,7 @@ function project(disableRefresh) {
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.gate = 'node --test --test-reporter=tap web/docs.test.js';
-  config.lanes.web.owns.push('src/command-docs/');
+  config.lanes.web.owns.push('apps/cli/src/shell/command-docs/');
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   config.flakes = { rerun: false, quarantine: false };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
@@ -93,7 +93,7 @@ function project(disableRefresh) {
 /** A source-only declaration commits cleanly while its generated shared list remains unchanged. */
 function verifiedDeclaration(box) {
   const item = success(box, box.repo, 'add', 'web', 'Document a clean landing declaration', '--specs', 'G1',
-    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./src/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"").item.item_id;
+    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./apps/cli/src/shell/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"").item.item_id;
   success(box, box.web, 'claim', String(item));
   const file = join(box.web, 'apps/cli/src/shell/command-docs/heartbeat.json');
   const declaration = JSON.parse(readFileSync(file, 'utf8'));
