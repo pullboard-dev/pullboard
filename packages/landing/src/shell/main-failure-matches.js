@@ -61,16 +61,17 @@ export function cachedFailureSignatures(outcome, file) {
 }
 
 /** Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance. */
-export function failureSignatures(run, root, { raw = false } = {}) {
+export function failureSignatures(run, root, { raw = false, allowCancelled = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
+  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict), allowCancelled });
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
+    .filter(row => !allowCancelled || !row.lines.some(line => /^failureType:\s*['"]?cancelledByParent['"]?\s*$/u.test(line)))
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))

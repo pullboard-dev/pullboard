@@ -53,7 +53,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   const box = e2e.project();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
-    JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');
+    JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');
   assert.equal(configured.status, 0, configured.stderr);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   content(box, box.repo, 'base', 'feat(web): initial choice [G1]');
@@ -217,7 +217,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
       'canonical replay records the sealed decision consistently; landing is the authoritative Git backstop');
     const beforeLanding = box.git(box.repo, 'rev-parse', 'HEAD');
     await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
+      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT'
         && /recorded merge-only acceptance/u.test(error.message),
       'forged canonical carry must not reach a physical merge');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
@@ -245,7 +245,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
         items: [{ id, commit: extraHead, merge: extraHead }] };
       store.recordLandingBatch(adoption, { agentId: 'coordinator', batch });
       await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board: adoption, adopt: true,
-        config: { landing: { publish: 'separate' } }, owner: 'private-adopter', say: () => {},
+        config: { landing: { perItem: false, publish: 'separate' } }, owner: 'private-adopter', say: () => {},
         write: async (operation, args) => adoption.enginePorts.store[operation](adoption, ...args), checkLease: async () => {} }),
       error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),
       'adoption must re-prove an already-gated canonical carry before finishing its trunk receipt');
@@ -272,7 +272,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
     assert.equal(store.getItem(forged, id).item_status, 'verified');
     box.git(box.repo, 'merge', '--ff-only', nextTrunk);
     await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
-      config: { landing: { publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
+      config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
     assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), nextTrunk);
     box.git(box.repo, 'reset', '--hard', trunk);
