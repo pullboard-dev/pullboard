@@ -1482,12 +1482,48 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/two-tier-diagnosis-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/reject-open-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/clause-evidence-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
     },
     {
       "path": "src/move-history/224.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/225.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/known-main-running-file-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/226.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/227.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/route-calibration-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
