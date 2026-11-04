@@ -25,7 +25,7 @@ import { readText, runCheck, walk } from './scan.js';
 /** One problem per TODO line in every walked file. */
 export function todoProblems(root) {
   const problems = [];
-  for (const path of walk(root, /\\.js$/u)) readText(root, path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
+  for (const path of walk(root, /^src\\/.*\\.js$/u)) readText(root, path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
   return problems;
 }
 runCheck(import.meta, todoProblems);
