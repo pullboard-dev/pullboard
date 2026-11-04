@@ -57,5 +57,9 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   assert.doesNotThrow(() => box.git(box.web, 'merge-base', '--is-ancestor', newerMain, record.item_commit),
     `the submitted source includes newer main (candidate ${candidate})`);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, `submit does not rewrite the coordinator checkout (candidate ${candidate})`);
-  assert.deepEqual(submissionPaths(box.web, reclaimed, record.item_commit, { mainCommit: newerMain }), ['web/reclaimed.txt']);
+  // The listing is conservative across every merge base, so it names the merged-in policy file too; that file must equal newer main's copy.
+  const listed = submissionPaths(box.web, reclaimed, record.item_commit, { mainCommit: newerMain });
+  assert.deepEqual([...listed].sort(), ['pullboard.json', 'web/reclaimed.txt']);
+  assert.equal(box.git(box.web, 'rev-parse', record.item_commit + ':pullboard.json'), box.git(box.web, 'rev-parse', newerMain + ':pullboard.json'),
+    'the coordinator policy file is not reverted');
 });
