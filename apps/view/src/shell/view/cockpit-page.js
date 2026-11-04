@@ -84,7 +84,7 @@ function lifecycle() {
  * reads the board through the server's JSON and follows its events. The layout is the one the person
  * asked for: a sidebar listing every project on the machine with what needs them there, and a main
  * column with the tabs over two panes, a list and the selected thing's detail. Activity draws the
- * item lifecycle from src/machine.js with this board's counts. Under 900px wide the sidebar folds
+ * item lifecycle from the state cell with this board's counts. Under 900px wide the sidebar folds
  * into a top bar. Forms post actions that the server runs as CLI commands (N27), so the page never
  * decides a rule itself, and every field a person types in sits outside what the refresh rebuilds.
  * Its shared styles are src/view.css plus Doctrine and item-panel presentation from
