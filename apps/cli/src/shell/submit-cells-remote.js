@@ -81,9 +81,12 @@ async function remoteCells(encoded) {
   const root = process.cwd();
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  const run = (command, args, options = {}) => {
+  const run = (command, args, options = {}, step = `command ${command}`) => {
     const result = spawnSync(command, args, { cwd: root, env, maxBuffer: 128 * 1024 ** 2, ...options });
-    if (result.error || result.status !== 0) throw new Error(`trusted cell archive failed: ${command}`);
+    if (result.error || result.status !== 0) {
+      const diagnostic = result.stderr?.toString('utf8').split(/\r?\n/u).find(Boolean);
+      throw new Error(`${step} failed: ${diagnostic ?? result.error?.message ?? `exit ${result.status}`}`);
+    }
     return result.stdout;
   };
   const git = (...args) => run('git', ['--no-replace-objects', ...args]);
@@ -116,6 +119,6 @@ const result = await requireSubmitCells(process.argv[3], input.main, input.sourc
   });
 process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n');
 `, { flag: 'wx', mode: 0o600 });
-    process.stdout.write(run(process.execPath, [entry, encoded, root]));
+    process.stdout.write(run(process.execPath, [entry, encoded, root], {}, 'cells checker'));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }

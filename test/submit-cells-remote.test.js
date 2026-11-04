@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -38,6 +38,14 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
     const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
     assert.deepEqual(result, { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] });
+
+    put('bin/cells-submit-checks.js', "throw new Error('CELL_DIAGNOSTIC: refusing candidate');\n");
+    git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'refusing checker');
+    const refusingMain = git('rev-parse', 'HEAD');
+    const refusingCommand = submitCellsRemoteCommand({ main: refusingMain, source, criterion: 'fixture', cutRows: [{ item_id: 7 }] });
+    const refused = spawnSync('/bin/sh', ['-c', refusingCommand], { cwd: root, env, encoding: 'utf8' });
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /cells checker failed: Error: CELL_DIAGNOSTIC: refusing candidate/u);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
