@@ -43,8 +43,7 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
-  // A per-item landing never compares main: its one item's red is its own [C7,#2901].
-  if (!gate.isGreen && !waivedProof(state, gate) && !singleItemLanding(state)) {
+  if (!gate.isGreen && !waivedProof(state, gate)) {
     // Red only in cases base main fails the same way: the batch made main no worse, so it lands [C7,#2941].
     const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
     const split = own.length && own.every((failure) => failure.file) ? await splitBaseRed(state, own) : null;
@@ -53,7 +52,6 @@ async function quickGuards(state, label = 'local-trunk') {
       return { ...gate, knownMainProof: { tree: gate.tree, failures: [], knownMain: split.known.map(({ file, name }) => ({ file, name })), logPath: gate.logPath } };
     }
   }
-  if (!gate.isGreen && !waivedProof(state, gate) && singleItemLanding(state)) return gate;
   if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
     // Named reds no waiver covers are enough to bisect: the board finds the culprits instead of stopping [C7,#2900].
     const own = bisectableFailures(state.board, gate.failures, state.landingPorts);

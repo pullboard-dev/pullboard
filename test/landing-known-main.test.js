@@ -44,13 +44,15 @@ test('known-main cancellation accounting excludes only fully accounted cancellat
   assert.equal(failureSignatures({ ...run, stages: [{ status: 2, output }] }, root, allowed), null);
 });
 
-/** A separate-publish landing project whose main already carries one red case, committed and pushed through real hooks. */
-function redMainProject() {
+/** A landing project whose main already carries one red case, committed and pushed through real hooks. */
+function redMainProject({ perItem = false, focused = true } = {}) {
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
+  const projectConfig = { ...config, landing: { perItem, manualOverride: true, publish: 'separate' } };
+  if (!focused) delete projectConfig.affectedTests;
+  writeFileSync(path, JSON.stringify(projectConfig, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   box.env.LAND_SUPPRESS_RED = '1';
@@ -89,7 +91,7 @@ function landBatch(box, itemId) {
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
     'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); }',
     'const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId));',
-    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit }));',
+    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit, status: item.item_status }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
@@ -108,6 +110,25 @@ test('a batch red only in a case red on main lands and names that case as known-
   assert.deepEqual(result.batch.proof.failures, [], 'no failure is waived or carried');
   assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
+});
+
+test('per-item landing lands a main-red case and records every set-aside case in its proof [B3,C7]', () => {
+  const box = redMainProject({ perItem: true });
+  const entry = acceptedItem(box, 2, '// PASS\n');
+  const result = landBatch(box, entry.item);
+  assert.equal(result.error, null, JSON.stringify(result.lines));
+  assert.equal(result.batch.state, 'landed', JSON.stringify(result.batch));
+  assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
+  assert.equal(result.status, 'verified', 'the accepted item remains accepted after landing');
+});
+
+test('per-item landing blocks on unavailable base comparison and leaves its item verified [B3,C7]', () => {
+  const box = redMainProject({ perItem: true, focused: false });
+  const entry = acceptedItem(box, 2, '// PASS\n');
+  const result = landBatch(box, entry.item);
+  assert.equal(result.error, 'LAND_MAIN_COMPARISON');
+  assert.equal(result.batch.state, 'blocked');
+  assert.equal(result.status, 'verified', 'an unavailable comparison cannot reopen an accepted item');
 });
 
 test('a batch holding a main red and a case passing on base fails only on the merged-only case [B3,C7]', () => {

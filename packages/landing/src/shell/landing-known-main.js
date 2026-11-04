@@ -18,6 +18,7 @@ export async function knownMainAccount(state, gate) {
   const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true });
   if (!failures?.length) return null;
   const known = [], remaining = [];
+  let unavailable = null;
   // Each failing file is compared on its own: a file main cannot run (new in the batch) never hides another file's known case.
   for (const file of [...new Set(failures.map(failure => failure.file))]) {
     const cases = failures.filter(failure => failure.file === file);
@@ -26,11 +27,12 @@ export async function knownMainAccount(state, gate) {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         { commit: state.batch.base, detailed: true, allowCancelled: true });
-    } catch { /* An unavailable comparison never excuses a red case. */ }
+    } catch (error) { unavailable = error.message ?? 'main comparison could not be completed'; }
+    if (comparison?.unavailable) unavailable = comparison.unavailable;
     for (const failure of cases) (comparison && matchingMainFailures([failure], comparison, state.batch.base) ? known : remaining).push(failure);
   }
-  if (!known.length) return null;
-  return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining };
+  if (!known.length && !unavailable) return null;
+  return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining, unavailable };
 }
 
 /**

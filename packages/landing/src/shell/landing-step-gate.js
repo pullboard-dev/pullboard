@@ -232,8 +232,10 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
-  // One item's red is its own: a per-item landing never compares main [C7,#2901].
-  const known = singleItemLanding(state) ? null : await knownMainAccount(state, result);
+  const known = await knownMainAccount(state, result);
+  if (singleItemLanding(state) && known?.unavailable) {
+    throw new Refused('LAND_MAIN_COMPARISON', `the per-item landing could not compare its red cases with base main ${state.batch.base}: ${known.unavailable}`);
+  }
   if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };

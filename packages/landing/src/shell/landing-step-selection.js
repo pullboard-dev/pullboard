@@ -128,8 +128,8 @@ export function perItemMaximum(config, maximum = Infinity) {
 }
 
 /**
- * Whether this landing batch is one per-item landing: a red, conflict or refusal is then that item's alone, so it goes
- * back to open with the evidence instead of a bisection, a main comparison or a trunk hold [C7,#2901].
+ * Whether this landing batch is one per-item landing: its own red reopens it, while a base-main red may land only after
+ * an exact comparison and an unavailable comparison blocks without blaming the item [C7,#2901].
  */
 export function singleItemLanding(state) {
   return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
