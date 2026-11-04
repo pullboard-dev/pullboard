@@ -13,6 +13,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { main } from './native-cli-fixture.js';
 import * as store from '../packages/store/index.js';
+import { boundedQueuedRedLines } from '../packages/store/src/shell/queued-red-notice.js';
 
 test('defaults, move refusals and the init loop never suggest a timed wait [N42,C7]', () => {
   for (const [code, step] of Object.entries({ ...DEFAULT_NEXT_STEPS, ...NEXT_STEPS })) {
@@ -172,4 +173,14 @@ test('selection shares the complete relaxation queue per threshold and reservati
   assert.ok(later, 'a later selection rederives the activity window instead of retaining an empty result');
   assert.notEqual(later.item_id, higherThreshold);
   assert.ok(activityReads <= 2, `${activityReads} activity reads after the activity window changed`);
+});
+
+test('the default loop bounds queued-red notices so twelve reds stay under 2 KB [C7,N41]', () => {
+  const reds = Array.from({ length: 12 }, (_, index) => ({ id: 2100 + index, title: 'x'.repeat(200),
+    leaseUntil: '2026-11-04T08:00:00.000Z', error: { code: 'TEST_FAILURE', message: 'm'.repeat(2000), next: 'fix it' } }));
+  const lines = boundedQueuedRedLines(reds);
+  const text = lines.join('\n');
+  assert.ok(Buffer.byteLength(text) <= 1024 + 200, 'the notice stays inside its budget');
+  assert.match(text, /more red queued gates: pullboard show <id> for each/u, 'the remainder is pointed at, not printed');
+  assert.doesNotMatch(text, /m{100}/u, 'the full message stays in pullboard show');
 });

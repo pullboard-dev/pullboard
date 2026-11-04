@@ -31,19 +31,45 @@ export function queuedRedLines(reds) {
 }
 
 /**
+ * A bounded notice for the default loop: one line per red and a pointer to the full refusal, within a byte budget.
+ * Why: the default `pullboard next` must stay under 2 KB; the full refusal stays one `pullboard show` away.
+ *
+ * @param {ReturnType<typeof queuedReds>} reds
+ * @param {number} [budget] - the most bytes the notice may take
+ * @returns {string[]}
+ */
+export function boundedQueuedRedLines(reds, budget = 1024) {
+  const lines = [];
+  let used = 0;
+  for (const [index, red] of reds.entries()) {
+    const head = `red queued gate on #${red.id}: ${red.error.code}; pullboard show ${red.id} for the full refusal`;
+    const resume = `#${red.id} stays claimed by you until ${red.leaseUntil}; fix it, commit, then pullboard submit ${red.id}`;
+    const size = Buffer.byteLength(head) + Buffer.byteLength(resume);
+    if (used + size > budget) {
+      lines.push(`${reds.length - index} more red queued gates: pullboard show <id> for each`);
+      break;
+    }
+    lines.push(head, resume);
+    used += size;
+  }
+  return lines;
+}
+
+/**
  * Print this seat's reds before anything else a command says; a seat that cannot be read prints nothing.
- * Why: a missing seat is the command's own refusal to make, never this notice's.
+ * Why: a missing seat is the command's own refusal to make, never this notice's. The default loop prints the bounded form.
  *
  * @param {any} io
  * @param {any} board
  * @param {(() => { id: string }) } seat
+ * @param {{ bounded?: boolean }} [options]
  * @returns {number} how many reds were printed
  */
-export function sayQueuedReds(io, board, seat) {
+export function sayQueuedReds(io, board, seat, { bounded = false } = {}) {
   let me;
   try { me = seat(); }
   catch { return 0; }
   const reds = queuedReds(board, me.id);
-  for (const line of queuedRedLines(reds)) io.say(line);
+  for (const line of bounded ? boundedQueuedRedLines(reds) : queuedRedLines(reds)) io.say(line);
   return reds.length;
 }
