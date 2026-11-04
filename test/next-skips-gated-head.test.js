@@ -1,0 +1,34 @@
+/** next never offers a build for an open item whose latest head already has a gate [C7]. */
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { addItem, nextFor } from '../packages/store/index.js';
+import { fixtureBoard } from './board-fixture.js';
+
+const HEAD = 'a'.repeat(40);
+
+/** Record a queue observation for an item the way the submit queue does, with no worker running. */
+function observe(board, id, job) {
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+    .run(`submit_handoff:${id}`, JSON.stringify({ commit: HEAD, agentId: 'web-1', ...job }));
+}
+
+test('nextFor skips an open item whose gate is queued, running, green or infra-exhausted at its head, and offers a red one [C7, #2881]', t => {
+  const board = fixtureBoard(t);
+  const make = title => addItem(board, { by: 'coordinator', lane: 'web', title });
+  const cases = [
+    [make('queued'), { state: 'queued' }, 'queued'],
+    [make('running'), { state: 'running' }, 'running'],
+    [make('green'), { state: 'green' }, 'green'],
+    [make('exhausted'), { state: 'infrastructure', error: { code: 'GATE_INFRA_EXHAUSTED' } }, 'GATE_INFRA_EXHAUSTED'],
+  ];
+  for (const [id, job] of cases) observe(board, id, job);
+  const reasons = nextFor(board, { agentId: 'web-2', lane: 'web' }).reasons;
+  for (const [id, , label] of cases) {
+    assert.ok(reasons.includes(`#${id}: gate ${label} at ${HEAD.slice(0, 12)}; nothing to build`), `${id}: ${reasons.join(' | ')}`);
+  }
+  assert.equal(nextFor(board, { agentId: 'web-2', lane: 'web' }).item, null);
+
+  const red = make('red');
+  observe(board, red, { state: 'red', error: { code: 'TEST_FAILURE' } });
+  assert.equal(nextFor(board, { agentId: 'web-2', lane: 'web' }).item.item_id, red, 'a red gate still offers the item');
+});

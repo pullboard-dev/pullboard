@@ -7,6 +7,7 @@ import {
   exitContinuationProblem,
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
+import { submitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { idleReason } from "../../../seats/index.js";
@@ -237,6 +238,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    const gated = gateAtHead(board, entry.item_id);
+    if (gated) { reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
@@ -274,6 +277,23 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
+}
+
+/**
+ * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
+ * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
+ * machine; a red gate returns the item to its builder, so it stays offered.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {string | null}
+ */
+function gateAtHead(board, id) {
+  const job = submitHandoff(board, id);
+  if (!job) return null;
+  const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+    : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
+  return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
 }
 
 /** The unlanded items a claim released for waiting still waits on (#1225); empty when none. */
