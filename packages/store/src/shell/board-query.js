@@ -49,6 +49,7 @@ export const PERSON = 'person';
  * @returns {string}
  */
 export const now = (board) => board.clock.now().toISOString();
+const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
@@ -176,7 +177,12 @@ export function itemsInStatus(board, status, owner = null) {
  * @returns {string | null}
  */
 export function reviewHolder(board, item) {
-  return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+  if (item.item_status !== 'submitted' || !item.item_review_by || (item.item_review_until ?? '') <= now(board)) return null;
+  const reviewer = board.db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(item.item_review_by);
+  if (!reviewer) return null;
+  const heartbeatAt = withSeatPresence(board, [reviewer])[0]?.heartbeatAt;
+  const heartbeatAge = heartbeatAt === null || heartbeatAt === undefined ? Infinity : board.clock.now().getTime() - Date.parse(heartbeatAt);
+  return heartbeatAge < REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS ? item.item_review_by : null;
 }
 
 /** Count unreserved submissions by whether they are awaiting a first reviewer or were released [R1]. */
