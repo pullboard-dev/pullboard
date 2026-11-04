@@ -65,7 +65,7 @@ test('a formats guard that takes over two minutes can pass [A5,C7,B3]', async t 
   const closed = new Promise(resolve => child.on('close', status => resolve({ status, stdout, stderr })));
   let result;
   while (!(result = await Promise.race([closed, new Promise(resolve => setTimeout(() => resolve(null), 15000))]))) {
-    t.diagnostic('waiting for the slow formats guard');
+    process.stderr.write('waiting for the slow formats guard\n');
   }
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.notEqual(box.git('rev-parse', 'HEAD'), box.before);
