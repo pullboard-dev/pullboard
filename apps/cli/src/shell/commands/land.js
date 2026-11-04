@@ -23,6 +23,10 @@ import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
+import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhyLines } from '../../../../../packages/landing/src/core/land-why.js';
+import { withBoardRead } from '../cli-board-read.js';
+import { context } from '../cli-read-context.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   COORDINATOR,
@@ -55,6 +59,13 @@ import {
 
 /** Run `pullboard land` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
+  if (values.why) {
+    const ctx = context(io);
+    const why = await withBoardRead(ctx, (board) => landWhy(board, ctx.clock.now()));
+    if (values.json) io.result(why);
+    else for (const line of landWhyLines(why)) io.say(line);
+    return 0;
+  }
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
