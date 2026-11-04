@@ -20,6 +20,7 @@ import { refreshCodeMap } from '../packages/codemap/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../packages/state/index.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
+import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
@@ -452,7 +453,13 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
   orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
-  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'a main-red priority takes precedence over an explicit coordinator rank');
+  // From QUEUE_PREEMPT_ENGINE main-red evidence is an emergency that leads even an explicit rank (#1442), so the
+  // rework tie-break rule is proved on the engine below it and the emergency lead on the current one.
+  const pinnedEngine = board.executionEngineVersion;
+  board.executionEngineVersion = QUEUE_PREEMPT_ENGINE - 1;
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
+  if (pinnedEngine === undefined) delete board.executionEngineVersion; else board.executionEngineVersion = pinnedEngine;
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'main-red evidence leads an explicit rank once emergencies preempt');
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
