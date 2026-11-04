@@ -85,6 +85,7 @@ export async function nextTake(ctx, values = {}, services) {
     if (!picked.review && (picked.item.item_lane !== me.lane || !store.ROUTES.includes(me.route)
       || !store.ROUTES.includes(picked.item.item_route) || !store.canTake(me.route, picked.item.item_route)))
       return { reasons: [`#${picked.item.item_id} is available in ${picked.item.item_lane} on the ${picked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
+    if (!picked.review && store.diagnoseWanted(board, picked.item, me.route)) return { diagnose: picked.item, reasons: picked.reasons ?? [] };
     ctx.io.nextPhase?.(picked.review ? 'review reservation' : 'claim', picked.item.item_id);
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {
