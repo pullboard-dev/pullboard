@@ -1,0 +1,22 @@
+/** Relay app front door: the relay modules other code imports [C7,H5]. */
+export { createAuthHandler } from './src/shell/auth-http.js';
+export { ACCESS_WINDOW_MS, createRelayAuth } from './src/shell/auth.js';
+export { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from './src/core/browser-deadline.js';
+export { createPhoneHistory } from './src/shell/browser-history.js';
+export { registerApp, requestPairingPersistence } from './src/core/browser-install.js';
+export { presentationState, snapshotState } from './src/shell/browser-model.js';
+export { RELAY_SCREEN_WORDS, clearBrowserReadFailure, emptyBoardStep, homeLineDismissed, homeScreenLine, nothingShared, noticeLines, reconcileOwnedRequests, recordBrowserReadFailure, relayScreenMarkup, rememberOwnedRequestId, showRelayScreen, storedOwnedRequestState, uploadSizeLine, wireRelayScreens } from './src/shell/browser-notice.js';
+export { MODULE_PREFIX, browserModules, createRelayBrowserHandler } from './src/shell/browser-page.js';
+export { enqueueStream, followStream } from './src/core/browser-stream.js';
+export { createDeviceHandler } from './src/core/device-http.js';
+export { createDeviceStore } from './src/shell/device-store.js';
+export { createExcludedStore, createExcludedTables, excludedInventoryId } from './src/shell/excluded-store.js';
+export { GITHUB_API_VERSION, createGitHubClient, githubAppManifest, repositoryName } from './src/shell/github.js';
+export { createRelayJournal } from './src/shell/journal.js';
+export { createRelayPages } from './src/shell/page-store.js';
+export { createRelayPagesHandler, snapshotPageRoot } from './src/shell/pages-http.js';
+export { createPairingHandler } from './src/core/pairing-http.js';
+export { createPairingStore } from './src/core/pairing-store.js';
+export { createRelayRetention } from './src/shell/retention.js';
+export { createRelayHandler, serveRelay } from './src/shell/service.js';
+export { ACCOUNT_STORAGE_BYTES, boardStorageBytes, createStorageQuota, storageLimitMessage } from './src/shell/storage-quota.js';

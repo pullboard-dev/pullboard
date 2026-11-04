@@ -1,3 +1,4 @@
+import { STRICT_RENAME_ENGINE } from '../../../../src/strict-rename-engine.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
 import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
@@ -63,6 +64,8 @@ const SOURCE_FILES = new Set([
   'src/verdict-trunk.js', 'src/verdict-withdrawal.js', 'src/merge-only-verdict.js',
   'src/moves/reserveReview.js', 'src/moves/reserveNextReview.js', 'src/moves/verify.js', 'src/moves/submit.js',
   'src/commands/submit.js', 'src/commands/verify.js', 'src/commands/gate.js', 'src/commands/flakes.js',
+  'apps/cli/src/shell/commands/submit.js', 'apps/cli/src/shell/commands/verify.js', 'apps/cli/src/shell/commands/gate.js',
+  'apps/cli/src/shell/commands/flakes.js', 'apps/cli/src/core/runner-loss-health.js',
   // Kernel replay, explicit authentication boundaries and source-bound receipt/landing checks.
   'src/machine.js', 'src/engine.js', 'src/move-registry.js', 'src/registry-guards.js',
   'src/refused.js', 'src/discovery.js', 'src/js-lex.js', 'src/literal-shell-words.js',
@@ -135,6 +138,8 @@ export function gateJudgmentItem(board, id) {
  */
 export function classifiedStrict(board, id) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const renamed = engine >= STRICT_RENAME_ENGINE && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`strict_rename:${id}`);
+  if (renamed && outsideSource(board, id)?.kind !== 'pull-request') return true;
   const judgment = engine >= REVIEW_TIER_ENGINE
     && outsideSource(board, id)?.kind !== 'pull-request' && gateJudgmentItem(board, id);
   if (engine >= REVIEW_DEFAULT_ENGINE && board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get()) return false;
@@ -144,6 +149,8 @@ export function classifiedStrict(board, id) {
 /** Once a new native prefix exists, older envelopes cannot bypass the classification it activates. */
 export function reviewTierFloor(board, id) {
   if (!board) return 1;
+  const renamed = id === undefined ? board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'strict_rename:%' LIMIT 1").get() : board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`strict_rename:${id}`);
+  if (renamed) return STRICT_RENAME_ENGINE;
   if (id === undefined
     ? board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get()
     : board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`review_default:normalized:${id}`)) return REVIEW_DEFAULT_ENGINE;

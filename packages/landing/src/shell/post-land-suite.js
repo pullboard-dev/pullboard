@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { defaultItemRoute } from '../../../items/index.js';
+import { criterionCells } from '../../../items/index.js';
 
 /** One case is its file and its exact test name. */
 const keyOf = (file, name) => JSON.stringify([file, name]);
@@ -60,7 +62,7 @@ export async function postLandSuite(state, ports) {
     const filed = [];
     if (fresh.length) {
       const items = readItems(state.board);
-      const missing = unownedMainReds({ failures: fresh }, items, null);
+      const missing = unownedMainReds({ failures: fresh }, items, null, true);
       if (missing === null) throw new Error('a new red case already has several open owners; ask the coordinator to settle which repair owns it');
       for (const { file, names: cases } of missing) {
         const lane = laneOf({ lanes: state.config.lanes }, file);
@@ -68,8 +70,9 @@ export async function postLandSuite(state, ports) {
           state.say(`${label}: ${file} newly fails (${cases.join('; ')}) but no lane owns it; the coordinator must file its repair`);
           continue;
         }
-        const id = await state.write('addItem', [{ by: 'coordinator', lane, title: `Main red: ${file}`, route: 'strong', specIds: [], parentId: null, after: [],
-          criterion: `Repair these exact cases on main ${batch.tip}: ${cases.join('; ')}. First red in batch ${batch.id} (${names}); the previous batch's full suite did not fail them. Filed by the post-land suite.`,
+        const criterion = `Repair these exact cases on main ${batch.tip}: ${cases.join('; ')}. First red in batch ${batch.id} (${names}); the previous batch's full suite did not fail them. Filed by the post-land suite.`;
+        const id = await state.write('addItem', [{ by: 'coordinator', lane, title: `Main red: ${file}`, route: defaultItemRoute(criterion, criterionCells(batch.root)), specIds: [], parentId: null, after: [],
+          criterion,
           brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: post-land suite, batch ${batch.id} (${names}); main ${batch.tip}`,
           check: `${String(state.config.affectedTests ?? '').trim()} ${word(file)}` }]);
         filed.push({ file, item: id });

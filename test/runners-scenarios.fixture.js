@@ -7,16 +7,16 @@ import {
 } from './runner-recovery-fixture.js';
 import {
   copyPackageFiles,
-} from '../src/package-files.js';
+} from '../packages/runners/index.js';
 import {
   copyCommittedPackageFiles,
 } from './package-copy-fixture.js';
 import {
   runnerPackage,
-} from '../src/runner-package.js';
+} from '../packages/runners/index.js';
 import {
   packageFiles,
-} from '../src/package-files.js';
+} from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { PAIRED_RERUN_FIXTURE } from './runner-paired-tools.fixture.js';
 import { observe } from './runner-paired-tools.fixture.js';
@@ -105,7 +105,7 @@ import {
 } from './runner-orphan-fixture.js';
 import {
   createDescendantTracker,
-} from '../src/runner-custody.js';
+} from '../apps/runner/index.js';
 import {
   createE2eHelpers,
 } from './e2e-helpers.js';
@@ -202,7 +202,7 @@ function processIsAlive(pid) {
 /** Start an API child that requeues only an incomplete runner transport on its original ticket. */
 function startQueueController(repo, env, command, { item, queueMarker, firstItem = 'retry-first', remote = true, browser = true, toolingRoot = resolve(import.meta.dirname, '..') } = {}) {
   const sourceRoot = realpathSync(toolingRoot);
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'src', 'gate.js')).href;
+  const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
   const script = `import { writeFileSync } from 'node:fs';

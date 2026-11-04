@@ -1,6 +1,6 @@
 import { testTimeBudget } from '../packages/gate/index.js';
 import { coordinatorActions } from '../packages/stats/index.js';
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -16,11 +16,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { proofStats } from '../packages/stats/index.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { boardHoldLog } from '../src/board-hold-log.js';
 

@@ -1,1 +1,0 @@
-export { SENDER_BACKGROUND_ENV, SENDER_CLAIM_STALE_MS, alive, boardNote, localFirstBoard, localFirstLink, nudgeRelaySender, senderFiles, senderHolding, senderInBackground } from '../packages/link/index.js';

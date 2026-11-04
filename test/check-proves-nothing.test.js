@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { closeBoard } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { refuseProvesNothing } from '../packages/verify/index.js';
 import { sayCheckBaseline } from '../packages/gate/index.js';
 

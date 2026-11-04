@@ -12,7 +12,7 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
@@ -25,7 +25,7 @@ export function createE2eHelpers() {
     for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../src/cockpit.js'), 'utf8');
+const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
 /**
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
  * git isolated from the machine's own config.
@@ -48,6 +48,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;
@@ -116,7 +118,7 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
+  assert.match(box.run(web, 'join', 'web', '--model', 'Fixture').out, /joined as web-1/);
   return { ...box, repo, web };
 }
 
@@ -267,7 +269,7 @@ function attackCommit(box, cwd) {
 /** Reopen the CLI's actual SQLite file to seed private integration data that later CLI processes read. */
 function withFixtureBoard(box, work) {
   // File-backed boundary: subsequent real CLI processes must read these exact persisted fixture rows.
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try { return work(board); }
   finally { store.closeBoard(board); }
 }

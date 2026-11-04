@@ -8,13 +8,13 @@ if (process.argv[1] === FILE && process.send) {
   // The guardian installs its original watchdog without loading the private-check executor.
   if (process.argv[2] === 'guardian') landingWorkerEntry({ workerFile: FILE, parseProcessCensus });
   else if (process.argv[2] === 'worker') {
-    const { openBoard } = await import('../src/native-board.js');
-    const { checkAtCommit } = await import('../src/runner-private-check.js');
-    const { badgeCounts, writeBadges } = await import('../src/badge.js');
-    const { flakeLedger } = await import('../src/flakes.js');
-    const { flakeSource, observeNativeFailure } = await import('../src/native-flakes.js');
+    const { openBoard } = await import('../apps/lib/index.js');
+    const { checkAtCommit } = await import('../apps/runner/index.js');
+    const { badgeCounts, writeBadges } = await import('../apps/view/index.js');
+    const { flakeLedger } = await import('../packages/flakes/index.js');
+    const { flakeSource, observeNativeFailure } = await import('../packages/flakes/index.js');
     const { landingFlakeRatchet } = await import('../packages/flakes/index.js');
-    const { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } = await import('../src/quarantine.js');
+    const { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } = await import('../packages/flakes/index.js');
     const landingPorts = { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet };
     landingWorkerEntry({ checkAtCommit, landingPorts, parseProcessCensus, openBoard, workerFile: FILE,
       candidateWorkerFile: fileURLToPath(new URL('./landing-candidate.js', import.meta.url)) });

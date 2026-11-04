@@ -1,4 +1,5 @@
 import { request as boardLinkRequest } from '../packages/link/index.js';
+import { createRelayJournal } from '../apps/relay/index.js';
 import { signedBoard, consent, linkRelay } from './board-link-fixture.js';
 /** Bilateral board links disclose only authorized state and retain real SSH consent [E32,H16,H17]. */
 import assert from 'node:assert/strict';
@@ -10,7 +11,6 @@ import * as store from '../src/board.js';
 
 test('opening a relay journal installs delivery storage before the first link envelope [E32,H16,H17]', async t => {
   const { DatabaseSync } = await import('node:sqlite');
-  const { createRelayJournal } = await import('../relay/journal.js');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-link-opener-'));
   const boardId = 'a'.repeat(32);
   const file = join(directory, boardId + '.journal.sqlite');
