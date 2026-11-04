@@ -2,6 +2,7 @@ import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.j
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { criterionCells } from '../../../../../packages/items/index.js';
+import { defaultItemRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
 import {
@@ -84,7 +85,7 @@ export async function run(io, args) {
     brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
     reviewFamily: values['review-family'],
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    route: values.route ?? 'strong',
+    route: values.route ?? (values.check ? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)) : 'strong'),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
@@ -112,7 +113,8 @@ export async function run(io, args) {
   if (authority) item.referenceAuthority = authority;
   const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
-  const { command } = store.validateItemAddition(board, item);
+  const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
+  item.brief = brief;
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
@@ -132,7 +134,8 @@ export async function run(io, args) {
       }
     }
   }
-  io.result?.({ item: store.getItem(board, id) });
+  io.result?.({ item: store.getItem(board, id), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
+  for (const warning of evidenceWarnings) io.err(warning.message);
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
   return 0;

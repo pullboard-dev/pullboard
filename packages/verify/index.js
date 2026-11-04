@@ -40,7 +40,7 @@ export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarant
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
 
 export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
-export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung } from './src/core/file-watchdog-policy.js';
+export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung, wallLoadFactor } from './src/core/file-watchdog-policy.js';
 export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
@@ -48,4 +48,6 @@ export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
-export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, showReviewPacket } from './src/shell/review-packet.js';
+export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/shell/review-packet.js';
+
+export { reusableSubmitProof } from './src/shell/submit-proof-reuse.js';

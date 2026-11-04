@@ -7,6 +7,7 @@ import {
   exitContinuationProblem,
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
+import { submitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { idleReason } from "../../../seats/index.js";
@@ -68,6 +69,15 @@ function skippedReviewReasons(failures) {
     ...[...groups.values()].map(group => `${group.count} ${group.code}: ${group.message}`)] : [];
 }
 
+/** Existing next-idle, auto-next claim and review reservation events identify active light seats. */
+function recentLightActivity(board) {
+  const cutoff = new Date(board.clock.now().getTime() - 30 * 60_000).toISOString();
+  return Boolean(board.db.prepare(`SELECT 1 FROM event AS e JOIN agent AS a ON a.agent_id=e.event_by
+    WHERE a.agent_route='light' AND e.event_at>=? AND (e.event_kind IN ('next-idle', 'reserve')
+      OR (e.event_kind='claim' AND json_valid(e.event_detail)
+        AND json_extract(e.event_detail, '$.autoNextSnapshot.head') IS NOT NULL)) LIMIT 1`).get(cutoff));
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -84,7 +94,12 @@ function skippedReviewReasons(failures) {
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null }) {
+export function nextFor(board, options) {
+  const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
+    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [],
+    afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
+    focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
+    routeCeiling = null, skipLightReserve = false } = options;
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -94,21 +109,32 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
-    const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
-      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, focusOnly: true }).item;
+    const item = nextFor(board, { ...options, verify: !verify, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
+    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+      && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
+      && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
+  if (!verify && !skipLightReserve && route !== 'light' && routeFloor === null && recentLightActivity(board)) {
+    // First use the ordinary readiness checks on this seat's route and higher. Only if that
+    // produces work do we report a ready light item as deliberately kept for a light seat.
+    const preferred = nextFor(board, { ...options, routeFloor: ROUTES.indexOf(route), skipLightReserve: true });
+    if (preferred.item) {
+      const light = nextFor(board, { ...options, routeFloor: ROUTES.indexOf('light'), routeCeiling: ROUTES.indexOf('light'), skipLightReserve: true });
+      return light.item?.item_status === 'open' && light.item.item_id !== preferred.item.item_id
+        ? { ...preferred, lightReserved: light.item } : preferred;
+    }
+  }
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
     const family = reviewRouting.seatFamily(board, agentId);
-    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
+    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
@@ -159,7 +185,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
-      && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
+      && (!restrictFocus || focus.ids.has(candidate.entry.item_id) || !focusOnly && greenAtHead(board, candidate.entry)))?.entry;
     if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return reviewResult({ item, reasons: focusReasons(board, item, [], { milestones }) });
     if (focus && !overflow) return reviewResult(focusIdle());
     if (item) return reviewResult(empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] }));
@@ -237,6 +263,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    const gated = gateAtHead(board, entry);
+    if (gated) { reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
@@ -274,6 +302,42 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
+}
+
+/**
+ * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
+ * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
+ * machine; a red gate returns the item to its builder, so it stays offered.
+ *
+ * Only a job for the item's current head counts: a job left from an older head proves nothing about new work.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {string | null}
+ */
+function gateAtHead(board, entry) {
+  const job = submitHandoff(board, entry.item_id);
+  if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
+  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
+  if (returned && typeof job.at === 'string' && returned > job.at) return null;
+  const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+    : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
+  return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether a submitted item's gate went green at its submitted head [C7, #2961].
+ * Finished work waits only on a reviewer, so focus never hides it from review: a green submission
+ * outside the focused milestone is still offered, while focused reviews keep sorting first.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+function greenAtHead(board, entry) {
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && entry.item_commit && job.commit === entry.item_commit && job.state === 'green');
 }
 
 /** The unlanded items a claim released for waiting still waits on (#1225); empty when none. */

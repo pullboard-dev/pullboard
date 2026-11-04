@@ -82,6 +82,7 @@ async function liveBoard(name, { proxied = false } = {}) {
   try {
     proxy = proxied ? await cuttableProxy(view) : null;
     chrome = await openSnapshotChrome(executable, proxy?.href ?? view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor('data?.project?.items?.some(item => item.id === 1) && !!document.querySelector(\'#chain [data-item="1"]\')');
     await liveReady(chrome);
   } catch (error) {
@@ -131,7 +132,7 @@ test('the view shows a move as it happens [N26,A2]', { timeout: 120_000 }, async
     const latest = (await boardOf(view, alpha.repo)).events[0].event_id;
     assert.deepEqual(streamReads(chrome), [String(latest)], 'the page follows the board\'s event stream after the latest event it read');
 
-    await watchFor(chrome, '__claimShownAt', 'document.querySelector(\'#chain [data-item="1"] .chip.busy\')');
+    await watchFor(chrome, '__claimShownAt', 'document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')');
     const before = chrome.requests.length;
     box.run(alpha.web, 'claim', '1');
     await chrome.waitFor('window.__claimShownAt !== null', 15_000); // budget: hang ceiling for the claim to arrive; the latency is judged below.
@@ -159,7 +160,7 @@ test('the view catches up with a delta after a move [N26,A2]', { timeout: 120_00
     const held = (await boardOf(view, alpha.repo)).events[0].event_id;
     const mark = chrome.requests.length;
     box.run(alpha.web, 'claim', '1');
-    await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.busy\')', 15_000); // budget: hang ceiling for the claim to arrive.
+    await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')', 15_000); // budget: hang ceiling for the claim to arrive.
     await liveReady(chrome);
     /** The since cursor of each state read the page made from a request mark on, null for a full read. */
     const reads = (from) => chrome.requests.slice(from).filter((request) => /^https?:/.test(request.url) && /^\/api\/v1\/boards\/[^/]+\/state$/.test(new URL(request.url).pathname))
@@ -207,7 +208,7 @@ test('a dropped stream reconnects from its last event [N26,A2]', { timeout: 120_
     // A move while the page is cut off is one the reopened stream must bring.
     box.run(alpha.web, 'claim', '1');
     proxy.restore();
-    await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.busy\')', 30_000); // budget: hang ceiling for one reconnect after the stream's longest 15000 ms wait.
+    await chrome.waitFor('!!document.querySelector(\'#chain [data-item="1"] .chip.item-seat.building\')', 30_000); // budget: hang ceiling for one reconnect after the stream's longest 15000 ms wait.
     await chrome.waitFor('document.querySelector(\'#live\').textContent === \'\'');
     const reads = streamReads(chrome);
     assert.ok(reads.length >= 2, `the page opened the stream again: ${JSON.stringify(reads)}`);
