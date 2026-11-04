@@ -27,9 +27,14 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
 
-/** Pin one runners.js instance's controller generation when it loads, before any later dispatch. */
+/**
+ * Pin one runners.js instance's controller generation when it loads; the closure capture waits for first use.
+ * Why: parsing the package at import cost every command ~0.8 s; the load instant still bounds which bytes count.
+ */
 export function pinRunnerTooling() {
-  const generation = { loaded: loadedTooling() };
+  const since = Date.now();
+  let loaded;
+  const generation = { get loaded() { return loaded === undefined ? (loaded = loadedTooling(since)) : loaded; } };
   LOADED_TOOLING ??= generation;
   return generation;
 }
@@ -42,9 +47,9 @@ export function inRunnerGeneration(generation, operation) {
   return GENERATION.run(generation, operation);
 }
 
-/** Pin the actual derived runtime and controller generation before any later dispatch. */
-function loadedTooling() {
-  try { return captureRunnerTooling(TOOL_ROOT); }
+/** Capture the derived runtime and controller generation once, refusing bytes written after the instance loaded. */
+function loadedTooling(since) {
+  try { return captureRunnerTooling(TOOL_ROOT, { since }); }
   catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 
