@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { firstRunKit } from '../../src/view/first-run.js';
+import { firstRunKit } from '../../apps/view/index.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, build, accept } from './fixture.js';
 
 const kit = firstRunKit();

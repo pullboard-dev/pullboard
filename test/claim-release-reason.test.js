@@ -7,7 +7,7 @@ import { healthReport } from '../packages/health/index.js';
 import { proofStats, workFreeReleases } from '../packages/stats/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
 import { TAKEN_OVER_RELEASE_ENGINE } from '../src/taken-over-release-engine.js';
-import releaseMove from '../packages/moves/src/core/moves/release.js';
+import { release as releaseMove } from '../packages/moves/index.js';
 
 test('each release reason is recorded and health and stats count work-free claims per day and seat [C7]', t => {
   const now = new Date('2026-11-02T12:00:00.000Z');

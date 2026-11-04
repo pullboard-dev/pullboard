@@ -1,6 +1,7 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The relay browser client's sealed snapshot decode, in Chrome and in WebKit [H5,H16]. */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+import { press, stableChrome } from './cockpit/stable.js';
 
 /** The hosted page's real secure origin, answered from memory: no network is used. */
 const ORIGIN = 'https://app.pullboard.dev/';
@@ -23,7 +25,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 
-const CLIENT = new URL('../relay/browser-client.js', import.meta.url);
+const CLIENT = new URL('../apps/relay/src/shell/browser-client.js', import.meta.url);
 
 /** Two real sealed-snapshot payloads, gzipped as src/relay.js does: a tiny document and a board of 3000 items. */
 function snapshotInputs() {
@@ -224,8 +226,20 @@ async function publishApi2Checkpoint(box, boardId, sequence) {
 
   // The actual CLI runs inside relayClientFixture's isolated HOME/PULLBOARD_HOME and publishes through
   // the configured production page writer; it never touches the user's page-cache directory.
-  const published = await box.cli('status');
+  const publishPath = new RegExp(`^/api/v2/boards/${boardId}/uploads/[A-Za-z0-9-]+/publish$`, 'u');
+  const publishesBefore = box.calls.filter(call => call.method === 'POST' && publishPath.test(call.path)).length;
+  const previousCheckpointMode = box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
+  // bin/run-tests uses foreground checkpointing; keep this private writer deterministic in direct node --test runs too.
+  box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = '0';
+  let published;
+  try { published = await box.cli('status'); }
+  finally {
+    if (previousCheckpointMode === undefined) delete box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND;
+    else box.env.PULLBOARD_RELAY_CHECKPOINT_BACKGROUND = previousCheckpointMode;
+  }
   assert.equal(published.code, 0, published.document?.error?.message);
+  const publishesAfter = box.calls.filter(call => call.method === 'POST' && publishPath.test(call.path)).length;
+  assert.ok(publishesAfter > publishesBefore, 'the actual CLI checkpoint publisher writes a new API2 root');
 
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   assert.equal(link.snapshotApiVersion, 2, 'the private board used the API2 paged snapshot writer');
@@ -288,21 +302,22 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
   assert.equal(stateResponse.status, 200, 'the checkpoint at N is present before phone startup');
   const checkpointN = (await stateResponse.json()).state.sequence;
 
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
-  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('pb.tab','items');window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
-  try { await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
+  await press(chrome, "document.querySelector('[data-tab=items]')");
+  try { await chrome.waitFor('document.querySelector("[data-pane=items]") && !document.querySelector("[data-pane=items]").hidden && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
   catch (error) {
-    const state = await chrome.evaluate('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
+    const state = await chrome.stable('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
     error.message += '; fixture browser state: ' + JSON.stringify(state);
     throw error;
   }
-  const checkpointItems = await chrome.evaluate(`Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') }))`);
+  const checkpointItems = await chrome.stable(`Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') }))`);
   assert.ok(checkpointItems.some(item => item.title === initialTitle), 'the initial checkpoint exposes the added item alongside fixture seeds');
   const loadsBefore = box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
 
@@ -318,7 +333,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     await postAndApplyMove(box, link, key, checkpointN + index + 1, move);
   }
   await chrome.waitFor(pendingTitles.map(title => 'document.querySelector("#relay-notice")?.textContent.includes(' + JSON.stringify(title) + ')').join(' && '));
-  const pendingView = await chrome.evaluate(`(() => ({
+  const pendingView = await chrome.stable(`(() => ({
     items: Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') })),
     activity: document.querySelector('#relay-notice')?.textContent ?? '',
     pending: Array.from(document.querySelectorAll('#relay-notice p')).filter(row => row.textContent.startsWith('Pending event #')).length,
@@ -348,7 +363,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     assert.equal(published.status, 200, 'the private relay accepts checkpoint N+3');
   } else await publishApi2Checkpoint(box, link.board, checkpointN + 3);
   await chrome.waitFor(pendingTitles.map(title => 'document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(title) + ')').join(' && '));
-  const settledView = await chrome.evaluate(`(() => ({
+  const settledView = await chrome.stable(`(() => ({
     items: Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') })),
     activity: document.querySelector('#relay-notice')?.textContent ?? '',
     pending: Array.from(document.querySelectorAll('#relay-notice p')).filter(row => row.textContent.startsWith('Pending event #')).length,

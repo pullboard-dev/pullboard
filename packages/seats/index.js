@@ -1,4 +1,8 @@
 /** Seat identity, local sessions and lane policy behind their canonical front door [C7,CD60,CD64]. */
+export { seatWakeCommand } from './src/shell/seat-wake.js';
+export { registerSeatWake } from './src/shell/seat-wake.js';
+export { wakeRoutedSeat } from './src/shell/seat-wake.js';
+export { hasSeatWake } from './src/shell/seat-wake.js';
 export {
   laneLeads,
   routeLaneMessage,

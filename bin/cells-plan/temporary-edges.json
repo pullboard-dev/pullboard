@@ -1,11 +1,4 @@
 {
   "version": 1,
-  "edges": [
-    {
-      "importer": "src/runner-policy.js",
-      "target": "src/trusted-policy-read.js",
-      "contractItem": 1699,
-      "expires": "2026-11-09"
-    }
-  ]
+  "edges": []
 }

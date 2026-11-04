@@ -2,7 +2,6 @@ import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
-import { withSeatPresence } from '../../../../src/seat-presence.js';
 import {
   latestStaleActivity,
   staleInstant,
@@ -23,7 +22,7 @@ function itemEvent(board, id, kind, actor = null) {
 }
 
 /** Obtain the existing heartbeat projection once; unavailable observations remain unavailable. */
-function observedSeats(board, actors) {
+function observedSeats(withSeatPresence, board, actors) {
   try {
     return new Map(withSeatPresence(board, actors ? [...new Set(actors)].map(agent_id => ({ agent_id })) : board.db.prepare('SELECT agent_id FROM agent').all())
       .map(seat => [seat.agent_id, seat]));
@@ -138,7 +137,8 @@ function claimRow(board, item, limits, now, seats, options) {
   // Unknown classification can show an early warning, never authorize the shorter release interval.
   const limit = classificationUnknown ? Math.min(limits.blocker, limits.claim) : blocker ? limits.blocker : limits.claim;
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
-  return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
+  return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimAt: event?.event_at ?? null,
+    heartbeatAt: seats.get(item.item_owner)?.heartbeatAt ?? null, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
     progress: claimProgress(board, item, now, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }), commitAt: observed.commitAt ?? null, episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
 }
@@ -167,13 +167,18 @@ function reviewRow(board, item, limits, now, seats, options) {
     sourceSubmitEventId: submit?.event_id ?? null, expiryAuthorized: false };
 }
 
-/** Read only current state and indexed activity; callbacks supply actual work without importing Git on fast status. */
-export function staleStateSnapshot(board, config = {}, { now = board.clock.now(),
+/**
+ * Read only current state and indexed activity; callbacks supply actual work without importing Git on fast status.
+ * Why: the heartbeat projection lives in the store's shell, so the shell hands it in as `withSeatPresence` [C7].
+ *
+ * @param {(board: any, seats: { agent_id: string }[]) => any[]} withSeatPresence
+ */
+export function staleStateSnapshotWith(withSeatPresence, board, config = {}, { now = board.clock.now(),
   workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats, items: suppliedItems, claimsOnly = false } = {}) {
   const at = now.getTime();
   const limits = staleStateLimits(config);
   const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
-  const seats = suppliedSeats === undefined ? observedSeats(board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
+  const seats = suppliedSeats === undefined ? observedSeats(withSeatPresence, board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
   const options = { workObservation, blocker };
   const items = suppliedItems ?? board.db.prepare("SELECT * FROM item WHERE item_hold_reason IS NOT NULL OR item_status='claimed' OR item_status='submitted'").all();
   return { observedAt: now.toISOString(), observedRevision, limits,

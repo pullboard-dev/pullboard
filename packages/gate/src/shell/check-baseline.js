@@ -8,9 +8,11 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   mkdtempSync,
+  realpathSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import {
   gitChildEnv,
@@ -20,6 +22,7 @@ import {
 import { runShell } from './shell-run.js';
 import { mappedCheck } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { secretsIn } from '../../../commits/index.js';
 
 /**
  * Capture the command and coordinator commit once on the sender; replay only receives this observation.
@@ -42,18 +45,87 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
     const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', base.main], { cwd: checkout, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (!selected || selected.status !== 0) return { ...base, result: 'unavailable', reason: 'temporary checkout could not be prepared' };
     const ran = runShell(checkout, mappedCheck(checkout, command));
-    return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds, testEvidence: baselineTestEvidence(ran.output, command) };
+    const failures = baselineFailureDetails(ran.output);
+    return { ...base, result: ran.isGreen ? 'green' : 'red', seconds: ran.seconds,
+      ...(failures.length ? { reason: failures.map(row => `${row.name}: ${row.error}`).join('\n') } : {}),
+      testEvidence: baselineTestEvidence(ran.output, command, checkout) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
 }
 
+/** Decode only XML's built-in and numeric entities in one JUnit attribute or text. */
+function xmlText(value) {
+  return value.replace(/&(?:#(x[0-9a-f]+|[0-9]+)|(amp|lt|gt|quot|apos));/giu, (whole, number, named) => {
+    if (number) {
+      const point = Number.parseInt(number.startsWith('x') ? number.slice(1) : number, number.startsWith('x') ? 16 : 10);
+      return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : whole;
+    }
+    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[named.toLowerCase()];
+  });
+}
+
+/** Read JUnit case names and their first failure message without loading external XML entities. */
+function junitFailures(output) {
+  const rows = [], tags = /<\s*(\/?)(?:[\w.-]+:)?(testcase|failure|error)\b([^<>]*?)(\/?)>/giu;
+  let current = null, tag;
+  while ((tag = tags.exec(output)) && rows.length < 512) {
+    const closing = Boolean(tag[1]), kind = tag[2].toLowerCase();
+    const attrs = Object.fromEntries([...tag[3].matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gu)].map(match => [match[1], xmlText(match[2] ?? match[3])]));
+    if (kind === 'testcase') { current = closing || tag[4] ? null : { name: attrs.name ?? '' }; continue; }
+    if (!closing && current?.name && !current.error) {
+      const body = output.slice(tags.lastIndex, output.indexOf('<', tags.lastIndex) < 0 ? output.length : output.indexOf('<', tags.lastIndex));
+      current.error = (attrs.message ?? xmlText(body)).split(/\r?\n/u).find(line => line.trim())?.trim() ?? '';
+      if (current.error) rows.push({ name: current.name, error: current.error });
+    }
+  }
+  return rows;
+}
+
+/** Keep each TAP failure's first diagnostic line, bounded and scrubbed before it reaches the board. */
+export function baselineFailureDetails(output) {
+  const rows = [], stack = [];
+  for (const raw of String(output ?? '').split(/\r?\n/u)) {
+    if (Buffer.byteLength(raw, 'utf8') > 65536) continue;
+    const indent = raw.length - raw.trimStart().length, text = raw.trim();
+    const match = /^(not ok|ok)\s+\d+\s+-\s+(.+?)(?:\s+#.*)?$/u.exec(text);
+    if (match) {
+      while (stack.length && stack.at(-1).indent >= indent) stack.pop();
+      if (match[1] === 'not ok') { const row = { name: match[2].slice(0, 4096), error: '', indent, block: false }; rows.push(row); stack.push(row); }
+      continue;
+    }
+    const row = stack.at(-1);
+    if (!row || indent <= row.indent || row.error) continue;
+    const error = /^error:\s*(.*)$/u.exec(text);
+    if (error) { row.block = /^(?:[|>][-+]?|)$/.test(error[1]); if (!row.block) row.error = error[1].replace(/^['"]|['"]$/gu, ''); }
+    else if (row.block && text && text !== '...') row.error = text;
+  }
+  return [...rows.filter(row => row.error), ...junitFailures(String(output ?? ''))].slice(0, 512).map(({ name, error }) => ({
+    name: secretsIn([{ path: 'check output', line: 1, text: name.slice(0, 65536) }]).length ? '[redacted test name]' : name.slice(0, 4096),
+    error: secretsIn([{ path: 'check output', line: 1, text: error.slice(0, 65536) }]).length ? '[redacted error]' : error.slice(0, 1024),
+  }));
+}
+
 /** Retain observed case outcomes, distinguishing an absent named case from unrelated shell failure. */
-export function baselineTestEvidence(output, command) {
+export function baselineTestEvidence(output, command, root = null) {
   const tests = timingFromOutput(output, timingRunner(command)).tests;
+  // Each failing case keeps the repository file it ran in, so a case is matched by file and name, never name alone (#2594).
+  const relative = file => {
+    if (typeof file !== 'string' || !file) return null;
+    for (const base of root ? [root, realOrSame(root)] : []) if (file.startsWith(base + '/')) return file.slice(base.length + 1);
+    return isAbsolute(file) ? null : file.replace(/^\.\//u, '');
+  };
+  const failedCases = [...new Map(tests.filter(test => !test.passed).map(test => ({ file: relative(test.file), name: test.name }))
+    .filter(row => row.file).map(row => [`${row.file}\0${row.name}`, row])).values()].slice(0, 512);
   return { failed: [...new Set(tests.filter(test => !test.passed).map(test => test.name))].slice(0,512),
     passed: [...new Set(tests.filter(test => test.passed).map(test => test.name))].slice(0,512),
+    failedCases,
     noTestsMatched: /^run-tests: NO_TESTS_MATCHED:/mu.test(output) };
+}
+
+/** A directory's real path, or the path itself when it cannot be resolved. */
+function realOrSame(path) {
+  try { return realpathSync(path); } catch { return path; }
 }
 
 /**

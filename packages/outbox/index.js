@@ -6,6 +6,7 @@ export { replay, transport } from "./src/shell/relay-conflict-record.js";
 export { leaveConflictNotice, takeConflictNotices } from "./src/shell/relay-conflicts.js";
 export { relayOrdering } from "./src/shell/relay-ordering.js";
 export { outboxGuardFile, withOutboxGuard, withFileLock } from "./src/shell/relay-outbox-guard.js";
-export { invertChangeset, undoQueued } from "./src/core/relay-outbox-undo.js";
+export { invertChangeset } from "./src/core/relay-outbox-undo.js";
+export { undoQueued } from "./src/shell/relay-outbox-undo.js";
 export { outboxAhead, readOutbox, outboxHasPendingCreatedItem, writeOutbox, removeOutbox, describeMove, outboxEntrySummary, earlierMoves, keepRefusal, refusalLine, strayItemRefs, bindRefs, resolveMove, outboxFields, outboxQueueable, outboxWaiting, outboxGeneration, queueMove, flushOutbox, ITEM_SLOTS, ACKNOWLEDGED_OPERATIONS, outboxFile, outboxSummaryFile, readOutboxSummary } from "./src/shell/relay-outbox.js";
 export { runRelaySender } from "./src/shell/relay-sender-worker.js";

@@ -1,10 +1,10 @@
 /** Pure agent-floor model/HTML checks over plain deterministic input; no browser or native setup [N26,N38]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { agentFloorHtml } from '../../src/view/agent-floor-render.js';
-import { agentFloorModel } from '../../src/view/agent-floor-model.js';
-import { dashboardHtml } from '../../src/view/dashboard-render.js';
-import { dashboardModel } from '../../src/view/dashboard-model.js';
+import { agentFloorHtml } from '../../apps/view/src/core/view/agent-floor-render.js';
+import { agentFloorModel } from '../../apps/view/src/core/view/agent-floor-model.js';
+import { dashboardHtml } from '../../apps/view/src/core/view/dashboard-render.js';
+import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
 import { agentFloorData } from './agent-floor-data.js';
 
 const MINUTE = 60_000;

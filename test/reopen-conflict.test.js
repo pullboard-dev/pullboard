@@ -5,13 +5,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+
+// The worktree join in project() inherits PULLBOARD_MODEL; without it the join refuses with MODEL_REQUIRED
+// and the fixture fails before any case runs, so the file declares a model for its own sandboxes.
+process.env.PULLBOARD_MODEL ??= 'Test Model';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

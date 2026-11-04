@@ -8,8 +8,8 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
-import { VERSION } from '../../src/help.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
+import { help$VERSION as VERSION } from '../../apps/cli/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
 import { BIN, machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, styleOf, proofShot } from './fixture.js';
