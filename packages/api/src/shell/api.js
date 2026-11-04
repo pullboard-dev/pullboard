@@ -1,3 +1,4 @@
+import { claimHealthSnapshot } from '../../../health/index.js';
 import { claimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
@@ -978,7 +979,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
-    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain, boardOpeners);
+    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot }), codeIsMain, boardOpeners);
     // Capture the complete prefix once in this transaction; each read projects its actual observation
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
@@ -1193,7 +1194,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     item: (board, id) => projectRead(board, () => localItem(board, id)),
     search: (board, text) => projectRead(board, () => localSearch(board, text)),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
-      ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile, openBoard })
+      ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)),
     costAnalytics: (board, window, who) => {
