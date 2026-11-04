@@ -37,6 +37,17 @@ export function firstRunKit() {
   ];
 
   /**
+   * Whether an agent row is a coordinator that is really there: any coordinator seat other than the placeholder the
+   * board creates at init, or the placeholder itself once an agent has identified its model on it. A board whose
+   * coordinator predates first-run therefore still ticks step 1.
+   */
+  function coordinatorPresent(agent) {
+    if (agent.agent_lane !== 'coordinator') return false;
+    const model = String(agent.model ?? agent.agent_model ?? '').trim().toLowerCase();
+    return agent.agent_id !== 'coordinator' || (model !== '' && model !== 'unknown');
+  }
+
+  /**
    * What the page needs from one board: which steps are ticked, from the board's own events and rows, and the
    * five architecture tiles, read from the setup facts the board started with.
    */
@@ -45,7 +56,7 @@ export function firstRunKit() {
     const items = project.items ?? [];
     const landings = Math.max((project.dashboardLanded ?? []).length, events.filter(event => event.event_kind === 'merged').length);
     const ticks = [
-      (project.agents ?? []).some(agent => agent.agent_lane === 'coordinator' && agent.agent_id !== 'coordinator'),
+      (project.agents ?? []).some(coordinatorPresent),
       (project.spec ?? []).some(row => row.status === 'approved'),
       kinds.has('submit') || items.some(item => ['submitted', 'verified'].includes(item.status)),
       kinds.has('accept') || items.some(item => item.status === 'verified'),
@@ -114,8 +125,8 @@ export function firstRunKit() {
       + (state.landed ? '<p class="first-run-later"><button type="button" class="link" data-first-run-hide>Hide this page</button></p>' : '<p class="first-run-later">Your agents, their progress and what landed show up here once work starts.</p>') + '</div>';
   }
 
-  /** The page stays up, finished or not, until the person hides it; ticking step 7 only changes what it says. */
-  const visible = (state, hidden) => Boolean(state && !hidden);
+  /** The page shows until the loop is proven running (a coordinator present and one item landed), or the person hides it. */
+  const visible = (state, hidden) => Boolean(state && !hidden && !(state.ticks[0] && state.landed >= 1));
 
   return { steps, dwell, model, html, paint, visible, copy: COPY };
 }
