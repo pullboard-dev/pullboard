@@ -13,6 +13,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
+/** Assert that an add or edit refusal names S10 and tells the author how to fix the bar. */
 function refusal(box, cwd, ...args) {
   const result = box.run(cwd, ...args, '--json');
   assert.equal(result.code, 1, `${args.join(' ')} unexpectedly succeeded: ${result.out}\n${result.err}`);
@@ -59,7 +60,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
   }
 });
 
-test('the coordinator sweep edits open and claimed legacy bars, records old wording, and reports submitted bars [S10]', () => {
+test('the coordinator sweep edits open, claimed, and submitted legacy bars while preserving their frozen snapshots [S10]', () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox);
@@ -105,6 +106,8 @@ test('the coordinator sweep edits open and claimed legacy bars, records old word
       reason: 'S10 full-suite strip', preserveFrozen: true }), error => error.code === 'S10');
     assert.throws(() => editItem(board, ids[0], { agentId: 'coordinator', criterion: exact, check: 'false',
       reason: 'S10 full-suite strip', preserveFrozen: true }), error => error.code === 'COORDINATOR_ONLY');
+    assert.throws(() => editItem(board, ids[1], { agentId: 'coordinator', criterion: 'An unrelated rewrite [test].',
+      reason: 'S10 full-suite strip', preserveFrozen: true }), error => error.code === 'S10');
     beforeFrozen = new Map(listItems(board, { all: true }).filter(item => ids.includes(item.item_id))
       .map(item => [item.item_id, [item.item_frozen, item.item_frozen_digest]]));
   } finally {
@@ -113,19 +116,17 @@ test('the coordinator sweep edits open and claimed legacy bars, records old word
   const sweep = box.run(box.repo, 'bar', 'sweep-full-suite', '--json');
   assert.equal(sweep.code, 0, `${sweep.out}\n${sweep.err}`);
   const result = JSON.parse(sweep.out);
-  assert.deepEqual(result.changed.map(row => row.id).sort((a, b) => a - b), [ids[0], ids[2]].sort((a, b) => a - b));
-  assert.deepEqual(result.skipped.map(row => row.id), [ids[1]]);
-  assert.equal(result.skipped[0].code, 'HELD');
+  assert.deepEqual(result.changed.map(row => row.id).sort((a, b) => a - b), ids.slice().sort((a, b) => a - b));
+  assert.deepEqual(result.skipped, []);
   board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     const after = new Map(listItems(board, { all: true }).filter(item => ids.includes(item.item_id)).map(item => [item.item_id, item]));
-    for (const id of [ids[0], ids[2]]) {
+    for (const id of ids) {
       assert.equal(after.get(id).item_criterion, 'The named test passes [test].');
       assert.deepEqual([after.get(id).item_frozen, after.get(id).item_frozen_digest], beforeFrozen.get(id));
       const event = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='edit' ORDER BY event_id DESC LIMIT 1").get(id);
       assert.equal(JSON.parse(event.event_detail).previousCriterion, original.get(id));
     }
-    assert.equal(after.get(ids[1]).item_criterion, original.get(ids[1]));
   } finally {
     closeBoard(board);
   }

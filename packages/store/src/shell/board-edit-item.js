@@ -61,7 +61,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen });
     if (preserveFrozen) {
       const engine = board.executionEngineVersion ?? ENGINE_VERSION;
       const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
@@ -134,7 +134,7 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
@@ -185,7 +185,9 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
     && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
-  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed)) {
+  const preservingSubmittedCriterion = preserveFrozen && agentId === COORDINATOR && reason === 'S10 full-suite strip'
+    && item.item_status === 'submitted' && next.item_criterion !== item.item_criterion;
+  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed && !preservingSubmittedCriterion)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
