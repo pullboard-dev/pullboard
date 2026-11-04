@@ -39,7 +39,7 @@ function selected(ctx, board, values, services) {
     return { item: mandatory.item, review: true, held: false, reasons: [] };
   }
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board) });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return { item: routing.item, reasons: routing.reasons, review: false, held: false };
     return { ...routing, review: false, held: false };
@@ -58,7 +58,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     const me = whoAmI(ctx, board);
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
-      workingFiles: claimWorktrees?.(store.listItems(board), store.listAgents(board), board) });
+      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   });
 }
 

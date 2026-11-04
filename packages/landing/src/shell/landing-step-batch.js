@@ -31,6 +31,7 @@ import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
+import { relandAcceptedItems } from './accepted-reland.js';
 import { perItemMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
@@ -106,6 +107,7 @@ export async function land(options) {
     requireParallelGateAdmission(options.root, policy);
     requirePublishGreen(options.root, options.board, policy, options.landingPorts);
   }
+  if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (!options.due || idleLanding(options.board, trunk.commit)) {
