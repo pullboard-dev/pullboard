@@ -24,7 +24,8 @@ function pool(t, capacity = 2) {
   const db = new DatabaseSync(file);
   db.exec(`CREATE TABLE resource(name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
     CREATE TABLE holder(token TEXT PRIMARY KEY,pid INTEGER,started TEXT,runner TEXT,controller_identity TEXT NOT NULL DEFAULT '');
-    CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');`);
+    CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');
+    CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL);`);
   db.prepare('INSERT INTO resource VALUES(?,?)').run('runner:fixture-host', capacity);
   initializeRunnerRecovery(db);
   t.after(() => { db.close(); rmSync(directory, { recursive: true, force: true }); });
@@ -103,19 +104,20 @@ test('restarting the submit-handoff dispatcher leaves a running runner controlle
   const lease = await takeResource({ name: 'gate', capacity: 1, browserCapacityProvider: () => 1, scope: 'machine', root: directory,
     agent: 'controller-restart-fixture', remote: true, runnerOnly: true, runnerProvider: () => [runner] });
   const custody = controllerDeadline(lease, process.pid);
-  t.after(() => { custody.close(); lease.release(); });
   const readController = () => {
     const db = new DatabaseSync(join(directory, 'resources.sqlite'), { readOnly: true });
     try { return JSON.parse(db.prepare('SELECT controller_identity FROM holder WHERE token=?').get(lease.token).controller_identity); }
     finally { db.close(); }
   };
-  const before = readController();
-  assert.equal(before?.controllerPid, process.pid, 'the active runner lease has controller custody');
+  try {
+    const before = readController();
+    assert.equal(before?.controllerPid, process.pid, 'the active runner lease has controller custody');
 
-  await ensureHandoffDispatcher(join(import.meta.dirname, '..'), directory);
-  await waitForCondition(() => !listResources().find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders.length,
-    'the one-shot dispatcher finished its empty queue', { signal: t.signal });
-  assert.deepEqual(readController(), before, 'starting and finishing the dispatcher does not prune a live controller');
+    await ensureHandoffDispatcher(join(import.meta.dirname, '..'), directory);
+    await waitForCondition(() => !listResources().find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders.length,
+      'the one-shot dispatcher finished its empty queue', { signal: t.signal });
+    assert.deepEqual(readController(), before, 'starting and finishing the dispatcher does not prune a live controller');
+  } finally { custody.close(); lease.release(); }
 });
 
 test('a healed runner returns with its pinned node path and needs no manual heal script [C7]', async t => {
