@@ -13,7 +13,10 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { AGENT_SESSION_IDS, AGENT_SHELL_MARKERS } from './person.js';
+import {
+  AGENT_SESSION_IDS,
+  AGENT_SHELL_MARKERS,
+} from './person.js';
 import {
   holdsLease,
   takeResource,
