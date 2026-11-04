@@ -23,6 +23,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import {
@@ -54,12 +55,13 @@ export async function run(io, { first, values }) {
       ]),
       boardId: store.boardId(board),
     }));
+    joined.family = await withBoard(ctx, async (board) => seatFamily(board, joined.id));
     registerProject(ctx.info.root, new Date(), ctx.config, projectBoardIdentity(ctx.info.root, joined.boardId));
     const id = joined.id;
     registerSeatWake(ctx.info, joined.boardId, id, wake);
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-    io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName });
-    io.say(`declared ${displayName} in the coordinator lane`);
+    io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
+    io.say(`declared ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the coordinator lane`);
     return 0;
   }
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
@@ -73,11 +75,13 @@ export async function run(io, { first, values }) {
     id: await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]),
     boardId: store.boardId(board),
   }));
+  // The family the board now holds for this seat, so a join always confirms what was recorded (#2889).
+  joined.family = await withBoard(ctx, async (board) => seatFamily(board, joined.id));
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName });
-  io.say(`joined as ${displayName} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
+  io.say(`joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
   return 0;
 }
