@@ -292,6 +292,7 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
   // Main lands the same bytes in a file the item adds, so the move reaches the item and cannot be judged unrelated; the submit gate runs the same check, so only the verdict check (in a pullboard-criterion directory) lands it.
+  // Main lands the same bytes in a file the item adds, so the move reaches the item and cannot be judged unrelated; the submit gate runs the same check, so only the verdict check (in a pullboard-criterion directory) lands it.
   const landing = `git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'; case "$PWD" in *pullboard-criterion-*) mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit -q -m 'feat: land during the check [G1]';; esac`;
   const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
@@ -310,7 +311,7 @@ const STORE_BODY_HASHES = {
   "src/known-main-autofile.js": "cfcefe647a8590232176ef4bea8a1cc9c59d8070748ec15f2f61e1716cc51c1b", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
   "src/board-busy.js": "46dfa1149b6468c47b3d1b75142495c8532397640cfd64300fc3c19371b444d6", "src/board-capture.js": "3bdf7cfe9c7e7a223c1d2b0e5e1deb89e519fa82c4ceb0d1f513d82076f9f3e3",
   "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "7ceea8e6b457faeabcbeac5e09a13d78ca129102721e188b18cef91a92670c0a",
-  "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "3f030e7aaa0e4214b4d9cb5641d559157699666957e84b7d1d02c88b9dbd2552",
+  "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "f47e378d23f918c334437fe829b96a43334e44248ee1f06adac2a3749a11fcfd",
   "src/board-inventory.js": "0a6a433174971e2f05795bd6cc47bd3d5b994867a920b12c8e534c26d8686e07", "src/board-item-dependencies.js": "bcd9f96c6da94ad6f80f31cee806c51f727f8b8c4f3333afe9033eabeb6d6d46",
   "src/board-item-read.js": "29a7b65cafad96e3e8ddeb151e8807fcf318ca4cc17c366bf3def1b2fc8424a7", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
   "src/board-link-relay.js": "69c75aa84eca41160794609951941fe41f47b670dd7033c2c8e7ad06276128c6", "src/board-link-ssh.js": "99bb4a0a223d9f40e885b02fa9e9dd6d27cecd77001cd1cf3d55d557c0f7c849",
@@ -354,7 +355,7 @@ const STORE_BODY_HASHES = {
   "src/board-ensure-coordinator.js": "5b24bc6d12347e6563a84c781e6b9ce9e3a7c3cedefe183b5316b841f0c3693c", "src/board-finish-landing-batch.js": "ae986d7ef013c8ace6d57f8b076a4cb1b6b97240fe3622e512407751a8e8fdd3",
   "src/board-hold-item.js": "585ea3bc7a04a79fd92e9f5188b5015ecec58e38c2248dee7c52b223e08fd0be", "src/board-hold-lane.js": "7e23bd4f00e826d0f996706449951d7f2d46415916b10278161a423e5602c7bc",
   "src/board-intake-outside.js": "c538db4c1fe1a1ef3205df37e93d571b178e56009cba541a70521e16d5bfde60", "src/board-maintain-stale-state.js": "3e290d8baa90c7003aed11defc6b471d6a7530eb4720ae794074bddd0b59b605",
-  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "d64bf228a0b38bbceb34476e6e16ab74a69d88276af2b0b14fc2e09ebd064c73",
+  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "8ef272e446907b9e49e5b0eb7c81533c61918c208580893751cd238280f03fe7",
   "src/board-open-handoff.js": "76109c6e5476e1897ef34e4e9b419a59d6d486f199f6c79061b13463eff8303e", "src/board-pass-decision.js": "aef27eb84910e7e4a4862c3aacd2b7d05a87efea55f50d125629917bbfc2ce42",
   "src/board-publish-repair.js": "5d9beec4dd1113b60b9233c834d46d055cc7d52da753c89ca5a039f4d4f125be", "src/board-record-health-findings.js": "dc90cbc6eee040ac7b5e3dd78d69fdbc2b25fab556df3e7bb6276499c2d82da6",
   "src/board-record-landing-batch.js": "f2eda3970527e4bb4277856fd577f0c244ffd78634eaafbba19288098c73bb1d", "src/board-record-landing-flake.js": "421d845ece8aedcba23bf57c7d75b667aa18cc1c529b6aa84d02484647b00415",
