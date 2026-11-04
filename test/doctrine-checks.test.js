@@ -41,6 +41,28 @@ function commitWeb(box, files, message) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
+/** Create and claim a fresh web item whose worktree continues the prior candidate's files. */
+function nextWebItem(box, previous, title) {
+  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1');
+  assert.equal(added.code, 0, added.err);
+  const id = Number(added.out.trim().slice(1));
+  assert.ok(Number.isSafeInteger(id) && id > 0, `the board returns a real item id: ${added.out}`);
+  const web = join(box.dir, `web-${id}`);
+  const source = box.git(previous, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
+  assert.match(box.run(web, 'join', 'web').out, /joined as web-/);
+  assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
+  return { id, web };
+}
+
+/** Write a scenario's files in its own native item worktree and commit them through hooks. */
+function commitWebAt(box, web, files, message) {
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(web, 'web', name), text);
+  box.git(web, 'add', '-A');
+  const committed = box.tryGit(web, 'commit', '-q', '-m', message);
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
+}
+
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
   const text = output.endsWith('\n') ? output.slice(0, -1) : output;
@@ -73,6 +95,7 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
 
   // A rise reports what it would refuse during this rule's twenty-clean-gate trial.
   commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
+  assert.equal(box.run(box.web, 'claim', '1').code, 0, 'the refused uncounted check reopened item 1');
   const rose = box.run(box.web, 'submit', '1');
   const roseOutput = `${rose.out}${rose.err}`;
   assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
@@ -83,8 +106,9 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.doesNotMatch(roseOutput, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
 
   // A later gate reports a new per-file problem even when the total falls.
-  commitWeb(box, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
-  const gained = box.run(box.web, 'submit', '1');
+  const gainedItem = nextWebItem(box, box.web, 'Clear the old markers');
+  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
+  const gained = box.run(gainedItem.web, 'submit', String(gainedItem.id));
   const gainedOutput = `${gained.out}${gained.err}`;
   assert.equal(gained.code, 0, gained.err);
   assert.match(gainedOutput, /would refuse RATCHET_ROSE \(report-only, 1\/20 clean gates\)/);
@@ -92,8 +116,9 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
 
   // A fall passes and is shown as N, was M.
-  commitWeb(box, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
-  const fell = box.run(box.web, 'submit', '1');
+  const fellItem = nextWebItem(box, gainedItem.web, 'Finish the page');
+  commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
+  const fell = box.run(fellItem.web, 'submit', String(fellItem.id));
   assert.equal(fell.code, 0, fell.err);
   assert.match(fell.out, /Q1 Web pages carry no TODO markers\. · 1, was 2 · holding/);
   const report = box.run(box.web, 'doctrine', 'check');
