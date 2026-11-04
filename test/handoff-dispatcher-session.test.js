@@ -44,6 +44,9 @@ test('detached handoff dispatcher and worker drop inherited session ids while th
   boxProject.git(boxProject.repo, 'commit', '-q', '-m', 'chore: enable the native handoff fixture');
   boxProject.git(boxProject.web, 'merge', '-q', '--ff-only', 'main');
 
+  const rejoined = boxProject.run(boxProject.web, 'join', 'web', '--parent', 'handoff-submitter-parent', '--json');
+  assert.equal(rejoined.code, 0, `${rejoined.err}\n${rejoined.out}`);
+
   // The submitting seat stays in its original session while a stale unrelated ID simulates the dispatcher starter.
   boxProject.env.CODEX_THREAD_ID = 'fake-dispatcher-session';
   const added = boxProject.run(boxProject.repo, 'add', 'web', 'Handoff session receipt', '--specs', 'G1',
