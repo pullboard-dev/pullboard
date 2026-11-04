@@ -69,6 +69,15 @@ function skippedReviewReasons(failures) {
     ...[...groups.values()].map(group => `${group.count} ${group.code}: ${group.message}`)] : [];
 }
 
+/** Existing next-idle, auto-next claim and review reservation events identify active light seats. */
+function recentLightActivity(board) {
+  const cutoff = new Date(board.clock.now().getTime() - 30 * 60_000).toISOString();
+  return Boolean(board.db.prepare(`SELECT 1 FROM event AS e JOIN agent AS a ON a.agent_id=e.event_by
+    WHERE a.agent_route='light' AND e.event_at>=? AND (e.event_kind IN ('next-idle', 'reserve')
+      OR (e.event_kind='claim' AND json_valid(e.event_detail)
+        AND json_extract(e.event_detail, '$.autoNextSnapshot.head') IS NOT NULL)) LIMIT 1`).get(cutoff));
+}
+
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
@@ -85,7 +94,12 @@ function skippedReviewReasons(failures) {
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null }) {
+export function nextFor(board, options) {
+  const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
+    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [],
+    afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
+    focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
+    routeCeiling = null, skipLightReserve = false } = options;
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -95,16 +109,27 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
-    const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
-      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, focusOnly: true }).item;
+    const item = nextFor(board, { ...options, verify: !verify, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check))
+    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+      && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
+      && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
+  if (!verify && !skipLightReserve && route !== 'light' && routeFloor === null && recentLightActivity(board)) {
+    // First use the ordinary readiness checks on this seat's route and higher. Only if that
+    // produces work do we report a ready light item as deliberately kept for a light seat.
+    const preferred = nextFor(board, { ...options, routeFloor: ROUTES.indexOf(route), skipLightReserve: true });
+    if (preferred.item) {
+      const light = nextFor(board, { ...options, routeFloor: ROUTES.indexOf('light'), routeCeiling: ROUTES.indexOf('light'), skipLightReserve: true });
+      return light.item?.item_status === 'open' && light.item.item_id !== preferred.item.item_id
+        ? { ...preferred, lightReserved: light.item } : preferred;
+    }
+  }
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
