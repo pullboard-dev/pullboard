@@ -70,7 +70,7 @@ test('clause 1: capacity 16 is retained when automatic capacity is 11 and the di
     assert.deepEqual((await drainHandoffQueue({ capacity: 11, pollMs: 10 })).started, ['job-1']);
     const resource = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE);
     assert.equal(resource.capacity, 16, 'dispatcher keeps the existing worker capacity');
-    assert.ok(resource.holders.some(row => row.token === holder.token), 'the existing holder retains its lease');
+    assert.ok(resource.holders.some(row => row.agent === 'existing-worker'), 'the existing holder retains its lease');
     assert.equal(readFileSync(join(directory, 'request.json'), 'utf8'), '{"job":"job-1"}\n');
     assert.deepEqual(listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders, []);
     assert.deepEqual(readdirSync(handoffQueueDirectory()).filter(name => name.endsWith('.json')), []);
