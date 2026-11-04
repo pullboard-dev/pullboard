@@ -198,3 +198,13 @@ test('seeded event windows reach Dashboard rows through the canonical comparison
   }
   assert.equal(JSON.stringify(history),original,'the pure renderer does not change recorded inputs');
 });
+
+test('Dashboard has no Pipeline section and prints no raw milliseconds; The last two hours stays [N26]', () => {
+  const input = dashboardData({ populated: true });
+  const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
+  model.pipeline = { count: 1, limit: 20, items: [], totals: {}, causes: {}, unmeasuredGaps: [], evidence: 'raw' };
+  const html = dashboardHtml(model);
+  assert.ok(!/aria-label="Pipeline"|dash-pipeline|data-pipeline|>Pipeline</u.test(html), 'no Pipeline section, even when the API supplies the data');
+  assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
+  assert.match(html, /<h2>The last two hours<\/h2>/u, 'the approved window card remains');
+});

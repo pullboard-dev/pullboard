@@ -1411,10 +1411,6 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .window-keys i { display: inline-block; width: var(--space-3); height: var(--space-3); margin-right: var(--space-1); border-radius: var(--radius-xs); }
 .window-stage-build { background: var(--accent); fill: var(--accent); } .window-stage-rework { background: var(--reject); fill: var(--reject); } .window-stage-reviewWait { background: var(--ink-faint); fill: var(--ink-faint); } .window-stage-review { background: var(--blue); fill: var(--blue); } .window-stage-land { background: var(--accent-strong); fill: var(--accent-strong); }
 .window-comparison .dash-comparison { margin-top: var(--space-4); }
-.dash-pipeline-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-3); } .dash-pipeline-item { min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-2); }
-.dash-pipeline-item h3 { overflow-wrap: anywhere; } .dash-pipeline-item dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-2); margin: 0; }
-.dash-pipeline-item dl > div { min-width: 0; } .dash-pipeline-item dt, .dash-pipeline-item dd { margin: 0; color: var(--ink-muted); font-size: var(--text-xs); } .dash-pipeline-item dd { color: var(--ink); font-family: var(--mono); }
-.dash-pipeline-causes, .dash-pipeline-gaps, .dash-pipeline-retries { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-left: var(--space-5); font-size: var(--text-xs); }
 @media (max-width: 760px) { .window-tiles { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 /* Spec keeps the shared row frame, with its tier and citation count in one right column. */
 #spec-list .spec-section-head { border-top: 1px solid var(--line); padding-top: var(--space-5); margin-top: var(--space-5); }
