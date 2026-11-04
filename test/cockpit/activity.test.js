@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { activityModel } from '../../apps/view/src/core/view/activity-model.js';
 import { activityHtml } from '../../apps/view/src/core/view/activity-render.js';
-import { IN_STATE, MACHINE, effectiveGuards } from '../../src/machine.js';
+import { IN_STATE, MACHINE, effectiveGuards } from '../../packages/state/index.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { closeBoard, logEvent } from '../../src/board.js';
