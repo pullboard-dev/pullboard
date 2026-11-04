@@ -86,7 +86,10 @@ export function waivedFailures(board, failures, landingPorts) {
  * bisecting its own reds, or from landing the items that are green [C7,#2900].
  */
 export function unwaivedFailures(board, failures, landingPorts) {
-  return (Array.isArray(failures) ? failures : []).filter((failure) => !(failure.file && nativeLandingWaiverFor(board, failure, landingPorts)));
+  const list = Array.isArray(failures) ? failures : [];
+  // Ports with no quarantine reader carry no readable waiver, so every failure stays the batch's to judge [C7,#2945].
+  if (typeof landingPorts?.quarantineWaivers !== 'function') return list;
+  return list.filter((failure) => !(failure.file && nativeLandingWaiverFor(board, failure, landingPorts)));
 }
 
 /**

@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { CHECK_TIMING_ENGINE } from "../../../../src/check-timing-engine.js";
@@ -43,7 +44,7 @@ export function firstRefusal(board, id, at = board.clock.now()) {
     }
     if (event.event_kind === 'release' && !detail.reopenFirstRefusal?.otherSeatFirst && !((board.executionEngineVersion ?? ENGINE_VERSION) >= LEASE_LAPSE_ENGINE && detail.expiredClaim)) { releases.push(event); continue; }
     if (event.event_kind === 'submit') return null;
-    if (event.event_kind === 'reject' && returned.has(event.event_id)) return null;
+    if (event.event_kind === 'reject' && ((board.executionEngineVersion ?? ENGINE_VERSION) >= REJECT_OPEN_ENGINE || returned.has(event.event_id))) return null;
     const window = detail.reopenFirstRefusal;
     if (!window || !window.builder || !Number.isFinite(Date.parse(window.until))) return null;
     if (releases.some(release => release.event_by === window.builder && JSON.parse(release.event_detail).review !== true)) return null;
