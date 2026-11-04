@@ -167,3 +167,5 @@ export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMil
 export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
 export { buildCalibration } from './src/core/build-calibration.js';
 export { isProofAgent, proofAgentIds } from './src/shell/stats.js';
+
+export { idleSkipMinutes } from './src/core/idle-skip-minutes.js';
