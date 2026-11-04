@@ -2,6 +2,7 @@
  * Lanes (L1, L2) and the config they live in.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -24,6 +25,8 @@ import { crossLaneFixture } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { specGateMoveOnly } from '../../spec/index.js';
 import { submissionPaths } from '../../sandbox/index.js';
+import { ownsNewFile } from '../../sandbox/src/shell/trusted-policy.js';
+import { planRowChange } from '../../../src/plan-row-change.js';
 
 const CONFIG = {
   ...defaults(),
@@ -414,4 +417,49 @@ test('lane hook accepts a deleted shim repoint only to its exact body [L3]', t =
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   assert.ok(submissionPaths(box.web, { item_lane: 'web', item_claim_head: base,
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
+});
+
+/** Run git in a temporary repo with a fixed identity; fail loudly. */
+function planGit(root, ...args) {
+  const run = spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  return run.stdout.trim();
+}
+
+/** Plan files for one cell, before and after a creation row; blobs read like Git entries. */
+function planBlobs(placements) {
+  const blob = value => ({ mode: '100644', bytes: Buffer.from(JSON.stringify(value)) });
+  const index = { cells: [{ file: 'bin/cells-plan/01-x.json', name: 'x', order: 1 }] };
+  const shard = paths => ({ order: 1, name: 'x', root: 'packages/x', paths });
+  const before = { 'bin/cells-plan.json': blob(index), 'bin/cells-plan/01-x.json': blob(shard([])) };
+  const after = { 'bin/cells-plan.json': blob(index), 'bin/cells-plan/01-x.json': blob(shard(placements)) };
+  return { before: path => before[path], after: path => after[path] };
+}
+
+test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
+  const root = mkdtempSync(join(tmpdir(), 'lanes-plan-'));
+  try {
+    planGit(root, 'init', '-q', '-b', 'main');
+    writeFileSync(join(root, 'README.md'), 'base\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'base');
+    const base = planGit(root, 'rev-parse', 'HEAD');
+    planGit(root, 'switch', '-q', '-c', 'item');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'feat(x): new file [C7]', '-m', 'Pullboard-Item: #7');
+    const own = planGit(root, 'rev-parse', 'HEAD');
+    const row = [['src/new.js', 'packages/x/src/core/new.js', 'rule']];
+    const change = (snapshot) => planRowChange('bin/cells-plan/01-x.json', {
+      ...planBlobs(row), ownNewFile: path => ownsNewFile(root, { item_id: 7 }, own, snapshot, path),
+    });
+    assert.equal(change(base).allowed, true, 'absent on main, every adding commit is the item\'s own');
+    planGit(root, 'switch', '-q', 'main');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
+    planGit(root, 'add', '.');
+    planGit(root, 'commit', '-q', '-m', 'feat(y): same file landed on main [C7]');
+    assert.equal(change(planGit(root, 'rev-parse', 'main')).allowed, false, 'present on main');
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
