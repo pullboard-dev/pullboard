@@ -22,6 +22,39 @@ import { maintenanceGit } from '../src/shell/worktree-maintenance-archive.js';
 import { scheduleWorktreeMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
 import { runScheduledMaintenance } from '../src/shell/worktree-maintenance-scheduler.js';
 
+const FIXTURE_CONFIG = {
+  gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', landing: { manualOverride: true },
+  lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
+  shared: ['docs/'],
+};
+const FIXTURE_SPEC = `# Demo spec
+
+## G · Goals
+- G1 [approved, must] The page renders. | gate: web test
+- G2 [approved, must] The API answers. | gate: api test
+`;
+
+/** Copy and commit the shipped runtime before init installs hooks in this private repo. */
+function projectWithCommittedRuntime(sandbox) {
+  const repo = join(sandbox.dir, 'repo');
+  fs.mkdirSync(repo);
+  sandbox.git(repo, 'init', '-q', '-b', 'main');
+  const box = { ...sandbox, repo };
+  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
+  const inheritedModel = sandbox.env.PULLBOARD_MODEL;
+  delete sandbox.env.PULLBOARD_MODEL;
+  const initialized = sandbox.run(repo, 'init');
+  assert.equal(initialized.code, 0, initialized.err || initialized.out);
+  sandbox.git(repo, 'config', 'user.name', 'Test Agent');
+  sandbox.git(repo, 'config', 'user.email', 'agent@example.com');
+  if (inheritedModel !== undefined) sandbox.env.PULLBOARD_MODEL = inheritedModel;
+  fs.writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(FIXTURE_CONFIG, null, 2));
+  fs.writeFileSync(join(repo, 'SPEC.md'), FIXTURE_SPEC);
+  sandbox.git(repo, 'add', '-A');
+  sandbox.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  return box;
+}
+
 function project(t, enabled) {
   const root = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-timer-fixture-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -41,8 +74,7 @@ export function registerMaintenanceSchedulerTests() {
     isolateTestMachine(sandbox.env, sandbox.dir);
     sandbox.env.PULLBOARD_BACKGROUND_VIEW = '0';
     sandbox.env.PULLBOARD_BACKGROUND_RELAY = '0';
-    const box = helpers.project('true', sandbox, { withWorktree: false });
-    copyCommittedPackageFiles(box, resolve(import.meta.dirname, '../../..'));
+    const box = projectWithCommittedRuntime(sandbox);
     const common = fs.realpathSync(box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim());
     const directory = join(common, 'pullboard', 'worktree-maintenance'), marker = join(directory, 'timer.json');
     const configFile = join(box.repo, 'pullboard.json'), owned = new Map();
