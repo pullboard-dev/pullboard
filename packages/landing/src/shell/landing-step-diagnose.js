@@ -17,8 +17,22 @@ import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
+import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
+import { compareMainFailures } from './main-red.js';
+
+/** Require a green base for every failing file before attributing a red to an item. */
+export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
+  const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
+  if (!files.length || failures.some(failure => !failure.file)) return false;
+  try {
+    const result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
+      { commit: state.batch.base, detailed: true, allowCancelled: true });
+    return result.main === state.batch.base && !result.unavailable
+      && files.every(file => result.files?.some(row => row.file === file && row.result === 'green'));
+  } catch { return false; }
+}
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
 export async function diagnose(state, failures, gate) {
@@ -63,7 +77,16 @@ export async function diagnose(state, failures, gate) {
 }
 
 /** Bisect a reproducible red without retrying any previously tested group. */
-export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup) {
+export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = compareMainFailures) {
+  // A live-waived red never reaches the base-main comparison: only the batch's own reds decide a split [C7,#2900].
+  failures = unwaivedFailures(state.board, failures, state.landingPorts);
+  if (!await landingBaseGreen(state, failures, compare)) {
+    await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
+      message: 'a failing file is red or unavailable on base main', at: state.board.clock.now().toISOString() } });
+    state.flaky = true;
+    state.say('landing held: a failing file is red or could not be compared on base main; accepted verdicts remain in place');
+    return [];
+  }
   if (items.length === 1) {
     const item = items[0];
     const text = `Landing batch ${state.batch.id} reproduces failures: ${failures.map((failure) => `${failure.file}: ${failure.name}`).join('; ')}`;
@@ -83,15 +106,17 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
     const build = await mergeGroup(state, part);
     await save(state, { ...build, state: 'bisecting' });
     const gate = await evaluate(state, `${label}-${index}`);
-    if (gate.isGreen || waivedProof(state, gate)) green.push(...build.items);
+    // Only unwaived reds split a group further; a group red only on waived files is green for bisection [C7,#2900].
+    const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
+    if (gate.isGreen || waivedProof(state, gate) || !own.length) green.push(...build.items);
     else {
-      const flakyFiles = await diagnose(state, gate.failures, gate);
+      const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) {
         await fileFlakes(state, gate, flakyFiles);
         state.flaky = true;
         return [];
       }
-      green.push(...await bisect(state, build.items, gate.failures, `${label}-${index}`, evaluate));
+      green.push(...await bisect(state, build.items, own, `${label}-${index}`, evaluate, compare));
     }
   }
   return green;
