@@ -107,7 +107,7 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
 
   // A later gate reports a new per-file problem even when the total falls.
   const gainedItem = nextWebItem(box, 'Clear the old markers');
-  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
+  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
   const gained = box.run(gainedItem.web, 'submit', String(gainedItem.id));
   const gainedOutput = `${gained.out}${gained.err}`;
   assert.equal(gained.code, 0, gained.err);
@@ -121,14 +121,14 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   const fell = box.run(fellItem.web, 'submit', String(fellItem.id));
   assert.equal(fell.code, 0, fell.err);
   assert.match(fell.out, /Q1 Web pages carry no TODO markers\. · 1, was 2 · holding/);
-  const report = box.run(box.web, 'doctrine', 'check');
+  const report = box.run(fellItem.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
   assertDoctrineReport(report.out, [
     'Q1 Web pages carry no TODO markers. · 1, was 2 · holding',
     'Q3 Api work keeps the TODO count. · 1, was 2 · holding',
     'Q4 The keep file stays. · 0, was 0 · holding',
   ].join('\n'));
-  const json = JSON.parse(box.run(box.web, 'doctrine', 'check', '--json').out);
+  const json = JSON.parse(box.run(fellItem.web, 'doctrine', 'check', '--json').out);
   assert.deepEqual(json.rules.map(({ id, count, committed, holds }) => ({ id, count, committed, holds })),
     [{ id: 'Q1', count: 1, committed: 2, holds: true }, { id: 'Q3', count: 1, committed: 2, holds: true }, { id: 'Q4', count: 0, committed: 0, holds: true }]);
   assert.deepEqual(json.rules[0].problems, ['web/a.html:1:TODO two']);
