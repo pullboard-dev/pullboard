@@ -138,8 +138,12 @@ for (const companion of [false, true]) test(`two actual ${companion ? 'composed 
     finally { store.closeBoard(board); }
   }
   const ledger = box.cli('flakes').document;
-  const row = ledger.flakes.find(value => value.name === TITLE);
+  const row = ledger.regressions.find(value => value.file === 'test/alternating.test.mjs' && value.name === TITLE);
   assert.ok(row);
+  assert.equal(row.classification, 'possible-regression');
+  assert.ok(row.observations.length >= 2 && row.observations.every(observation => observation.kind === 'submit'
+    && observation.classification === 'possible-regression'
+    && observation.original.green === false && observation.paired?.green === true && observation.mainReceipt?.green === true));
   for (const observation of row.observations) {
     for (const evidence of [observation.original, observation.paired]) {
       const raw = box.readData(join(box.root, '.git/pullboard', evidence.artifact), 'utf8');
