@@ -105,7 +105,7 @@ function failingFiles(root, profile, output) {
 }
 
 /** The common Git directory holds local machine evidence shared by this repo's worktrees. */
-function cacheFile(root) {
+export function cacheFile(root) {
   const result = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
   });
@@ -114,7 +114,7 @@ function cacheFile(root) {
 }
 
 /** Read only well-formed, machine-local cached outcomes; malformed data is treated as a miss. */
-function readCache(file) {
+export function readCache(file) {
   try {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: CACHE_VERSION, entries: {} };
