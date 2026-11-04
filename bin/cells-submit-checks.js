@@ -429,6 +429,13 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const source = commit;
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
+  // A diff confined to root test/ and docs/ touches no cell code, so the inventory rebuild (about half of each gate on
+  // 3 Nov) proves nothing; the landing's cells-plan check still covers placement of any new file.
+  const changed = git(root, ['diff', '--name-only', `${acceptedMain}...${source}`]).split('\n').filter(Boolean);
+  if (changed.length && changed.every(path => /^(test|docs)\//u.test(path))) {
+    return { cells: [], problems: [], warnings: [], reorg: null, existingCuts: [], acceptedMain, cutBase: null, commit: source, source,
+      skipped: 'no cell files changed', reused: false, ...(services.collectMachinery ? { machinery: [] } : {}) };
+  }
   const preloads = cacheEligible() ? preloadFingerprint() : null;
   const inputs = { acceptedMain, source, criterion, title, cuts: cutRows, preloads, ...(services.collectMachinery ? { collectMachinery: true } : {}) };
   const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
