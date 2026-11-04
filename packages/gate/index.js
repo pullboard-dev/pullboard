@@ -68,6 +68,7 @@ export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelea
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/shell/prove-once.js';
+export { redGateScope, redGateReport, runnerErrors } from './src/shell/red-gate-report.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
@@ -85,3 +86,4 @@ export {
 } from './src/shell/test-child-drain.js';
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
 export { changedStaticFailures, stagedHookFailures } from './src/shell/changed-static.js';
+export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';

@@ -31,19 +31,22 @@ export const HANDOFF_DISPATCHER_RESOURCE = 'submit-handoff-dispatcher';
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
 
 /**
- * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4.
+ * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
+ * one worker per five registered runner slots. Why: a handoff worker mostly waits on a remote runner, so on 3 Nov
+ * a cap of 4 left 69 submits queued while 42 of 54 runner slots sat idle.
  *
- * @param {{ env?: object, cores?: number }} [options] - Environment and core count, for tests.
+ * @param {{ env?: object, cores?: number, runnerSlots?: number }} [options] - Environment, core count and total registered runner slots.
  * @returns {number} A positive whole number.
  */
-export function handoffWorkerCapacity({ env = process.env, cores = availableParallelism() } = {}) {
+export function handoffWorkerCapacity({ env = process.env, cores = availableParallelism(), runnerSlots = 0 } = {}) {
   const raw = env[HANDOFF_WORKER_CAP_ENV];
   if (raw !== undefined && raw !== '') {
     const value = Number(raw);
     if (!Number.isSafeInteger(value) || value < 1) throw new Refused('BAD_HANDOFF_WORKER_CAP', `${HANDOFF_WORKER_CAP_ENV} must be a whole number of 1 or more; unset it for the default`);
     return value;
   }
-  return Math.max(1, Math.min(4, cores));
+  const local = Math.max(1, Math.min(4, cores));
+  return Number.isSafeInteger(runnerSlots) && runnerSlots > 0 ? Math.max(local, Math.floor(runnerSlots / 5)) : local;
 }
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
@@ -167,7 +170,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf) {
       if (name.endsWith('.reserved')) { if (reservationAbandoned(name, startOf)) continue; break; }
       let slot;
       try {
-        slot = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff',
+        slot = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
           onWait() { throw new Refused('HANDOFF_WORKERS_FULL', 'every worker slot is busy'); } });
       } catch (error) {
         if (error.code === 'HANDOFF_WORKERS_FULL') break;
