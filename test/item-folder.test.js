@@ -36,6 +36,26 @@ test('[B5,C7] claim opens a folder; release removes a clean folder and the next 
   assert.ok(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), 'next retains the released branch');
 });
 
+test('[B5,C7] a new item folder starts at the current main with an empty index after main moves', t => {
+  const helpers = createE2eHelpers();
+  t.after(() => helpers.cleanup());
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'item folder follows main fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+
+  writeFileSync(join(box.repo, 'main-moved.txt'), 'main advanced after item creation\n');
+  box.git(box.repo, 'add', 'main-moved.txt');
+  box.git(box.repo, 'commit', '-m', 'advance main before item claim');
+  const main = box.git(box.repo, 'rev-parse', 'main');
+
+  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(claimed.code, 0, claimed.err || claimed.out);
+  const path = JSON.parse(claimed.out).itemFolder;
+  assert.equal(box.git(path, 'rev-parse', 'HEAD'), main, 'the folder starts at the moved main');
+  assert.equal(box.git(path, 'status', '--porcelain'), '', 'the new folder has an empty index and worktree');
+});
+
 test('[B5,C7] claim refuses a dirty reused folder and names files that are not in the item', t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
