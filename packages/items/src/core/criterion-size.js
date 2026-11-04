@@ -26,8 +26,11 @@ export function criterionSize(criterion = '', catalog = []) {
     oversized: cells.size > 1 || clauses > 3 };
 }
 
-/** Give small items to light seats and explicitly multi-cell or multi-clause work to mid seats. */
-export function defaultItemRoute(criterion, catalog = []) {
-  const size = criterionSize(criterion, catalog);
-  return size.cells.length > 1 || size.clauses > 2 ? 'mid' : 'light';
+/**
+ * Route new work mid. A light item now needs a recorded diagnosis (#2760), so defaulting small work to light made
+ * every plain add and the post-land Main-red filer refuse DIAGNOSIS_REQUIRED; a capable seat's diagnosis makes it
+ * light (#3115).
+ */
+export function defaultItemRoute() {
+  return 'mid';
 }
