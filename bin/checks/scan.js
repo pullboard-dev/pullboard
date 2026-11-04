@@ -187,7 +187,7 @@ export function workingSourceInventory(root, directories) {
     if (!files.has(file)) files.set(file, Object.freeze({ file, body }));
   }
   for (const row of rows) {
-    if (row.shimPath && row.shimBody !== null) add(row.shimPath, row.shimBody);
+    if (row.shimPath) add(row.shimPath, row.shimBody ?? row.body);
     add(row.implementationPath, row.body);
   }
   return [...files.values()];
