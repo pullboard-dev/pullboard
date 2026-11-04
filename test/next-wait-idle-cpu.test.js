@@ -54,6 +54,7 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
   reader = response.body.getReader();
   await reader.read();
   let timer, cpuStart, quietCpu, quietAt, askedAt, shoutFinishedAt, outputAt, output = '', sent = false;
+  let waitingReports = 0, stderrText = '', firstIdleCounts, quietCounts;
   try {
     const code = await main(['next', '--wait', '1'], { cwd: actor.path, clock: box.clock,
       stdout: { isTTY: false, write: text => {
@@ -61,11 +62,16 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
         output += text;
       } },
       stderr: { write: text => {
+        stderrText += text;
+        waitingReports = (stderrText.match(/next waiting/gu) ?? []).length;
         if (cpuStart || !text.includes('next waiting')) return;
         cpuStart = process.cpuUsage(); quietAt = performance.now();
+        firstIdleCounts = { reads, notifications, waitingReports };
         timer = setTimeout(() => { // budget: declared #2518 fixture measures a real 30-second quiet interval.
           // End the idle sample before the real shout write and foreground wake planning.
           quietCpu = process.cpuUsage(cpuStart);
+          quietCounts = { reads: reads - firstIdleCounts.reads, notifications: notifications - firstIdleCounts.notifications,
+            waitingReports: waitingReports - firstIdleCounts.waitingReports };
           sent = true; askedAt = performance.now();
           shout(box.board, { from: 'coordinator', to: actor.id, text: `please build #${target} now`, lanes: ['web', 'review', 'docs'] });
           shoutFinishedAt = performance.now();
@@ -73,10 +79,11 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
       } } });
     const returnedAt = performance.now();
     const totalCpu = process.cpuUsage(cpuStart);
+    const postCounts = { reads, notifications, waitingReports };
     assert.equal(code, 0, output);
     assert.equal(sent, true, 'the seat reached idle and received the actual timed shout');
     assert.ok(askedAt - quietAt >= 30_000); // budget: declared #2518 requires measurement across 30 seconds.
-    assert.ok(quietCpu.user + quietCpu.system < 300_000, JSON.stringify({ quietCpu, totalCpu })); // budget: declared #2518 caps CPU at 0.3 seconds across that quiet interval.
+    assert.ok(quietCpu.user + quietCpu.system < 300_000, JSON.stringify({ quietCpu, totalCpu, quietCounts, postCounts })); // budget: declared #2518 caps CPU at 0.3 seconds across that quiet interval.
     const wakeDetails = JSON.stringify({ output,
       shoutMs: shoutFinishedAt - askedAt, outputMs: outputAt - askedAt,
       completionMs: returnedAt - askedAt });
