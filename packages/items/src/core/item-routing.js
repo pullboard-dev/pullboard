@@ -40,13 +40,26 @@ export function stripPerItemFullSuiteCriterion(criterion) {
  *
  * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
+/** Fill absent low-route file and test sections from literal test paths in the item's check. */
+function inferBrief(brief, check, engine) {
+  const referenceOptions = { references: engine >= REFERENCE_ENGINE };
+  const sections = briefSections(brief, referenceOptions);
+  const files = [...new Set((check.match(/(?:^|\s)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))(?:\s|$)/gu) ?? []).map(value => value.trim().split(/\s/u).at(-1)))];
+  if (!files.length) return brief;
+  const add = [];
+  if (!briefFiles(brief, referenceOptions).length) add.push(`Files:\n${files.map(file => `- ${file}`).join('\n')}`);
+  if (!sections.test?.length) add.push(`Test: ${files.join(', ')}`);
+  return add.length ? `${brief.trim()}${brief.trim() ? '\n\n' : ''}${add.join('\n\n')}` : brief;
+}
+
 export function checkRouted({ brief, route, criterion, check }, engine) {
   checkPerItemCriterion(criterion, engine);
   if (brief.length > BRIEF_LIMIT) {
     throw new Refused('BRIEF_TOO_LONG', `the brief is ${brief.length} characters; keep it under ${BRIEF_LIMIT} and point to longer docs by path`);
   }
   refuseMaskedExit(check);
-  if (route === 'strong') return;
+  if (route === 'strong') return brief;
+  brief = inferBrief(brief, check, engine);
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };
   const sections = briefSections(brief, referenceOptions);
   const missing = [
@@ -58,6 +71,7 @@ export function checkRouted({ brief, route, criterion, check }, engine) {
   if (missing.length) {
     throw new Refused('NO_BRIEF', `an item routed ${route} must be buildable cold; it needs ${missing.join(', ')}`);
   }
+  return brief;
 }
 
 
