@@ -47,7 +47,7 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   const remoteStderr = join(dir, 'remote-stderr.log');
   const ran = join(dir, 'command-ran');
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -142,7 +142,7 @@ test('a remote file denial is classified on the runner [I1,C7]', { skip: process
   const realpaths = join(dir, 'controller-realpaths.log');
   const preload = join(dir, 'realpath-witness.mjs');
   for (const folder of [repo, worker, bin, machineHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   // The controller logs every path it realpaths that lies on the runner, so resolving one is caught.
   writeFileSync(preload, `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
 const real = fs.realpathSync; const native = real.native;
