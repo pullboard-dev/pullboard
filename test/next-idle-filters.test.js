@@ -45,3 +45,14 @@ test('changed first skip evidence starts a new observation even when its broad i
   assert.deepEqual(idleSkipMinutes(store.events(box.board), box.clock.now().getTime()).rows,
     [{ code: 'DEPENDENCY', seatMinutes: 1440 }], 'carry-in is clipped to the window; older causes contribute nothing');
 });
+
+test('an empty other-lane fallback retains this seat own build filters [C7,#3080]', async t => {
+  const box = await fixture(t);
+  const ids = [box.add('Held build one'), box.add('Held build two')];
+  for (const id of ids) store.holdItem(box.board, id, { agentId: 'coordinator', reason: 'Native fixture hold' });
+  const result = await cli(box, box.seats.actor.path, ['next', '--build']);
+  assert.equal(result.code, 1, result.out + result.err);
+  const event = store.events(box.board).findLast(row => row.event_kind === 'next-idle' && row.event_by === box.seats.actor.id);
+  assert.ok(event, result.out + result.err);
+  assert.deepEqual(JSON.parse(event.event_detail).skips, ids.map(item => ({ item, code: 'ITEM_HELD' })));
+});
