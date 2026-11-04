@@ -38,6 +38,9 @@ import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { claimFreezer } from './claim.js';
 import { dirtyFiles } from './submit.js';
+import { commandObservation } from '../../../../../packages/git/index.js';
+import { statusPaths } from '../../../../../packages/git/index.js';
+import { worktreeStatus } from '../../../../../packages/git/index.js';
 
 /** Label the holder at the start of a generated wait reason without rewriting its quoted reason. */
 export function displayedWait(reason, agents, config) {
@@ -61,7 +64,12 @@ function warmFiles(ctx, board, me) {
     .sort((first, second) => second.item_updated_at.localeCompare(first.item_updated_at))
     .slice(0, 3)
     .flatMap((item) => store.itemFiles(item));
-  return [...new Set([...recent, ...dirtyFiles(ctx.info.root)])];
+  // One next reads this seat's edits once, however many of its steps warm from them.
+  // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
+  let dirty;
+  try { const { changed, untracked } = statusPaths(worktreeStatus(ctx.info.root)); dirty = [...changed, ...untracked]; }
+  catch { dirty = commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
+  return [...new Set([...recent, ...dirty])];
 }
 
 /**
