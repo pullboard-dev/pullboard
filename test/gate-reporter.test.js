@@ -37,6 +37,8 @@ test('an aborted landing publishes the first failing file and test as a structur
     ["    await abortPromise;\n    await Promise.all(reporterEnds);",
       "    process.stderr.write('TRACE landing: before abortPromise\\n');\n    await abortPromise;\n    process.stderr.write('TRACE landing: after abortPromise, reporterEnds=' + reporterEnds.length + '\\n');\n    await Promise.all(reporterEnds);\n    process.stderr.write('TRACE landing: reporters ended\\n');"],
     ["    stream.on('end', endReporters);", "    stream.on('end', () => { process.stderr.write('TRACE landing: stream ended\\n'); endReporters(); });"],
+    ["    stream.once('error', error => {\n        streamErrored = true;", "    stream.once('error', error => {\n        process.stderr.write('TRACE landing: stream error ' + error.message + '\\n');\n        streamErrored = true;"],
+    ["  const endReporters = () => {\n    if (reportersEnded) return;", "  const endReporters = () => {\n    process.stderr.write('TRACE landing: endReporters reporters=' + reporters.length + ' ended=' + reportersEnded + '\\n');\n    if (reportersEnded) return;"],
   ]);
   instrument('packages/gate/src/shell/test-file-dispatch.js', [
     ["  const files = options.selectedFiles ?? options.files ?? [];", "  const files = options.selectedFiles ?? options.files ?? [];\n  process.stderr.write('TRACE dispatch: files=' + files.length + '\\n');"],
@@ -60,6 +62,10 @@ test('an aborted landing publishes the first failing file and test as a structur
     ["  process.once('exit', () => {\n    try {\n      // The dispatcher's row stays charged through every exit listener until the actual process has exited.", "  process.once('exit', () => {\n    process.stderr.write('TRACE token worker exit: process=' + process.pid + ' pool=' + JSON.stringify(pool) + '\\n');\n    try {\n      // The dispatcher's row stays charged through every exit listener until the actual process has exited."],
     ["      release() {\n        if (closed) return;", "      release() {\n        process.stderr.write('TRACE token release: enter closed=' + closed + ' owned=' + JSON.stringify(owned()) + '\\n');\n        if (closed) return;"],
     ["        db.prepare('DELETE FROM file_holder WHERE dispatch = ?').run(nonce);\n        db.close();\n        closed = true;", "        const removed = db.prepare('DELETE FROM file_holder WHERE dispatch = ?').run(nonce).changes;\n        process.stderr.write('TRACE token release: deleted=' + removed + '\\n');\n        db.close();\n        closed = true;\n        process.stderr.write('TRACE token release: closed\\n');"],
+  ]);
+  instrument('packages/gate/src/shell/test-file-dispatch.js', [
+    ["      stream.end();", "      process.stderr.write('TRACE dispatch: before stream.end\\n');\n      stream.end();\n      process.stderr.write('TRACE dispatch: after stream.end\\n');"],
+    ["    } catch (error) { stream.destroy(error); }", "    } catch (error) { process.stderr.write('TRACE dispatch: finish error ' + error.stack + '\\n'); stream.destroy(error); }"],
   ]);
   const activityMarker = join(root, 'fixture-activity');
   writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import { writeFileSync } from 'node:fs';
