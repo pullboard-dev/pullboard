@@ -112,8 +112,10 @@ test('the native item timeline reads as sentences with clamped notes and working
     await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
     await press(chrome, "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=\"note\"]')].find(row => row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('[data-timeline-more]')");
     await press(chrome, "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=\"note\"]')].find(row => row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('.tl-body [data-code]')");
-    await chrome.waitFor("document.querySelector('#detail .tl .code-wrap')?.textContent.includes('timelineFixture')");
-    assert.ok(await chrome.stable("document.querySelector('#detail .tl .code-wrap').getBoundingClientRect().height > 0"), 'the actual source preview is visible, not only present in hidden DOM');
+    const noteRow = "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=note]')].find(row => !row.closest('[hidden]') && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))";
+    const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
+    await chrome.waitFor(notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0");
+    assert.ok(await chrome.stable(notePreview + "?.getBoundingClientRect().height > 0"), 'the selected note shows its actual referenced source preview');
     await press(chrome, "document.querySelector('#detail .tl [data-go=\"item:2\"]')");
     await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.textContent.includes('Reference target')");
     assert.deepEqual(chrome.exceptions, []);
