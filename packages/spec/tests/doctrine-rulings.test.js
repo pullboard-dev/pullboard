@@ -104,7 +104,7 @@ test('a ruling the person approves reaches every agent once [D1,D3,B27]', (t) =>
   assert.equal(box.git(other, 'rev-parse', 'HEAD'), oldHeads[2]);
   assert.ok(!readFileSync(join(box.web, 'DOCTRINE.md'), 'utf8').includes(rule), 'no fixture silently synchronizes the old worktree');
 
-  const item = json(box.repo, 'add', 'web', 'Follow the approved ruling', '--specs', drafted.id,
+  const item = json(box.repo, 'add', 'web', 'Follow the approved ruling', '--route', 'strong', '--specs', drafted.id,
     '--criterion', 'The builder follows the approved ruling.', '--check', 'true').item;
   json(box.web, 'claim', String(item.item_id));
   const frozen = JSON.parse(json(box.web, 'show', String(item.item_id)).item_frozen);
@@ -140,7 +140,7 @@ test('a ruling the person approves reaches every agent once [D1,D3,B27]', (t) =>
   // An old applied receipt must not revive a retired committed rule via an unstaged restoration.
   writeFileSync(file, approvedSource);
   assert.ok(json(other, 'resume').doctrineNotes.every(note => note.id !== drafted.id), 'committed retirement wins over a stale receipt and working-copy restoration');
-  const retiredItem = json(box.repo, 'add', 'web', 'Do not revive the retired ruling', '--specs', drafted.id,
+  const retiredItem = json(box.repo, 'add', 'web', 'Do not revive the retired ruling', '--route', 'strong', '--specs', drafted.id,
     '--criterion', 'A stale applied receipt cannot revive committed retirement.', '--check', 'true').item;
   const refused = box.run(other, 'claim', String(retiredItem.item_id), '--json');
   assert.notEqual(refused.code, 0, 'the stale receipt cannot make a retired rule claimable');
@@ -165,9 +165,9 @@ test('local doctrine edits flag their frozen row without hiding shared approved 
   box.git(box.repo, 'commit', '-q', '-m', 'docs(doctrine): propose shared guidance');
   json(box.repo, 'spec', 'approve', drafted.id);
   json(box.repo, 'spec', 'apply');
-  const shared = json(box.repo, 'add', 'web', 'Follow shared guidance', '--specs', drafted.id,
+  const shared = json(box.repo, 'add', 'web', 'Follow shared guidance', '--route', 'strong', '--specs', drafted.id,
     '--criterion', 'Shared approved guidance stays in force.', '--check', 'true').item;
-  const edited = json(box.repo, 'add', 'web', 'Follow inherited guidance', '--specs', 'doctrine:PB1',
+  const edited = json(box.repo, 'add', 'web', 'Follow inherited guidance', '--route', 'strong', '--specs', 'doctrine:PB1',
     '--criterion', 'A changed local row remains visible to diagnostics.', '--check', 'true').item;
   for (const item of [shared, edited]) {
     json(box.web, 'claim', String(item.item_id));
