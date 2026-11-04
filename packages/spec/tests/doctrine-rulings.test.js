@@ -18,11 +18,13 @@ import { parseSpec } from '../src/shell/spec.js';
 function apiMove(box, cwd, move) {
   const api = pathToFileURL(resolve(import.meta.dirname, '../../api/src/shell/api.js')).href;
   const cli = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
+  const person = pathToFileURL(resolve(import.meta.dirname, '../../person/index.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(api)});
     const { main } = await import(${JSON.stringify(cli)});
+    const { moveArgs } = await import(${JSON.stringify(person)});
     const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)});
-    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     process.stdout.write(JSON.stringify(await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, 'api', undefined, apiBoardOpeners)));
   `;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd, env: box.env, encoding: 'utf8' });
