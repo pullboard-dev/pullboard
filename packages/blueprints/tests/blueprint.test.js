@@ -570,12 +570,12 @@ test('bundled blueprint rows carry their checks [S1,I1]', async () => {
 });
 
 test('blueprint commands say what they did [S1,I1]', () => {
-  // Every file's bytes outside Git's object store, and every board event, so a repeat add is proven to change nothing.
+  // Every file's bytes outside Git's object store (seat-timing.jsonl is per-command telemetry, not board state), and every board event, so a repeat add is proven to change nothing.
   const snapshot = (box) => {
     const files = readdirSync(box.repo, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile())
       .map((entry) => join(entry.parentPath, entry.name))
-      .filter((path) => !path.includes(`${join('.git', 'objects')}`) && !/board\.sqlite/u.test(path))
+      .filter((path) => !path.includes(`${join('.git', 'objects')}`) && !/board\.sqlite/u.test(path) && !/seat-timing\.jsonl$/u.test(path))
       .sort()
       .map((path) => [path, readFileSync(path).toString('base64')]);
     return { files, events: json(box, 'log').events };
