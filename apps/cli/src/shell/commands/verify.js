@@ -4,7 +4,7 @@ import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
-import { reusableSubmitProof } from '../../../../../src/submit-proof-reuse.js';
+import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
@@ -19,6 +19,8 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
+import { reviewCitations } from '../../../../../packages/gate/index.js';
+import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
@@ -50,6 +52,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import { completeMoveHandoff } from '../../../../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../../../../packages/verify/index.js';
 import { reviewPacketReadNote } from '../../../../../packages/verify/index.js';
+import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { twoTierReviews } from '../../../../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../../../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../../../../packages/items/index.js';
@@ -116,6 +119,7 @@ import {
 import {
   composeReview,
   composesAtAdmission,
+  recordNativeProof,
 } from '../../../../../packages/verify/index.js';
 import {
   captureVerdictReview,
@@ -270,7 +274,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
-    const head = headCommit(root) ?? '';
+    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview);
+    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
       throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
@@ -278,7 +283,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     let digest = 'missing';
     let check;
     let review;
-    let unaffectedMove = '';
+    let unaffectedMove = '', cited = [];
     let knownMain = null;
     const companionDigest = store.itemPatchDigest(board, id);
     const missing = missingCompanionKeys(root, board, item, head,
@@ -286,7 +291,12 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (missing.keys.length) throw new Refused('NOT_AT_COMMIT',
       `the review tree lacks companions ${missing.keys.join(', ')} for patch-set ${missing.digest}; run pullboard next --verify ${id} to check out the composed source`);
     digest = verificationCriterionDigest(freezer(ctx, { board }), item);
-    if (decision === 'ACCEPT') {
+    if (fromPacket) {
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      refuseUnverifiedStack(root, board, item, commit, requireTrunkMerge(root, commit));
+      check = { state: 'pass', checked: true, reused: true, executionNote: `\n${fromPacket}` };
+      ctx.io.say(fromPacket);
+    } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
@@ -316,18 +326,18 @@ export async function verifyHere(ctx, id, { second, values }) {
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
-        if (testTiers) ctx.io.say(testTierReport(testTiers));
+        if (testTiers) { ctx.io.say(testTierReport(testTiers)); cited = reviewCitations(root, testTiers); } // A4: cite seals, never re-check them
         let expectedPlan = null;
         if (head === checkedCommit && isClean(root) && !untracked(root).length && !companionDigest && !item.item_effective_head) {
           try {
             const config = submitGateConfig(ctx.config, policyAt(root, trunk.commit).config);
             const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: trunk.commit, commit: checkedCommit, check: frozenCheck(item) });
-            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand };
+            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
-        const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan.check, affectedTests: ctx.config.affectedTests ?? '',
-          gate: ctx.config.gate ?? '', supplement, expectedPlan }) : { reason: 'clean submit plan unavailable' };
+        const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && (frozenCheck(item) || supplement)) {
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
@@ -376,6 +386,15 @@ export async function verifyHere(ctx, id, { second, values }) {
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
+          if (!knownMain && check.proofReceiptId) {
+            await recordNativeProof(ctx, checkedItem, check, { ordered, withBoard, resourceAgent, proofRunReceipt: store.proofRunReceipt,
+              exitFailures: true }, board);
+            const gap = store.selectorGapCandidate(board, { agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review });
+            if (gap) {
+              const recorded = await ordered(ctx, board, 'recordSelectorGap', [{ agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review }]);
+              return { decision: 'SELECTOR_GAP', repairItem: recorded.item, filed: recorded.filed };
+            }
+          }
           if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         }
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
@@ -424,7 +443,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -451,6 +470,11 @@ export async function verifyHere(ctx, id, { second, values }) {
   });
   const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
+  if (result.decision === 'SELECTOR_GAP') {
+    ctx.io.say(`Recorded a selector gap for #${id}; repair item #${result.repairItem} is open. #${id} remains submitted for review.`);
+    if (ctx.verdictResult) ctx.verdictResult.value = primary;
+    return 0;
+  }
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
@@ -464,6 +488,30 @@ export async function verifyHere(ctx, id, { second, values }) {
   }
   if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
+}
+
+/**
+ * The verdict line when an accept can be recorded from the stored review packet, or null when it must
+ * run the frozen check; a packet with an uncovered clause says which clause forced the check.
+ *
+ * Why: a packet is stored only after a green gate at the submitted head, so when every clause cites a
+ * recorded run there, the accept needs no checkout, test run or main merge of its own. The landing step
+ * still composes main and runs the landing gate. Companions, a source advance and a re-review change the
+ * reviewed tree, so they always take the full path.
+ */
+function packetAcceptance(ctx, board, item, decision, reReview) {
+  if (decision !== 'ACCEPT' || reReview || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
+  const packet = reviewPacketRerun(ctx.info.commonDir, item);
+  if (!packet) return null;
+  if (packet.failures) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)} records failures at head; running the frozen check`);
+    return null;
+  }
+  if (packet.rerun.length) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${packet.rerun.join(', ')} has no recorded run; running the frozen check`);
+    return null;
+  }
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every clause is covered by a recorded green run at the submitted head; no checkout, test run or main merge`;
 }
 
 /** Run `pullboard verify` and return its exit code. */
