@@ -1,6 +1,6 @@
 /** Landing retains the first real assertion identity when abort interrupts a reporter [C7,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
@@ -19,6 +19,32 @@ test('an aborted landing publishes the first failing file and test as a structur
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(ROOT, root);
+  /** Add temporary stage markers to the private runner copy to locate the unresolved await. */
+  function instrument(relativePath, edits) {
+    const path = join(root, relativePath);
+    let source = readFileSync(path, 'utf8');
+    for (const [before, after] of edits) {
+      assert.ok(source.includes(before), `diagnostic anchor exists in ${relativePath}: ${before.slice(0, 48)}`);
+      source = source.replace(before, after);
+    }
+    writeFileSync(path, source);
+  }
+  instrument('bin/run-tests.js', [
+    ["  const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);",
+      "  process.stderr.write('TRACE run-tests: before executeTests\\n');\n  const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);\n  process.stderr.write('TRACE run-tests: after executeTests\\n');"],
+    ["  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)",
+      "  process.stderr.write('TRACE run-tests: before execution branch\\n');\n  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)"],
+  ]);
+  instrument('packages/gate/src/shell/test-file-dispatch.js', [
+    ["  const files = options.selectedFiles ?? options.files ?? [];", "  const files = options.selectedFiles ?? options.files ?? [];\n  process.stderr.write('TRACE dispatch: files=' + files.length + '\\n');"],
+    ["      browser = await browserLease(file);", "      process.stderr.write('TRACE fileRun: start\\n');\n      browser = await browserLease(file);\n      process.stderr.write('TRACE fileRun: browser acquired\\n');"],
+    ["      unlock = await acquire();", "      unlock = await acquire();\n      process.stderr.write('TRACE fileRun: queue acquired\\n');"],
+    ["      token = await reserveTestFileToken(env, signal);", "      token = await reserveTestFileToken(env, signal);\n      process.stderr.write('TRACE fileRun: token reserved\\n');"],
+    ["      await Promise.race([token.transferred(), completed]);", "      await Promise.race([token.transferred(), completed]);\n      process.stderr.write('TRACE fileRun: transfer or completion\\n');"],
+    ["      await completed;", "      await completed;\n      process.stderr.write('TRACE fileRun: completed\\n');"],
+    ["      for await (const event of source) for (const input of inputs) input.write(event);", "      for await (const event of source) { process.stderr.write('TRACE dispatch: first event\\n'); for (const input of inputs) input.write(event); }\n      process.stderr.write('TRACE dispatch: stream ended\\n');"],
+    ["    await Promise.all(ends);", "    await Promise.all(ends);\n    process.stderr.write('TRACE dispatch: reporters ended\\n');"],
+  ]);
   writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 test('spec default failure [C7]', () => assert.fail('intentional reporter fixture failure'));
