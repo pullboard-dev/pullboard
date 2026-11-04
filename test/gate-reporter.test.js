@@ -13,7 +13,6 @@ const ROOT = resolve(import.meta.dirname, '..');
 
 test('an aborted landing publishes the first failing file and test as a structured outcome [C7,V4]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gate-reporter-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const machineHome = join(root, 'machine');
   mkdirSync(machineHome);
   mkdirSync(join(root, 'test'));
@@ -58,6 +57,7 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
       else process.env.PULLBOARD_MACHINE_HOME = currentMachineHome;
     }
   });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...process.env, ...gateSlotEnvironment(lease), PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_LANDING_RUN: '1' };
   const admissionKeys = ['PULLBOARD_MACHINE_HOME', 'PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD'];
   const previousAdmission = new Map(admissionKeys.map(key => [key, process.env[key]]));
