@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import {
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
+import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
@@ -13,11 +15,17 @@ import {
   unseal,
 } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { runFixtureGit } from './fixture-child.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
+  symlinkSync(new URL('../bin/pullboard.js', import.meta.url), join(box.env.PATH.split(delimiter)[0], 'pullboard'));
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', 'chore(test): commit relay policy fixture', '--', 'pullboard.json'], {
+    cwd: box.root, env: box.env, stdio: 'pipe',
+  });
   const actor = 'coordinator';
   assert.equal(box.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
   assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
@@ -37,6 +45,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
     if (operation === 'requestCompanion') args = [{ agentId: actor, parentId: 999999, lane: box.lane,
       key: 'credential-companion', title: 'credential actor fixture' }];
+    if (operation === 'createItemSlice') args = [{ agentId: actor, parentId: 999999,
+      parentDigest: 'f'.repeat(64), title: 'credential slice fixture', lane: box.lane, files: ['src/credential-fixture.js'] }];
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
     // State-bound companion sealing reads the real item before choosing its replay protocol.
@@ -51,6 +61,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'setBarReady') args = [{ agentId: actor, enabled: false }];
     if (operation === 'maintainStaleState') args = [{ agentId: actor, snapshot: null }];
     if (operation === 'recordHealthFindings') args = [{ agentId: actor, observedRevision: 0, findings: [] }];
+    if (operation === 'recordSelectorGap') args = [{ agentId: actor, itemId: box.before.tables.item[0].item_id,
+      receiptId: 'missing-selector-gap-review', review: null }];
     if (operation === 'recordNextIdle') args = [{ agentId: actor, reason: 'nothing-eligible' }];
     if (operation === 'recordActivityDelivery') args = [{ agentId: actor, through: 0, interrupts: [] }];
     if (operation === 'actOnActivity') args = [{ agentId: actor, ids: ['event:1'] }];
@@ -78,8 +90,10 @@ test('every current operation selects its native actor credential without a seco
       args = [{ agentId: 'person', channel: 'terminal', name: 'credential-watch', digest: 'f'.repeat(64), decision: 'approve' }];
       kind = 'person';
     }
-    // This missing-item fixture still supplies modern proof metadata before testing submit's transport credential.
-    if (operation === 'submit') args = [999999, { ...options, submissionProof: { version: 1, files: [], full: false, deferred: false, reason: '' } }];
+    // Keep a modern proof payload so this missing item reaches its exact native refusal.
+    if (operation === 'submit') return { operation,
+      args: [999999, { ...options, submissionProof: { version: 1, files: [], full: false, deferred: false, reason: '' } }],
+      kind, sent: false, expected: 'NO_ITEM', label: 'submit with proof for a missing item' };
     if (operation === 'completeCheckBaseline') args = [999999, { ...options,
       expected: { command: 'true', main: 'a'.repeat(40), result: 'pending', request: '11111111-1111-4111-8111-111111111111' },
       baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
@@ -104,6 +118,8 @@ test('every current operation selects its native actor credential without a seco
       batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
+    if (operation === 'recordSelectorGap') return { operation, args, kind, expectedResult: 'SELECTOR_GAP_UNPROVED',
+      label: 'recordSelectorGap without an actual reviewed-failure receipt' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
   cases.unshift({ operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
@@ -126,12 +142,14 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'setBoardMembers', args: [{ document: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordNextIdle', args: [{ reason: 'nothing-eligible' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordActivityDelivery', args: [{ through: 0, interrupts: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordSelectorGap', args: [{ itemId: box.before.tables.item[0].item_id, receiptId: 'missing-selector-gap-review', review: null }],
+      kind: 'agent', sent: false, expected: 'RELAY_ACTOR', label: 'recordSelectorGap missing actor' },
     { operation: 'actOnActivity', args: [{ ids: ['event:1'] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordSpecApprovalBaseline', args: [{ baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordRowVerification', args: [{ source: '- G1 [approved, must] A credential fixture row. | gate: review', decision: 'accepted', reason: 'credential fixture' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordFlakeObservation', args: [{ lane: box.lane, observation: syntheticFlakeObservation('missing-actor') }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordGateRun', args: [{ lane: box.lane, receipt: {} }], kind: 'agent', sent: false, expected: 'GATE_RUN_EVIDENCE' },
-    { operation: 'submit', args: [999999, options], kind: 'agent', sent: false, expected: 'SUBMISSION_PROOF' },
+    { operation: 'submit', args: [box.before.tables.item[0].item_id, options], kind: 'agent', sent: false, expected: 'SUBMISSION_PROOF' },
     { operation: 'answerDecision', args: [999999, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
     { operation: 'holdLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
     { operation: 'releaseLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
@@ -159,30 +177,53 @@ test('every current operation selects its native actor credential without a seco
     assert.equal(result.code, 0, 'every operation reaches the real transport and deterministic replay');
     assert.equal(result.document.results.some(value => value?.fatal), false, JSON.stringify(result.document.results.filter(value => value?.fatal)));
     assert.equal(result.document.results.length, batch.length);
-    results.push(...result.document.results);
+    results.push(...batch.map((entry, index) => ({
+      operation: entry.operation,
+      label: entry.label ?? entry.operation,
+      expectedSent: entry.sent !== false,
+      result: result.document.results[index],
+    })));
   }
   const records = box.moveAcks.slice(start);
   const sentCases = cases.filter(entry => entry.sent !== false);
-  assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const acknowledged = [];
+  for (const record of records) {
+    const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
+    acknowledged.push({ record, move });
+  }
+  const expectedOperations = sentCases.map(entry => entry.operation);
+  const actualOperations = acknowledged.map(({ move }) => move.operation);
+  const mismatch = expectedOperations.findIndex((operation, index) => actualOperations[index] !== operation);
+  if (mismatch !== -1 || actualOperations.length !== expectedOperations.length) {
+    const start = Math.max(0, (mismatch === -1 ? Math.min(actualOperations.length, expectedOperations.length) : mismatch) - 2);
+    const caseStart = Math.max(0, start - 2);
+    const diagnostics = cases.slice(caseStart, start + 7).map((entry, offset) => ({
+      operation: entry.operation, label: entry.label ?? entry.operation, expectedSent: entry.sent !== false, result: results[caseStart + offset].result,
+    }));
+    assert.fail(`transport acknowledgement sequence differs near ${JSON.stringify({
+      expected: expectedOperations.slice(start, start + 5), actual: actualOperations.slice(start, start + 5), cases: diagnostics,
+    })}`);
+  }
+  assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   let recordIndex = 0;
   for (const [index, entry] of cases.entries()) {
+    if (entry.expectedResult) assert.equal(results[index].result, entry.expectedResult, `${entry.label ?? entry.operation} retains its native outcome after authenticated transport`);
     if (entry.sent === false) {
-      assert.equal(results[index], entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
+      assert.equal(results[index].result, entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
       continue;
     }
-    const record = records[recordIndex++];
-    const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
+    const { record, move } = acknowledged[recordIndex++];
     assert.equal(move.operation, entry.operation);
     assert.equal(move.engine, ENGINE_VERSION, 'the current engine version is recorded on every sealed operation');
     assert.equal(record.sender.kind, entry.kind, `${entry.operation} selects the correct authenticated credential`);
     if (entry.kind === 'agent') assert.equal(record.sender.agent, actor, 'the scoped credential belongs to the native actor');
     if (entry.kind === 'machine') assert.equal(record.sender.machine, state.machine, 'the machine credential is attributed to this native machine');
     if (entry.personRequest) {
-      assert.equal(results[index], 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
+      assert.equal(results[index].result, 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
     } else {
-      assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index]),
+      assert.ok(!['RELAY_ACTOR', 'RELAY_SENDER', 'RELAY_SENDER_MISMATCH', 'RELAY_PERSON_ONLY'].includes(results[index].result),
         `${entry.operation} passes main's shared sender policy`);
     }
   }
