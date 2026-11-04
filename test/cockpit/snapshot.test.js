@@ -685,7 +685,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   build(box, alpha, 1, 'one.txt');
   accept(box, alpha, 1);
   box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1');
+  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
   box.run(alpha.repo, 'milestone', 'add', 'Later');
   const folder = join(box.dir, 'roadmap-export');
   box.run(alpha.repo, 'view', '--export', folder);
@@ -819,7 +819,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
         const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
         return {
           title: detail.querySelector('h2').innerText,
-          criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
+          criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
           verdicts: [...(part('Verdicts')?.querySelectorAll('.verdict') ?? [])].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
           moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
           facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
