@@ -577,8 +577,10 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
         // Live load: skip overloaded runners, prefer healthy ones, take the most headroom, or queue (#2509).
         ({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now));
         if (!selected) return null;
-      } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
-        // Flexible work preserves browser capacity whenever a compatible browser-free host is available.
+      } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)
+        && !(restriction?.kind === 'ssh' && restriction.hosts && compatible[0].host === restriction.host)) {
+        // Flexible work preserves browser capacity whenever a compatible browser-free host is available,
+        // except that a free explicitly preferred host keeps its place [Q1,Q2,E27].
         selected = compatible.find(runner => runner.browser === 0);
       }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
