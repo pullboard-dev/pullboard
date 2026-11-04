@@ -19,24 +19,14 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CHECKOUT_SESSION_TOKEN_ENV } from './agent-session.js';
+import { CALLER_SESSION_NAMES } from './agent-session.js';
 import { displayAgentName } from './agent-names.js';
 import { loadConfig } from './config.js';
-import {
-  AGENT_SESSION_IDS,
-  AGENT_SHELL_MARKERS,
-} from './person.js';
 import {
   forgetProject,
   listProjects,
   registerProject,
 } from './projects.js';
-
-/**
- * The caller's agent-session identity and checkout lease. A scripted seat must never inherit them: a seat that did
- * would be recorded under the caller's session, and its verify would then be refused as self-verification (#952).
- */
-const CALLER_SESSION_NAMES = new Set([...AGENT_SHELL_MARKERS, ...AGENT_SESSION_IDS, CHECKOUT_SESSION_TOKEN_ENV]);
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -129,7 +119,7 @@ export async function tour(io) {
   // Nothing of the person's git setup reaches the tour: no config files, and no GIT_ variable, such
   // as GIT_DIR from a hook or GIT_CONFIG_COUNT pairs, which git reads as config too. The caller's agent session
   // stays out as well, so each seat is judged as its own session below (#952).
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.has(name)));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.includes(name)));
   Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard'), PULLBOARD_MACHINE_HOME: join(dir, '.pullboard-machine') });
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;

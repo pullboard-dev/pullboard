@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { CALLER_SESSION_NAMES, checkoutSessionFile, withoutCallerSession } from '../src/agent-session.js';
 import * as store from '../src/board.js';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
@@ -12,8 +13,10 @@ import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engin
 import { exportBoard } from '../src/exchange.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/health-receipts.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { repoInfo } from '../src/git.js';
+import { agentSessionDigest } from '../src/person.js';
 import { eventCauses, rigorReport } from '../src/rigor.js';
-import { startServeSentinel, HEALTH_SENTINEL_INTERVAL_MS } from '../src/serve-sentinel.js';
+import { refreshBoard, startServeSentinel, HEALTH_SENTINEL_INTERVAL_MS } from '../src/serve-sentinel.js';
 import { machineSettingsFile } from '../src/settings.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -237,4 +240,42 @@ test('the background sentinel uses the ten minute cadence, skips overlaps and dr
   assert.deepEqual(entered, ['/one'], 'shutdown never starts another project');
   assert.equal(tick(), null);
   release();
+});
+
+test('the view-spawned health scan carries no agent session, so a checkout a later session took over never refuses it [A6]', async t => {
+  const box = fixture(t);
+  const launcher = { CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'view-launcher' };
+  const original = Object.fromEntries(Object.keys(launcher).map(key => [key, process.env[key]]));
+  t.after(() => { for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  // The same agent's later session took the main checkout over, as pullboard takeover records it.
+  const later = agentSessionDigest({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'later-coordinator' });
+  writeFileSync(checkoutSessionFile(repoInfo(box.root)), JSON.stringify({ version: 1, agent: 'coordinator', digest: later, at: new Date().toISOString() }) + '\n');
+  const run = async () => {
+    let stdout = ''; let stderr = '';
+    const code = await main(['sentinel', 'run', '--health-only', '--json'], { cwd: box.root, clock: box.clock,
+      stdout: { isTTY: false, write: value => { stdout += value; } }, stderr: { write: value => { stderr += value; } } });
+    return { code, stdout, stderr };
+  };
+  Object.assign(process.env, launcher);
+  const stale = await run();
+  assert.notEqual(stale.code, 0, 'control: the launching shell’s own session is refused by the taken-over checkout');
+  assert.match(stale.stdout + stale.stderr, /NOT_YOUR_CHECKOUT/);
+  const { EventEmitter } = await import('node:events');
+  let spawned;
+  await refreshBoard(box.root, new AbortController().signal, { start: (command, args, options) => {
+    spawned = { command, args, options };
+    const child = new EventEmitter(); child.exitCode = 0; child.signalCode = null;
+    queueMicrotask(() => child.emit('close', 0));
+    return child;
+  } });
+  assert.deepEqual(spawned.args.slice(-4), ['sentinel', 'run', '--health-only', '--json']);
+  assert.equal(spawned.options.cwd, box.root);
+  for (const name of CALLER_SESSION_NAMES) assert.equal(name in spawned.options.env, false, `${name} stays out of the scan`);
+  assert.equal(spawned.options.env.PULLBOARD_HOME, process.env.PULLBOARD_HOME, 'everything else reaches the scan');
+  assert.deepEqual(spawned.options.env, withoutCallerSession(process.env));
+  for (const name of CALLER_SESSION_NAMES) delete process.env[name];
+  const asView = await run();
+  assert.equal(asView.code, 0, asView.stderr);
+  assert.ok(JSON.parse(asView.stdout).health, 'the scan ran and recorded health');
+  assert.equal(JSON.parse(readFileSync(checkoutSessionFile(repoInfo(box.root)), 'utf8')).digest, later, 'the scan never rebinds the checkout');
 });
