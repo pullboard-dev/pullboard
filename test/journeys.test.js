@@ -11,7 +11,7 @@ import { createRelayBrowserHandler } from '../relay/browser-page.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs, findChromeExecutable } from './relay-browser-fixture.js';
 import { startFixtureChild } from './fixture-child.js';
-import { apiStatus } from '../src/api-http.js';
+import { apiStatus } from '../packages/api/index.js';
 import { nextSteps$NEXT_STEPS as NEXT_STEPS } from '../apps/cli/index.js';
 import { chromeHealth, networkServicePids } from './cockpit/chrome-health.js';
 import {
