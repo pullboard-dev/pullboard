@@ -6,9 +6,9 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,18 @@ export async function cli(box, cwd, args, hooks = {}) {
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
   return { code, out, err, document: out.trim() ? JSON.parse(out) : null };
+}
+
+/** Close a dispatch fixture and retry transient ENOTEMPTY races while child work drains. */
+async function cleanupFixture(directory, board, original) {
+  try {
+    store.closeBoard(board);
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 }
 
 /** Isolate real worktrees and shared SQLite; only the explicitly injected clock advances time. */
@@ -120,11 +132,6 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     assert.equal(result.error, undefined, JSON.stringify(result));
     return result;
   };
-  t.after(() => {
-    store.closeBoard(board); rmSync(directory, { recursive: true, force: true });
-    for (const [key, value] of Object.entries(original)) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-  });
+  t.after(() => cleanupFixture(directory, board, original));
   return box;
 }
