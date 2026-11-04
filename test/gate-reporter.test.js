@@ -1,6 +1,6 @@
 /** Landing retains the first real assertion identity when abort interrupts a reporter [C7,V4]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
@@ -19,6 +19,21 @@ test('an aborted landing publishes the first failing file and test as a structur
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(ROOT, root);
+  const runnerPath = join(root, 'bin', 'run-tests.js');
+  let runner = readFileSync(runnerPath, 'utf8');
+  const reporterAnchor = "      output.once('end', resolveEnd);\n      output.once('close', resolveEnd);";
+  assert.ok(runner.includes(reporterAnchor));
+  runner = runner.replace(reporterAnchor,
+    "      output.once('end', () => { process.stderr.write('TRACE reporter: output end\\n'); resolveEnd(); });\n      output.once('close', () => { process.stderr.write('TRACE reporter: output close\\n'); resolveEnd(); });\n      output.once('error', error => process.stderr.write('TRACE reporter: output error ' + error.message + '\\n'));" );
+  const endAnchor = "    if (reportersEnded) return;\n    reportersEnded = true;\n    for (const reporter of reporters) reporter.end();";
+  assert.ok(runner.includes(endAnchor));
+  runner = runner.replace(endAnchor,
+    "    process.stderr.write('TRACE reporter: end requested, ended=' + reportersEnded + '\\n');\n    if (reportersEnded) return;\n    reportersEnded = true;\n    for (const reporter of reporters) { process.stderr.write('TRACE reporter: input before end ' + reporter.writableEnded + '\\n'); reporter.end(); process.stderr.write('TRACE reporter: input after end ' + reporter.writableEnded + '\\n'); }");
+  const awaitAnchor = "    await abortPromise;\n    // Abort can close the dispatcher stream without ending it.";
+  assert.ok(runner.includes(awaitAnchor));
+  runner = runner.replace(awaitAnchor,
+    "    await abortPromise;\n    process.stderr.write('TRACE reporter: after abort, reporterEnds=' + reporterEnds.length + '\\n');\n    // Abort can close the dispatcher stream without ending it.");
+  writeFileSync(runnerPath, runner);
   const activityMarker = join(root, 'fixture-activity');
   writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
