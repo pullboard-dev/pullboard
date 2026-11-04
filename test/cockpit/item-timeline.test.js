@@ -110,9 +110,10 @@ test('the native item timeline reads as sentences with clamped notes and working
     }
     await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
-    await press(chrome, "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=\"note\"]')].find(row => row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('[data-timeline-more]')");
-    await press(chrome, "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=\"note\"]')].find(row => row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))?.querySelector('.tl-body [data-code]')");
     const noteRow = "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=note]')].find(row => !row.closest('[hidden]') && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))";
+    await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
+    const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
+    await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
     await chrome.waitFor(notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0");
     assert.ok(await chrome.stable(notePreview + "?.getBoundingClientRect().height > 0"), 'the selected note shows its actual referenced source preview');
