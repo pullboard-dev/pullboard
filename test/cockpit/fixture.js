@@ -1077,11 +1077,11 @@ function showing(pane, address) {
 
 /** Open each folded Roadmap part once so stories that inspect all items read visible rows. */
 async function openRoadmapParts(chrome) {
-  const keys = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#roadmap [data-key]')].filter(part => part.querySelector(':scope > .milestone-head').getAttribute('aria-expanded') !== 'true').map(part => part.dataset.key))"));
+  const keys = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#roadmap [data-key]')].filter(part => part.querySelector('.milestone-head').getAttribute('aria-expanded') !== 'true').map(part => part.dataset.key))"));
   for (const key of keys) {
     const part = `[...document.querySelectorAll('#roadmap [data-key]')].find(part => part.dataset.key === ${JSON.stringify(key)})`;
-    await press(chrome, `${part}.querySelector(':scope > .milestone-head')`);
-    await chrome.waitFor(`${part}.querySelector(':scope > .milestone-head').getAttribute('aria-expanded') === 'true'`);
+    await press(chrome, `${part}.querySelector('.milestone-head')`);
+    await chrome.waitFor(`${part}.querySelector('.milestone-head').getAttribute('aria-expanded') === 'true'`);
   }
 }
 
