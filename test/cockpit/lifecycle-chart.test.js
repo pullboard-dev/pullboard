@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
-import { MACHINE } from '../../src/machine.js';
+import { MACHINE } from '../../packages/state/index.js';
 import { seedNativeOrdinary } from './lifecycle-ordinary-seed.js';
 import { nativeRareJourneys, seedRareLifecycleJourneys } from './lifecycle-native-seed.js';
 import { lifecycleEvent as lifecycleHistoryEvent } from '../../packages/items/index.js';
