@@ -21,3 +21,10 @@ test('a classified flake is still returned as a flake [C7,#2914]', async () => {
   ] } };
   assert.deepEqual(await diagnose(STATE, FAILURES, gate), ['test/a.test.js']);
 });
+
+test('a flake classification without a recorded observation is not trusted [C7,#2914]', async () => {
+  const gate = { logPath: STATE.batch.logPath, flakeDiagnostics: { observations: [
+    { file: 'test/a.test.js', classification: 'flake' },
+  ] } };
+  assert.deepEqual(await diagnose(STATE, FAILURES, gate), [], 'an observation with no recorded field is a real red, so it bisects');
+});
