@@ -134,7 +134,7 @@ export function nextFor(board, options) {
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
     const family = reviewRouting.seatFamily(board, agentId);
-    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
+    const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });

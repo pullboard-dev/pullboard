@@ -41,11 +41,9 @@ export async function diagnose(state, failures, gate) {
   const observations = gate?.flakeDiagnostics?.observations ?? [];
   // An observer failure without any observations provides no measurement to reuse; isolate the files instead.
   if (state.config.flakes?.rerun === true && !(gate?.flakeDiagnostics?.error && !observations.length)) {
-    if (gate?.flakeDiagnostics?.error || !observations.length || observations.some(row => !row.recorded || row.classification === 'unclassified')) {
-      await save(state, { state: 'blocked', failures, flakeDiagnostics: gate?.flakeDiagnostics });
-      throw new Refused('LAND_DIAGNOSTIC', `the original red has no complete classified diagnostic; no additional run or landing is allowed; inspect ${gate.logPath} and pullboard flakes`);
-    }
-    return [...new Set(observations.filter(row => row.classification === 'flake' && row.file).map(row => row.file))];
+    // An unrecorded or unclassified observation is treated as a real red: bisect is the safe fallback, and a
+    // true flake passes in the split runs and lands. Only rows classified as flakes are filed as flakes [C7,#2914].
+    return [...new Set(observations.filter(row => row.recorded === true && row.classification === 'flake' && row.file).map(row => row.file))];
   }
   if (!failures.length || failures.some((entry) => !entry.file)) throw new Refused('LAND_DIAGNOSTIC', `the gate did not name a failing test file; inspect ${state.batch.logPath} and make its reporter name source files`);
   const files = [...new Set(failures.map((entry) => entry.file))];
