@@ -18,10 +18,13 @@ function seeded(t) {
   add('reopen', 13, {}, 20);
   add('reopen', 14, {}, 120);
   const machine = { file: 'test/machine.test.js', name: 'boots', assertion: 'expected 1' };
+  const unchecked = { file: 'test/other.test.js', name: 'no comparison', assertion: 'y' };
   add('landing_batch', null, { batch: { id: 'b1', state: 'blocked', startedAt: at(50), items: [{ id: 21 }], blocked: [], refusal: { code: 'LAND_GATE_RED' }, gateResults: [{ failures: [machine] }] } }, 50);
+  // An overlapping batch: it shares the item that causes the failure, so differing item sets prove nothing about main.
+  add('landing_batch', null, { batch: { id: 'b1b', state: 'blocked', items: [{ id: 21 }, { id: 25 }], blocked: [], gateResults: [{ failures: [unchecked] }] } }, 40);
   add('landing_batch', null, { batch: { id: 'b2', state: 'blocked', startedAt: at(10), items: [{ id: 22 }, { id: 23 }],
     blocked: [{ id: 22, code: 'ITEM_HELD' }, { id: 23, code: 'ITEM_HELD' }, { id: 24, code: 'STALE_VERDICT' }], refusal: { code: 'LAND_GATE_RED' },
-    gateResults: [{ failures: [machine, { file: 'test/mine.test.js', name: 'only here', assertion: 'x' }] }] } }, 10);
+    gateResults: [{ knownMain: [machine], failures: [{ file: 'test/mine.test.js', name: 'only here', assertion: 'x' }, unchecked] }] } }, 10);
   return board;
 }
 
@@ -34,12 +37,20 @@ test('land --why names the last landing, the batch, its refusal, blocked items a
   assert.equal(why.batch.refusal, 'LAND_GATE_RED');
   assert.deepEqual(why.blocked.map(entry => [entry.id, entry.code]), [[22, 'ITEM_HELD'], [23, 'ITEM_HELD'], [24, 'STALE_VERDICT']]);
   assert.deepEqual(why.failures.map(entry => [entry.file, entry.name, entry.scope]),
-    [['test/machine.test.js', 'boots', 'also red on main'], ['test/mine.test.js', 'only here', 'batch only']]);
+    [['test/machine.test.js', 'boots', 'also red on main'], ['test/mine.test.js', 'only here', 'batch only'], ['test/other.test.js', 'no comparison', 'batch only']]);
   const text = landWhyLines(why).join('\n');
   assert.match(text, /last landed: #12 at 2026-11-04T09:30/u);
   assert.match(text, /blocked: #24 STALE_VERDICT/u);
   assert.match(text, /test\/machine\.test\.js :: boots \(also red on main\)/u);
   assert.match(text, /test\/mine\.test\.js :: only here \(batch only\)/u);
+});
+
+test('without a recorded main comparison a failure is unknown, even when an overlapping batch also failed it [C7]', (t) => {
+  const board = seeded(t);
+  board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES(?,?,?,?,?)').run(NOW.toISOString(), 'coordinator', 'landing_batch', null,
+    JSON.stringify({ batch: { id: 'b3', state: 'blocked', items: [{ id: 21 }, { id: 26 }], gateResults: [{ failures: [{ file: 'test/machine.test.js', name: 'boots' }] }] } }));
+  assert.deepEqual(landWhy(board, NOW).failures.map(entry => entry.scope), ['unknown']);
+  assert.match(landWhyLines(landWhy(board, NOW)).join('\n'), /boots \(unknown\)/u);
 });
 
 test('the status landing line counts the last hour and names the top blocker [C7]', (t) => {

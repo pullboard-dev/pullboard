@@ -14,25 +14,17 @@ function idsOf(entries) {
 
 /**
  * Project why the train is held from landing_batch, merged and reopen events.
- * A failure is 'also red on main' when the same file and case failed in another recorded batch that
- * carried different items, since a failure that follows no item is main's; otherwise it is 'batch only'.
+ * A failure is 'also red on main' only when the gate result records it in knownMain (the exact-main comparison);
+ * a remaining failure beside that record is 'batch only', and one with no recorded comparison is 'unknown'.
  * @param {{db:{prepare:Function}}} board
  * @param {Date} now
  * @returns {object}
  */
 export function landWhy(board, now = new Date()) {
   const latest = new Map();
-  const failed = new Map();
   for (const row of board.db.prepare("SELECT event_detail FROM event WHERE event_kind='landing_batch' ORDER BY event_id").all()) {
     const { batch } = detailOf(row);
-    if (!batch?.id) continue;
-    latest.set(batch.id, batch);
-    const key = idsOf(batch.items).sort((left, right) => left - right).join(',');
-    for (const result of batch.gateResults ?? []) for (const failure of result.failures ?? []) {
-      const id = `${failure.file}\u0000${failure.name}`;
-      if (!failed.has(id)) failed.set(id, new Set());
-      failed.get(id).add(`${batch.id}:${key}`);
-    }
+    if (batch?.id) latest.set(batch.id, batch);
   }
   const batches = [...latest.values()];
   const batch = batches.at(-1) ?? null;
@@ -40,10 +32,11 @@ export function landWhy(board, now = new Date()) {
   const since = new Date(now.getTime() - HOUR_MS).toISOString();
   const count = kind => board.db.prepare('SELECT COUNT(*) AS n FROM event WHERE event_kind=? AND event_at>=?').get(kind, since).n;
   const failures = [];
-  for (const result of batch?.gateResults ?? []) for (const failure of result.failures ?? []) {
-    const own = idsOf(batch.items).sort((left, right) => left - right).join(',');
-    const elsewhere = [...failed.get(`${failure.file}\u0000${failure.name}`) ?? []].some(entry => entry.slice(entry.indexOf(':') + 1) !== own);
-    failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope: elsewhere ? 'also red on main' : 'batch only' });
+  for (const result of batch?.gateResults ?? []) {
+    const known = result.knownMain ?? result.knownMainProof?.knownMain ?? null;
+    for (const failure of known ?? []) failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope: 'also red on main' });
+    // Only a recorded main comparison can call a remaining case batch-only; without one the scope is unknown.
+    for (const failure of result.failures ?? []) failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope: known ? 'batch only' : 'unknown' });
   }
   const blocked = (batch?.blocked ?? []).map(entry => ({ id: entry.id, code: entry.code ?? 'BLOCKED' }));
   const tally = new Map();
