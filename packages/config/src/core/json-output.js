@@ -90,7 +90,7 @@ export function successfulNext(command, result) {
   if (command === 'claim') return 'git status';
   if (command === 'tour') return 'pullboard view';
   if (['help', 'version'].includes(command)) return 'pullboard status';
-  return 'pullboard next --wait 1';
+  return 'pullboard next --take';
 }
 
 /** The longest single default-text line in UTF-8 bytes; one agents: line once ran to 54 KB [#1885]. */
