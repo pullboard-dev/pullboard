@@ -63,7 +63,7 @@ async function canonical(ctx) {
     if (common !== realpathSync(ctx.info.commonDir)) throw new Error('maintenance timer repository changed');
     const policy = mainPolicy(info.root);
     if (policy.config.worktreeMaintenance?.enabled !== true) return null;
-    const first = git(info.root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')[0].split('\0');
+    const first = git(info.root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() }).split('\0\0')[0].split('\0');
     if (!first[0]?.startsWith('worktree ') || first.includes('bare')) throw new Error('maintenance needs the primary checkout');
     const root = first[0].slice('worktree '.length);
     if (!isAbsolute(root)) throw new Error('invalid primary maintenance checkout');

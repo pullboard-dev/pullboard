@@ -30,25 +30,39 @@ function repository(t) {
     linked: { info: { root: fs.realpathSync(linked), commonDir, isMain: false }, config }, commonDir };
 }
 
+/** Exercise scheduler behavior outside runner jobs, whose production policy intentionally skips detached timers. */
+async function withoutRunnerJob(work) {
+  const saved = process.env.PULLBOARD_RUNNER_JOB;
+  delete process.env.PULLBOARD_RUNNER_JOB;
+  try { return await work(); }
+  finally { if (saved === undefined) delete process.env.PULLBOARD_RUNNER_JOB; else process.env.PULLBOARD_RUNNER_JOB = saved; }
+}
+
 test('a linked worktree with an inherited GIT_DIR still registers the timer without an error [B3,C7]', async t => {
-  const { linked } = repository(t), saved = process.env.GIT_DIR;
-  process.env.GIT_DIR = maintenanceGit(linked.info.root, ['rev-parse', '--absolute-git-dir']).trim();
-  try {
-    const result = await scheduleWorktreeMaintenance(linked);
-    assert.equal(result.scheduled, true, 'the primary checkout is still found as the primary');
-  } finally { if (saved === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = saved; }
+  await withoutRunnerJob(async () => {
+    const { linked } = repository(t), saved = process.env.GIT_DIR;
+    process.env.GIT_DIR = maintenanceGit(linked.info.root, ['rev-parse', '--absolute-git-dir']).trim();
+    try {
+      const result = await scheduleWorktreeMaintenance(linked);
+      assert.equal(result.scheduled, true, 'the primary checkout is still found as the primary');
+    } finally { if (saved === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = saved; }
+  });
 });
 
 test('a linked worktree skips quietly when the repository identity cannot be proved [B3,C7]', async t => {
-  const { linked, commonDir } = repository(t);
-  linked.info = { ...linked.info, commonDir: join(commonDir, 'elsewhere') };
-  fs.mkdirSync(linked.info.commonDir);
-  assert.deepEqual(await scheduleWorktreeMaintenance(linked), { scheduled: false, reason: 'linked-worktree-unavailable' });
+  await withoutRunnerJob(async () => {
+    const { linked, commonDir } = repository(t);
+    linked.info = { ...linked.info, commonDir: join(commonDir, 'elsewhere') };
+    fs.mkdirSync(linked.info.commonDir);
+    assert.deepEqual(await scheduleWorktreeMaintenance(linked), { scheduled: false, reason: 'linked-worktree-unavailable' });
+  });
 });
 
 test('a real registration failure in the main checkout is still thrown once [B3,C7]', async t => {
-  const { primary, commonDir } = repository(t);
-  primary.info = { ...primary.info, commonDir: join(commonDir, 'elsewhere') };
-  fs.mkdirSync(primary.info.commonDir);
-  await assert.rejects(() => scheduleWorktreeMaintenance(primary), error => error.maintenanceStage === 'lookup' && /repository changed/u.test(error.message));
+  await withoutRunnerJob(async () => {
+    const { primary, commonDir } = repository(t);
+    primary.info = { ...primary.info, commonDir: join(commonDir, 'elsewhere') };
+    fs.mkdirSync(primary.info.commonDir);
+    await assert.rejects(() => scheduleWorktreeMaintenance(primary), error => error.maintenanceStage === 'lookup' && /repository changed/u.test(error.message));
+  });
 });
