@@ -304,7 +304,7 @@ test('a fresh same-lane seat cannot reopen submitted conflicts under its grant [
 
 test('recorded pre-grant submitted-conflict moves retain joined-seat authority [V2,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-legacy-submitted-conflict-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   // Accepted pre-grant source writes its own historical events; no future marker is removed or fabricated.
   unpackRelease('e4b7c30d674cde73803f8e8cb3f53fb2f9f62621', directory);
   const legacyStore = await import(pathToFileURL(join(directory, 'src/board.js')).href);

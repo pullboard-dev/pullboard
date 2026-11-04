@@ -35,7 +35,7 @@ export function createE2eHelpers() {
   const sandboxes = [];
   /** Remove this test file's fixtures after its tests finish. */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
@@ -95,7 +95,7 @@ const CONFIG = {
   spec: 'SPEC.md',
   verify: 'any',
   lease: '2h',
-  landing: { manualOverride: true },
+  landing: { perItem: false, manualOverride: true },
   lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   shared: ['docs/'],
 };
@@ -332,7 +332,9 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
 export function crossLaneFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const fixture = helpers.sandbox();
+  fixture.env.PULLBOARD_MODEL = 'Cross-lane test';
+  const box = helpers.project('true', fixture);
   const session = 'cross-lane-owner-session';
   /** Each command gets its actual invoking session, and the surrounding fixture keeps none. */
   function runAs(identity, cwd, ...args) {
