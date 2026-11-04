@@ -26,14 +26,7 @@ test('a review reservation with no heartbeat for two minutes is available to the
   assert.equal(store.getItem(box.board, id).item_review_by, holder.id);
 
   box.advance(2 * 60_000 + 1);
-  const previousTrace = process.env.PULLBOARD_TEST_REVIEW_TRACE;
-  process.env.PULLBOARD_TEST_REVIEW_TRACE = '1';
-  let reclaimed;
-  try { reclaimed = await cli(box, successor.path, ['next', '--verify']); }
-  finally {
-    if (previousTrace === undefined) delete process.env.PULLBOARD_TEST_REVIEW_TRACE;
-    else process.env.PULLBOARD_TEST_REVIEW_TRACE = previousTrace;
-  }
+  const reclaimed = await cli(box, successor.path, ['next', '--verify']);
   assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
   assert.equal(reclaimed.document.item.item_id, id, 'the submitted review returns to the queue');
   assert.equal(reclaimed.document.review, true);
