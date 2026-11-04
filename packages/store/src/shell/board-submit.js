@@ -7,6 +7,7 @@ import { itemThread } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../src/known-main-running-file-engine.js";
 
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
@@ -157,13 +158,14 @@ export function submit(board, id, options) {
         } : {}),
         submissionProofValid: () => {
           if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt);
-          const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true })) : null;
+          const runningFile = (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_RUNNING_FILE_ENGINE;
+          const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true }), runningFile) : null;
           const autoKnown = autoResult?.known;
           if (autoResult) mainRedRepairs = autoResult.repairs;
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(autoKnown ? { ...proof, knownMainFailures: autoKnown } : proof, board.executionEngineVersion ?? ENGINE_VERSION);
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
             requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id,
-              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE);
+              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, runningFile);
           }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
