@@ -117,11 +117,14 @@ import {
   withGateSlot,
 } from '../../../../../packages/gate/index.js';
 import {
+  cleanGitEnvironment,
   contains,
   git,
+  gitSpawnSync,
   headCommit,
   headTree,
   isClean,
+  tryGit,
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
@@ -241,6 +244,65 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
   return mainRedItemCases(failures, items, id, main, retaken);
 }
 
+/** Hash the candidate's net code diff against the same admitted main used for every red head. */
+function itemChangeHash(root, head, main) {
+  const base = tryGit(root, ['merge-base', head, main]);
+  if (base.status !== 0 || !base.stdout) throw new Refused('NO_POLICY', 'the item or admitted main history cannot be read; restore Git history before submitting again');
+  const diff = gitSpawnSync(['--no-replace-objects', '-c', 'core.quotepath=false', 'diff', '--binary', '--no-ext-diff', base.stdout, head], {
+    cwd: root, env: cleanGitEnvironment(), maxBuffer: 32 * 1024 * 1024,
+  });
+  if (diff.status !== 0) throw new Refused('NO_POLICY', 'the item net diff cannot be read; restore Git history before submitting again');
+  return createHash('sha256').update(diff.stdout).digest('hex');
+}
+
+/** Project red handoffs only when their same-run native receipt proves this item's test failed. */
+function redSubmitTestRuns(board, id, digest, root) {
+  const rows = board.db.prepare("SELECT event_id,event_by,event_kind,event_detail FROM event WHERE item_id=? AND event_kind IN ('submit-handoff','proof-run') ORDER BY event_id").all(id);
+  const red = [];
+  let running = null;
+  for (const row of rows) {
+    let detail;
+    try { detail = JSON.parse(row.event_detail); } catch { running = null; continue; }
+    if (row.event_kind === 'submit-handoff') {
+      if (detail.state === 'running') running = { actor: row.event_by, source: detail.commit, receipts: [] };
+      else if (detail.state === 'red') {
+        if (running?.actor === row.event_by && running.source === detail.commit) {
+          const receipts = running.receipts.filter(receipt => receipt.kind === 'submit' && receipt.item === id
+            && receipt.seat === row.event_by && receipt.frozenDigest === digest && receipt.sourceClean === true
+            && Number.isSafeInteger(receipt.exitCode) && receipt.exitCode !== 0 && receipt.counts?.failed > 0
+            && contains(root, detail.commit, receipt.commit));
+          const commits = [...new Set(receipts.map(receipt => receipt.commit))];
+          if (commits.length === 1) red.push({ eventId: row.event_id, commit: commits[0], failures: receipts.flatMap(receipt => receipt.failures ?? []) });
+        }
+        running = null;
+      } else running = null;
+    } else if (running && detail.receipt) {
+      const receipt = detail.receipt;
+      if (receipt.item === id && receipt.seat === row.event_by && receipt.frozenDigest === digest) running.receipts.push(receipt);
+    }
+  }
+  return red;
+}
+
+/** Stop unchanged third red submissions while naming the two test failures that need repair. */
+function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
+  const red = redSubmitTestRuns(board, id, digest, root);
+  if (red.length < 2) return;
+  const latest = red.slice(-2);
+  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact'").get(id).id;
+  if (latestFact > latest.at(-1).eventId) return;
+  const candidateHash = itemChangeHash(root, candidate, main);
+  const hashes = latest.map(row => itemChangeHash(root, row.commit, main));
+  if (hashes.every(hash => hash !== candidateHash)) return;
+  const named = latest.map(row => {
+    const failure = row.failures.find(value => value.file || value.name);
+    const name = failure ? `${failure.file ?? ''}${failure.file ? ':' : ''}${failure.name ?? ''}`.trim() : 'test failure';
+    return `${name.slice(0, 120)} at ${row.commit.slice(0, 12)}`;
+  }).join(' and ');
+  throw new Refused('SUBMIT_RED_LOOP', `two red test gates still match this item code (${named}); change the failing code before another submit`,
+    `fix the two red test failures: ${named}; then commit the code change and submit again`);
+}
+
 export async function submitHere(ctx, id, infra) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
@@ -293,21 +355,6 @@ export async function submitHere(ctx, id, infra) {
   });
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
-  const barWarning = await withBoard(ctx, async board => {
-    const warning = barCheckWarning(board, held);
-    if (!warning) return null;
-    await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: `bar.check warning: ${warning}` }]);
-    return warning;
-  });
-  if (barWarning) {
-    ctx.io.say(`bar.check warning: ${barWarning}`);
-  }
-  if (inspectClauses) {
-    await withBoard(ctx, async board => {
-      const summary = clauseInspectionSummary(held, store.itemThread(board, id));
-      if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
-    });
-  }
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
@@ -319,12 +366,11 @@ export async function submitHere(ctx, id, infra) {
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
   const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit-handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
   const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit-handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
+  let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx) && !pending) {
-    const composed = mergeSubmissionMain(root, acceptedMain.commit);
-    commit = composed.commit;
-    if (composed.merged) {
-      await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
-        text: `Builder ${held.item_owner} automatic main merge: source ${composed.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+    mainMerge = mergeSubmissionMain(root, acceptedMain.commit);
+    commit = mainMerge.commit;
+    if (mainMerge.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
@@ -385,7 +431,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -394,6 +440,20 @@ export async function submitHere(ctx, id, infra) {
   });
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
+  if (!pending) withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit));
+  if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
+    text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+  const barWarning = await withBoard(ctx, async board => {
+    const warning = barCheckWarning(board, held);
+    if (!warning) return null;
+    await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: `bar.check warning: ${warning}` }]);
+    return warning;
+  });
+  if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
+  if (inspectClauses) await withBoard(ctx, async board => {
+    const summary = clauseInspectionSummary(held, store.itemThread(board, id));
+    if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
+  });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
@@ -447,7 +507,7 @@ export async function submitHere(ctx, id, infra) {
   if (signal.aborted) throw signal.reason;
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
-    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
+    await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true });
   }
   if (companion) {
     companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
@@ -516,7 +576,7 @@ export async function submitHere(ctx, id, infra) {
     // The known red stands in for the criterion; the selected proof still runs on this commit, without re-running the check.
     const proof = await runGate(undefined);
     for (const proofReceiptId of proof.proofReceiptIds ?? []) {
-      await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
+      await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt, exitFailures: true });
     }
     submissionReceiptIds.push(...(proof.proofReceiptIds ?? []));
     gate = { ...proof, check: gate.check, criterionRed: gate.criterionRed };
@@ -650,28 +710,33 @@ export async function submitHere(ctx, id, infra) {
       finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
     } },
     { name: 'static', run: async () => {
-      if (remoteMode) return runRemotePart('static');
-      const changedStaticStart = performance.now();
       try {
-        if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-          await withItemPatchSubmit(root, companion, async gateRoot => {
-            const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
-            const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
-              source: companion?.commit ?? commit, code: [checker] }, () => {
-              const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
-              return promisify(execFile)(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' })
-                .catch(error => { throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${error.stderr || error.message || 'static checker failed'}`); });
+        if (remoteMode) return await runRemotePart('static');
+        const changedStaticStart = performance.now();
+        try {
+          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+            await withItemPatchSubmit(root, companion, async gateRoot => {
+              const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
+              const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
+                source: companion?.commit ?? commit, code: [checker] }, () => {
+                const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+                return promisify(execFile)(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' })
+                  .catch(error => { throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${error.stderr || error.message || 'static checker failed'}`); });
+              });
+              if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
             });
-            if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
-          });
-        }
-      } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
-      // Static and lint checks run once, all at once, alongside the other stages; a red one cancels them.
-      const staticStart = performance.now();
-      try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
-        onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-        executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
-      finally { reportSubmitStage(ctx, 'static', staticStart); }
+          }
+        } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
+        // Static and lint checks run once, all at once, alongside the other stages; a red one cancels them.
+        const staticStart = performance.now();
+        try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+          onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
+          executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
+        finally { reportSubmitStage(ctx, 'static', staticStart); }
+      } catch (error) {
+        if (error && typeof error === 'object') error.submitFailureStage = 'fast';
+        throw error;
+      }
     } },
     { name: 'tests', run: judgeTests },
   ]);
@@ -820,7 +885,8 @@ export async function run(io, { first, values }) {
           } else {
             await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
               freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000), ...(attempt.stage === 'fast' ? { stage: 'fast' } : {}) } }]);
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000),
+                ...(attempt.stage === 'fast' || error.submitFailureStage === 'fast' ? { stage: 'fast' } : {}) } }]);
           }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
