@@ -35,6 +35,8 @@ process.emitWarning = (warning, ...rest) => {
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
 const MAX_AGE_MS = Number(process.env.PULLBOARD_RESIDENT_MAX_AGE_MS) || 60 * 60_000;
+/** How often a listening process checks that the socket path is still its own. */
+const REPLACED_CHECK_MS = Number(process.env.PULLBOARD_RESIDENT_REPLACED_CHECK_MS) || 5_000;
 /**
  * The process's clock: wall time, or the milliseconds in the file PULLBOARD_RESIDENT_CLOCK names, so a test can move
  * idle and age time without waiting for it.
@@ -53,6 +55,8 @@ let queue = Promise.resolve();
 const inFlight = new Set();
 let lastActive = clock();
 let retired = false;
+/** The identity of the socket file this process bound, so it never unlinks or serves a successor's socket. */
+let ownSocket = null;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
 const activeEnv = () => running?.env ?? baseEnv;
@@ -86,7 +90,28 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 /** Remove the socket and pid file this process made, leaving a successor's in place. */
 function release() {
   try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
-  if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+  // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
+  if (process.platform !== 'win32' && ownSocket && socketIdentity() === ownSocket) try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+}
+
+/** The socket path's file identity now, or null when nothing is there. */
+function socketIdentity() {
+  try { const stat = statSync(socketPath); return `${stat.dev}:${stat.ino}`; } catch { return null; }
+}
+
+/** Whether another process now owns the socket path: this one can no longer be reached and must not linger. */
+function replaced() {
+  return process.platform !== 'win32' && ownSocket !== null && socketIdentity() !== ownSocket;
+}
+
+/** Whether the process named by the pid file is alive and is not this one. */
+function holderAlive() {
+  try {
+    const pid = Number(readFileSync(pidFile, 'utf8').trim());
+    if (!Number.isSafeInteger(pid) || pid <= 0 || pid === process.pid) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch (error) { return error?.code === 'EPERM'; }
 }
 
 /** Stop taking commands and free the socket path for a successor now; exitWhenDone ends the process. */
@@ -94,8 +119,11 @@ function retire(reason) {
   if (retired) return;
   retired = true;
   trace(`retire:${reason}`, null);
+  const own = !replaced();
   release();
-  server.close();
+  // Node unlinks a Unix socket's path when its server closes, so only the path's owner closes; an orphan stops serving
+  // by answering stale and exits once its running commands finish.
+  if (own) server.close();
   closeConnections();
 }
 
@@ -239,6 +267,8 @@ async function serve(socket, request) {
     lastActive = clock();
   }
   socket.end(JSON.stringify(status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 }) + '\n', exitWhenDone);
+  // The end callback never runs when the client has already closed, so a retired process checks here too.
+  setImmediate(exitWhenDone);
 }
 
 const server = createServer((socket) => {
@@ -284,12 +314,18 @@ function listen(retry = true) {
       process.exit(0);
     });
     probe.on('error', () => {
+      // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
+      if (holderAlive()) {
+        process.stderr.write(`pullboard resident: the resident process at ${socketPath} is alive but busy\n`);
+        process.exit(0);
+      }
       if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Raced with another. */ }
       listen(false);
     });
   });
   server.listen(socketPath, () => {
     if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
+    ownSocket = socketIdentity();
     try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* The pid file only helps people and tests find it. */ }
     // Idle time counts from when the process can serve, never from a slow start under load.
     lastActive = clock();
@@ -300,14 +336,20 @@ function listen(retry = true) {
 }
 listen();
 
-/** Retire once nothing has run for the idle limit; the watch starts only when the process is listening. */
+/** Retire once nothing has run for the idle limit, or at once when a successor owns the socket path. */
 function watchIdle() {
-  setInterval(checkIdle, Math.min(IDLE_MS, 30_000)).unref();
+  setInterval(checkIdle, Math.min(IDLE_MS, REPLACED_CHECK_MS)).unref();
 }
 
-/** Retire when nothing has run for the idle limit; true when this check retired the process. */
+/** Retire when nothing has run for the idle limit or the socket path is another's; true when this check retired it. */
 function checkIdle({ exit = true } = {}) {
-  if (retired || inFlight.size || clock() - lastActive <= IDLE_MS) return false;
+  if (!retired && replaced()) {
+    retire('replaced');
+    if (exit) exitWhenDone();
+    return true;
+  }
+  if (retired) { if (exit) exitWhenDone(); return false; }
+  if (inFlight.size || clock() - lastActive <= IDLE_MS) return false;
   retire('idle');
   if (exit) exitWhenDone();
   return true;
