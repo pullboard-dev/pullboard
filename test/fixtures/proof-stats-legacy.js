@@ -5,6 +5,14 @@ import { flowStats } from '../../packages/stats/index.js';
 import { barStats } from '../../packages/stats/src/core/bar-stats.js';
 import { caughtFrom } from '../../packages/items/index.js';
 
+/** Return only registered proof seats, matching public actor eligibility without using the counter path. */
+function proofAgentsFrom(board) {
+  return new Set(board.db.prepare('SELECT agent_id, agent_lane FROM agent').all()
+    .filter(({ agent_id: id, agent_lane: lane }) => lane !== 'coordinator'
+      && !['board', 'person', 'clock', 'coordinator', 'rigor', 'sentinel'].includes(id))
+    .map(({ agent_id: id }) => id));
+}
+
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */
 export function sinceDate(value) {
   if (value === undefined || value === null) return null;
@@ -62,13 +70,13 @@ export function eventCounts(board, { since } = {}) {
 }
 
 /** Attribute only recorded actor families, retaining earlier declarations across date windows. */
-function actorsFrom(history, boundary) {
+function actorsFrom(history, boundary, seats) {
   const declared = new Map();
   const actors = new Map();
   const families = new Map();
   for (const event of history) {
     const id = event.event_by;
-    if (id === 'board' || id === 'person') continue;
+    if (!seats.has(id)) continue;
     const detail = JSON.parse(event.event_detail);
     if (Object.hasOwn(detail, 'family')) {
       declared.set(id, typeof detail.family === 'string' && detail.family.trim() ? detail.family : 'unknown');
@@ -96,21 +104,58 @@ function actorsFrom(history, boundary) {
 }
 
 /** Independently derive note ratios from native history, including seats without a submission [R1,R2]. */
-function notesFrom(history, boundary) {
-  const seats = new Map();
+function notesFrom(history, boundary, seats) {
+  const rows = new Map();
   for (const event of history) {
-    if (['board', 'person', 'clock', 'coordinator'].includes(event.event_by)
+    if (!seats.has(event.event_by)
       || boundary && Date.parse(event.event_at) < Date.parse(boundary)) continue;
     const note = event.event_kind === 'fact' && JSON.parse(event.event_detail).kind === 'note';
     if (!note && event.event_kind !== 'submit') continue;
-    const row = seats.get(event.event_by) ?? { seat: event.event_by, notes: 0, submits: 0 };
+    const row = rows.get(event.event_by) ?? { seat: event.event_by, notes: 0, submits: 0 };
     if (note) row.notes += 1; else row.submits += 1;
-    seats.set(event.event_by, row);
+    rows.set(event.event_by, row);
   }
-  return [...seats.keys()].sort().map(seat => {
-    const row = seats.get(seat);
+  return [...rows.keys()].sort().map(seat => {
+    const row = rows.get(seat);
     return { ...row, notesPerSubmit: row.submits ? row.notes / row.submits : null };
   });
+}
+
+/** Independently count releases before work while preserving each seat's claim lifecycle. */
+function workFreeReleasesFrom(history, boundary) {
+  const claims = new Map();
+  const counts = new Map();
+  for (const event of history) {
+    if (event.item_id == null) continue;
+    const detail = JSON.parse(event.event_detail);
+    const id = event.item_id;
+    if (event.event_kind === 'claim') {
+      const previous = claims.get(id);
+      if (!previous || previous.seat !== event.event_by || previous.until && previous.until <= event.event_at) {
+        claims.set(id, { seat: event.event_by, worked: false, until: detail.leaseUntil });
+      } else if (detail.leaseUntil) previous.until = detail.leaseUntil;
+    } else if (event.event_kind === 'renew') {
+      const claim = claims.get(id);
+      if (claim && detail.leaseUntil) claim.until = detail.leaseUntil;
+    } else if (['submit', 'accept', 'reject', 'reopen', 'send-back'].includes(event.event_kind)) {
+      const claim = claims.get(id);
+      if (claim) claim.worked = true;
+    } else if (event.event_kind === 'release' && !detail.review) {
+      const claim = claims.get(id);
+      if (claim && !claim.worked && /^\d{4}-\d\d-\d\dT/u.test(event.event_at ?? '')
+        && (!boundary || event.event_at >= boundary)) {
+        const day = event.event_at.slice(0, 10);
+        const reason = detail.reasonCode ?? 'UNKNOWN';
+        const key = JSON.stringify([day, claim.seat, reason]);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      claims.delete(id);
+    } else if (['lapse', 'withdraw', 'merged'].includes(event.event_kind)) claims.delete(id);
+  }
+  return [...counts].map(([key, count]) => {
+    const [day, seat, reason] = JSON.parse(key);
+    return { day, seat, reason, count };
+  }).sort((a, b) => a.day.localeCompare(b.day) || a.seat.localeCompare(b.seat) || a.reason.localeCompare(b.reason));
 }
 
 /** Assemble the public statistics shared by the CLI and local board state from one event snapshot. */
@@ -119,5 +164,8 @@ export function proofStats(board, { since, now = Date.now() } = {}) {
   const history = events(board);
   const counts = countsFrom(history, boundary);
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
-  return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts), notesPerSubmit: notesFrom(history, boundary) };
+  const seats = proofAgentsFrom(board);
+  return { ...counts, ...actorsFrom(history, boundary, seats), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary),
+    flow: flowStats(history, boundary, now, counts, { agentIds: seats }), notesPerSubmit: notesFrom(history, boundary, seats),
+    workFreeReleases: workFreeReleasesFrom(history, boundary) };
 }
