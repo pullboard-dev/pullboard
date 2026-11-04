@@ -13,9 +13,6 @@ export const MOVES = [
     alsoRefuses: [
       { code: 'DIAGNOSIS_WRONG', rule: 'a wrong-diagnosis release names what was wrong and returns a diagnosed claim the caller holds', next: 'claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note "<what was wrong>"' },
       { code: 'DIAGNOSIS_REQUIRED', rule: 'a release that keeps or moves the item light needs its current diagnosis', next: 'keep it mid or strong, then have a capable seat record Files, Change and Test case with pullboard fact <id> diagnosis' },
-      { code: 'BRIEF_TOO_LONG', rule: 'a rerouted item keeps a brief under the brief limit', next: 'shorten the brief and point to longer docs by path' },
-      { code: 'NO_BRIEF', rule: 'a rerouted item below strong stays buildable cold', next: 'add the missing fields with pullboard edit <id> --brief "..." --criterion "..."' },
-      { code: 'CHECK_MASKS_EXIT', rule: 'a rerouted item keeps a check whose exit status is not masked', next: 'ask the coordinator to give the item a check that exits with the test status' },
       { code: 'BAD_DEPENDENCIES', rule: 'release dependency ids are valid local item identifiers before the release is recorded', next: 'pass one or more existing local item ids with --on, or omit --on' },
       { code: "EXIT_CONTINUATION", rule: "an exit handoff retains a known native original session and honest declared family", next: "read the item summary, then continue from a fresh native session of its reserved model family" },
       { code: "EXIT_SUMMARY", rule: "an exit handoff carries nonempty Done, Failed and Next parts within the summary limit", next: "release with --reason OTHER --note \"Done: <work>; Failed: <case or none>; Next: <next step>\" to record the handoff atomically" },
