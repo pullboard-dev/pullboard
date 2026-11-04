@@ -47,7 +47,7 @@ test('native landing cohorts, duration, unknowns and Wilson score remain consist
   assert.equal(result.builders.verdict, 'clear');
   assert.equal(result.builders.best, 'alpha');
   assert.equal(result.verifiers.rows[0].verdicts, 80);
-  assert.equal(result.longest[0].sessions[0].count, null, 'native cumulative summaries do not prove a session count');
+  assert.equal(result.longest[0].sessions[0].count, 1, 'a model line counts its recorded usage records');
   const interval = wilson(5, 10);
   assert.ok(Math.abs(interval.low - 0.236593) < 0.00001);
   assert.ok(Math.abs(interval.high - 0.763407) < 0.00001);
