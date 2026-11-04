@@ -1,5 +1,6 @@
 /** Coordinator item holds preserve routing, claims and ordered replay [N2,N22,H16,M1]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
@@ -165,8 +166,9 @@ test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   assert.deepEqual(store.getItem(heldClaimCopy, id), store.getItem(board, id), 'snapshot sync preserves the held claim and reason');
   assert.equal(store.getItem(heldClaimCopy, id).item_owner, 'web-1');
   assert.equal(jsonSuccess(box, box.web, 'claim', String(id)).renewed, true);
-  writeFileSync(`${box.web}/held-work.txt`, 'finished held work\n');
-  box.git(box.web, 'add', 'held-work.txt');
+  mkdirSync(`${box.web}/web`, { recursive: true });
+  writeFileSync(`${box.web}/web/held-work.txt`, 'finished held work\n');
+  box.git(box.web, 'add', 'web/held-work.txt');
   box.git(box.web, 'commit', '-qm', 'feat(web): finish held work [G1]');
   assert.equal(jsonSuccess(box, box.web, 'submit', String(id)).id, id);
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'the existing live holder can still submit');
