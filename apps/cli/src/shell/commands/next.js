@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setImmediate as yieldEventLoop } from 'node:timers/promises';
 import { fileChangeWaiter } from '../../../../../packages/activity/index.js';
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
 import { sayQueuedReds } from '../../../../../packages/store/index.js';
@@ -256,6 +257,7 @@ async function nextWithProgress(io, values, progress) {
       if (recordedIdle && wake) {
         // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
         // its own notification is not mistaken for external work, while changes during rearming remain visible.
+        await yieldEventLoop();
         wake.close();
         wake = fileChangeWaiter(nextChangeInputs(ctx));
         wakeVersion = wake.version();
