@@ -59,7 +59,8 @@ function source(expected) {
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
 export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // A background board writer can outlive its command by a moment; retry the ENOTEMPTY it races rather than fail the case [C7].
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
