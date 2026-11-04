@@ -121,10 +121,12 @@ const STAND_IN_PROOF = Object.freeze({ version: 1, files: [], full: false, defer
  * @param {number} id
  * @param {{ agentId: string, commit: string, tree: string }} submission
  */
-export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit }, review = {}) {
+export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit, prepareSubmit }, review = {}) {
+  const options = { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) };
+  const prepared = prepareSubmit ? prepareSubmit(board, id, options) : options;
   try {
     atomic(board, () => {
-      submit(board, id, { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) });
+      submit(board, id, prepared);
       // The item is submitted only inside this rolled-back transaction, which is what the native eligibility projection reads.
       review.refuse?.(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id));
       throw PASSED;
