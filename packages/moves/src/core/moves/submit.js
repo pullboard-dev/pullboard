@@ -1,4 +1,4 @@
-import { STRICT_RENAME_ENGINE } from '../../../../state/index.js';
+import { STRICT_RENAME_ENGINE } from '../../../../../src/strict-rename-engine.js';
 import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../../src/main-red-failure-lines-engine.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
