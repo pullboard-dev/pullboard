@@ -1384,6 +1384,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/process-ports.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-board.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-client.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/checks/changed-static.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
