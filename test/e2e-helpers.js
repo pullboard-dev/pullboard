@@ -118,7 +118,7 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
+  assert.match(box.run(web, 'join', 'web', '--model', 'Fixture').out, /joined as web-1/);
   return { ...box, repo, web };
 }
 
