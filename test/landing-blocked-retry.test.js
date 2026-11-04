@@ -30,8 +30,8 @@ function commit(box, root, message) {
 
 test('a diagnostic block is superseded after main moves and lands without another accept [B35,C7,R3]', () => {
   const box = landProject();
-  const entry = itemWorktree(box, 1);
-  submitItem(box, entry);
+  const entry = itemWorktree(box, 1, FILES[0], [], 'node --test web/land-1.test.js');
+  submitItem(box, entry, "import test from 'node:test'; import assert from 'node:assert/strict'; test('land fixture passes', () => assert.ok(true));\n");
   acceptItem(box, entry);
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: false } }, null, 2));
