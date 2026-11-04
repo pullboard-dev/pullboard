@@ -114,3 +114,11 @@ test('Cost names merge, the unrecorded note hides at zero, and unknown durations
   assert.equal(result.days[0].firstTimeMs, 7200000, 'nor the day');
   assert.equal(result.longest[0].sessions[0].count, 2, 'a model line counts its sessions');
 });
+
+test('two model ids with one display name share one match key, and untimed days say so [N26]', () => {
+  assert.equal(modelPresentation('gpt-6-codex').key, modelPresentation('codex').key);
+  assert.equal(modelPresentation('gpt-6-codex').name, 'Codex');
+  const html = costOverviewHtml({ window: '7d', totals: {}, days: [{ date: '2026-10-25', firstTimeMs: null, sentBackMs: null, items: 3 }], builders: { rows: [] }, verifiers: { rows: [] } });
+  assert.match(html, /class="unrecorded"[^>]*>time not recorded</u);
+  assert.match(html, /<th class="grp-gap"><\/th>/u);
+});

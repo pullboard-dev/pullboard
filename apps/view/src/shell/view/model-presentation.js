@@ -5,7 +5,9 @@ export function modelPresentation(reported, family = '') {
   // A "/vendor" suffix is the declared family, not part of the model: "GPT-6/openai" is "GPT-6".
   const slash = named.indexOf('/'), raw = slash > 0 ? named.slice(0, slash).trim() : named;
   if (slash > 0 && !String(family).trim()) family = named.slice(slash + 1).trim();
-  const key = raw.toLowerCase().replace(/[\s_]+/gu, '-');
+  // Aliases share one match key, so one display name is never two rows (same family as #2091) [N26].
+  const aliases = { 'gpt-6-codex': 'codex' };
+  const spelled = raw.toLowerCase().replace(/[\s_]+/gu, '-'), key = Object.hasOwn(aliases, spelled) ? aliases[spelled] : spelled;
   const known = {
     'claude-opus-5-5': ['Opus 5.5', 'Anthropic'],
     'claude-sonnet-5-5': ['Sonnet 5.5', 'Anthropic'],
@@ -13,7 +15,6 @@ export function modelPresentation(reported, family = '') {
     'gpt-6.1-terra': ['GPT-6.1 Terra', 'OpenAI'],
     'gpt-6-luna': ['GPT-6 Luna', 'OpenAI'],
     codex: ['Codex', 'OpenAI'],
-    'gpt-6-codex': ['Codex', 'OpenAI'],
   };
   const vendors = { openai: 'OpenAI', gpt: 'OpenAI', codex: 'OpenAI', anthropic: 'Anthropic', claude: 'Anthropic', google: 'Google', gemini: 'Google' };
   const familyKey = String(family).trim().toLowerCase();
