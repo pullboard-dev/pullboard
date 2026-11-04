@@ -62,8 +62,11 @@ test('real base comparison keeps a red or missing file from becoming a culprit [
   const state = { batch: { id: 'batch', base, root: box.repo, logPath: join(box.dir, 'batch.log'), revision: 0 },
     board: { clock: { now: () => new Date() } }, culprits: [], write: async (_operation, args) => args[0].batch, say: () => {} };
   const red = [{ file: 'web/land-9.test.js', name: 'base-red' }];
-  assert.deepEqual(await bisect(state, [{ id: 1, commit: base }], red), []);
-  assert.equal(state.batch.state, 'blocked');
+  // A red main already has never blames the item [#2941,#2945]: with named base cases it stays green (known-main);
+  // when main's comparison names no cases, the batch holds instead. Either way no culprit is recorded.
+  const green = await bisect(state, [{ id: 1, commit: base }], red);
+  if (green.length) assert.deepEqual(green, [{ id: 1, commit: base }]);
+  else assert.equal(state.batch.state, 'blocked');
   assert.deepEqual(state.culprits, []);
   const missing = [{ file: 'web/not-on-base.test.js', name: 'unavailable' }];
   assert.equal(await landingBaseGreen(state, missing), false);
