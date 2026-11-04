@@ -96,7 +96,7 @@ export { createItemSlice } from "./src/shell/board-item-slice.js";
 
 export { nextIdleChanged } from './src/core/board-stats.js';
 
-export { sealStrictRenames } from './src/shell/board-submit.js';
+export { prepareSubmit, sealStrictRenames } from './src/shell/board-submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/shell/board-checkpoint.js';
 
 export { endedSubmitHandoff } from './src/shell/submit-handoff-read.js';
@@ -105,3 +105,5 @@ export {
   withBoardRepositoryPolicy,
   sealClauseInspection,
 } from './src/shell/board-repository.js';
+
+export { boardWriteLog } from './src/shell/board-write-lock.js';
