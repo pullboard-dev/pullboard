@@ -130,7 +130,7 @@ async function nextWithProgress(io, values, progress) {
   const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
-  const wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
+  let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   try { for (;;) {
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
@@ -202,11 +202,15 @@ async function nextWithProgress(io, values, progress) {
       return 0;
     }
     const idleReason = found.idleReason ?? 'unknown';
+    let recordedIdle = false;
     if (!found.retry && idleReason !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
           { agentId: whoAmI(ctx, board).id, reason: idleReason }));
-        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+        if (changed) {
+          await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+          recordedIdle = true;
+        }
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
@@ -229,6 +233,14 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.retry) await progress.retry(found);
     else {
+      if (recordedIdle && wake) {
+        // The idle record itself changes the watched board; rebuild and reread selection before waiting so that
+        // its own notification is not mistaken for external work, while changes during rearming remain visible.
+        wake.close();
+        wake = fileChangeWaiter(nextChangeInputs(ctx));
+        wakeVersion = wake.version();
+        continue;
+      }
       wake.update(nextChangeInputs(ctx));
       const until = withBoardRead(ctx, board => {
         const now = ctx.clock.now().toISOString();
