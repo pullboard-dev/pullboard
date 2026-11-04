@@ -20,6 +20,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
 import { git } from '../../../../src/git.js';
+import { tryGit } from '../../../git/index.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
@@ -28,7 +29,7 @@ import { readGateReceipt } from '../../../gate/index.js';
 import { receiptStore } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
-import { placementLandingPlan } from '../../../gate/index.js';
+import { literalShellWords } from '../../../kernel/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
@@ -58,48 +59,88 @@ async function recordLandingRun(state, receiptId) {
 }
 
 /** Select one deduplicated merged-tree test plan for both inline and local-first landing paths. */
-function batchAffectedTests(state) {
+function batchAffectedTests(state, readEvents, readItem) {
   const root = state.batch.root;
   const commit = headCommit(root);
+  const submitted = submittedSelections(state.batch.items, readEvents, (entry, detail) => criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail));
+  const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
+  const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
-    // A5: an item proves once; landing adds only the composition's journeys and units no submit already proved.
-    const files = landingRunFiles(testTiers, submittedUnits(state, commit));
-    return { full: false, mandatory: [], testTiers, files: [...new Set([...files, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
+    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit }) : { files: submitted };
+    if (affected.full && affected.reason !== 'the change reaches every test file') throw new Refused('LAND_DIAGNOSTIC', `cannot establish the batch's affected files: ${affected.reason}`);
+    const named = new Set(affected.files);
+    // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
+    const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
+    const deferred = submitted === null ? deferredSelections(state, readEvents).flatMap(row => row.files).filter(file => named.has(file)) : [];
+    const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
+    return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
   }
-  const selection = state.config.affectedTests
+  const selection = submitted !== null ? { full: false, files: submitted } : state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
-  const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
-  const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
-  return { ...selection, mandatory, files: [...new Set([...mandatory, ...(!selection.full ? selection.files : [])])].sort() };
+  return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
-function batchGatePlan(state, { localTrunk = false } = {}) {
-  const selection = batchAffectedTests(state);
+export function batchGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
+  const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.testTiers) {
     const command = testTierCommand(selection.testTiers, selection.files) || 'true';
     return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
-  const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
-  // Receipt-enabled publication runs the unchanged full command on its final envelope; this pass is only its floor.
-  const receiptFloor = state.config.landing?.requireReceipts === true && Boolean(state.config.affectedTests);
-  const deferred = localTrunk || receiptFloor ? deferredSelections(state).flatMap(row => row.files) : [];
-  const valued = placementLandingPlan(state.batch.root, state.config, selection, [...selection.mandatory, ...deferred], changed);
-  if (valued) return valued;
-  if (localTrunk || receiptFloor) {
-    const files = [...new Set([...selection.files, ...deferred])].sort();
-    const affected = files.length ? `${state.config.affectedTests} ${files.map(quote).join(' ')}` : '';
-    const command = selection.full && !receiptFloor ? affected ? `(\n${state.config.gate}\n) && ${affected}` : state.config.gate : affected || 'true';
-    const config = { ...state.config, gate: command };
-    return { config, files, subset: receiptFloor || !selection.full, affectedGate: createHash('sha256').update(command).digest('hex') };
+  const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
+  if (!state.config.affectedTests?.trim()) throw new Refused('BAD_CONFIG', 'configure affectedTests to run the landing batch\'s selected files');
+  if (selection.full && selection.reason !== 'the change reaches every test file') throw new Refused('LAND_DIAGNOSTIC', `cannot establish the batch's affected files: ${selection.reason}`);
+  const files = [...new Set([...selection.files, ...deferred])].sort();
+  const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  const config = { ...state.config, gate: command, [VALUE_GATE]: true };
+  return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
+}
+
+/** Return a complete source-matched proof union, or null when any item lacks one. */
+export function submittedSelections(items, readEvents, readCriterion) {
+  if (!items.length) return null;
+  const files = new Set();
+  for (const entry of items) {
+    const event = readEvents(entry.id).findLast(row => row.event_kind === 'submit');
+    let detail;
+    try { detail = event ? JSON.parse(event.event_detail) : null; } catch { return null; }
+    if (detail?.commit !== entry.commit || detail.gateGreen !== true || detail.submissionProof?.full === true || !Array.isArray(detail.submissionProof?.files)
+      || detail.submissionProof.files.some(file => typeof file !== 'string' || !file)) return null;
+    const criterion = readCriterion(entry, detail);
+    if (!Array.isArray(criterion)) return null;
+    for (const file of [...detail.submissionProof.files, ...criterion]) files.add(file);
   }
-  const appended = selection.files.length ? `${state.config.affectedTests} ${selection.files.map(quote).join(' ')}` : '';
-  const config = appended ? { ...state.config, gate: `(\n${state.config.gate}\n) && ${appended}` } : state.config;
-  return { config, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+  return [...files].sort();
+}
+
+/** Derive only literal committed test files from the criterion bound to this submission. */
+function criterionTestFiles(root, entry, item, runner, detail) {
+  if (!item || item.item_commit !== entry.commit || typeof item.item_frozen !== 'string'
+    || createHash('sha256').update(item.item_frozen).digest('hex') !== item.item_frozen_digest
+    || Object.hasOwn(detail, 'criterionDigest') && detail.criterionDigest !== item.item_frozen_digest) return null;
+  let frozen;
+  try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
+  const words = literalShellWords(frozen.check);
+  if (!words?.length) return null;
+  const prefix = literalShellWords(runner);
+  const ownRunner = prefix?.length && prefix.every((word, index) => words[index] === word) ? prefix.length : 0;
+  const node = /(?:^|\/)node(?:\.exe)?$/u.test(words[0]);
+  const length = ownRunner || (node && (words[1] === '--test' || /(?:^|\/)bin\/run-tests\.js$/u.test(words[1] ?? '')) ? 2 : 0);
+  if (!length || words.length <= length) return null;
+  const files = [];
+  for (const raw of words.slice(length)) {
+    const file = raw.replace(/^\.\//u, '');
+    if (!file || file.startsWith('/') || file.startsWith('-') || /[:\\*?\[\]\p{Cc}]/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')
+      || !(/(?:^|\/)(?:test|tests)\//u.test(file) || /\.(?:test|spec)\.[cm]?js$/u.test(file))) return null;
+    const result = tryGit(root, ['ls-tree', entry.commit, '--', file]);
+    if (result.status !== 0 || !/^100(?:644|755) blob [a-f0-9]{40,64}\t/u.test(result.stdout)) return null;
+    files.push(file);
+  }
+  return files;
 }
 
 /** Preserve the same native failure and gate-run observer for floors and exact envelope gates. */
@@ -215,14 +256,14 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
  * every package the test covers, so landing reuses that proof (RFC 0006 A4).
  * Why: any other freshly selected unit, such as a contract that reached main after the submit, must run at landing.
  */
-function submittedUnits(state, commit) {
+function submittedUnits(state, commit, readEvents = id => store.events(state.board, { itemId: id })) {
   const root = state.batch.root, proven = new Set();
   let manifest;
   try { manifest = JSON.parse(git(root, ['show', `${commit}:${TEST_TIERS_FILE}`], { maxBuffer: 256 * 1024 * 1024 })); } catch { return proven; }
   const rows = new Map((manifest?.files ?? []).map(row => [row.file, row]));
   const blob = (rev, file) => { try { return git(root, ['rev-parse', `${rev}:${file}`]).trim(); } catch { return null; } };
   for (const entry of state.batch.items) {
-    const event = store.events(state.board, { itemId: entry.id }).findLast((row) => row.event_kind === 'submit');
+    const event = readEvents(entry.id).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
     const files = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof?.files ?? [] : [];
     if (!files.length) continue;
@@ -237,9 +278,9 @@ function submittedUnits(state, commit) {
 }
 
 /** The affected test files each batch item's submission moved to the landing gate, read from its exact submit. */
-export function deferredSelections(state) {
+export function deferredSelections(state, readEvents = id => store.events(state.board, { itemId: id })) {
   return state.batch.items.flatMap((entry) => {
-    const event = store.events(state.board, { itemId: entry.id }).findLast((row) => row.event_kind === 'submit');
+    const event = readEvents(entry.id).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
     const files = detail?.commit === entry.commit ? detail.submissionProof?.deferredFiles ?? [] : [];
     return files.length ? [{ entry, files }] : [];
