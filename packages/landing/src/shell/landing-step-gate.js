@@ -96,7 +96,12 @@ export function batchGatePlan(state, { readEvents = id => store.events(state.boa
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
-  if (!state.config.affectedTests?.trim()) throw new Refused('BAD_CONFIG', 'configure affectedTests to run the landing batch\'s selected files');
+  if (!state.config.affectedTests?.trim()) {
+    // Projects without selective-runner policy keep their configured full gate. Its command is the legacy contract
+    // for the project and already includes the item check (the source-matched proof was checked at submit).
+    const config = { ...state.config, [VALUE_GATE]: true };
+    return { config, files: selection.files, subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+  }
   if (selection.full && selection.reason !== 'the change reaches every test file') throw new Refused('LAND_DIAGNOSTIC', `cannot establish the batch's affected files: ${selection.reason}`);
   const files = [...new Set([...selection.files, ...deferred])].sort();
   const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
