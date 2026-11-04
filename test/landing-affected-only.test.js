@@ -1,7 +1,7 @@
 /** A landing gate executes its merged batch's selected test files, not the full project gate [C7,S10]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -14,6 +14,9 @@ after(e2e.cleanup);
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
 function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false } = {}) {
   const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
+  const packageFile = join(box.repo, 'package.json');
+  const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
+  writeFileSync(packageFile, JSON.stringify({ ...packageData, type: 'module' }));
   const dir = join(box.repo, 'test');
   mkdirSync(dir, { recursive: true });
   for (const name of ['a', 'b', 'unrelated']) writeFileSync(join(dir, `${name}.test.js`), `import { test } from 'node:test';\ntest('${name}', () => {});\n`);
