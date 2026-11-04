@@ -146,13 +146,13 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         // Declared: not checked when the caller renews its own live claim.
         const paused = laneHold(board, found.item_lane);
         return paused && !isRenewal(found)
-          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}. Wait for it: pullboard next --wait 9 (minutes)`)
+          ? new Refused('LANE_HELD', `${paused.hold_by} holds the ${found.item_lane} lane: ${paused.hold_reason}; take other available work with pullboard next, or end your turn if none is offered`)
           : null;
       },
       itemNotHeld: (found) => {
         const held = itemHold(board, found.item_id);
         return held && !isRenewal(found)
-          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
+          ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; take another eligible item with pullboard next, or end your turn if none is offered`)
           : null;
       },
       lineCapacity: found => claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),

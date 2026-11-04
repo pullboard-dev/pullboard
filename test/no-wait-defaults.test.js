@@ -32,6 +32,25 @@ test('defaults, move refusals and the init loop never suggest a timed wait [N42,
   });
 });
 
+test('native held item and lane claim messages offer work without telling the seat to wait [N42,C7]', async t => {
+  const box = await fixture(t);
+  const heldItem = box.add('Held item');
+  const itemHold = await cli(box, box.root, ['hold', String(heldItem), '--reason', 'fixture item hold']);
+  assert.equal(itemHold.code, 0, itemHold.out + itemHold.err);
+  const itemClaim = await cli(box, box.seats.actor.path, ['claim', String(heldItem)]);
+  assert.equal(itemClaim.document.error.code, 'ITEM_HELD');
+  assert.match(itemClaim.document.error.message, /pullboard next/u);
+  assert.doesNotMatch(JSON.stringify(itemClaim.document.error), /\bwait\b|--wait/iu);
+
+  const laneItem = box.add('Held lane item');
+  const laneHold = await cli(box, box.root, ['hold', 'web', '--reason', 'fixture lane hold']);
+  assert.equal(laneHold.code, 0, laneHold.out + laneHold.err);
+  const laneClaim = await cli(box, box.seats.actor.path, ['claim', String(laneItem)]);
+  assert.equal(laneClaim.document.error.code, 'LANE_HELD');
+  assert.match(laneClaim.document.error.message, /pullboard next/u);
+  assert.doesNotMatch(JSON.stringify(laneClaim.document.error), /\bwait\b|--wait/iu);
+});
+
 test('plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
   const box = await fixture(t);
   const build = box.add('Build available now');
