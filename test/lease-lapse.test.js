@@ -212,7 +212,7 @@ test('explicit stale CLI releases require a code before observation and retain c
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);
@@ -224,8 +224,8 @@ test('explicit stale CLI releases require a code before observation and retain c
     { leaseLapse: true, staleClaim: snapshot.claims.find(row => row.id === id), observedAt: snapshot.observedAt,
       observedRevision: snapshot.observedRevision, health: box.config.health ?? {} }, 'BLOCKED']);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
-  assert.equal(minimumMoveEngine('release', move.args), RELEASE_REASONS_ENGINE,
-    'a supplied code cannot be interpreted by an older writer that drops it');
+  assert.ok(minimumMoveEngine('release', move.args) >= RELEASE_REASONS_ENGINE,
+    'a supplied code cannot be interpreted by an older writer that drops it, even when a newer release floor also applies');
   const result = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--note', note, '--no-next']);
   assert.equal(result.code, 0, result.out + result.err);
   const event = store.events(box.board, { itemId: id }).findLast(row => row.event_kind === 'release');

@@ -152,7 +152,10 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   const command = commandName(argv);
   const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
   // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
-  const finalAction = nextActions && (guidanceCommand === 'help' || interactiveNext(command, argv) && !argv.includes('--version'));
+  const helpSubject = command !== 'help' && command != null
+    || command === 'help' && argv.filter(arg => !arg.startsWith('-')).length > 1;
+  const finalAction = nextActions && (guidanceCommand === 'help'
+    ? !helpSubject : interactiveNext(command, argv) && !argv.includes('--version'));
   let explicitNext, lastLine, previousLine;
   let renderer = suppliedRenderer;
   let preparing;
@@ -198,8 +201,9 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     }
     // Preserve native body positions; only identical adjacent action lines are redundant.
     for (const part of String(line).split('\n')) {
-      const action = finalAction && /^next:[ \t]*\S/u.test(part);
-      if (action) explicitNext = part.replace(/^next:[ \t]*/u, '');
+      const action = finalAction && (/^next:[ \t]*\S/iu.test(part)
+        || command === 'handoff' && /^pullboard shout --item \d+/u.test(part));
+      if (action) explicitNext = part.replace(/^next:[ \t]*/iu, '');
       const duplicate = action && previousLine === part;
       previousLine = part;
       if (duplicate) continue;
@@ -228,7 +232,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       if (!code && !refusal && finalAction && !focusedIdle) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
         const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
-        if (lastLine !== footer) streams.stdout.write(footer + '\n');
+        if (lastLine?.toLowerCase() !== footer.toLowerCase()
+          && !(command === 'handoff' && lastLine === explicitNext)) streams.stdout.write(footer + '\n');
       }
       else if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
       return;

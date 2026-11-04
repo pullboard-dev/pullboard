@@ -130,7 +130,7 @@ for (const provider of ['codex', 'claude']) test(`synthetic ${provider} usage re
   writeFileSync(file, JSON.stringify(provider === 'codex' ? codex(100, 60, 10) : claude('anchor', 0, 0, 0)) + '\n');
   document(runFixtureChild(process.execPath, [helpers.BIN, 'claim', String(id), '--json'], { cwd: box.web, env, encoding: 'utf8' }));
   appendFileSync(file, JSON.stringify(provider === 'codex' ? codex(160, 100, 18) : claude('spent', 20, 40, 5, 8)) + '\n');
-  document(runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--no-next', '--json'], { cwd: box.web, env, encoding: 'utf8' }));
+  document(runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--reason', 'OTHER', '--note', 'finish synthetic usage fixture', '--no-next', '--json'], { cwd: box.web, env, encoding: 'utf8' }));
   const shown = document(box.run(box.repo, 'show', String(id), '--json'));
   const stats = document(box.run(box.repo, 'stats', '--json'));
   const expected = provider === 'codex' ? [20, 40, null] : [20, 40, 5];
