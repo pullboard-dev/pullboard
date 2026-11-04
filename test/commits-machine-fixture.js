@@ -5,21 +5,23 @@ import { fileURLToPath } from 'node:url';
 import { lex } from '../packages/kernel/index.js';
 import { readPathMap, mappedPath } from '../packages/codemap/index.js';
 
-const SOURCE_MAP = new Map([...readPathMap(fileURLToPath(new URL('../', import.meta.url)))].filter(([, target]) => target.startsWith('packages/commits/')));
+const SOURCE_MAP = readPathMap(fileURLToPath(new URL('../', import.meta.url)));
 
 /** The re-export shim the commits move generated for src/hooks.js, kept as text to exercise the alias reader. */
 const GENERATED_HOOKS_SHIM = 'export { HOOKS, HOOKS_DIR, HOOK_MARK, FIX_NOTE, commitMsgProblems, computerName, machineNames, machineNameProblems, commitCitationWarnings, stagedPaths, addedLines, secretsIn, matchesPattern, blockedPaths, preCommitProblems, deletedGateProblems, preMergeHookProblems, unwiredHookProblems, applyFixers, deletedRowProblems, prePushProblems, pushesTrunk, hookScript, installHooks } from "../packages/commits/src/shell/hooks.js";\n';
 
 /** Follow only this moved cell's committed exact aliases through whole generated shims, preserving other cells' readers. */
 export function machineSourceModule(file, read) {
-  const source = read(file), original = posix.normalize(posix.join('src', file));
+  const original = posix.normalize(posix.join('src', file));
   const target = mappedPath(SOURCE_MAP, original);
-  if (target === original) return { sourceFile: file, source };
+  if (target === original) return { sourceFile: file, source: read(file) };
+  const sourceFile = posix.relative('src', target);
+  if (!target.startsWith('packages/commits/')) return { sourceFile, source: read(sourceFile) };
+  const source = read(file);
   const shim = /^\s*export\s*(\*|\{[^}]*\})\s*from\s*(['"])(\.{1,2}\/[^'"]+\.js)\2;\s*$/u.exec(source);
   assert.ok(shim && (shim[1] === '*' || shim[1].slice(1, -1).split(',').every(name => /^\s*[A-Za-z_$][\w$]*\s*$/u.test(name)))
     && posix.normalize(posix.join(posix.dirname(original), shim[3])) === target,
   `${original} must be a whole re-export shim to its committed lifecycle source ${target}`);
-  const sourceFile = posix.relative('src', target);
   const body = read(sourceFile);
   const declarations = [...lex(body).code.matchAll(/\bexport\s+(?:async\s+)?(?:function|const)\s+([A-Za-z_$][\w$]*)/gu)];
   assert.equal(declarations.length, [...lex(body).code.matchAll(/\bexport\b/gu)].length,

@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+import { auditKey, assertPostVerdictLandingAudit, NOT_MOVES_BY_VERB } from './machine-source-functions.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -105,6 +105,9 @@ const NOT_MOVES = {
   REMOTE_COORDINATOR_MODEL: 'a linked replica cannot redeclare the coordinator model; use the coordinator checkout',
   EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
   BOARD_BUSY: 'the board connection is opened or read before an item move can begin',
+  BOARD_UNAVAILABLE: 'the native board must be reachable before a command can read or write it',
+  BOARD_SCHEMA_BEHIND: 'the local board schema must be current before command dispatch',
+  GIT_SYNC_FOLDER: 'Git sync folder custody is checked before an item move and does not describe its state transition',
   NO_ELIGIBLE_REVIEWER: 'the submit command checks, before any item move, that some active seat could review a strict item; the move itself decides nothing new',
   BOARD_NOT_WRITABLE: 'the board folder must be writable before a command opens it for an item move',
   NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
@@ -292,7 +295,9 @@ function codeProblems(machine, read = fromDisk) {
     const declared = declaredCodes(machine, verbs);
     for (const entry of at) {
       for (const code of walk.refusalsOf(entry, new Set(CAUGHT[entry] ?? []))) {
-        if (!declared.has(code) && !(code in NOT_MOVES)) problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
+        if (!declared.has(code) && !(code in NOT_MOVES) && !(code in (NOT_MOVES_BY_VERB[verbs.join(' and ')] ?? {}))) {
+          problems.add(`${code} is raised by ${verbs.join(' and ')} but not declared there`);
+        }
       }
     }
   }
@@ -621,8 +626,9 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'NO_ROUTE is raised by reserve but not declared there',
   ], 'reserve reaches the route check through the reviewer checks it shares with a verdict');
 
-  const doubleQuoted = editedSource('cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
+  const doubleQuoted = editedSource('../apps/cli/src/shell/cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, doubleQuoted), [
+    'NO_ROOT is raised by submit but not declared there',
     'NO_ROOT is raised by accept and reject but not declared there',
   ]);
 });

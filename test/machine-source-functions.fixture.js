@@ -1,5 +1,16 @@
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mappedPath, readPathMap } from '../packages/codemap/index.js';
+const SOURCE_PATH_MAP = readPathMap(fileURLToPath(new URL('../', import.meta.url)));
+/** Static source walks also see branch-specific validations from the shared ordered dispatcher. */
+export const NOT_MOVES_BY_VERB = {
+  release: { B26_PERSON_APPROVAL: 'person-only urgent facts are separate from releasing an item', URGENT_VALUE: 'urgent fact values are checked only when the operation appends an urgent fact', NO_SHOUT: 'the release transition is committed before optional follow-up shout lookup' },
+  submit: { BAD_BUILD_ESTIMATE: 'expected build estimates are validated while authoring item metadata', CLAUSE_EVIDENCE_KIND: 'criterion evidence declarations are validated while adding or editing item metadata', CLAUSE_EVIDENCE_REQUIRED: 'criterion evidence declarations are validated while adding or editing item metadata', CLAUSE_REASONING_ONLY: 'criterion evidence declarations are validated while adding or editing item metadata', MILESTONES_CORRUPT: 'best-effort main comparison reads the coordinator roadmap without changing submission eligibility' },
+  reserve: { BAD_BUILD_BUDGET: 'build-size policy is checked for builders, not review reservations', ITEM_BUILD_BUDGET: 'build-size policy is checked for builders, not review reservations' },
+  'accept and reject': { NO_SHOUT: 'the verdict transition is committed before optional follow-up shout lookup', MILESTONES_CORRUPT: 'best-effort main comparison reads the coordinator roadmap without changing the verdict', LAND_ENVIRONMENT: 'post-verdict landing environment checks cannot change the recorded verdict', LAND_GATE_OUTPUT: 'post-verdict landing output checks cannot change the recorded verdict', LAND_TIMEOUT_CUSTODY: 'post-verdict landing cleanup checks cannot change the recorded verdict' },
+  reopen: { NO_SHOUT: 'the reopen transition is committed before optional follow-up shout lookup' },
+};
 /** A top-level function (including generators), or a top-level arrow function bound to a const. */
 const START = /^(?:export )?(?:(?:async )?function\s*\*?\s+(\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
 
@@ -226,6 +237,6 @@ const SOURCE_AUDIT_IDENTITIES = {
 /** Compare physical aliases without changing function names or expanding any caught boundary. */
 export function auditKey(key) {
   const [file, name] = key.split('#');
-  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
+  const physical = posix.relative('src', mappedPath(SOURCE_PATH_MAP, posix.normalize(posix.join('src', file))));
   return `${SOURCE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
 }
