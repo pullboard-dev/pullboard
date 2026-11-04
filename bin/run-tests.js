@@ -1065,6 +1065,9 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     });
     if (streamErrored && !streamClosed) await closed;
     await abortPromise;
+    // Abort can close the dispatcher stream without ending it. Close reporter inputs here too,
+    // after source consumption and child cleanup have settled, so reporterEnds cannot wait forever.
+    endReporters();
     await Promise.all(reporterEnds);
     testOutcomes = stream.testOutcomes ?? null;
     runFinished = true;
