@@ -55,7 +55,7 @@ test('pullboard help lists each role\'s moves from the declaration, and pullboar
     assert.deepEqual(listed.sort(), [...new Set(machineRules.MACHINE.moves.filter((move) => move.by.includes(role)).map((move) => move.verb))].sort(), `${role}'s moves`);
   }
   assert.ok(HELP.all.includes(machineRules.lifecycleHelp), 'the full help screen carries the generated section, not a typed copy');
-  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle'], { encoding: 'utf8' });
+  const printed = runFixtureChild(process.execPath, [BIN, 'lifecycle', '--detail'], { encoding: 'utf8' });
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(printed.stdout, machineRules.lifecycleMarkdown());
 });
