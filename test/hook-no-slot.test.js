@@ -39,12 +39,12 @@ test('with every local slot held, a one-line commit passes its hooks without que
     const ok = commitAs(box, box.web, session, 'web/page.html', 'feat(web): one line [G1]');
     assert.equal(ok.status, 0, ok.text);
     // Before this change each hook waited 30 s for the held lease and then refused with CHECKOUT_BUSY.
-    assert.ok(ok.ms < 8000, `the commit with its hooks took ${Math.round(ok.ms)} ms with every slot held`);
+    assert.ok(ok.ms < 1000, `the commit with its hooks took ${Math.round(ok.ms)} ms with every slot held`); // budget: derived from the frozen #2505 bar requiring completion under 1 s.
     const started = performance.now();
     const direct = box.run(box.web, 'hook', 'pre-commit');
     const hookMs = performance.now() - started;
     assert.equal(direct.code, 0, direct.err);
-    assert.ok(hookMs < 2500, `pre-commit took ${Math.round(hookMs)} ms with every slot held`); // budget: measured 0.95 s and 0.75 s with every slot held (fact 6b669f62); the 2500 ms ceiling leaves room for a loaded runner
+    assert.ok(hookMs < 1000, `pre-commit took ${Math.round(hookMs)} ms with every slot held`); // budget: measured below 1 s in fact 6b669f62; retain the frozen #2505 ceiling.
     const refused = commitAs(box, box.web, session, 'api/other.js', 'feat(web): outside the lane [G1]');
     assert.notEqual(refused.status, 0, 'a lane violation is still refused');
     assert.match(refused.text, /lane/iu);
