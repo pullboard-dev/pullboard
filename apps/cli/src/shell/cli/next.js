@@ -151,7 +151,7 @@ function nextPick(ctx, board, values) {
   const firstReview = () => store.reviewOffer(board, { ...selection, mandatoryOnly: true,
     priority: [], skipIds: selection.skipIds });
   const mandatory = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, firstReview) : firstReview();
-  if (mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
+  if (!values.build && mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
     return { autoReview: mandatory.item, item: mandatory.item, reasons: [] };
   }
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
