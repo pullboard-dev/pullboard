@@ -384,7 +384,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -649,28 +649,33 @@ export async function submitHere(ctx, id, infra) {
       finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
     } },
     { name: 'static', run: async () => {
-      if (remoteMode) return runRemotePart('static');
-      const changedStaticStart = performance.now();
       try {
-        if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-          await withItemPatchSubmit(root, companion, async gateRoot => {
-            const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
-            const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
-              source: companion?.commit ?? commit, code: [checker] }, () => {
-              const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
-              return promisify(execFile)(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' })
-                .catch(error => { throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${error.stderr || error.message || 'static checker failed'}`); });
+        if (remoteMode) return await runRemotePart('static');
+        const changedStaticStart = performance.now();
+        try {
+          if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+            await withItemPatchSubmit(root, companion, async gateRoot => {
+              const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
+              const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
+                source: companion?.commit ?? commit, code: [checker] }, () => {
+                const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+                return promisify(execFile)(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' })
+                  .catch(error => { throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${error.stderr || error.message || 'static checker failed'}`); });
+              });
+              if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
             });
-            if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
-          });
-        }
-      } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
-      // Static and lint checks run once, all at once, alongside the other stages; a red one cancels them.
-      const staticStart = performance.now();
-      try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
-        onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-        executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
-      finally { reportSubmitStage(ctx, 'static', staticStart); }
+          }
+        } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
+        // Static and lint checks run once, all at once, alongside the other stages; a red one cancels them.
+        const staticStart = performance.now();
+        try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+          onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
+          executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
+        finally { reportSubmitStage(ctx, 'static', staticStart); }
+      } catch (error) {
+        if (error && typeof error === 'object') error.submitFailureStage = 'fast';
+        throw error;
+      }
     } },
     { name: 'tests', run: judgeTests },
   ]);
@@ -819,7 +824,8 @@ export async function run(io, { first, values }) {
           } else {
             await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
               freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000), ...(attempt.stage === 'fast' ? { stage: 'fast' } : {}) } }]);
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000),
+                ...(attempt.stage === 'fast' || error.submitFailureStage === 'fast' ? { stage: 'fast' } : {}) } }]);
           }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
