@@ -66,10 +66,13 @@ export function handoffQueueDirectory() { return join(machineHome(), 'handoff-qu
  * Take the next place in line, at the submit ordering point and before the slow tooling copy.
  * The place is a monotonic number kept on disk, so ties and clock skew cannot reorder submits.
  *
+ * An urgent place is marked in its name, so the dispatcher starts it before every routine one without a board read.
+ *
  * @param {string} job - The job id the place belongs to.
+ * @param {{ startOf?: (pid: number) => string, urgent?: boolean }} [options] - Process identity and whether the item is urgent.
  * @returns {Promise<string>} The reservation name; pass it to queueHandoffLaunch.
  */
-export async function reserveHandoffTicket(job, { startOf = () => '' } = {}) {
+export async function reserveHandoffTicket(job, { startOf = () => '', urgent = false } = {}) {
   const queue = handoffQueueDirectory();
   mkdirSync(queue, { recursive: true, mode: 0o700 });
   const lock = await takeResource({ name: 'submit-handoff-ticket', capacity: 1, scope: 'machine', agent: 'handoff-ticket' });
@@ -79,7 +82,7 @@ export async function reserveHandoffTicket(job, { startOf = () => '' } = {}) {
     try { next = Number(readFileSync(counter, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (!Number.isSafeInteger(next) || next < 1 || next === Number.MAX_SAFE_INTEGER) throw new Refused('HANDOFF_TICKET_SOURCE', 'restore the durable next-ticket counter before queueing another worker');
     writeFileSync(counter, String(next + 1), { mode: 0o600 });
-    const name = `${String(next).padStart(12, '0')}-${job}.reserved`;
+    const name = `${String(next).padStart(12, '0')}-${job}${urgent ? URGENT_MARK : ''}.reserved`;
     writeFileSync(join(queue, name), JSON.stringify({ pid: process.pid, started: startOf(process.pid) }) + '\n', { mode: 0o600 });
     return name;
   } finally { lock.release(); }
@@ -134,9 +137,16 @@ function releaseExited(running, releaseSlot) {
   }
 }
 
-/** Places in line, lowest number first; reservations count so a slow submit keeps its turn. */
+/** The name mark of a ticket whose item is urgent. */
+const URGENT_MARK = '.urgent';
+
+/**
+ * Places in line: urgent tickets first, then routine ones, each lowest number first; reservations count so a slow
+ * submit keeps its turn. Why urgent first: an unblocking fix must not wait behind routine resubmits (#3062).
+ */
 function waitingTickets() {
-  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort(); }
+  const urgent = name => name.replace(/\.(json|reserved)$/u, '').endsWith(URGENT_MARK);
+  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 

@@ -21,7 +21,8 @@ function succeeded(result) {
 /** File a real build with a frozen check that fails only when the fixture arms its gate. */
 function addBuild(box, repo, title, check) {
   const result = succeeded(box.run(repo, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', 'the real fixture gate passes', '--check', check, '--wait', '--json'));
+    '--criterion', 'the real fixture gate passes', '--check', check,
+    '--route', 'strong', '--wait', '--json'));
   return JSON.parse(result.out).item.item_id;
 }
 
@@ -107,6 +108,7 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   const redId = addBuild(gateBox, gateRepo, 'Gate failure recovery', gate);
   succeeded(gateBox.run(gateWeb, 'claim', String(redId)));
   mkdirSync(join(gateWeb, 'web'), { recursive: true });
+  writeFileSync(join(gateWeb, 'web', 'receipt.txt'), 'a real build\n');
   writeFileSync(join(gateWeb, 'web', 'RED'), 'armed\n');
   gateBox.git(gateWeb, 'add', '-A');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: arm gate fixture [G1]');
