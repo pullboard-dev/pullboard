@@ -8,6 +8,15 @@ import { validateGateQueue } from '../../../queue/index.js';
 const DEFAULT_GATE_SLOTS = 2;
 const DEFAULT_BROWSER_SLOTS = 1;
 
+/**
+ * Which slot counts this machine's settings state outright. An unset count is only the default, so a pool that a
+ * runner's own jobs already sized keeps its recorded capacity instead (#2541).
+ */
+export function declaredMachineSlots() {
+  const value = readMachineSettingsFile(machineSettingsFile());
+  return { gate: value?.gateSlots !== undefined, browser: value?.browserSlots !== undefined };
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -64,6 +73,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
+  }
+  if (value.gate?.diskFloorMB !== undefined && (!Number.isSafeInteger(value.gate.diskFloorMB) || value.gate.diskFloorMB < 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.diskFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
   }
   const runners = value.runners ?? [];
   if (!Array.isArray(runners)) throw new Refused('BAD_MACHINE_SETTINGS', 'runners must be an array; use pullboard runner add <ssh-host> --slots <n> --browser <n>');

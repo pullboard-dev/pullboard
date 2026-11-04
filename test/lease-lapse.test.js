@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { itemById, firstRefusal } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
@@ -16,7 +16,7 @@ import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/
 import { LEASE_LAPSE_ENGINE } from '../src/lease-lapse-engine.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
 import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 
 const MINUTE = 60_000;
 

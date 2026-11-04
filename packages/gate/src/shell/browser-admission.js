@@ -77,7 +77,7 @@ const REVIEWED_EXECUTORS = new Map([
       body: 'const browser = browserInCall(method, input); if (browser) return Promise.reject(browserSlotRefusal(browser)); return custom.apply(this, input);',
       reason: 'the installed promise wrapper checks browserInCall before forwarding the original process operation' },
   ]],
-  ['src/cli/sweep.js', [{ function: 'sweepHere',
+  ['apps/cli/src/shell/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
   ['packages/sentinels/src/shell/sentinel-runner.js', [{ function: 'executeSentinel',
@@ -114,7 +114,8 @@ function explicitRunnerFiles(args) {
     }
     files.push(argument);
   }
-  return files.length && files.every(file => /^test\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
+  return files.length && files.every(file => !file.split('/').some(part => part === '.' || part === '..')
+    && /^(?:test|(?:packages|apps)\/[^/]+\/tests)\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
 }
 
 /** Resolve a command word through PATH using the same inherited environment as the check shell.
@@ -386,7 +387,7 @@ async function ownSourceCheck(root, words, { commit, env }) {
 }
 
 /** Parse the frozen check and classify its explicit test files, failing closed on unknown shell. */
-export async function checkNeedsBrowser(root, command, { commit, env = process.env, onFallback } = {}) {
+export async function checkNeedsBrowser(root, command, { commit, env = process.env, onFallback, byLaunch } = {}) {
   if (foreignNodeOptions(env.NODE_OPTIONS, env)) return browserFallback(onFallback, '<frozen check>', 'NODE_OPTIONS may load an unclassified module');
   let words = literalShellWords(command);
   if (words && await ownSourceCheck(root, words, { commit, env })) return false;
@@ -409,14 +410,14 @@ export async function checkNeedsBrowser(root, command, { commit, env = process.e
     const committed = committedFiles(root, commit);
     const runnerEntry = committed?.get(TEST_RUNNER);
     if (!runnerEntry || runnerEntry.type !== 'blob' || !['100644', '100755'].includes(runnerEntry.mode)) return browserFallback(onFallback, TEST_RUNNER, 'committed runner is missing or is not a regular file');
-    return testsNeedBrowserInTree(root, files, committed, onFallback);
+    return testsNeedBrowser(root, files, { commit, onFallback, byLaunch });
   }
   if (await realpath(runner).catch(() => '') !== await realpath(resolve(root, TEST_RUNNER)).catch(() => '')) return browserFallback(onFallback, TEST_RUNNER, 'runner resolves outside the expected repository path');
   const runnerInfo = await lstat(runner).catch(() => null);
   let runnerInside = false;
   try { runnerInside = await staysInside(root, runner); } catch { /* Missing or unresolved runner is uncertain. */ }
   if (!runnerInfo?.isFile() || runnerInfo.isSymbolicLink() || !runnerInside) return browserFallback(onFallback, TEST_RUNNER, 'runner is not a regular in-repository file');
-  return testsNeedBrowser(root, files, { onFallback });
+  return testsNeedBrowser(root, files, { onFallback, byLaunch });
 }
 
 /**
@@ -692,11 +693,13 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
  *
  * @param {string} root
  * @param {string[]} files
- * @param {{onFallback?:(decision:{file:string,reason:string})=>void, byLaunch?:boolean}} [options] - unset byLaunch reads gate.browserByLaunch
+ * @param {{commit?:string, onFallback?:(decision:{file:string,reason:string})=>void, byLaunch?:boolean}} [options] - unset byLaunch reads gate.browserByLaunch
  * @returns {Promise<boolean>}
  */
-export async function testsNeedBrowser(root, files, { onFallback, byLaunch } = {}) {
-  return testsNeedBrowserInTree(root, files, null, onFallback, byLaunch);
+export async function testsNeedBrowser(root, files, { commit, onFallback, byLaunch } = {}) {
+  const committed = commit ? committedFiles(root, commit) : null;
+  if (commit && !committed) return browserFallback(onFallback, '<test selection>', 'committed tree is unavailable');
+  return testsNeedBrowserInTree(root, files, committed, onFallback, byLaunch);
 }
 
 /**

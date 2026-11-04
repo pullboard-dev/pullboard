@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Private cost cohorts, native model names and statistically honest comparisons [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -7,11 +7,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { logEvent } from '../packages/store/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { apiHttpFixture } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';

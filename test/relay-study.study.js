@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** A measured private relay study, with explicit coverage limits rather than inferred parity [H5,H17]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -8,7 +8,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { MOVE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, readRelay } from './relay-study-fixture.js';

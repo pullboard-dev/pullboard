@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { renameSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
+import { openBoard } from '../../apps/lib/index.js';
+import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { NEXT_IDLE_ENGINE } from '../../src/next-idle-engine.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 

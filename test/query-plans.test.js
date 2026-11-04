@@ -14,12 +14,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { submitFixture } from './board-submit-fixture.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { personNeedsSummary } from '../src/needs-summary.js';
-import { resumeNeeds } from '../src/resume-needs.js';
+import { personNeedsSummary } from '../apps/view/index.js';
+import { resumeNeeds } from '../apps/view/index.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
@@ -31,7 +31,7 @@ import {
 } from '../packages/spec/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const SERVE = pathToFileURL(resolve(import.meta.dirname, '../src/cli/view-state.js')).href;
+const SERVE = pathToFileURL(resolve(import.meta.dirname, '../apps/cli/src/shell/cli/view-state.js')).href;
 const ITEMS = 1_000;
 const EVENTS = 45_000;
 const SHOUTS = 23_000;

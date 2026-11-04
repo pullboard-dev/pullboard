@@ -10,6 +10,9 @@ import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 import { redReturnLeaseHolds } from "./red-return-lease.js";
+import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../src/pinned-claim-lapse-engine.js";
+import { PINNED_CLAIM_RELEASE_MS } from "./pinned-claim.js";
+import { itemPinned } from "./pinned-claim.js";
 
 /** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
@@ -94,7 +97,14 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const item = itemById(board, row.id);
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
-  if (!['stall', 'release', 'waiting', 'progress'].includes(row.idle)) invalid();
+  if (!['stall', 'release', 'waiting', 'progress', 'seat-gone'].includes(row.idle)) invalid();
+  if (row.idle === 'seat-gone') {
+    const signal = row.deadSeat?.heartbeatAt ?? row.claimAt;
+    const at = Date.parse(snapshot.observedAt), last = Date.parse(signal ?? '');
+    if (row.deadSeat?.observedAt !== snapshot.observedAt || row.deadSeat?.quietMs !== 120_000
+      || row.deadSeat?.worktreeMissing !== true && (!Number.isFinite(last) || at - last < 120_000)) invalid();
+    return { row, item };
+  }
   if (row.idle === 'waiting') {
     if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
     const after = String(item.item_after ?? '').split(',').map(Number);
@@ -114,7 +124,8 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
   const last = staleInstant(row.workActivity, observed);
-  const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
+  const pinnedLapse = row.idle === 'release' && (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, item.item_id);
+  const limit = row.idle === 'release' ? (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS) : CLAIM_STALL_MS;
   if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
   if (['release', 'progress'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
     || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
@@ -228,7 +239,9 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           (result.stalled ??= []).push(row.id);
           continue;
         }
-        const reason = row.idle === 'progress'
+        const reason = row.idle === 'seat-gone'
+          ? `Seat ${row.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.`
+          : row.idle === 'progress'
           ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
           : row.idle === 'waiting'
           ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
@@ -240,6 +253,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
           id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
         logEvent(board, agentId, 'release', row.id, { reason,
+          ...(row.idle === 'seat-gone' ? { reclaim: { seat: row.actor, heartbeatAt: row.deadSeat.heartbeatAt, worktreeMissing: row.deadSeat.worktreeMissing,
+            observedAt: snapshot.observedAt } } : {}),
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });

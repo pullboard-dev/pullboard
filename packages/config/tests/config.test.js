@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { configFromSource } from '../src/shell/config.js';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runnerPackage } from '../../../src/runner-package.js';
+import { runnerPackage } from '../../runners/index.js';
 import { commandDocs } from '../src/shell/command-declaration-read.js';
 
 test('parallel candidate landing is opt-in and accepts only boolean settings [B3,V4]', () => {

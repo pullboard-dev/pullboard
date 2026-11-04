@@ -1,8 +1,18 @@
 /** Prove the actual move declarations' bounded literal import closure without evaluating them [C7,H16]. */
 import { isBuiltin } from 'node:module';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { join, posix } from 'node:path';
-import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../packages/kernel/index.js';
+import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { posix } from 'node:path';
+import { discovered } from '../packages/kernel/index.js';
+import { MOVE_CANDIDATE } from '../packages/kernel/index.js';
+import { MOVE_FILE } from '../packages/kernel/index.js';
+import { lex } from '../packages/kernel/index.js';
+
+/** Folders that hold move declarations: the src/moves shims while they last, then the moves cell's bodies [C7]. */
+const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves']);
 
 /** Refuse symlinks, absent modules and paths outside the finite repository source capability. */
 function sourceAt(root, file, allowed) {
@@ -21,12 +31,51 @@ function sourceAt(root, file, allowed) {
 
 /** Return only a complete finite declaration closure; opaque or unbounded source grants no exception. */
 export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
-  const allowed = new Set(files);
-  const directory = join(root, 'src/moves');
-  if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('unproven moves directory');
-  let pending = discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
-    .map(name => `src/moves/${name}`);
+  // Every existing moves folder is a root, so the closure survives src/moves being deleted (#2478).
+  const folders = MOVE_FOLDERS.filter(folder => existsSync(join(root, folder)));
+  if (!folders.length) throw new Error('unproven moves directory');
+  for (const folder of folders) {
+    const stat = lstatSync(join(root, folder));
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('unproven moves directory');
+  }
+  const pending = folders.flatMap(folder => discovered(readdirSync(join(root, folder)), MOVE_CANDIDATE, MOVE_FILE, 'move')
+    .map(name => `${folder}/${name}`));
   if (!pending.length) throw new Error('no move declarations');
+  return literalClosure(root, pending, { importsIn, commonJsIn, files }, 'move');
+}
+
+/**
+ * The runner worker's bounded literal import closure, read through the repository inventory rather than the runners
+ * cell, so the verify-side move check never imports a later cell (#1699). Opaque or unbounded source throws.
+ */
+export function runnerWorkerFiles(root, { importsIn, commonJsIn, files }, entry = 'src/runner-worker.js') {
+  return literalClosure(root, [entry], { importsIn, commonJsIn, files }, 'runner worker', urlSpecifiers);
+}
+
+/**
+ * The relative files a source loads as `new URL('<literal>', import.meta.url)`, the runner package's runtime edges.
+ * A two-argument URL whose base or first argument is not that exact literal shape is opaque and throws.
+ */
+function urlSpecifiers(source) {
+  const { code, strings } = lex(source), found = [];
+  for (const match of code.matchAll(/\bnew\s+URL\s*\(/gu)) {
+    const start = match.index + match[0].length;
+    let depth = 1, end = start;
+    for (; end < code.length && depth; end += 1) depth += code[end] === '(' ? 1 : code[end] === ')' ? -1 : 0;
+    const args = code.slice(start, end - 1);
+    if (depth) throw new Error('opaque runner worker loader');
+    if (!args.includes(',')) continue; // A one-argument URL names no source-relative file.
+    const tail = /,\s*import\s*\.\s*meta\s*\.\s*url\s*$/u.exec(args);
+    const literal = tail && strings.find(entry => entry.start === start + args.search(/\S/u));
+    if (!literal || !['"', "'"].includes(source[literal.start]) || code.slice(literal.end, start + tail.index).trim()) throw new Error('opaque runner worker loader');
+    found.push(literal.text);
+  }
+  return found;
+}
+
+/** Walk relative literal imports from the starting files, refusing loaders, bare or non-module dependencies and size overruns. */
+function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, extra = () => []) {
+  const allowed = new Set(files);
   const reached = new Set();
   let bytes = 0;
   while (pending.length) {
@@ -36,16 +85,16 @@ export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
       reached.add(file);
       const source = sourceAt(root, file, allowed);
       bytes += Buffer.byteLength(source);
-      if (reached.size > 4096 || bytes > 1_048_576) throw new Error('move closure exceeds source bounds');
+      if (reached.size > 4096 || bytes > 1_048_576) throw new Error(`${label} closure exceeds source bounds (4096 files or 1 MiB)`);
       return source;
     });
-    if (commonJsIn(sources).some(Boolean)) throw new Error('opaque move loader');
+    if (commonJsIn(sources).some(Boolean)) throw new Error(`opaque ${label} loader`);
     const edges = importsIn(sources);
-    for (const [index, imports] of edges.entries()) for (const specifier of imports) {
+    for (const [index, imports] of edges.entries()) for (const specifier of [...imports, ...extra(sources[index])]) {
       if (isBuiltin(specifier)) continue;
-      if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error('non-literal relative move import');
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
-      if (!/\.[cm]?js$/u.test(target)) throw new Error('unproven executable move dependency');
+      if (!/\.[cm]?js$/u.test(target)) throw new Error(`unproven executable ${label} dependency`);
       pending.push(target);
     }
   }

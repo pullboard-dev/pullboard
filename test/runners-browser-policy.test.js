@@ -8,7 +8,7 @@ import {
   test,
 } from './runners-scenarios.fixture.js';
 import { browserRefusalRetriesRunner } from './runner-browser-free-fixture.js';
-import { testsNeedBrowser } from '../src/browser-admission.js';
+import { testsNeedBrowser } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 
 test('a browser-free check on a runner with no browser slots passes [C7]', { timeout: 180_000 }, t => browserFreeRunnerCheck(t, { cli, git })); // budget: two runner round trips and two local runs.

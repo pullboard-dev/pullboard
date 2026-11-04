@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 import { exportBoard } from "../src/shell/exchange.js";
 import { importBoard } from "../src/shell/exchange.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";

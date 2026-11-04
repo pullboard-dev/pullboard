@@ -2,7 +2,7 @@
 /** Generated-script adapter contract; Activity model/HTML assertions remain in activity-sentences.test.js. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pageRenderScript } from '../../src/view/page-render.js';
+import { pageRenderScript } from '../../apps/view/index.js';
 
 test('Activity timestamp matching survives page-script generation [N26,C7]', () => {
   const generated = pageRenderScript();

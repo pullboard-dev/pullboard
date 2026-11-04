@@ -6,8 +6,8 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
-import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 import {
   assert,
   dirname,
@@ -33,10 +33,10 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
   }
 });
 
-test('the moved runner load shim keeps unrelated front-door modules out of the worker capsule [C7]', () => {
+test('the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
   const root = resolve(import.meta.dirname, '..');
   const files = runnerPackage(root).files;
-  assert.ok(Object.hasOwn(files, 'src/runner-load.js'));
+  assert.equal(Object.hasOwn(files, 'src/runner-load.js'), false, 'the worker reaches the canonical load body without the compatibility hop');
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-load.js'));
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-policy.js'));
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-overhead.js'));

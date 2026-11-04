@@ -10,12 +10,12 @@ import * as store from '../src/board.js';
 import { parseWorkerBudget } from '../packages/config/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { observeWorkers } from '../src/worker-scale.js';
-import { planWorkerScale } from '../src/worker-scale.js';
-import { scaleCycle } from '../src/worker-scale.js';
-import { seatHoldsWork } from '../src/worker-scale.js';
-import { windowStart } from '../src/worker-scale.js';
-import { workerLedger } from '../src/worker-scale.js';
+import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
+import { planWorkerScale } from '../apps/cli/src/shell/worker-scale.js';
+import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
+import { seatHoldsWork } from '../apps/cli/src/shell/worker-scale.js';
+import { windowStart } from '../apps/cli/src/shell/worker-scale.js';
+import { workerLedger } from '../apps/cli/src/shell/worker-scale.js';
 
 const HOUR = 3_600_000;
 
