@@ -43,9 +43,9 @@ function commitWeb(box, files, message) {
 
 /** Create and claim a fresh web item whose worktree continues the prior candidate's files. */
 function nextWebItem(box, previous, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1');
+  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
-  const id = Number(added.out.trim().slice(1));
+  const id = JSON.parse(added.out).item.item_id;
   assert.ok(Number.isSafeInteger(id) && id > 0, `the board returns a real item id: ${added.out}`);
   const web = join(box.dir, `web-${id}`);
   const source = box.git(previous, 'rev-parse', 'HEAD');
@@ -94,8 +94,8 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.equal(uncounted.code, 1, uncounted.out);
 
   // A rise reports what it would refuse during this rule's twenty-clean-gate trial.
-  commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
   assert.equal(box.run(box.web, 'claim', '1').code, 0, 'the refused uncounted check reopened item 1');
+  commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
   const roseOutput = `${rose.out}${rose.err}`;
   assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
