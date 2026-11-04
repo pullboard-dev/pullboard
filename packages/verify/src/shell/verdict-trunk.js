@@ -67,3 +67,25 @@ export async function judgeTrunkMove(root, { from, to, item, checkedCommit, chec
   }
   return result();
 }
+
+/**
+ * Name the first file that stops a sealed submit receipt from standing after main moved from `from` to `to` (#2939):
+ * a file the item changed, or a file its check names. Unlike judgeTrunkMove it does not need the check to be an
+ * explicit runner call, so the usual `node --test <file>` check can reuse its receipt; what other moved files could
+ * reach is the landing gate's proof. Returns null when the move leaves the receipt standing.
+ *
+ * @param {string} root
+ * @param {{ from: string, to: string, commit: string, check: string }} move
+ * @returns {string|null}
+ */
+export function sealedMoveOverlap(root, { from, to, commit, check }) {
+  if (from === to) return null;
+  try { git(root, ['merge-base', '--is-ancestor', from, to]); } catch { return `main was rewound since submit (${from.slice(0, 12)} is not in ${to.slice(0, 12)})`; }
+  const itemFiles = new Set(changedBetween(root, git(root, ['merge-base', from, commit]), commit));
+  const named = new Set(String(check ?? '').split(/\s+/).map(word => word.replace(/^['"]|['"]$/g, '').replace(/^\.\//, '')));
+  for (const path of changedBetween(root, from, to)) {
+    if (itemFiles.has(path)) return `${path}, a file this item changed`;
+    if (named.has(path)) return `${path}, a file the check names`;
+  }
+  return null;
+}
