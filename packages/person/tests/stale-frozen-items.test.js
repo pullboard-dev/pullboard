@@ -136,23 +136,24 @@ function succeeds(box, cwd, ...args) {
   return requireSuccess(box.pullboard(cwd, ...args));
 }
 
-/** Freeze an item's cited text by claiming it in the real agent worktree. */
+/** Freeze an item's cited text and return its assigned worktree, preserving claim identity across concurrent items. */
 function claim(box, id) {
-  succeeds(box, box.web, 'claim', String(id));
+  return JSON.parse(succeeds(box, box.web, 'claim', String(id), '--json')).itemFolder ?? box.web;
 }
 
 /** Submit independent lane history so the lifecycle fixture never stacks unverified items. */
 function submit(box, id, name) {
   box.git(box.web, 'reset', '--hard', 'main');
-  claim(box, id);
+  const folder = claim(box, id);
+  box.git(folder, 'reset', '--hard', 'main');
   const relative = `web/${name}.txt`;
-  mkdirSync(join(box.web, 'web'), { recursive: true });
-  writeFileSync(join(box.web, relative), `${name}\n`);
-  box.git(box.web, 'add', relative);
-  const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8' });
+  mkdirSync(join(folder, 'web'), { recursive: true });
+  writeFileSync(join(folder, relative), `${name}\n`);
+  box.git(folder, 'add', relative);
+  const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: folder, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
-  const head = box.git(box.web, 'rev-parse', 'HEAD');
-  succeeds(box, box.web, 'submit', String(id), '--no-next');
+  const head = box.git(folder, 'rev-parse', 'HEAD');
+  succeeds(box, folder, 'submit', String(id), '--no-next');
   return head;
 }
 

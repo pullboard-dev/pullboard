@@ -72,6 +72,9 @@ test('a split train landing repoints open and claimed checks and reports submitt
     const box = helpers.project('node bin/run-tests.js', undefined, { withWorktree: false });
     t.after(async () => helpers.cleanup());
     delete box.env.NODE_TEST_CONTEXT;
+    const fixtureHooks = join(box.dir, 'fixture-hooks');
+    mkdirSync(fixtureHooks);
+    box.git(box.repo, 'config', 'core.hooksPath', fixtureHooks);
     copyCommittedPackageFiles(box, import.meta.dirname + '/..');
     mkdirSync(join(box.repo, 'web'), { recursive: true });
     writeFileSync(join(box.repo, 'web/legacy.test.js'),
