@@ -75,7 +75,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
   assert.equal(paused.code, 1);
   const pausedReason = JSON.parse(paused.out).error.message;
   assert.ok(pausedReason.includes('lane release review'));
-  assert.ok(pausedReason.includes('held by coordinator'),
+  assert.ok(pausedReason.includes(`#${held.get('web').id} is held by coordinator: ${held.get('web').reason}`),
     'a lane hold does not mask the item hold reason');
   jsonSuccess(box, box.repo, 'hold', 'web', '--off');
   for (const actor of actors) {
@@ -84,7 +84,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
       assert.equal(attempted.code, 1);
       const refusal = JSON.parse(attempted.out);
       assert.equal(refusal.error.code, 'ITEM_HELD', `${actor.lane}/${actor.route} cannot claim a held item in either lane`);
-      assert.ok(refusal.error.message.includes(reason));
+      assert.ok(refusal.error.message.includes(`#${id} is held by coordinator: ${reason}`), refusal.error.message);
       assert.equal(store.getItem(board, id).item_status, 'open');
       assert.equal(store.getItem(board, id).item_owner, null);
     }
