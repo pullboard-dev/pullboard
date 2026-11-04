@@ -3,6 +3,7 @@ import { ENGINE_VERSION } from '../../../state/index.js';
 import { lineSettings } from '../../../state/index.js';
 import { reviewOffer as capacityReviewOffer } from "../../../seats/index.js";
 import { nextFor } from "./board-next-for.js";
+import { greenReviewFor } from "./board-next-for.js";
 import {
   listItems,
   reviewHolder,
@@ -28,6 +29,9 @@ export function reviewOffer(board, who) {
     const picked = nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip], reviewOrder });
     if (picked.item) return { item: picked.item, queue: reviewQueue(board), mandatory: true, urgent: 'first-review', starveMinutes: 15 };
   }
+  // A green, unreserved submission comes before any build with no starvation wait (#2992).
+  const green = who.mandatoryOnly ? greenReviewFor(board, who) : null;
+  if (green) return { item: green, queue: reviewQueue(board), mandatory: true, urgent: 'green-review' };
   if (who.mandatoryOnly) return null;
   return capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
 }

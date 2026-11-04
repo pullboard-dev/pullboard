@@ -308,6 +308,28 @@ export function nextFor(board, options) {
 }
 
 /**
+ * The green, unreserved submission this seat may review now, or null [C7, #2992].
+ * Finished work waits only on a reviewer, so a seat takes it before any new build with no
+ * starvation wait. Only a green gate at the submitted head with no reservation since that submit
+ * counts; every other submission is skipped, and nextFor's reviewer checks, the cross-family rule
+ * among them, still decide eligibility.
+ *
+ * @param {any} board
+ * @param {any} who - The nextFor options of the asking seat.
+ * @returns {any | null}
+ */
+export function greenReviewFor(board, who) {
+  const skip = new Set(who.skipIds ?? []);
+  for (const item of listItems(board)) {
+    if (item.item_status !== 'submitted') continue;
+    const submit = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item.item_id);
+    const reserved = submit && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='reserve' AND event_id>? LIMIT 1").get(item.item_id, submit.event_id);
+    if (!submit || reserved || !greenAtHead(board, item)) skip.add(item.item_id);
+  }
+  return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
+}
+
+/**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered.
