@@ -20,7 +20,7 @@ import { assertCommitShimRefusals, machineSourceModule } from './commits-machine
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../packages/state/index.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { policyRepository, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
@@ -654,7 +654,7 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 function boardOnDisk(clock) {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
   const file = join(dir, 'board.sqlite');
-  const board = openBoard(file, clock);
+  const board = openBoard(file, clock, { gitRoot: policyRepository(dir) });
   store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
