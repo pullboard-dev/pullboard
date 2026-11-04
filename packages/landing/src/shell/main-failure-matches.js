@@ -91,6 +91,7 @@ export function matchingMainFailures(failures, comparison, main) {
     // A case defined in a helper reports the helper as its file; main ran it under the test file that imports the helper.
     const file = comparison.files.find(row => row.file === failure.file)
       ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
+    if (file?.result === 'red' && file.fileIsolation === true && file.file === failure.file) continue;
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
   }
