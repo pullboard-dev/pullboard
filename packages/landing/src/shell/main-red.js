@@ -62,6 +62,8 @@ import { loadMachineSettings } from '../../../config/index.js';
 import { recentReceipts } from '../../../gate/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
+// Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
+const CACHE_VERSION = 2;
 
 /** Resolve one test filename from runner output to a safe repository-relative path. */
 function testPath(root, value) {
@@ -115,9 +117,9 @@ function cacheFile(root) {
 function readCache(file) {
   try {
     const stat = lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: 1, entries: {} };
+    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: CACHE_VERSION, entries: {} };
     const value = JSON.parse(readFileSync(file, 'utf8'));
-    if (value.version !== 1 || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: 1, entries: {} };
+    if (value.version !== CACHE_VERSION || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: CACHE_VERSION, entries: {} };
     const entries = {};
     for (const [commit, files] of Object.entries(value.entries)) {
       if (!/^[0-9a-f]{40,64}$/u.test(commit) || !files || typeof files !== 'object' || Array.isArray(files)) continue;
@@ -130,10 +132,10 @@ function readCache(file) {
         }
       }
     }
-    return { version: 1, entries };
+    return { version: CACHE_VERSION, entries };
   } catch (error) {
-    if (error?.code === 'ENOENT') return { version: 1, entries: {} };
-    return { version: 1, entries: {} };
+    if (error?.code === 'ENOENT') return { version: CACHE_VERSION, entries: {} };
+    return { version: CACHE_VERSION, entries: {} };
   }
 }
 
@@ -157,7 +159,11 @@ function gitCall(cwd, args, env) {
   });
 }
 
-/** Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it. */
+/**
+ * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
+ * Why a branch: a detached clone has no accepted main, so bin/run-tests.js refused before any test and every
+ * comparison came back a red that proved nothing (#2950).
+ */
 export async function withMainCheckout(root, commit, run) {
   const directory = join(tmpdir(), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
@@ -166,7 +172,9 @@ export async function withMainCheckout(root, commit, run) {
   try {
     const cloned = gitCall(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], env);
     if (cloned.status !== 0) return { unavailable: 'temporary main checkout could not be prepared' };
-    const selected = gitCall(checkout, ['checkout', '--quiet', '--force', '--detach', commit], env);
+    // On main's own branch name, so tools that look up accepted main (test budgets) find the compared commit (#2950).
+    const branch = (mainCheckout(root)?.branch ?? 'refs/heads/main').replace(/^refs\/heads\//u, '');
+    const selected = gitCall(checkout, ['checkout', '--quiet', '--force', '-B', branch, commit], env);
     if (selected.status !== 0) return { unavailable: 'the exact main commit could not be checked out temporarily' };
     const clean = gitCall(checkout, ['status', '--porcelain', '--untracked-files=all'], env);
     const head = gitCall(checkout, ['rev-parse', '--verify', 'HEAD^{commit}'], env);
@@ -325,7 +333,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   /** Read a consistent cache generation in a short metadata-only critical section. */
   // Executor-pinned evidence never reads or populates the generic commit/file cache.
   const snapshot = () => pinned
-    ? Promise.resolve({ version: 1, entries: { [main.commit]: { ...pinnedEntries } } })
+    ? Promise.resolve({ version: CACHE_VERSION, entries: { [main.commit]: { ...pinnedEntries } } })
     : withComparisonCache(root, onWait, () => readCache(file));
   let cache = await snapshot();
   const missing = files.filter(path => !usable(cache.entries[main.commit]?.[path]) || fresh && !pinned);
@@ -360,6 +368,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
               if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
+          // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
+          if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
           coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
           const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout, { allowCancelled }) : null;
           // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).
