@@ -115,7 +115,7 @@ test('a split train landing repoints open and claimed checks and reports submitt
       submitFixture(board, submittedId, { agentId: submittedBuilder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
       store.claim(board, malformedId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Malformed check') });
-      store.release(board, malformedId, openBuilder);
+      store.release(board, malformedId, openBuilder, '', undefined, 'BLOCKED');
       store.claim(board, trainId, { agentId: trainBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Landing carrier') });
       return { trainBuilder, openId, claimedId, submittedId, malformedId, trainId };

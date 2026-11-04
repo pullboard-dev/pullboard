@@ -138,7 +138,7 @@ function succeeds(box, cwd, ...args) {
 
 /** Freeze an item's cited text and return its assigned worktree, preserving claim identity across concurrent items. */
 function claim(box, id) {
-  return JSON.parse(succeeds(box, box.web, 'claim', String(id), '--json')).itemFolder ?? box.web;
+  return jsonOf(succeeds(box, box.web, 'claim', String(id), '--json')).itemFolder ?? box.web;
 }
 
 /** Submit independent lane history so the lifecycle fixture never stacks unverified items. */
