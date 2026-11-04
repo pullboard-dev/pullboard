@@ -11,7 +11,7 @@ const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, '
 export function criterionClauses(criterion, { single = false } = {}) {
   const source = String(criterion ?? '');
   const markers = [...source.matchAll(CLAUSE_MARKER)];
-  if (!markers.length || (!single && markers.some((match, index) => Number(match[1]) !== index + 1))) return [];
+  if (!markers.length || (markers.length > 1 && markers.some((match, index) => Number(match[1]) !== index + 1))) return [];
   const firstStart = markerStart(markers[0]);
   if (!single && markers.length === 1 && source.slice(0, firstStart).trim()
     && !source.slice(0, firstStart).trim().endsWith(':')) return [];
