@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../packages/runners/index.js';
-import { gateSlotEnvironment, takeResource } from '../packages/resources/index.js';
+import { gateSlotEnvironment, inheritedGateSlot, takeResource } from '../packages/resources/index.js';
+import { gateRunnerAdmission } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -40,6 +41,25 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
     }
   });
   const env = { ...process.env, ...gateSlotEnvironment(lease), PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_LANDING_RUN: '1' };
+  const admissionKeys = ['PULLBOARD_MACHINE_HOME', 'PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD'];
+  const previousAdmission = new Map(admissionKeys.map(key => [key, process.env[key]]));
+  let inherited, runnerOnly;
+  try {
+    for (const key of admissionKeys) {
+      if (env[key] === undefined) delete process.env[key];
+      else process.env[key] = env[key];
+    }
+    inherited = inheritedGateSlot({ root, namedFiles: false });
+    runnerOnly = gateRunnerAdmission().runnerOnly === true;
+  } finally {
+    for (const [key, value] of previousAdmission) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.ok(inherited, 'fixture child has the exact live gate lease for its private machine home');
+  assert.equal(inherited.runnerExecution, false, 'fixture lease is local and does not claim a runner execution');
+  assert.equal(runnerOnly, false, 'fixture machine does not require a registered runner');
   for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_RUNNER_PRELOAD', 'PULLBOARD_RUNNER_JOB', 'PULLBOARD_RUNNER_INSTANCE', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   const result = runFixtureChild(process.execPath, [join(root, 'bin', 'run-tests.js'), '--test-reporter=spec', 'test/spec-failure.test.js'],
     { cwd: root, env, encoding: 'utf8', timeout: 60000 });
