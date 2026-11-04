@@ -37,7 +37,7 @@ function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand =
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
+  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--check', 'node check.cjs', '--json'));
   ok(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
