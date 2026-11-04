@@ -159,6 +159,11 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   assert.equal(fixturePackage.scripts.gate, gateScript, 'the real package gate command is preserved verbatim');
   writeFileSync(join(root, 'package.json'), JSON.stringify(fixturePackage, null, 2) + '\n');
   copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(root, 'test/wall-clock-budgets.js'));
+  // The shipped scanner entry delegates to the gate package after the cells move.
+  const scanner = join(root, 'packages/gate/src/shell');
+  mkdirSync(scanner, { recursive: true });
+  copyFileSync(resolve(import.meta.dirname, '../packages/gate/src/shell/wall-clock-budgets.js'), join(scanner, 'wall-clock-budgets.js'));
+  writeFileSync(join(root, 'packages/gate/index.js'), "export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
   writeFileSync(join(root, 'bin/pullboard.js'), `if (process.argv.slice(2).join(' ') !== 'spec check') process.exit(2);
 process.stdout.write('fixture spec check reached\\n');
 `);
@@ -223,9 +228,14 @@ function repoWithGate(gate, check = '') {
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  const added = run('add', 'coordinator', 'Work', ...(check ? ['--check', check, '--wait'] : []));
+  const added = run('add', 'coordinator', 'Work', '--route', 'mid', ...(check ? ['--check', check, '--wait'] : []));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   assert.equal(run('claim', '1').status, 0);
+  // Submissions need their own committed delta; main itself is not an item change.
+  git('switch', '-q', '-c', 'gate-item');
+  writeFileSync(join(repo, 'WORK'), 'item change\n');
+  git('add', 'WORK');
+  git('commit', '-q', '-m', 'chore: make the fixture item change');
   const runs = () => {
     try {
       return readFileSync(join(dir, 'runs.log'), 'utf8').split('\n').filter(Boolean).length;
@@ -509,7 +519,7 @@ test('submit runs the gate even on a tree an earlier run passed, which a plain g
   assert.equal(box.runs(), 1, 'outside submit, the stamp still saves a run');
   const submitted = box.run('submit', '1');
   assert.equal(submitted.status, 0, submitted.stderr);
-  assert.match(submitted.stdout, /gate green in \d+s/);
+  assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; no item check; full gate: /mu);
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
@@ -817,7 +827,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
   /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
   const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
-    const added = box.run(box.repo, 'add', 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
+    const added = box.run(box.repo, 'add', 'web', `Set the value to ${value}`, '--route', 'mid', '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
     assert.equal(box.run(cwd, 'claim', String(id)).code, 0);
