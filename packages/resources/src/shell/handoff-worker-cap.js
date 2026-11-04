@@ -144,6 +144,11 @@ async function startWorker(launch, relaunches, startOf) {
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '' } = {}) {
   const started = [];
+  const currentCapacity = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity ?? capacity;
+  // Existing machine capacity can come from an explicit operator override or a prior
+  // dispatcher run. Keep it while holders may depend on those slots; takeResource
+  // supports safe growth but intentionally refuses an implicit shrink.
+  const effectiveCapacity = Math.max(capacity, currentCapacity);
   for (;;) {
     let lock;
     try {
@@ -153,7 +158,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
