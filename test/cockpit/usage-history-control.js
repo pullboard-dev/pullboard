@@ -82,6 +82,7 @@ export function assertUsagePresentation(events, itemId, board) {
   const timeline = vm.runInNewContext('(' + emitted('timeline') + ')', {
     data, view, FLOW, lifecycleEvent, replay: row => replayItem(row, FLOW, lifecycleMove), renderTimelineHtml: timelineHtml,
     when: value => value, age: () => '', agentName: value => value,
+    privateCost: false,
     ...words,
   });
   for (const row of [item, { ...item, thread: [] }]) {

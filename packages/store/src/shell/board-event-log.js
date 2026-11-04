@@ -11,6 +11,7 @@ import { appendProofCounter } from "../../../verify/index.js";
 import { ensureProofCounters } from "../../../verify/index.js";
 
 import { beginImmediateQueued } from "./board-busy.js";
+import { boardTransactionBusyError } from "./board-busy.js";
 import { beginCapture } from "./board-capture.js";
 import {
   beginBoardWrite,
@@ -136,7 +137,7 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
       board.reviewDefaultNotice = reviewDefaultNotice;
       board.emittedEvents?.splice(emitted);
     }
-    throw error;
+    throw boardTransactionBusyError(board.db, startedAt, error);
   } finally {
     try { capture?.close(); }
     catch {
