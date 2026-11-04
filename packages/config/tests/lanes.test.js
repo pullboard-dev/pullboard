@@ -208,7 +208,7 @@ function reassignedPathFixture() {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = box.run(box.repo, 'add', 'web', 'Update reassigned path', '--specs', 'G1',
-    '--criterion', 'the reassigned path has the new content', '--check', 'true');
+    '--criterion', 'the reassigned path has the new content', '--check', 'true', '--route', 'strong');
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
@@ -314,7 +314,7 @@ test('submit and patch attach share frozen ownership and move together on refree
 /** A web item that merged main, after which main changed the same foreign file again. */
 function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true').code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
   assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main one\n', 'chore: main change one').status, 0);
