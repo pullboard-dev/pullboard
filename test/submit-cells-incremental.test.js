@@ -234,6 +234,34 @@ test('accepted inventory is an off-path, once-per-tree census; cold and corrupt 
   assert.equal(inventoryBuildCount(), before + 1, 'a corrupt read never repairs by running a census');
 });
 
+test('a structural change runs full candidate inventories and records their cause [C7]', { timeout: 590_000 }, async t => {
+  isolateMachine(t);
+  const box = plannedFixture(t);
+  const artifact = await warm(box.root, box.main);
+  git(box.root, 'checkout', '-q', '--detach', box.main);
+  box.put('package.json', JSON.stringify({ type: 'module', name: 'fallback-fixture' }));
+  git(box.root, 'add', 'package.json');
+  git(box.root, 'commit', '-q', '-m', 'change package discovery');
+  const candidate = git(box.root, 'rev-parse', 'HEAD').trim();
+  const before = inventoryBuildCount(), modes = [], reads = [];
+  const result = await requireSubmitCells(box.root, box.main, candidate,
+    { item_frozen: JSON.stringify({ criterion: 'package discovery' }) }, {
+      withMainCheckout: () => { throw new Error('submit opened a checkout'); },
+      parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => true,
+      readCutItems: () => [], acceptedArtifact: artifact,
+      onInventory: (mode, cause) => modes.push({ mode, cause }),
+      onSnapshotRead: (file, commit) => reads.push({ file, commit }),
+    });
+  assert.ok(result && !result.unavailable, 'the real structural candidate is checked');
+  const fallbacks = modes.filter(row => row.mode === 'candidate-full-fallback');
+  assert.ok(fallbacks.length > 0, 'the structural change requires a real full candidate inventory');
+  assert.deepEqual(fallbacks.map(row => row.cause), Array(fallbacks.length).fill('package.json'),
+    'every fallback records the file requiring a full census');
+  assert.equal(inventoryBuildCount() - before, fallbacks.length,
+    'every recorded fallback corresponds to an actual full inventory build');
+  assert.deepEqual(reads, [{ file: 'package.json', commit: candidate }], 'the candidate reads its actual changed blob');
+});
+
 test('trusted inventory transport rejects changed bytes, identity and symlink sources [C7]', { timeout: 590_000 }, async t => {
   const directory = isolateMachine(t), box = plannedFixture(t);
   const artifact = await warm(box.root, box.main);
