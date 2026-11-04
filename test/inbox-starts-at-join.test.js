@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
-test('a seat that joins now reports 0 unread until a later shout reaches it', () => {
+test('a seat that joins now reports 0 unread until a later shout reaches it [C7]', () => {
   let cleanup;
   const board = fixtureBoard({ after: callback => { cleanup = callback; } });
   try {
