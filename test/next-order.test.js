@@ -266,7 +266,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   const idle = helpers.project('true');
   const empty = JSON.parse(idle.run(idle.repo, 'next', '--json').out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
-  assert.match(empty.next, /pullboard next --wait 9/u, 'a genuinely idle board retains its ordinary wait');
+  assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
 });
 
 test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
@@ -427,6 +427,8 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
   const lightWork = box.add('api', 'Light release work', 'light');
+  box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
+    'Files: api/light.js Change: keep the light item eligible for its route Test case: a light seat selects this item from the release queue', '--json'));
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
@@ -862,7 +864,7 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
   setting('wipPerReviewer', 1.5);
   const offer = store.reviewOffer(board, { agentId: reviewer, lane: 'review', ratio: 99 });
   assert.equal(offer?.item.item_id, waiting[0], 'recorded capacity replaces the legacy ratio when reviews pile up');
-  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE }),
+  assert.throws(() => store.claim(board, build, { agentId: reviewer, lane: 'review', leaseMs: HOUR, freeze: FREEZE, lineCapacity: true }),
     error => error.code === 'LINE_WIP_LIMIT' && error.message.includes(`#${waiting[0]}`),
     'a new claim over the limit names the oldest eligible waiting review');
   const foreign = store.register(board, { lane: 'core', path: join(root, 'takeover'), route: 'strong', parent: 'takeover-T', session: 'takeover-child' });
