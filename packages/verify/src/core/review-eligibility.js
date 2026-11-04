@@ -12,6 +12,7 @@ import { twoTierReviews } from '../shell/review-independence.js';
 import { canTake } from '../../../seats/index.js';
 import { requiredReviewFamilyProblem } from './required-review-family.js';
 import { familiesDiffer } from './review-policy.js';
+import { builderFamilyOf } from '../shell/review-routing.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Return the first rule failing in the same order as the native review guards. */
@@ -25,7 +26,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
   const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
-    : familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, agent.agent_id), item.item_builder_family)
+    : familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, agent.agent_id), builderFamilyOf(board, item))
       ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
   if (family) return family;
   if (item.item_review_by && item.item_review_by !== agent.agent_id && item.item_review_until > board.clock.now().toISOString()) return new Refused('REVIEW_HELD', `${item.item_review_by} currently holds the review`);

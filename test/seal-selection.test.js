@@ -24,6 +24,7 @@ import {
   writeTestTiers,
 } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
+import { executionServices } from './gate-execution-fixture.js';
 
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];
 const BASE_TEST = 'packages/base/tests/base.test.js';
@@ -114,16 +115,16 @@ test('control: the real submit path refuses a unit or front-door contract droppe
   const dropped = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST),
     testTiers: { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== USER_TEST) } };
   assert.deepEqual(dropped.testTiers.skipped, plan.testTiers.skipped, 'nothing is added to skipped');
-  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: dropped, staticChecked: true }),
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: dropped, staticChecked: true, executionServices }),
     { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/user\/tests\/user\.test\.js/u });
   const unrun = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST) };
-  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: unrun, staticChecked: true }),
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: unrun, staticChecked: true, executionServices }),
     { code: 'TEST_SELECTION_INCOMPLETE', message: /missing from the submit run: packages\/user\/tests\/user\.test\.js/u });
   assert.ok(plan.testTiers.units.includes(CONTRACT) && plan.proofFiles.includes(CONTRACT), 'the real selection runs the changed front door contract');
   const noContract = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== CONTRACT),
     testTiers: { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== CONTRACT) } };
   assert.deepEqual(noContract.testTiers.skipped, plan.testTiers.skipped, 'nothing is added to skipped');
-  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: noContract, staticChecked: true }),
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: noContract, staticChecked: true, executionServices }),
     { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/base\/contract\/user\.test\.js/u });
 });
 

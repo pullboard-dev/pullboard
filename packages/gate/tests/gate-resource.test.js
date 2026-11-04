@@ -246,7 +246,7 @@ function checkProject(box, { releaseCheck = null } = {}) {
   assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env: box.env }).status, 0);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({
     gate: 'true',
-    landing: { manualOverride: true },
+    landing: { perItem: false, manualOverride: true },
     lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   }));
   writeFileSync(join(root, 'SPEC.md'), '# Queue fixture\n\n## G · Goals\n- G1 [approved, must] The check runs. | gate: test -f web/result.txt\n- G2 [approved, must] The API responds. | gate: test -f api/result.txt\n');
