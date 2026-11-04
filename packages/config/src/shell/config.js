@@ -284,7 +284,7 @@ export function configProblems(config) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
-  if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, off by default; true lands one verified item at a time and tests only that item\'s source-matched plan');
+  if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: landing takes one verified item at a time and runs only that item\'s plan; false keeps batch landing');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.requireReceipts !== undefined && typeof config.landing.requireReceipts !== 'boolean') problems.push('"landing.requireReceipts" is a boolean; omit it or use false to preserve legacy landing records');
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');

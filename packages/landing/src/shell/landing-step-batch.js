@@ -32,6 +32,7 @@ import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { perItemMaximum } from './landing-step-selection.js';
+import { singleItemLanding } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
 import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -47,6 +48,9 @@ import { waivedProof } from './landing-step-failures.js';
 import { bisect } from './landing-step-diagnose.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { returnMergeConflicts } from './landing-step-diagnose.js';
+import { returnCulprit } from './landing-step-diagnose.js';
+import { namedFailures } from './landing-step-diagnose.js';
+import { returnRefusedItem } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { requirePushTarget } from './landing-step-publish.js';
@@ -322,7 +326,12 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       else {
         let gate = await gateGroup(state, 'batch');
         let proof = gate.isGreen ? null : waivedProof(state, gate);
-        if (!gate.isGreen && !proof) {
+        if (!gate.isGreen && !proof && singleItemLanding(state)) {
+          // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
+          await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+          await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+          gate = null;
+        } else if (!gate.isGreen && !proof) {
           const flakyFiles = await diagnose(state, gate.failures, gate);
           if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; }
           else {
@@ -359,7 +368,10 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       try { await recordRefusal(state, error); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
-    if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;
+    // A per-item landing's refusal is its one item's: that item goes back to open and the next run moves on [C7,#2901].
+    const returned = state.batch.state !== 'landed' && singleItemLanding(state) && await returnRefusedItem(state, error);
+    if (returned) await save(state, { state: 'blocked' });
+    else if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;
     say(error.message);
   }
   await returnMergeConflicts(state);
