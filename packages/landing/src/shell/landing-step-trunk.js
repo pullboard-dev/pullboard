@@ -9,6 +9,9 @@ import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
+import { headTree } from '../../../git/index.js';
+import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { submitHandoff } from '../../../store/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -29,10 +32,30 @@ import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 
 /**
+ * A green submit gate that already ran exactly this merged tree, for the batch's one item at its frozen bar, or null
+ * [C7,#2902]. Why: when main has not moved since the item's gate, landing re-ran the same tests on the same bytes.
+ */
+export function provenTreeGate(board, items, tree) {
+  if (items.length !== 1 || !tree) return null;
+  const item = store.getItem(board, items[0].id);
+  const job = submitHandoff(board, items[0].id);
+  if (!item || !job || job.state !== 'green' || job.gateGreen === false || job.executionTree !== tree
+    || job.commit !== items[0].commit || job.digest !== item.item_frozen_digest) return null;
+  return { isGreen: true, tree, failures: [], logPath: null, reusedSubmitGate: job.id };
+}
+
+/**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 async function quickGuards(state, label = 'local-trunk') {
+  const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
+  if (proven) {
+    await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
+    runLandingCliSmoke(state.batch.root);
+    state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
+    return proven;
+  }
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
   if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
