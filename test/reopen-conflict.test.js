@@ -13,6 +13,10 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
+// The worktree join in project() inherits PULLBOARD_MODEL; without it the join refuses with MODEL_REQUIRED
+// and the fixture fails before any case runs, so the file declares a model for its own sandboxes.
+process.env.PULLBOARD_MODEL ??= 'Test Model';
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { project, commitFile } = e2e;

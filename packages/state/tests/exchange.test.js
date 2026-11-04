@@ -2,6 +2,7 @@ import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */
+import { repositoryBoardFile } from '../../../test/board-submit-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import {
@@ -37,11 +38,11 @@ const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 /**
  * Make a real board file with every item state, both verdict outcomes, decision and evidence shouts,
  * registered agents, an event history and a held lane.
- * @param {string} file
+ * @param {string} directory
  * @returns {any}
  */
-function populatedBoard(file) {
-  const board = openBoard(file);
+function populatedBoard(directory) {
+  const board = openBoard(repositoryBoardFile(directory));
   store.register(board, { lane: 'coordinator', path: '/source' });
   for (let index = 1; index <= 5; index += 1) store.register(board, { lane: 'web', path: `/source/web-${index}` });
   /** Add one open item before driving it into a lifecycle state. */
@@ -86,7 +87,7 @@ function gitRepo(root) {
 
 test('round trips every board row, state, history and AUTOINCREMENT counter [A7]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const document = exportBoard(source);
@@ -110,7 +111,7 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
 
 test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const before = exportBoard(target);
@@ -142,7 +143,7 @@ test('[A5] imported event logs refuse future formats and upgrade older formats',
 
 test('export keeps a single SQLite snapshot while another connection writes [A7]', () => {
   const directory = tempDirectory();
-  const file = join(directory, 'shared.sqlite');
+  const file = repositoryBoardFile(directory);
   const source = openBoard(file);
   const writer = openBoard(file);
   try {
@@ -195,7 +196,7 @@ function writeAcceptedItem(board) {
 
 test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const target = openBoard(join(directory, 'target.sqlite'));
   try {
     store.register(target, { lane: 'coordinator', path: '/target' });
@@ -212,7 +213,7 @@ test('import refuses a board with rows and leaves it unchanged [A7]', () => {
 
 test('import refuses an export from another version before writing [A7]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const document = exportBoard(source);
@@ -285,7 +286,7 @@ test('export and import CLI commands exchange a versioned document between real 
 
 test('import preserves other metadata and refuses malformed fresh identities [A2,A7]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   try {
     for (const [index, change] of [
       "INSERT INTO board_meta VALUES ('retained', 'repo setting')",
@@ -311,7 +312,7 @@ test('import preserves other metadata and refuses malformed fresh identities [A2
 
 test('fresh-init approval baselines are disposable only with exact setup history [A2,A7,S1]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const setup = openBoard(join(directory, 'setup.sqlite'));
   /** An exact valid source snapshot, deliberately different on the two boards. */
   const baseline = text => ({ version: 1, file: 'SPEC.md', anchor: null,
@@ -356,7 +357,7 @@ test('fresh-init approval baselines are disposable only with exact setup history
 
 test('fresh-init grant markers permit pairing without admitting other history [A2,A7,E21]', () => {
   const directory = tempDirectory();
-  const source = populatedBoard(join(directory, 'source.sqlite'));
+  const source = populatedBoard(directory);
   const setup = openBoard(join(directory, 'setup.sqlite'));
   try {
     store.register(setup, { lane: 'coordinator', path: '/fresh' });

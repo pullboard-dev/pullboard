@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-const LEGACY_ENTRY = fileURLToPath(new URL('../packages/runners/src/shell/runners.js', import.meta.url));
+const LEGACY_ENTRY = fileURLToPath(new URL('../src/runners.js', import.meta.url));
 const ENTRY = fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url));
 
 test('the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {
@@ -35,12 +35,11 @@ test('a forged controller parent cannot execute a command or choose policy ports
   assert.equal(existsSync(marker), false);
 });
 
-test('a pre-upgrade self-spawn entry requests restart without parsing controller input [C7,P3]', () => {
+test('the compatibility facade stays inert when given the retired self-spawn flag [C7,P3]', () => {
   const child = spawnSync(process.execPath, [LEGACY_ENTRY, '--pullboard-runner-controller'], {
     input: 'not a request; must never be parsed or executed', encoding: 'utf8',
   });
-  assert.equal(child.status, 1, child.stderr);
-  const reply = JSON.parse(child.stdout);
-  assert.deepEqual({ name: reply.error.name, code: reply.error.code }, { name: 'Refused', code: 'RUNNER_TOOLING_CHANGED' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stdout, '');
   assert.doesNotMatch(child.stdout + child.stderr, /not a request|SyntaxError/u);
 });
