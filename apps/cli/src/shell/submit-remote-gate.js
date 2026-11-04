@@ -227,7 +227,25 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] })
   if (!Array.isArray(files)) throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan names no proof files; submit again');
   const missing = crossRunTests.filter(path => !files.includes(path));
   if (missing.length) throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan omits call-adjacent tests ${missing.join(', ')}; submit again`);
-  return { plan: analysis.plan, admission: analysis.admission };
+  // Why: a missing admission would let runSubmitGate admit browser and GUI files on the Mac, the work this item moves off it.
+  const admission = analysis.admission;
+  if (typeof admission?.browser !== 'boolean' || typeof admission.gui !== 'boolean') {
+    throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan carries no browser and GUI admission; update the runner tooling and submit again');
+  }
+  return { plan: analysis.plan, admission };
+}
+
+/**
+ * Run the controller's gate with the runner's plan in a handoff worker, or with none in a foreground submit so it plans
+ * locally as before. A refused runner plan throws before the gate starts, so it records no proof.
+ *
+ * @param {boolean} remoteMode
+ * @param {Promise<object>|null} selection The runner selection stage's analysis.
+ * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @param {(runnerPlan: object) => Promise<any>} runGate
+ */
+export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
+  return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
