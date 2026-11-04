@@ -97,16 +97,16 @@ export async function readSpec(S) {
     || entry.kind === 'case' && (typeof entry.file !== 'string' || !entry.file || entry.file.startsWith('/')
       || /[\\\r\n\0]/u.test(entry.file) || entry.file.split('/').some(part => !part || part === '.' || part === '..'))))) throw new Error('invalid continuation projection');
   if (value.origin !== undefined) {
-    if (typeof value.origin !== 'string') throw new Error('invalid work specification');
+    if (typeof value.origin !== 'string') throw new Error('work specification origin is not a string');
     let origin;
-    try { origin = new URL(value.origin); } catch { throw new Error('invalid work specification'); }
+    try { origin = new URL(value.origin); } catch { throw new Error('work specification origin is not a URL'); }
     if (origin.protocol !== 'https:' || !origin.hostname || origin.username || origin.password || origin.search || origin.hash) {
-      throw new Error('invalid work specification');
+      throw new Error('work specification origin must be a plain https URL');
     }
   }
   if (value.originBase !== undefined
     && (typeof value.originBase !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.originBase)
-      || value.originBase.length !== value.commit.length || !value.origin)) throw new Error('invalid work specification');
+      || value.originBase.length !== value.commit.length || !value.origin)) throw new Error('work specification originBase is malformed or has no origin');
   if (!Array.isArray(value.tags) || value.tags.length > 1_024) throw new Error('invalid tag manifest');
   const tagNames = new Set();
   for (const tag of value.tags) {
@@ -137,10 +137,10 @@ export async function readSpec(S) {
     throw new Error('invalid trusted tooling identity');
   }
   for (const field of ['landing', 'itemCheck', 'diagnostic', 'auditCoverage']) {
-    if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error('invalid work specification');
+    if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error(`work specification ${field} is not boolean`);
   }
   for (const field of ['item', 'kind']) {
-    if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
+    if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error(`work specification ${field} is not a string`);
   }
   if (value.timingRunId !== undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value.timingRunId)) throw new Error('invalid timing invocation');
   if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
@@ -148,7 +148,7 @@ export async function readSpec(S) {
     || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
     || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
     || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
-  if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
+  if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('work specification root is not an absolute path');
   if (value.recovery?.launchFence === 1) {
     const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
     if (!claimRunnerWorker(root, value.recovery, processCensus)) throw new Error('runner launch was fenced or unclaimed');

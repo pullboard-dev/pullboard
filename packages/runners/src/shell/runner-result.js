@@ -45,7 +45,7 @@ export function resultFrom(request, result, { privateCheckPhases }) {
       && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
     // The runner's fixed rule text (never a value); an older runner sends none.
     const ruleLine = lines.find(line => line.startsWith('PULLBOARD_RUNNER_SPEC_RULE '));
-    const rule = ruleLine && /^[a-z][a-z0-9 ,'-]{0,119}$/u.test(ruleLine.slice(27)) ? ruleLine.slice(27) : '';
+    const rule = ruleLine && /^[A-Za-z][A-Za-z0-9 ,'-]{0,119}$/u.test(ruleLine.slice(27)) ? ruleLine.slice(27) : '';
     const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution${rule ? `: ${rule}` : ''}`);
     refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: rule ? `invalid work specification: ${rule}` : 'invalid work specification' };
     throw refused;

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** A landing's known-main comparison reaches a real runner worker and a refused spec names its rule [C7,B3]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -9,7 +10,8 @@ import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { resultFrom } from '../packages/runners/src/shell/runner-result.js';
 import { specRefusalRule } from '../apps/runner/src/shell/runner-worker-receipt.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { runFixtureChildAsync, startFixtureChild } from './fixture-child.js';
+import { SPEC_RULES } from '../apps/runner/src/shell/runner-spec-rules.js';
 import { requestFor } from '../packages/runners/src/shell/runner-request.js';
 import { privateCheckEnvelope } from '../apps/runner/src/shell/runner-private-mode.js';
 
@@ -83,4 +85,55 @@ test('a private check taken under a landing lease is sent as a private check, ne
       assert.equal(request.spec.stageMarker, undefined);
     } finally { request.cleanup(); }
   } finally { process.chdir(cwd); }
+});
+
+/** Send one framed spec to a real worker and return the rule line it refused with. */
+async function refusalRule(spec, cwd, env) {
+  const worker = startFixtureChild(process.execPath, [resolve(import.meta.dirname, '../src/runner-worker.js')], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  let stderr = '';
+  worker.stderr.on('data', chunk => { stderr += chunk; });
+  worker.stdin.on('error', () => {});
+  const closed = new Promise(done => worker.once('close', done));
+  const body = Buffer.from(JSON.stringify(spec));
+  worker.stdin.write(Buffer.concat([Buffer.from(`${body.length}\n`), body]));
+  const timer = setTimeout(() => worker.kill('SIGKILL'), 15000); // budget: a refusal happens before any setup.
+  await closed;
+  clearTimeout(timer);
+  worker.stdin.destroy();
+  return /^PULLBOARD_RUNNER_SPEC_RULE (.*)$/mu.exec(stderr)?.[1] ?? `no rule line: ${stderr}`;
+}
+
+test('a real worker names the camelCase field and the origin rule it refused, echoing no value [C7]', { timeout: 120_000 }, async () => {
+  const box = landProject();
+  const head = box.git(box.repo, 'rev-parse', 'HEAD'), tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
+  const cwd = process.cwd();
+  process.chdir(box.repo);
+  let base;
+  try {
+    const request = await requestFor(box.repo, 'true', { runner: { host: HOST, slots: 1, browser: 0 }, source: { commit: head, tree }, metadata: {} },
+      { privateCheckEnvelope });
+    base = JSON.parse(JSON.stringify(request.spec));
+    request.cleanup();
+  } finally { process.chdir(cwd); }
+  const secret = 'SECRET-VALUE-9f3a';
+  const cases = [
+    [{ repoId: secret }, 'work specification repoId is malformed'],
+    [{ browserRequired: secret }, 'work specification browserRequired is not boolean'],
+    [{ origin: `http://${secret}.example/x` }, 'work specification origin must be a plain https URL'],
+    [{ origin: 'https://example.com/x', originBase: secret }, 'work specification originBase is malformed or has no origin'],
+    [{ root: secret }, 'work specification root is not an absolute path'],
+    [{ diagnostic: secret }, 'work specification diagnostic is not boolean'],
+  ];
+  for (const [change, expected] of cases) {
+    const rule = await refusalRule({ ...base, ...change }, box.repo, box.env);
+    assert.equal(rule, expected);
+    assert.equal(rule.includes(secret), false);
+  }
+});
+
+test('every fixed message a worker validator throws is a listed rule [C7]', () => {
+  const source = readFileSync(resolve(import.meta.dirname, '../apps/runner/src/shell/runner-worker-spec.js'), 'utf8');
+  for (const match of source.matchAll(/new Error\('([^']+)'\)/gu)) assert.ok(SPEC_RULES.has(match[1]), `unlisted rule: ${match[1]}`);
+  for (const match of source.matchAll(/\['(work specification [^']+)', \(\) =>/gu)) assert.ok(SPEC_RULES.has(match[1]), `unlisted rule: ${match[1]}`);
+  assert.equal(specRefusalRule(new Error('work specification repoId is malformed')), 'work specification repoId is malformed');
 });
