@@ -56,6 +56,7 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(box.run(path, 'join', 'web').code, 0);
   const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
+    '--brief', `Files:\n- ${file}\nChange:\n- update the generated landing fixture\nTest:\n- the private gate checks that the fixture file exists and is nonempty\n`,
     '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
