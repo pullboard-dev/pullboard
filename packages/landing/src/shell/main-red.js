@@ -59,6 +59,7 @@ import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
+import { gateRunnerAdmission } from '../../../config/index.js';
 import { recentReceipts } from '../../../gate/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
@@ -289,9 +290,10 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
+ * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = gateRunnerAdmission(), execution, recordedRuns = [] } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
