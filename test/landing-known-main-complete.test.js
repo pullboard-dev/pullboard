@@ -7,13 +7,13 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
-import { copyPackageFiles } from '../packages/runners/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const SOURCE = resolve(import.meta.dirname, '..');
+const RUNNER = join(SOURCE, 'bin/run-tests.js');
 const MAIN_RED = 'web/land-9.test.js';
 const LATER_FILE = 'web/land-99.test.js';
 
@@ -21,10 +21,10 @@ const LATER_FILE = 'web/land-99.test.js';
 /** Prepare a separate-publish landing project with one exact-main red and one passing selected test. */
 function realNodeMainProject() {
   const box = landProject({ withWorktree: false });
-  copyPackageFiles(SOURCE, box.repo);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node bin/run-tests.js', affectedTests: 'node bin/run-tests.js',
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: `node ${RUNNER}`, affectedTests: `node ${RUNNER}`,
     landing: { manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'add', '-A');
@@ -45,7 +45,7 @@ function realNodeItem(box, number, red, later) {
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(box.run(path, 'join', 'web').code, 0);
   const added = box.run(box.repo, 'add', 'web', `Real Node landing fixture ${number}`, '--specs', 'G1',
-    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node bin/run-tests.js ${MAIN_RED} ${LATER_FILE}`, '--json');
+    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node ${RUNNER} ${MAIN_RED} ${LATER_FILE}`, '--json');
   assert.equal(added.code, 0, added.err);
   const entry = { path, item: JSON.parse(added.out).item.item_id, file: MAIN_RED };
   assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
