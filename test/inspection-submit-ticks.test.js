@@ -109,7 +109,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   const reviewer = join(box.dir, 'web-reviewer');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api');
+  ok(box, reviewer, 'join', 'api', '--model', 'inspection-reviewer');
   const badClause = box.run(reviewer, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'a different clause',
     '--note', 'the reviewer must name the missed requirement', '--no-next');
   assert.notEqual(badClause.code, 0, 'rejecting without a frozen checklist clause is refused');
