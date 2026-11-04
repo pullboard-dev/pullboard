@@ -32,6 +32,7 @@ test('a refused spec reports only fixed rule text, and the controller records it
 
 test('a known-main comparison runs on a real runner worker and finds the case red on main [C7,B3]', { timeout: 180_000 }, async () => {
   const box = landProject();
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/land-1.test.js'), '// RED NAME:main-red-case\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: a case already red on main');
