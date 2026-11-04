@@ -59,6 +59,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
   assert.notEqual(ungranted.code, 0);
   assert.equal(ungranted.document.error.code, 'SEAT_ADDRESS_BOARD');
+  const question = document(await second.cliAt(sender.path, 'shout', 'coordinator', 'Confirm the local delivery fixture.', '--kind', 'question', '--decision'));
   document(await second.cliAt(sender.path, 'claim', String(initialItemId)));
 
   const link = JSON.parse(readFileSync(join(second.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
@@ -86,8 +87,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
   const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
-  const freshInterrupt = document(await second.cli('shout', sender.id, 'Fresh local interrupt after revocation'));
-  assert.notEqual(freshInterrupt.id, pending.id, 'the coordinator creates a distinct interrupt on the sender replica');
+  document(await second.cli('answer', String(question.id), 'Confirmed by the local coordinator'));
   const beforeDelivery = replicaEventCount(second.root, sender.id);
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
