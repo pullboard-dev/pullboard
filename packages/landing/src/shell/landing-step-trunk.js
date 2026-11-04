@@ -23,10 +23,14 @@ import { deferredSelections } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { bisect } from './landing-step-diagnose.js';
+import { splitBaseRed } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
+
+/** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
+function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
 
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
@@ -35,6 +39,15 @@ import { refusalRecord } from '../core/runner-source-hold.js';
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
+  if (!gate.isGreen && !waivedProof(state, gate)) {
+    // Red only in cases base main fails the same way: the batch made main no worse, so it lands [C7,#2941].
+    const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
+    const split = own.length && own.every((failure) => failure.file) ? await splitBaseRed(state, own) : null;
+    if (split && !split.own.length) {
+      state.say(`known main red only (${split.known.length} cases); the batch adds no red`);
+      return { ...gate, knownMainProof: { tree: gate.tree, failures: [], knownMain: split.known.map(({ file, name }) => ({ file, name })), logPath: gate.logPath } };
+    }
+  }
   if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
     // Named reds no waiver covers are enough to bisect: the board finds the culprits instead of stopping [C7,#2900].
     const own = bisectableFailures(state.board, gate.failures, state.landingPorts);
@@ -72,7 +85,7 @@ export async function landOnTrunk(state) {
   let gate;
   try {
     gate = await quickGuards(state);
-    if (!gate.isGreen && !waivedProof(state, gate)) {
+    if (!accepted(state, gate)) {
       const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
       const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
@@ -84,7 +97,7 @@ export async function landOnTrunk(state) {
       const rebuilt = await mergeGroup(state, green);
       await save(state, { ...rebuilt, culprits: state.culprits });
       gate = await quickGuards(state, 'local-green-items');
-      if (!gate.isGreen && !waivedProof(state, gate)) {
+      if (!accepted(state, gate)) {
         if (!state.culprits.length) { await fileTestDefects(state, gate); state.flaky = true; return; }
         await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
         throw new Refused('LAND_INTERACTION', 'the individually green items fail together; nothing retries or lands; inspect the batch’s failing tests');
@@ -103,7 +116,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
-  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
+  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   await prepareFlakeLanding(state);
   await save(state, { state: 'trunk', proof });

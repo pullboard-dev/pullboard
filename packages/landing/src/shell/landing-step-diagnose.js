@@ -34,6 +34,28 @@ export async function landingBaseGreen(state, failures, compare = compareMainFai
   } catch { return false; }
 }
 
+/**
+ * Split named failures into those base main fails in the same file and test name, and the batch's own; null when main
+ * cannot be compared for every file [C7,#2941]. Why: a red that main already has is not the batch's doing, and holding
+ * the whole batch for it kept every landing waiting on reds no batch item caused.
+ */
+export async function splitBaseRed(state, failures, compare = compareMainFailures) {
+  const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
+  if (!files.length || failures.some(failure => !failure.file)) return null;
+  let result;
+  try {
+    result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
+      { commit: state.batch.base, detailed: true, allowCancelled: true });
+  } catch { return null; }
+  if (result?.main !== state.batch.base || result.unavailable || !files.every(file => result.files?.some(row => row.file === file))) return null;
+  const known = [], own = [];
+  for (const failure of failures) {
+    const row = result.files.find(entry => entry.file === failure.file);
+    (row.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
+  }
+  return { known, own };
+}
+
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
 export async function diagnose(state, failures, gate) {
   // The enabled observer already made the only allowed exact-target pair under the original lease.
@@ -78,13 +100,21 @@ export async function diagnose(state, failures, gate) {
 export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = compareMainFailures) {
   // A live-waived red never reaches the base-main comparison: only the batch's own reds decide a split [C7,#2900].
   failures = unwaivedFailures(state.board, failures, state.landingPorts);
-  if (!await landingBaseGreen(state, failures, compare)) {
+  // Cases base main already fails the same way are set aside; only the batch's own reds split it [C7,#2941].
+  const split = await splitBaseRed(state, failures, compare);
+  if (!split) {
     await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
-      message: 'a failing file is red or unavailable on base main', at: state.board.clock.now().toISOString() } });
+      message: 'a failing file could not be compared on base main', at: state.board.clock.now().toISOString() } });
     state.flaky = true;
-    state.say('landing held: a failing file is red or could not be compared on base main; accepted verdicts remain in place');
+    state.say('landing held: a failing file could not be compared on base main; accepted verdicts remain in place');
     return [];
   }
+  if (split.known.length) {
+    await save(state, { knownMain: [...(state.batch.knownMain ?? []), ...split.known.map(({ file, name }) => ({ file, name }))] });
+    state.say(`known main red, not this batch's: ${split.known.map(failure => `${failure.file} :: ${failure.name}`).join('; ')}`);
+  }
+  if (!split.own.length) return items;
+  failures = split.own;
   if (items.length === 1) {
     const item = items[0];
     const text = `Landing batch ${state.batch.id} reproduces failures: ${failures.map((failure) => `${failure.file}: ${failure.name}`).join('; ')}`;
