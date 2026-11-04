@@ -123,7 +123,7 @@ const ENTRY_POINTS = [
   { verbs: ['release'], at: ['board.js#release'] },
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['board.js#verify', 'commands/verify.js#verifyHere'] },
+  { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
