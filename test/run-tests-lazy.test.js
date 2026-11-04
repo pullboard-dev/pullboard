@@ -211,7 +211,7 @@ assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => erro
 await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
 assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
 assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
-appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/shell/runner-dispatch.js'))}, '\n// changed after the first dispatch\n');
+appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/shell/runner-dispatch.js'))}, '\\n// changed after the first dispatch\\n');
 assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
 `;
   const result = runFixtureChild(process.execPath, ['--import', pathToFileURL(counter).href, '--input-type=module', '-e', script], { cwd: installed, encoding: 'utf8' });
