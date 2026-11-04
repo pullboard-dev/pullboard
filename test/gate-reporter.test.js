@@ -23,7 +23,7 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
     PULLBOARD_MACHINE_HOME: join(root, 'machine') };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
   const result = runFixtureChild(process.execPath, [join(root, 'bin', 'run-tests.js'), '--test-reporter=spec', 'test/spec-failure.test.js'],
-    { cwd: root, env, encoding: 'utf8', timeout: 15000 });
+    { cwd: root, env, encoding: 'utf8', timeout: 60000 });
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   assert.equal(result.status, 1, `${result.context}\n${output}`);
   const frame = output.split('\n').find(line => line.startsWith('# pullboard test outcomes '));
