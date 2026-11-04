@@ -49,6 +49,9 @@ test('an aborted landing publishes the first failing file and test as a structur
     ["      for await (const event of source) for (const input of inputs) input.write(event);", "      for await (const event of source) { process.stderr.write('TRACE dispatch: ' + event.type + '\\n'); for (const input of inputs) input.write(event); }\n      process.stderr.write('TRACE dispatch: stream ended\\n');"],
     ["    await Promise.all(ends);", "    process.stderr.write('TRACE dispatch: waiting reporters\\n');\n    await Promise.all(ends);\n    process.stderr.write('TRACE dispatch: reporters ended\\n');"],
   ]);
+  instrument('packages/gate/src/shell/test-file-pool.js', [
+    ["      async drained() {\n        while (!closed) {\n          const holder = owned();", "      async drained() {\n        let previousState = null;\n        while (!closed) {\n          const holder = owned();\n          const state = `${holder?.pid ?? 'none'}:${holder ? alive(holder.pid) : false}`;\n          if (state !== previousState) { process.stderr.write('TRACE token drain state: parent=' + process.pid + ' holder=' + state + '\\n'); previousState = state; }"],
+  ]);
   const activityMarker = join(root, 'fixture-activity');
   writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import { writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
