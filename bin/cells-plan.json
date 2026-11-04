@@ -1525,6 +1525,15 @@
     {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/accepted-reland-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/229.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
