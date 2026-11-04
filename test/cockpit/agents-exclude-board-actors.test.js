@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { decideSentinel, sentinels } from '../../src/sentinels.js';
+import { decideSentinel, sentinels } from '../../packages/sentinels/index.js';
 import { boardOf, chromeExecutable, closeSnapshotChrome, earlier, machine, openSnapshotChrome, press, project, startView } from './fixture.js';
 
 test('Rigor drafts and executed sentinels do not create agent rows or increase agent counts [N26]', { timeout: 90_000 }, async () => {
