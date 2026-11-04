@@ -2,14 +2,16 @@
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests, testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
+import { copyPackageFiles, toolSourcePath } from '../packages/runners/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -169,4 +171,48 @@ test('a board change selects its real importers in the actual committed reposito
     || sourceTreeReader(modules.get(file)) || known.has(file)).map(([file]) => file).sort();
   assert.deepEqual(selection.files, expected, 'exact selection retains actual board importers, declared readers and disclosed conservative unknown roots');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
+});
+
+
+/** Count every process and worker thread a child starts, from a preload that wraps the real builtins. */
+const SPAWN_COUNTER = `
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+const require = createRequire(import.meta.url);
+const cp = require('node:child_process');
+const threads = require('node:worker_threads');
+globalThis.__spawned = [];
+for (const name of ['spawn', 'spawnSync', 'execFile', 'execFileSync', 'fork', 'exec', 'execSync']) {
+  const original = cp[name];
+  cp[name] = function (...args) { globalThis.__spawned.push(name + ' ' + String(args[0])); return original.apply(this, args); };
+}
+const Worker = threads.Worker;
+threads.Worker = class extends Worker { constructor(...args) { globalThis.__spawned.push('worker ' + String(args[0])); super(...args); } };
+syncBuiltinESMExports();
+`;
+
+test('importing the runners package spawns nothing and pins no tooling; the first runner operation pins it and later changes are refused [C7,P3]', { timeout: 120_000 }, t => { // budget: one private installed copy and one child that pins real tooling; hang ceiling only.
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-lazy-runner-pin-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const installed = join(directory, 'installed');
+  copyPackageFiles(ROOT, installed);
+  mkdirSync(join(installed, 'test'), { recursive: true });
+  copyFileSync(join(ROOT, 'test/wall-clock-budgets.js'), join(installed, 'test/wall-clock-budgets.js'));
+  const counter = join(directory, 'counter.mjs');
+  writeFileSync(counter, SPAWN_COUNTER);
+  const url = file => JSON.stringify(pathToFileURL(join(installed, file)).href);
+  const script = `
+import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
+const runners = await import(${url('packages/runners/index.js')});
+assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts no process or worker');
+assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
+// A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
+await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/shell/runner-dispatch.js'))}, '\n// changed after the first dispatch\n');
+assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
+`;
+  const result = runFixtureChild(process.execPath, ['--import', pathToFileURL(counter).href, '--input-type=module', '-e', script], { cwd: installed, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.context ?? result.stderr);
 });

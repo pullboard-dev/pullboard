@@ -27,7 +27,7 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
 
-/** Pin one runners.js instance's controller generation when it loads, before any later dispatch. */
+/** Pin one runners.js instance's controller generation on its first runner operation, before that dispatch. */
 export function pinRunnerTooling() {
   const generation = { loaded: loadedTooling() };
   LOADED_TOOLING ??= generation;
