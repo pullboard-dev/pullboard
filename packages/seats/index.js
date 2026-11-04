@@ -169,3 +169,4 @@ export {
 export {
   originRepository,
 } from './src/core/github-origin.js';
+export { planClaimWatchdog, runClaimWatchdog } from './src/shell/claim-watchdog.js';
