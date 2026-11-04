@@ -19,13 +19,27 @@ import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
+import { compareMainFailures } from './main-red.js';
+
+/** Require a green base for every failing file before attributing a red to an item. */
+export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
+  const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
+  if (!files.length || failures.some(failure => !failure.file)) return false;
+  try {
+    const result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
+      { commit: state.batch.base, detailed: true, allowCancelled: true });
+    return result.main === state.batch.base && !result.unavailable
+      && files.every(file => result.files?.some(row => row.file === file && row.result === 'green'));
+  } catch { return false; }
+}
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
 export async function diagnose(state, failures, gate) {
   // The enabled observer already made the only allowed exact-target pair under the original lease.
   // A saved gate retains that association, so adopting it cannot repeat a confidence measurement.
-  if (state.config.flakes?.rerun === true) {
-    const observations = gate?.flakeDiagnostics?.observations ?? [];
+  const observations = gate?.flakeDiagnostics?.observations ?? [];
+  // An observer failure without any observations provides no measurement to reuse; isolate the files instead.
+  if (state.config.flakes?.rerun === true && !(gate?.flakeDiagnostics?.error && !observations.length)) {
     if (gate?.flakeDiagnostics?.error || !observations.length || observations.some(row => !row.recorded || row.classification === 'unclassified')) {
       await save(state, { state: 'blocked', failures, flakeDiagnostics: gate?.flakeDiagnostics });
       throw new Refused('LAND_DIAGNOSTIC', `the original red has no complete classified diagnostic; no additional run or landing is allowed; inspect ${gate.logPath} and pullboard flakes`);
@@ -62,7 +76,14 @@ export async function diagnose(state, failures, gate) {
 }
 
 /** Bisect a reproducible red without retrying any previously tested group. */
-export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup) {
+export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = compareMainFailures) {
+  if (!await landingBaseGreen(state, failures, compare)) {
+    await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
+      message: 'a failing file is red or unavailable on base main', at: state.board.clock.now().toISOString() } });
+    state.flaky = true;
+    state.say('landing held: a failing file is red or could not be compared on base main; accepted verdicts remain in place');
+    return [];
+  }
   if (items.length === 1) {
     const item = items[0];
     const text = `Landing batch ${state.batch.id} reproduces failures: ${failures.map((failure) => `${failure.file}: ${failure.name}`).join('; ')}`;
@@ -90,7 +111,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
         state.flaky = true;
         return [];
       }
-      green.push(...await bisect(state, build.items, gate.failures, `${label}-${index}`, evaluate));
+      green.push(...await bisect(state, build.items, gate.failures, `${label}-${index}`, evaluate, compare));
     }
   }
   return green;
