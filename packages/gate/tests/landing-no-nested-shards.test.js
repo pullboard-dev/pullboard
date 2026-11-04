@@ -2,13 +2,22 @@
 /** A landing gate already inside a runner slot runs as one pass; only the controller fans out [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { withMainCheckout } from '../../landing/index.js';
-import { runFixtureChild, runFixtureGit } from '../../../test/fixture-child.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../../resources/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
+import { GATE_SLOT_POOL_ENV } from '../../resources/index.js';
+import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
+import { BROWSER_SLOT_HELD_ENV } from '../../resources/index.js';
 
 const SOURCE = join(import.meta.dirname, '../../..');
 
