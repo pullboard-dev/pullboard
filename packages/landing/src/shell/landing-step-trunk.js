@@ -14,6 +14,8 @@ import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
+import { unwaivedFailures } from './landing-step-failures.js';
+import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { returnCulprits } from './landing-step-diagnose.js';
@@ -21,10 +23,18 @@ import { deferredSelections } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { bisect } from './landing-step-diagnose.js';
+import { splitBaseRed } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
+import { singleItemLanding } from './landing-step-selection.js';
+import { returnCulprit } from './landing-step-diagnose.js';
+import { namedFailures } from './landing-step-diagnose.js';
+import { returnRefusedItem } from './landing-step-diagnose.js';
+
+/** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
+function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
 
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
@@ -33,8 +43,22 @@ import { refusalRecord } from '../core/runner-source-hold.js';
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
-  if (!gate.isGreen && (!completeGate(gate) || !gate.accounted)) {
-    throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
+  // A per-item landing never compares main: its one item's red is its own [C7,#2901].
+  if (!gate.isGreen && !waivedProof(state, gate) && !singleItemLanding(state)) {
+    // Red only in cases base main fails the same way: the batch made main no worse, so it lands [C7,#2941].
+    const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
+    const split = own.length && own.every((failure) => failure.file) ? await splitBaseRed(state, own) : null;
+    if (split && !split.own.length) {
+      state.say(`known main red only (${split.known.length} cases); the batch adds no red`);
+      return { ...gate, knownMainProof: { tree: gate.tree, failures: [], knownMain: split.known.map(({ file, name }) => ({ file, name })), logPath: gate.logPath } };
+    }
+  }
+  if (!gate.isGreen && !waivedProof(state, gate) && singleItemLanding(state)) return gate;
+  if (!gate.isGreen && !waivedProof(state, gate) && (!completeGate(gate, { allowCancelled: Boolean(gate.knownMain?.length) }) || !gate.accounted)) {
+    // Named reds no waiver covers are enough to bisect: the board finds the culprits instead of stopping [C7,#2900].
+    const own = bisectableFailures(state.board, gate.failures, state.landingPorts);
+    if (!own) throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk guards have no complete accounted failure; inspect the recorded gate before adopting');
+    return { ...gate, failures: own, unaccounted: true };
   }
   if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
   return gate;
@@ -67,10 +91,17 @@ export async function landOnTrunk(state) {
   let gate;
   try {
     gate = await quickGuards(state);
-    if (!gate.isGreen && !waivedProof(state, gate)) {
-      const flakyFiles = await diagnose(state, gate.failures, gate);
+    if (!accepted(state, gate) && singleItemLanding(state)) {
+      // One item's red sends that item alone back to open with the evidence; no bisection, no trunk hold [C7,#2901].
+      await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+      await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+      return;
+    }
+    if (!accepted(state, gate)) {
+      const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
+      const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
-      const green = await bisect(state, state.batch.items, gate.failures, 'local-split', quickGuards);
+      const green = await bisect(state, state.batch.items, own, 'local-split', quickGuards);
       if (state.flaky || !green.length) {
         if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });
         return;
@@ -78,7 +109,7 @@ export async function landOnTrunk(state) {
       const rebuilt = await mergeGroup(state, green);
       await save(state, { ...rebuilt, culprits: state.culprits });
       gate = await quickGuards(state, 'local-green-items');
-      if (!gate.isGreen && !waivedProof(state, gate)) {
+      if (!accepted(state, gate)) {
         if (!state.culprits.length) { await fileTestDefects(state, gate); state.flaky = true; return; }
         await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
         throw new Refused('LAND_INTERACTION', 'the individually green items fail together; nothing retries or lands; inspect the batch’s failing tests');
@@ -86,6 +117,11 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
+    if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
+      await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+      state.say(`nothing landed: ${error.message}`);
+      return;
+    }
     // The refusal is kept with its code so a RUNNER_SOURCE count across these blocked batches can hold the items [C7].
     if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
@@ -97,7 +133,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
-  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : waivedProof(state, gate);
+  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   await prepareFlakeLanding(state);
   await save(state, { state: 'trunk', proof });

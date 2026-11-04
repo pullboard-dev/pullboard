@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
 /** @pullboard-test-loads src/board.js src/claims.js packages/config/src/shell/config.js src/machine.js src/engine.js */
 /** Reopened claims reserve the original builder's context only when enabled [B13,B5]. */
 import assert from 'node:assert/strict';
@@ -22,6 +23,8 @@ function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
   const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
+  // These controls prove replay of the former first-refusal policy, not the current rejection rule.
+  board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
@@ -166,12 +169,13 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   t.after(() => store.closeBoard(legacy));
   importBoard(legacy, exportBoard(f.board));
   assert.equal(applyEngineMove(legacy, historical, receipt).error, undefined, 'the clause-free historical return keeps its original floor');
-  applyEngineMove(f.board, move, receipt);
-  applyEngineMove(f.board, move, receipt);
+  applyEngineMove(f.board, { ...move, engine: REJECT_OPEN_ENGINE - 1 }, receipt);
+  applyEngineMove(f.board, { ...move, engine: REJECT_OPEN_ENGINE - 1 }, receipt);
   assert.equal(store.recentShouts(f.board).filter(row => row.shout_text.includes('waits for you')).length, 1);
   const replica = openBoard(join(f.directory, 'replica.sqlite'), { now: () => new Date('2026-01-01T00:05:00Z') });
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
+  replica.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   assert.throws(() => store.claim(replica, id, { agentId: f.other, lane: 'core', leaseMs: 7_200_000, freeze: () => null }),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER' && error.message.includes('2026-01-01T00:30:00.000Z'));
   assert.equal(store.recentShouts(replica).filter(row => row.shout_text.includes('waits for you')).length, 1);
@@ -238,6 +242,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   const replica = openBoard(join(f.directory, 'ready-replica.sqlite'));
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
+  replica.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   assert.equal(barReadiness(replica, store.getItem(replica, id), {}, replica.runtimePorts.verification).missing.length, 0);
 });
 
