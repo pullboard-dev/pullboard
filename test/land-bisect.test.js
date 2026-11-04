@@ -16,7 +16,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
   for (const entry of entries.slice(0, 3)) submitItem(box, entry, entry === entries[2] ? 'RED\n' : 'PASS\n');
   const hidden = itemWorktree(box, 5, 'web/unverified.js');
-  assert.equal(commitFile(box, hidden.path, hidden.file, 'unverified\n', 'feat(web): unverified ancestor [G1]').status, 0);
+  assert.equal(commitFile(box, hidden.path, hidden.file, '// unverified\n', 'feat(web): unverified ancestor [G1]').status, 0);
   const hiddenSha = box.git(hidden.path, 'rev-parse', 'HEAD');
   box.git(entries[3].path, 'merge', '--no-ff', hiddenSha, '-m', 'feat(web): include ancestor [G1]');
   submitItem(box, entries[3]);

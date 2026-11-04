@@ -66,7 +66,7 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
 
 /** Build and submit a private fixture through its real hooks and item check. */
 function submitItem(box, entry, contents = 'PASS\n') {
-  const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
+  const committed = commitFile(box, entry.path, entry.file, contents.replace(/^/gmu, '// '), `feat(web): build land fixture ${entry.item} [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
   const submitted = box.run(entry.path, 'submit', String(entry.item), '--no-next');
