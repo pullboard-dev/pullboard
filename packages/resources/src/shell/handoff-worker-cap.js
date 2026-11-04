@@ -32,13 +32,14 @@ export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
- * one worker per five registered runner slots. Why: a handoff worker mostly waits on a remote runner, so on 3 Nov
- * a cap of 4 left 69 submits queued while 42 of 54 runner slots sat idle.
+ * one worker per five registered runner slots, or to every runner slot when gate.runnersOnly is on. Why: a handoff
+ * worker mostly waits on a remote runner, so on 3 Nov a cap of 4 left 69 submits queued while 42 of 54 runner
+ * slots sat idle, and on 4 Nov 51-60 gates queued behind 12 workers while 63 runner slots existed.
  *
- * @param {{ env?: object, cores?: number, runnerSlots?: number }} [options] - Environment, core count and total registered runner slots.
+ * @param {{ env?: object, cores?: number, runnerSlots?: number, runnersOnly?: boolean }} [options] - Environment, core count, total registered runner slots and whether checks run only on runners.
  * @returns {number} A positive whole number.
  */
-export function handoffWorkerCapacity({ env = process.env, cores = availableParallelism(), runnerSlots = 0 } = {}) {
+export function handoffWorkerCapacity({ env = process.env, cores = availableParallelism(), runnerSlots = 0, runnersOnly = false } = {}) {
   const raw = env[HANDOFF_WORKER_CAP_ENV];
   if (raw !== undefined && raw !== '') {
     const value = Number(raw);
@@ -46,7 +47,8 @@ export function handoffWorkerCapacity({ env = process.env, cores = availablePara
     return value;
   }
   const local = Math.max(1, Math.min(4, cores));
-  return Number.isSafeInteger(runnerSlots) && runnerSlots > 0 ? Math.max(local, Math.floor(runnerSlots / 5)) : local;
+  if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return local;
+  return Math.max(local, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5));
 }
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
@@ -139,7 +141,8 @@ async function startWorker(launch, relaunches, startOf) {
  * Each running worker holds one slot of the machine resource pool, so the count is the pool's own.
  * Returns at once when another dispatcher already holds the machine.
  *
- * @param {{ capacity?: number, pollMs?: number }} [options] - The cap and how often new tickets are noticed.
+ * @param {{ capacity?: number | (() => number), pollMs?: number }} [options] - The cap, or a function read again on every
+ *   pass so a running dispatcher picks up a raised cap without a restart, and how often new tickets are noticed.
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '' } = {}) {
@@ -165,12 +168,13 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf) {
   const running = new Set();
   let wake = () => {};
   while (waitingTickets().length || running.size) {
+    const cap = typeof capacity === 'function' ? capacity() : capacity;
     for (const name of waitingTickets()) {
       // A live reservation holds its place: later submits wait behind it.
       if (name.endsWith('.reserved')) { if (reservationAbandoned(name, startOf)) continue; break; }
       let slot;
       try {
-        slot = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
+        slot = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: cap, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
           onWait() { throw new Refused('HANDOFF_WORKERS_FULL', 'every worker slot is busy'); } });
       } catch (error) {
         if (error.code === 'HANDOFF_WORKERS_FULL') break;
