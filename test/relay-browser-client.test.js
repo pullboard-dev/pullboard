@@ -308,7 +308,7 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
-  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('pb.tab','items');window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await press(chrome, "document.querySelector('[data-tab=items]')");
   try { await chrome.waitFor('document.querySelector("[data-pane=items]") && !document.querySelector("[data-pane=items]").hidden && document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
