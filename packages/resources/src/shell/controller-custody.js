@@ -266,6 +266,22 @@ export function runnerBoardFile(root, hops = 3) {
   return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
 }
 
+/**
+ * The files an item observation reads through: each repository's git config along the origin hops, then the board
+ * file it lands on. A controller watches these to know when to look again, instead of looking every second (#2519).
+ */
+export function runnerItemSources(root, hops = 3) {
+  let info;
+  try { info = repoInfo(root); } catch { return []; }
+  const config = join(info.commonDir, 'config');
+  const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
+  if (existsSync(boardFile)) return [config, boardFile];
+  if (hops <= 0) return [config];
+  const origin = gitSpawnSync(['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const url = origin.status === 0 ? origin.stdout.trim() : '';
+  return [config, ...(url && isAbsolute(url) && existsSync(url) ? runnerItemSources(url, hops - 1) : [])];
+}
+
 /** Observe only board identity and item terminal state for resource lifecycle; no native or write authority. */
 export function runnerItemState(root, item) {
   if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
