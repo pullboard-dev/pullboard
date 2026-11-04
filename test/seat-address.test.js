@@ -86,9 +86,13 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
   const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
+  const freshInterrupt = document(await second.cli('shout', sender.id, 'Fresh local interrupt after revocation'));
+  assert.notEqual(freshInterrupt.id, pending.id, 'the coordinator creates a distinct interrupt on the sender replica');
+  const beforeDelivery = replicaEventCount(second.root, sender.id);
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
   assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
+  assert.equal(replicaEventCount(second.root, sender.id), beforeDelivery, 'the revoked seat appends no activity-delivery event');
   const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
   let localInbox;
   try {
@@ -104,3 +108,11 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
     'neither revoked message reaches a genuine recipient, coordinator or sender inbox');
   }
 });
+
+/** Count native delivery events attributed to one seat on its private replica. */
+function replicaEventCount(root, agentId) {
+  const replica = new DatabaseSync(join(root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    return replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivered' AND event_by=?").get(agentId).count;
+  } finally { replica.close(); }
+}
