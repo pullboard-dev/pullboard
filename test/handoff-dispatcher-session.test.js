@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
@@ -21,7 +21,18 @@ test('detached handoff dispatcher and worker drop inherited session ids while th
   const box = helpers.sandbox();
   box.env.PULLBOARD_MODEL = 'Synthetic handoff session fixture';
   box.env.CLAUDECODE = '1';
-  box.env.CLAUDE_CODE_SESSION_ID = 'handoff-submitter-session';
+  const submitterSession = 'handoff-submitter-session';
+  const parentSession = 'handoff-submitter-parent';
+  const codexHome = join(box.dir, 'codex-home');
+  const sessionDir = join(codexHome, 'sessions', '2026', '11', '03');
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(join(sessionDir, 'fixture-handoff-submitter-session.jsonl'), `${JSON.stringify({
+    type: 'session_meta', payload: { id: submitterSession, parent_thread_id: parentSession },
+  })}\n`);
+  box.env.CODEX_HOME = codexHome;
+  box.env.CODEX_THREAD_ID = submitterSession;
+  delete box.env.CLAUDE_CODE_SESSION_ID;
+  delete box.env.CODEX_SESSION_ID;
   let itemId;
   t.after(async () => {
     if (itemId) await helpers.waitFor(() => { // budget: bounded cleanup ceiling for this test's actual detached worker.
@@ -44,11 +55,8 @@ test('detached handoff dispatcher and worker drop inherited session ids while th
   boxProject.git(boxProject.repo, 'commit', '-q', '-m', 'chore: enable the native handoff fixture');
   boxProject.git(boxProject.web, 'merge', '-q', '--ff-only', 'main');
 
-  const rejoined = boxProject.run(boxProject.web, 'join', 'web', '--parent', 'handoff-submitter-parent', '--json');
-  assert.equal(rejoined.code, 0, `${rejoined.err}\n${rejoined.out}`);
-
   // The submitting seat stays in its original session while a stale unrelated ID simulates the dispatcher starter.
-  boxProject.env.CODEX_THREAD_ID = 'fake-dispatcher-session';
+  boxProject.env.CODEX_SESSION_ID = 'fake-dispatcher-session';
   const added = boxProject.run(boxProject.repo, 'add', 'web', 'Handoff session receipt', '--specs', 'G1',
     '--criterion', 'The queued gate retains native seat provenance.', '--check', `${process.execPath} ${gate}`, '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
