@@ -24,8 +24,8 @@ function fixture(t, deterministic = false, companion = false) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
-  config.gate = 'node --test --test-reporter=tap test/alternating.test.mjs';
-  config.affectedTests = 'node --test';
+  config.gate = 'node bin/run-tests.js test/alternating.test.mjs';
+  config.affectedTests = 'node bin/run-tests.js';
   delete config.submitGate;
   delete config.submitDeferAbove;
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
