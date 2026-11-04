@@ -37,14 +37,14 @@ function fixture(t) {
 for (const phase of ['queued', 'running']) test(`a ${phase} submit retains its sealed proof after landing-only policy changes [C7,V4]`, t => {
   const f = fixture(t);
   const original = sealClauseInspection(f.board, 1, f.options);
-  f.commit({ landing: { manualOverride: true, cadenceMs: 1000 } });
+  f.commit({ landing: { manualOverride: true, cadence: '1s' } });
   assert.deepEqual(sealClauseInspection(f.board, 1, f.options), original,
     'landing scheduling leaves captured policy provenance and inspection authority unchanged');
-  f.commit({ landing: { manualOverride: false, cadenceMs: 2000 } });
+  f.commit({ landing: { manualOverride: false, cadence: '2s' } });
   assert.deepEqual(sealClauseInspection(f.board, 1, f.options), original);
 });
 
-for (const policy of [{ gate: 'false' }, { check: { timeoutMs: 2000 } }]) test(`changed ${Object.keys(policy)[0]} policy requeues a captured submit and never becomes a test red [C7,V4]`, async t => {
+for (const policy of [{ gate: 'false' }, { check: { timeout: '2s' } }]) test(`changed ${Object.keys(policy)[0]} policy requeues a captured submit and never becomes a test red [C7,V4]`, async t => {
   const f = fixture(t);
   sealClauseInspection(f.board, 1, f.options);
   f.commit(policy);
