@@ -2,8 +2,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
+import { join } from 'node:path';
+import { after } from 'node:test';
 import { fixtureBoard } from './board-fixture.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
+
+// Seats must declare a model; the fixture project's own join reads it from the runner's environment.
+process.env.PULLBOARD_MODEL ??= 'Test Model';
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
 
 /** A board with a coordinator, an undeclared builder seat and a reviewer of another vendor. */
 function setup(t) {
@@ -45,4 +53,26 @@ test('join --family on a seat with a NULL column writes it though its session de
   assert.equal(column(board, 'core-1'), null);
   store.register(board, { id: 'core-1', lane: 'core', path: '/fixture/core-1', family: 'anthropic', model: 'm' });
   assert.equal(column(board, 'core-1'), 'anthropic');
+});
+
+test('the join CLI confirms the recorded family in its text and --json, on first join, without one, and on rejoin [C7]', () => {
+  const box = e2e.project('true');
+  const seat = name => {
+    const dir = join(box.dir, name);
+    box.git(box.repo, 'worktree', 'add', '-q', dir, '-b', `api/${name}`);
+    return dir;
+  };
+  const none = seat('undeclared'), declared = seat('declared');
+  const bare = box.run(none, 'join', 'api', '--model', 'Test Model', '--json');
+  assert.equal(bare.code, 0, bare.err);
+  assert.equal(JSON.parse(bare.out).family, null);
+  assert.doesNotMatch(box.run(none, 'join', 'api', '--model', 'Test Model').out, /family/u);
+  const first = box.run(declared, 'join', 'api', '--model', 'Test Model', '--family', 'anthropic');
+  assert.equal(first.code, 0, first.err);
+  assert.match(first.out, /joined as .*\(family anthropic\) in the api lane/u);
+  assert.equal(JSON.parse(box.run(declared, 'join', 'api', '--model', 'Test Model', '--family', 'anthropic', '--json').out).family, 'anthropic');
+  // A seat that joined bare, then rejoins naming a family: the response reports what is now recorded.
+  const later = box.run(none, 'join', 'api', '--model', 'Test Model', '--family', 'openai');
+  assert.match(later.out, /\(family openai\)/u);
+  assert.equal(JSON.parse(box.run(none, 'join', 'api', '--model', 'Test Model', '--json').out).family, 'openai');
 });
