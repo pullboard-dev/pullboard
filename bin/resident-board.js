@@ -24,6 +24,11 @@ import {
   connect,
   createServer,
 } from 'node:net';
+import {
+  endThen,
+  pathIdentity,
+  releaseOwnSocket,
+} from './resident-socket.js';
 
 // Node 22 announces that node:sqlite is experimental; the in-process entry drops that notice, and so does this one.
 const emitWarning = process.emitWarning;
@@ -36,7 +41,7 @@ const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
 const MAX_AGE_MS = Number(process.env.PULLBOARD_RESIDENT_MAX_AGE_MS) || 60 * 60_000;
 /** How often a listening process checks that the socket path is still its own. */
-const REPLACED_CHECK_MS = Number(process.env.PULLBOARD_RESIDENT_REPLACED_CHECK_MS) || 5_000;
+const REPLACED_CHECK_MS = Number(process.env.PULLBOARD_RESIDENT_REPLACED_CHECK_MS) || 2_000;
 /**
  * The process's clock: wall time, or the milliseconds in the file PULLBOARD_RESIDENT_CLOCK names, so a test can move
  * idle and age time without waiting for it.
@@ -57,6 +62,8 @@ let lastActive = clock();
 let retired = false;
 /** The identity of the socket file this process bound, so it never unlinks or serves a successor's socket. */
 let ownSocket = null;
+/** Client responses still being written; a retired process exits only when none are left. */
+let flushing = 0;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
 const activeEnv = () => running?.env ?? baseEnv;
@@ -89,15 +96,14 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 
 /** Remove the socket and pid file this process made, leaving a successor's in place. */
 function release() {
-  try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
   // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
-  if (process.platform !== 'win32' && ownSocket && socketIdentity() === ownSocket) try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+  // The socket goes before the pid file, so a successor never finds the path held with no live holder named.
+  releaseOwnSocket(socketPath, ownSocket, String(process.pid));
+  try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
 }
 
 /** The socket path's file identity now, or null when nothing is there. */
-function socketIdentity() {
-  try { const stat = statSync(socketPath); return `${stat.dev}:${stat.ino}`; } catch { return null; }
-}
+const socketIdentity = () => pathIdentity(socketPath);
 
 /** Whether another process now owns the socket path: this one can no longer be reached and must not linger. */
 function replaced() {
@@ -119,17 +125,21 @@ function retire(reason) {
   if (retired) return;
   retired = true;
   trace(`retire:${reason}`, null);
-  const own = !replaced();
   release();
-  // Node unlinks a Unix socket's path when its server closes, so only the path's owner closes; an orphan stops serving
-  // by answering stale and exits once its running commands finish.
-  if (own) server.close();
+  // Why no server.close(): Node unlinks a Unix socket's path when its server closes, whoever holds the path by then.
+  // With the path released nothing new connects; a connection already queued is answered stale.
   closeConnections();
 }
 
-/** Exit a retired process once its running commands have finished. */
+/** Exit a retired process once its running commands have finished and their responses are written. */
 function exitWhenDone() {
-  if (retired && !inFlight.size) process.exit(0);
+  if (retired && !inFlight.size && !flushing) process.exit(0);
+}
+
+/** Send a client its last line, holding a retired process's exit until the line is written. */
+function finish(socket, value) {
+  flushing++;
+  endThen(socket, JSON.stringify(value) + '\n', () => { flushing--; exitWhenDone(); });
 }
 
 const { main, selectedToolEntry } = await import('../apps/cli/src/shell/cli-main.js');
@@ -234,7 +244,7 @@ async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
   if (retired || request.code !== loadedCode || clock() - bornAt > MAX_AGE_MS) {
     retire(request.code !== loadedCode ? 'code' : 'age');
-    return socket.end(JSON.stringify({ t: 'stale' }) + '\n', exitWhenDone);
+    return finish(socket, { t: 'stale' });
   }
   const store = { env: { ...request.env }, cwd: request.cwd,
     send: (frame, chunk) => send({ t: frame, d: typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8') }) };
@@ -266,9 +276,7 @@ async function serve(socket, request) {
     inFlight.delete(store);
     lastActive = clock();
   }
-  socket.end(JSON.stringify(status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 }) + '\n', exitWhenDone);
-  // The end callback never runs when the client has already closed, so a retired process checks here too.
-  setImmediate(exitWhenDone);
+  finish(socket, status === null ? { t: 'fallback' } : { t: 'exit', code: status ?? 0 });
 }
 
 const server = createServer((socket) => {
@@ -285,7 +293,7 @@ const server = createServer((socket) => {
     // A tick asks for the idle check now, so a test drives retirement by its clock rather than by waiting.
     if (request.t === 'tick') {
       const idle = checkIdle({ exit: false });
-      return socket.end(JSON.stringify({ t: idle ? 'retired' : 'busy' }) + '\n', exitWhenDone);
+      return finish(socket, { t: idle ? 'retired' : 'busy' });
     }
     void serve(socket, request);
   });
