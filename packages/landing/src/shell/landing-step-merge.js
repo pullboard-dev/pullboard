@@ -4,6 +4,7 @@ import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
+import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../merge/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { refreshLandingDocs } from './landing-docs.js';
@@ -168,7 +169,9 @@ export function amendLandingEngines(root, hooks = []) {
   const engines = assignEngineNumbers(root);
   if (existsSync(join(root, 'src', 'formats')) && existsSync(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);
+  refreshLandingDocs(root);
+  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
+  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
   if (engines.files.length) {
     // Canonical rule placement accepts only staged regular files, including this just-generated history.
     git(root, ['add', '--', ...engines.files]);
