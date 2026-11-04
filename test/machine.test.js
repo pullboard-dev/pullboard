@@ -113,6 +113,14 @@ const NOT_MOVES = {
   UNMERGED_SCHEMA: 'shared-board schema compatibility checked before a command opens the database',
   PERSON_SIGNED: 'a person-only move on a board that signs person moves needs a passkey; no item move is person-only',
   PERSON_SIGNING_CORRUPT: 'the stored relay key is read when a command fetches the relay\'s authority, before any move; it is no item lifecycle rule',
+  B26_PERSON_APPROVAL: 'person-only command authorization is checked before an item move',
+  BAD_DEPENDENCIES: 'release command dependency arguments are validated before the move',
+  BOARD_UNAVAILABLE: 'the registered board is opened before an item move',
+  NO_SHOUT: 'a shout reference used by a command is resolved before its item move',
+  URGENT_VALUE: 'fact urgency input is validated before any item move',
+  BAD_BUILD_BUDGET: 'the configured build budget is checked before a reservation move',
+  ITEM_BUILD_BUDGET: 'item build time is checked against the budget before a reservation move',
+  NO_POLICY: 'required committed policy is read before the item move can run',
 };
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
