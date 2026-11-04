@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
@@ -92,6 +93,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       routeAllows: (found) => {
         const route = routeOf(board, agentId);
+        const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
+        if (diagnosisProblem) return diagnosisProblem;
         return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
       },
       buildScopeFits: found => isRenewal(found) || (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE ? null : expectedBuildProblem(found, buildBudgetMinutes),
