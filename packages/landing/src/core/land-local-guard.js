@@ -18,7 +18,7 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
     lease.quarantines = quarantines;
     if (quarantines.length) lease.proof = proofContext;
     const run = runProfiledShell(root, config.gate, { waitMs: lease.waitMs, gateLease: lease,
-      stages: true, landing: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
+      stages: true, landing: true, collectAll: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
       timeoutMs: config.landing?.timeoutMs });
     if (!run.isGreen && !run.timedOut) await onFailure(run, { root, command: config.gate, lease });
     return { ...run, log: run.logPath };
