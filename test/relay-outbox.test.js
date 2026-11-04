@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { rememberCreatedItems } from '../packages/link/index.js';
 import {
   ITEM_SLOTS,

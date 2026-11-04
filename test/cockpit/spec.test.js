@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { standardDoctrine } from '../../packages/doctrine/index.js';
 import { loadConfig } from '../../packages/config/index.js';
-import { pageScriptPart4 } from '../../src/view/page-script-4.js';
+import { pageScriptPart4 } from '../../apps/view/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';
 import { tapTarget, SPEC, machine, project, build, startView, styleOf, openPage, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, watchSpecDecisionWait, press } from './fixture.js';
 

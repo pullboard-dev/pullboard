@@ -64,6 +64,7 @@ One requirement per line:
 - Every approved must-row names its gate.
 - For every must-row you could write the exact check: the command, the input and the expected output.
 - What remains pending is only the questions the person has not answered yet.
+- Each gate is written so the item that serves the row can carry it as a bar of at most 3 numbered clauses, each one checkable requirement, with its check set at filing.
 - `pullboard spec check` passes, and the spec is committed with a `docs(spec): ...` message. Docs commits need not cite row ids.
 
 ## Pullboard commands for this job

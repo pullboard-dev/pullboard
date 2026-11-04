@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { closeBoard, getItem } from '../packages/store/index.js';
-import { openBoard, nativeBoardPorts } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { checkBaseline, prepareCheckBaseline } from '../packages/gate/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
@@ -396,7 +396,7 @@ function applyInReplica(file, replicaDir, moveFile, env, at = '2026-10-07T12:00:
   const engineUrl = new URL('../src/engine.js', import.meta.url).href;
   const source = [
     `import { closeBoard } from ${JSON.stringify(boardUrl)};`,
-    `import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};`,
+    `import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};`,
     `import { applyEngineMove } from ${JSON.stringify(engineUrl)};`,
     "import { readFileSync } from 'node:fs';",
     'const board = openBoard(process.argv[1]);',
@@ -531,7 +531,7 @@ function apiMove(box, move, channel, env) {
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
     const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);

@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { processCensus } from './runner-custody.js';
 import { cleanupTimeoutDetails } from '../../../../packages/runners/src/core/cleanup-diagnostics.js';
 
 const CLEANUP_BUDGET_MS = 30_000;
@@ -40,7 +41,7 @@ export function clearPhaseCleanup(S) {
 export function reportCleanupTimeout(S) {
   if (S.cleanupTimedOut || Date.now() < Math.min(S.cleanupDeadline, S.phaseCleanupDeadline)) return;
   S.cleanupTimedOut = true;
-  const details = cleanupTimeoutDetails(S);
+  const details = cleanupTimeoutDetails(S, (S.cleanupCensus ?? processCensus)({ includeCommand: true }));
   // A timeout may arrive after ordinary job deletion while output is still flushing.
   // Retain every waited-on process, naming executables without their arguments or environment.
   if (S.cleanupDirectory) {
@@ -49,6 +50,8 @@ export function reportCleanupTimeout(S) {
       writeFileSync(join(S.cleanupDirectory, 'cleanup-timeout.json'), JSON.stringify(details) + '\n', { mode: 0o600 });
     } catch { /* The named red result remains authoritative if diagnostic storage fails. */ }
   }
+  // The result already went out: the unverified leftovers stay on the runner for the sweep, never in the gate's verdict (#2538).
+  if (S.resultSent) return;
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_DETAILS ${S.workerId} ${Buffer.from(JSON.stringify(details)).toString('base64')}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${S.workerId} ${details.reason || S.cleanupStage}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${S.workerId}\n`);
@@ -58,7 +61,7 @@ export function reportCleanupTimeout(S) {
 export async function releaseDrainedLease(S, lease) {
   let reported = false;
   for (;;) {
-    try { lease.release(); return; }
+    try { lease.release({ retryMs: 0 }); return; }
     catch {
       reportCleanupTimeout(S);
       if (!reported) {

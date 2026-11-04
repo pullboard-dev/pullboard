@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { machine, project, build, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 /** Record real health transitions after the private fixture's native review. */
@@ -48,15 +48,15 @@ test('Items walk renders short context hashes, plain waiting chips and colored h
         const waiting = document.querySelector('#chain [data-item="3"]');
         const kinds = ['claim', 'reserve', 'reject', 'health-failure', 'note'];
         return { visible:document.querySelector('[data-pane=items]').innerText,
-          waiting:waiting.querySelector('.chip').textContent, border:getComputedStyle(waiting).borderTopColor,
-          link:waiting.querySelector('.chip [data-go]').dataset.go,
+          waiting:waiting.querySelector('.stage-word').textContent + ' ' + waiting.querySelector('.stage-detail').textContent, border:getComputedStyle(waiting).borderTopColor,
+          link:'item:' + data.project.items.find(item => item.id === 3).blockedBy[0],
           kinds:kinds.map(kind => { const row = rows.find(row => row.dataset.timelineKind === kind), marker = row.querySelector('.tl-marker'), label = row.querySelector('.tl-kind');
             return {kind, icon:marker.innerHTML, color:getComputedStyle(marker).color, labelColor:getComputedStyle(label).color, label:label.textContent}; }),
           times:rows.map(row => row.querySelector('.tl-heading > time').textContent),
           copy:[...document.querySelectorAll('#detail .hash-copy')].map(node => [node.textContent,node.dataset.copy]) };
       })())`));
       assert.doesNotMatch(actual.visible, /\b[0-9a-f]{40}\b/u);
-      assert.equal(actual.waiting, 'Waiting on #2'); assert.equal(actual.link, 'item:2');
+      assert.equal(actual.waiting, 'Gated by #2'); assert.equal(actual.link, 'item:2');
       assert.ok(['rgba(0, 0, 0, 0)', 'transparent'].includes(actual.border), width + ': no warning outline');
       assert.equal(new Set(actual.kinds.map(row => row.icon)).size, 5, 'each native kind has its approved verb icon');
       assert.equal(new Set(actual.kinds.map(row => row.color)).size, 5, 'build/review/back/sentinel/note have distinct tones');

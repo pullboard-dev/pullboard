@@ -1,8 +1,8 @@
-import { viewApiPorts } from '../../../src/view-api-ports.js';
+import { viewApiPorts } from '../../../apps/view/index.js';
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import { apiBoardOpeners } from '../../../test/board-fixture.js';
 
-import { refusalDocument } from '../../../src/next-step-words.js';
+import { refusalDocument } from '../../../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { serveApi } from '../../api/index.js';
 import { fetchFresh } from '../../../test/http-fixture.js';

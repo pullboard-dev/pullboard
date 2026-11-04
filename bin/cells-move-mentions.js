@@ -5,11 +5,14 @@ import { posix } from 'node:path';
 
 const CANONICAL_COPIER = 'src/package-files.js';
 const PLAN_DIRECTORY = new URL('./cells-plan/', import.meta.url);
+const REPOSITORY_ROOT = new URL('../', import.meta.url);
 let planned;
 
 /**
  * The repository paths that are the canonical copier: src/package-files.js and, read from the committed cells plan
- * rather than hard-coded, the body it moves to. A lookalike module under the same package is not one of them.
+ * rather than hard-coded, the body it moves to and the owning cell's front door when that front door re-exports
+ * toolSourcePath unrenamed from the body. Why the front door: once the shims go, importers reach the copier only
+ * through it. A lookalike module under the same package is not one of them.
  * @returns {Set<string>} Root-relative module paths.
  */
 export function canonicalCopierPaths() {
@@ -18,10 +21,29 @@ export function canonicalCopierPaths() {
     for (const name of readdirSync(PLAN_DIRECTORY).filter(file => /\.json$/u.test(file))) {
       let cell;
       try { cell = JSON.parse(readFileSync(new URL(name, PLAN_DIRECTORY), 'utf8')); } catch { continue; }
-      for (const row of Array.isArray(cell?.paths) ? cell.paths : []) if (row[0] === CANONICAL_COPIER && typeof row[1] === 'string') planned.add(row[1]);
+      for (const row of Array.isArray(cell?.paths) ? cell.paths : []) {
+        if (row[0] !== CANONICAL_COPIER || typeof row[1] !== 'string') continue;
+        planned.add(row[1]);
+        if (frontDoorForwardsCopier(cell.frontDoor, row[1])) planned.add(cell.frontDoor);
+      }
     }
   }
   return planned;
+}
+
+/**
+ * Whether a cell's front door re-exports toolSourcePath under its own name straight from the copier body, so an
+ * import through it binds the same function. A missing file, a rename or any other source is no forward.
+ */
+function frontDoorForwardsCopier(frontDoor, body) {
+  if (typeof frontDoor !== 'string' || !/^packages\/[a-z-]+\/index\.js$/u.test(frontDoor)) return false;
+  let source;
+  try { source = readFileSync(new URL(frontDoor, REPOSITORY_ROOT), 'utf8'); } catch { return false; }
+  const specifier = `./${posix.relative(posix.dirname(frontDoor), body)}`;
+  return source.split('\n').some(line => {
+    const match = /^export\s*\{([^}]*)\}\s*from\s*(["'])([^"']+)\2\s*;?\s*$/u.exec(line.trim());
+    return Boolean(match && match[3] === specifier && match[1].split(',').some(name => name.trim() === 'toolSourcePath'));
+  });
 }
 
 /** Escape one file name for a literal match inside a regular expression. */

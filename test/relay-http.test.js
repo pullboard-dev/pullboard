@@ -6,9 +6,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createGitHubClient } from '../relay/github.js';
-import { createRelayAuth } from '../relay/auth.js';
-import { createAuthHandler } from '../relay/auth-http.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createAuthHandler } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 /** Start the real auth HTTP handler on loopback with a private SQLite auth store. */

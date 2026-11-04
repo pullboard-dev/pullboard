@@ -5,8 +5,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { SETUP_COMMIT_QUESTION } from '../src/init-finish.js';
-import { RELAY_OFFER_QUESTION } from '../src/init.js';
+import { SETUP_COMMIT_QUESTION } from '../apps/cli/index.js';
+import { RELAY_OFFER_QUESTION } from '../apps/cli/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 /** Create a private Git repo whose installed hooks invoke this candidate CLI only. */

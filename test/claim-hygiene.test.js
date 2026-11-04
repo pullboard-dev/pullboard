@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';

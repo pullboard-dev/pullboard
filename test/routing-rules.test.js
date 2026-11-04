@@ -2,7 +2,7 @@
 /** Live routing uses computed native eligibility; legacy rule records and coded releases retain compatibility [C7,H16]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { board as store } from '../src/native-board.js';
+import { board as store } from '../apps/lib/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';

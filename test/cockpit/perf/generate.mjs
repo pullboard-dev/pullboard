@@ -13,7 +13,7 @@ import {
   register, reopen, shout, verify, withdraw,
 } from '../../../src/board.js';
 import { addMilestone } from '../../../src/board-milestones.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { submitFixture } from '../../board-submit-fixture.js';
 import { appliedSequence, applyEngineMove } from '../../../src/engine.js';
 import { PROOF_RUN_ENGINE } from '../../../src/proof-run-engine.js';

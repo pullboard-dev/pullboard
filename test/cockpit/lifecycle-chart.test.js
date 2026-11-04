@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
-import { MACHINE } from '../../src/machine.js';
+import { openBoard } from '../../apps/lib/index.js';
+import { MACHINE } from '../../packages/state/index.js';
 import { seedNativeOrdinary } from './lifecycle-ordinary-seed.js';
 import { nativeRareJourneys, seedRareLifecycleJourneys } from './lifecycle-native-seed.js';
-import { lifecycleEvent as lifecycleHistoryEvent } from '../../src/item-list.js';
+import { lifecycleEvent as lifecycleHistoryEvent } from '../../packages/items/index.js';
 import { machine, project, build, sendBack, boardOf, pickProject, startView, openPage, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, proofShot } from './fixture.js';
 
 test('lifecycle history keeps a typed retained-claim correction without forwarding private event details [N26]', () => {

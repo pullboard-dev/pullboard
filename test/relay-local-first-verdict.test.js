@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { captureBoardChanges } from '../packages/store/index.js';
 import { applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
@@ -17,21 +17,23 @@ import { createE2eHelpers } from './e2e-helpers.js';
 /** Make genuine native submitted history, then freeze the public replay test's immutable policy. */
 function submittedBoard(t) {
   const helpers = createE2eHelpers();
-  const box = helpers.project();
+  const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Relay local-first verdict fixture model';
+  const box = helpers.project(undefined, isolated);
   const handles = [];
   t.after(() => {
     for (const handle of handles.reverse()) store.closeBoard(handle);
     helpers.cleanup();
   });
   const added = box.run(box.repo, 'add', 'web', 'A queued verdict keeps its reviewed head', '--specs', 'G1',
-    '--criterion', 'The page renders.');
+    '--criterion', 'The page renders. [test]');
   assert.equal(added.code, 0, added.err + added.out);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/page.html', '<h1>Old head</h1>',
     'feat(web): render the private page [G1]').status, 0);
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true, gitRoot: box.repo });
   handles.push(board);
   const item = store.getItem(board, 1);
   const frozen = JSON.parse(item.item_frozen);
@@ -39,7 +41,7 @@ function submittedBoard(t) {
   // Synthetic replay actors use native registration, not forged credentials or a production board.
   const reviewer = store.register(board, { lane: 'web', path: join(box.dir, 'offline-reviewer') });
   const peer = store.register(board, { lane: 'web', path: join(box.dir, 'peer-reviewer') });
-  return { box, board, item, reviewer, peer, handles };
+  return { box, helpers, board, item, reviewer, peer, handles };
 }
 
 /** Bind a verdict to the submitted and checked head, using the current native review wire shape. */
@@ -56,12 +58,12 @@ function apply(board, move, sequence) {
 }
 
 test('a queued accept for an old head is refused after a peer resubmission on both replicas [H21,V1,H16]', async t => {
-  const { box, board, item, reviewer, peer, handles } = submittedBoard(t);
+  const { box, helpers, board, item, reviewer, peer, handles } = submittedBoard(t);
   const directory = join(box.dir, 'replay-copies');
   mkdirSync(directory);
   const snapshot = exportBoard(board);
   const copies = ['offline', 'peer'].map(name => {
-    const copy = openBoard(join(directory, `${name}.sqlite`));
+    const copy = openBoard(join(directory, `${name}.sqlite`), undefined, { isMain: false, gitRoot: box.repo });
     importBoard(copy, snapshot);
     handles.push(copy);
     return copy;
@@ -82,10 +84,13 @@ test('a queued accept for an old head is refused after a peer resubmission on bo
     head: item.item_commit, freeze: () => ({ text: frozen, digest: createHash('sha256').update(frozen).digest('hex') }) }],
   { id: 'peer-claims-rework', actor: item.item_built_by });
   assert.equal(apply(online, claim, 2).error, undefined);
-  const nextCommit = 'b'.repeat(40);
+  assert.equal(helpers.commitFile(box, box.web, 'web/page.html', '<h1>Updated head</h1>',
+    'feat(web): update the private page [G1]').status, 0);
+  const nextCommit = box.git(box.web, 'rev-parse', 'HEAD');
+  const nextTree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   // Only this replacement submission is synthetic: its descriptor explicitly declares that it ran no gate.
-  const submission = prepareEngineMove(online, 'submit', [1, { agentId: item.item_built_by, commit: nextCommit,
-    tree: 'c'.repeat(40), submissionProof: { version: 1, files: [], full: false, deferred: true,
+  const submission = prepareEngineMove(online, 'submit', [1, { agentId: item.item_built_by, commit: nextCommit, policyCommit: trunk,
+    tree: nextTree, submissionProof: { version: 1, files: [], full: false, deferred: true,
       reason: 'synthetic resubmission for replay semantics; no gate execution' } }],
   { id: 'peer-submits-new-head', actor: item.item_built_by });
   assert.equal(apply(online, submission, 3).error, undefined);

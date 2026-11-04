@@ -1,5 +1,5 @@
 /** Inherited failures can pass submit without disguising new failures as known [V4,B3]. */
-import '../src/cli.js'; // This test invokes the real CLI through its public executable.
+import '../apps/cli/index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -7,10 +7,19 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureGit } from './fixture-child.js';
+import * as store from '../packages/store/index.js';
+import { fixtureBoard } from './board-fixture.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
 import { matchingMainFailures } from '../packages/landing/index.js';
 import { failureSignatures } from '../packages/landing/index.js';
+import { linkKnownMainReworks } from '../packages/store/index.js';
+import { requireKnownMainReworks } from '../packages/store/index.js';
+import { prepareEngineMove } from '../packages/state/index.js';
+import { applyEngineMove } from '../packages/state/index.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
+import { boundedMainRedShout } from '../apps/cli/src/shell/commands/submit.js';
 
 import { fixture } from './submit-main-red-fixture.js';
 import { cli } from './submit-main-red-fixture.js';
@@ -75,7 +84,6 @@ test('known main receipts preserve exact identities and refuse unsupported histo
 
 test('repair links retain historical receipts and reject closed, stale or ambiguous repairs [V4,B3,H16]', async () => {
   const { KNOWN_MAIN_REWORKS_ENGINE } = await import('../src/known-main-reworks-engine.js');
-  const { linkKnownMainReworks, requireKnownMainReworks } = await import('../packages/store/index.js');
   const row = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
   const known = { main: 'b'.repeat(40), failures: [row] };
   const repair = { item_id: 7, item_status: 'claimed', item_title: 'Main red: one assertion',
@@ -96,10 +104,6 @@ test('repair links retain historical receipts and reject closed, stale or ambigu
 });
 
 test('ordered submit refuses a closed repair and an old-engine linked envelope without changing item history [V4,B3,H16]', async t => {
-  const store = await import('../src/board.js');
-  const { fixtureBoard } = await import('./board-fixture.js');
-  const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
-  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const at = '2026-10-28T00:00:00.000Z';
   const source = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   source.executionEngineVersion = KNOWN_MAIN_FAILURES_ENGINE;
@@ -184,7 +188,6 @@ test('a long infra note submits with one bounded automatic shout [V4,B3]', t => 
 });
 
 test('an oversized main red decision preserves the show pointer [V4,B3]', async () => {
-  const { boundedMainRedShout } = await import('../src/commands/submit.js');
   const text = boundedMainRedShout(7, [{ file: 'test/red.test.js', names: ['🧪'.repeat(2000)] }], 'a'.repeat(40));
   assert.ok(Array.from(text).length <= 400);
   assert.match(text, /pullboard show 7/);

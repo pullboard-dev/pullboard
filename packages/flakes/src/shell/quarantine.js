@@ -80,10 +80,29 @@ export function flakeQuarantines(board) {
   });
 }
 
-/** Capture the current ratchet against the last landed batch, reconstructing its original event boundary once. */
-export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
-  const stamp = () => ({ version: board.db.prepare('PRAGMA data_version').get().data_version, changes: board.db.prepare('SELECT total_changes() AS n').get().n });
-  const before = stamp();
+/**
+ * Capture the current ratchet against the last landed batch from one consistent read snapshot [C7].
+ *
+ * Why: the capture reads runs, the ledger and quarantines in several queries. Outside a transaction a
+ * concurrent write could land between them, and refusing on that left a busy board unable to land at
+ * all. One read transaction pins every query to the same snapshot, so other writers never disturb it;
+ * a caller already inside a transaction has pinned it for us.
+ */
+export function landingFlakeRatchet(board, ports = {}) {
+  let own = false;
+  try { board.db.exec('BEGIN'); own = true; } catch { /* The caller's open transaction already holds one snapshot. */ }
+  try {
+    const result = captureFlakeRatchet(board, ports);
+    if (own) board.db.exec('COMMIT');
+    own = false;
+    return result;
+  } finally {
+    if (own) board.db.exec('ROLLBACK');
+  }
+}
+
+/** Compute the ratchet from the board as one snapshot shows it, reconstructing the last batch's boundary once. */
+function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
   const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const row = board.db.prepare(`SELECT event_id, event_kind, event_detail FROM event WHERE json_valid(event_detail) AND
     (event_kind='landing_batch' AND json_extract(event_detail, '$.batch.state')='landed'
@@ -113,10 +132,7 @@ export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines,
       && (quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId));
   });
   const observations = [...ledger, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
-  const result = flakeRatchet({ previous, eventId, observations, quarantines });
-  const after = stamp();
-  if (after.version !== before.version || after.changes !== before.changes) throw new Refused('BOARD_BUSY', 'the board changed while capturing the flake ratchet; retry from its current state');
-  return result;
+  return flakeRatchet({ previous, eventId, observations, quarantines });
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */

@@ -1,3 +1,5 @@
+import { itemDiagnosis } from './item-diagnosis.js';
+import { RELEASE_QUALITY_HOLD_ENGINE } from '../../../../src/release-quality-hold-engine.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
 import { validateNativeDependencies } from '../../../seats/core.js';
@@ -17,6 +19,7 @@ import { firstRefusal } from "./board-item-read.js";
 import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
 import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
+import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {
@@ -36,9 +39,19 @@ function goneRelease(board, item, actor, observation) {
   return { seat: observation.seat, lastSeen: at };
 }
 
+/** Only a holder's structured quality release counts; OTHER has no reliable provenance. */
+function chosenQualityRelease(board, id, row, detail) {
+  if (!['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(detail.reasonCode)
+    || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim
+    || detail.untouchedAutoClaim || detail.exitHandoff) return false;
+  const previous = board.db.prepare(`SELECT event_kind, event_by FROM event WHERE item_id=? AND event_id<?
+    AND event_kind IN ('claim','release','submit','withdraw','merged','reopen') ORDER BY event_id DESC LIMIT 1`).get(id, row.event_id);
+  return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
+}
+
 /** Apply the existing ordinary release transition with narrowly frozen maintenance authority. */
 export function releaseClaim(board, id, agentId, note, observation, dependencies, reasonCode) {
-  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies } = dependencies;
+  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies, escalate } = dependencies;
   // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
   if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
   const worktreeSnapshot = observation?.worktreeSnapshot;
@@ -66,6 +79,8 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       combinedAfter = [...new Set([...String(item.item_after ?? '').split(',').filter(Boolean), ...blockedOn.map(String)])];
       validateItemDependencies(board, id, combinedAfter.map(value => /^\d+$/u.test(value) ? Number(value) : value));
     }
+    const wrongDiagnosis = reasonCode === 'DIAGNOSIS_WRONG' ? itemDiagnosis(board, item) : null;
+    if (reasonCode === 'DIAGNOSIS_WRONG' && (!wrongDiagnosis || item.item_status !== 'claimed' || item.item_owner !== agentId)) throw new Refused('DIAGNOSIS_WRONG', 'claim a diagnosed item before returning it for a new diagnosis');
     const stale = staleClaimRelease(board, item, agentId, note, observation);
     const gone = stale ? null : goneRelease(board, item, agentId, observation);
     if (item.item_status === 'submitted') {
@@ -93,6 +108,10 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       },
       set: () => ({ item_owner: null, item_lease_until: null, ...(blockedOn ? { item_after: combinedAfter.join(',') } : {}) }),
     });
+    if (wrongDiagnosis) {
+      board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`item_diagnosis:${id}`);
+      setItem(board, id, { item_route: 'mid', item_brief: `Diagnosis rejected: ${note.trim()}\n\nPrevious diagnosis (context):\n${item.item_brief}` });
+    }
     if (blockedOn) {
       const upsert = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value');
       upsert.run(`claim_waiting:${id}`, JSON.stringify(blockedOn));
@@ -104,14 +123,23 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       && lastClaim?.event_by === agentId && worktreeSnapshot?.head === claimDetail.autoNextSnapshot?.head && typeof worktreeSnapshot?.digest === 'string'
       && worktreeSnapshot.digest === claimDetail.autoNextSnapshot?.digest;
     logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
-    // Count only ordinary coded claim releases since the coordinator last lifted a hold.
-    if (!stale && !gone && !exitHandoff && reasonCode && !item.item_hold_reason
+    // Preserve historic replay while new moves count only the holder's chosen quality releases.
+    const qualityHolds = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_QUALITY_HOLD_ENGINE;
+    const currentEligible = qualityHolds ? !stale && !gone && !exitHandoff && !untouchedAutoClaim && item.item_status === 'claimed' && item.item_owner === agentId
+      && ['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(reasonCode) : !stale && !gone && !exitHandoff && reasonCode;
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= ROUTE_CALIBRATION_ENGINE && currentEligible
+      && ['BUDGET', 'INELIGIBLE'].includes(reasonCode)) {
+      const seatRoute = board.db.prepare('SELECT agent_route FROM agent WHERE agent_id=?').get(agentId)?.agent_route;
+      if (seatRoute === item.item_route) escalate(board, id, { agentId: 'coordinator', note: `${agentId} released at the ${seatRoute} route: ${reasonCode}${note?.trim() ? ` (${note.trim()})` : ''}` });
+    }
+    if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
-      const releases = board.db.prepare(`SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
+      const releases = board.db.prepare(`SELECT event_id, event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
         AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)
         ORDER BY event_id DESC`).all(id, id).filter(row => {
           const detail = JSON.parse(row.event_detail);
-          return detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
+          return qualityHolds ? chosenQualityRelease(board, id, row, detail)
+            : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
         }).slice(0, 2);
       if (releases.length === 2) {
         const reasons = releases.reverse().map(row => {

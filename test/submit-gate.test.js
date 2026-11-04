@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { configFromSource } from '../packages/config/index.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 import { refuseSandboxBlocked, sandboxBlockedOperation } from '../packages/gate/index.js';
 import { fileDenialWatcher } from '../packages/sandbox/index.js';
 import { SPEC } from './submit-gate-fixture.js';

@@ -6,11 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { CAPACITY_VERSION } from '../packages/stats/index.js';
 import { readCapacity } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { proofCounter } from '../packages/verify/index.js';
+import { refreshCapacityOutsideWrite } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const PREFIX = 'local:proof-stats:v2:capacity-';
@@ -24,6 +25,7 @@ function fixture(t) {
   // @pullboard-board-file persistence: capacity shards and their cursor must survive real SQLite transactions and rollbacks
   const board = openBoard(join(root, '.git', 'board.sqlite'), { now: () => new Date(now) });
   store.register(board, { lane: 'coordinator', path: root });
+  refreshCapacityOutsideWrite(board, store.atomic);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   return { board, at: value => { now = value; } };
 }
@@ -74,19 +76,23 @@ test('capacity uses five-minute summaries fifteen-minute forecasts and nightly f
   const start = readCapacity(board, BASE);
   at(BASE + 4 * 60_000);
   store.logEvent(board, 'coordinator', 'shout', null, {});
+  refreshCapacityOutsideWrite(board, store.atomic);
   assert.equal(readCapacity(board, BASE).asOf, start.asOf);
   at(BASE + 6 * 60_000);
   store.logEvent(board, 'coordinator', 'shout', null, {});
+  refreshCapacityOutsideWrite(board, store.atomic);
   const six = readCapacity(board, BASE + 6 * 60_000);
   assert.notEqual(six.asOf, start.asOf);
   assert.equal(six.monteCarlo.asOf, start.monteCarlo.asOf);
   at(BASE + 16 * 60_000);
   store.logEvent(board, 'coordinator', 'shout', null, {});
+  refreshCapacityOutsideWrite(board, store.atomic);
   const sixteen = readCapacity(board, BASE + 16 * 60_000);
   assert.equal(sixteen.monteCarlo.asOf, sixteen.asOf);
   assert.equal(sixteen.source.fitTo, start.source.fitTo);
   at(Date.parse('2026-10-26T00:01:00Z'));
   store.logEvent(board, 'coordinator', 'shout', null, {});
+  refreshCapacityOutsideWrite(board, store.atomic);
   const nightly = readCapacity(board, Date.parse('2026-10-26T00:01:00Z'));
   assert.equal(nightly.source.fitTo, '2026-10-26T00:00:00.000Z');
   assert.equal(nightly.source.fitFrom, '2026-10-19T00:00:00.000Z');

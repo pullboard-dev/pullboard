@@ -676,7 +676,7 @@ export function renderMapCard(map, key) {
 function itemPaths(item) {
   const text = `${item.item_title ?? ''}\n${item.item_criterion ?? ''}\n${item.item_brief ?? ''}\n${item.item_files ?? ''}`;
   const found = new Set([...text.matchAll(/\b(?:src|bin|test)\/[\w./-]+\.(?:m?js)\b/gu)].map(match => match[0]));
-  if (/\bpullboard\s+map\b/u.test(text)) found.add('src/commands/map.js');
+  if (/\bpullboard\s+map\b/u.test(text)) found.add('apps/cli/src/shell/commands/map.js');
   return found;
 }
 

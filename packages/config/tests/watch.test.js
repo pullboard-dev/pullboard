@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -20,11 +21,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { reserveReview } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { followBoard } from '../../shouts/index.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { startFixtureChild } from '../../../test/fixture-child.js';
+import { waitForCondition } from '../../../test/runner-fixture-state.js';
+import { VERIFICATION_COMPARISON_PREFIX } from '../../verify/index.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const folders = [];
@@ -39,6 +42,7 @@ function fixtureEnv(home, bin) {
   return {
     ...env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: home, PATH: bin + delimiter + process.env.PATH,
     PULLBOARD_VIEW_BACKGROUND: '0', // Restore the fixture opt-out after removing inherited board identity.
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Watch Test', GIT_AUTHOR_EMAIL: 'watch@example.invalid',
     GIT_COMMITTER_NAME: 'Watch Test', GIT_COMMITTER_EMAIL: 'watch@example.invalid',
@@ -60,6 +64,7 @@ function project() {
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   /** Run one CLI command with --json and return its document. */
   const cli = (cwd, ...args) => {
+    if (args[0] === 'submit') args.push('--wait');
     const result = run(cwd, ...args, '--json');
     assert.equal(result.status, 0, `${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return JSON.parse(result.stdout);
@@ -69,6 +74,7 @@ function project() {
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', practice: 'DOCTRINE.md',
+    landing: { perItem: false, manualOverride: true },
     lanes: { app: { owns: ['app/'], specs: ['G1'] }, docs: { owns: ['docs/'], specs: ['G1'] } }, shared: [] }, null, 2) + '\n');
   writeFileSync(join(root, 'SPEC.md'), '# Watch fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
   writeFileSync(join(root, 'DOCTRINE.md'), '');
@@ -87,6 +93,14 @@ function events(box) {
 /** The latest event sequence on the fixture board. */
 function lastSequence(box) {
   return events(box).at(-1)?.event_id ?? 0;
+}
+
+/** Finish only this fixture's detached comparison facts before judging a quiet event interval. */
+async function drainComparisons(box, t) {
+  const directory = join(box.root, '.git/pullboard/review-comparisons');
+  const jobs = existsSync(directory) ? readdirSync(directory) : [];
+  await waitForCondition(() => jobs.every(job => existsSync(join(directory, job, 'result.json'))),
+    'owned watch comparison to finish', { signal: t.signal });
 }
 
 /**
@@ -189,17 +203,22 @@ test('pullboard watch prints a move as it happens [A2,N26]', async (t) => {
 
   const added = box.cli(box.root, 'add', 'app', 'Live watch item', '--criterion', 'arrives on the live stream', '--specs', 'G1').item;
   const moved = Date.now();
-  const event = events(box).at(-1);
+  // Adding an item also records where the roadmap placed it, so the add is followed by its placement event [N26].
+  const fresh = events(box).slice(before);
+  assert.deepEqual(fresh.map((entry) => entry.event_kind), ['add', 'milestone_placed'], 'the add and its placement are the only new events');
+  const [event, placement] = fresh;
   assert.equal(event.item_id, added.item_id);
   const printed = await watch.line((line) => line.startsWith(`${event.event_id} `), 2_000, 'line for the add'); // budget: declared by #544's frozen criterion (within two seconds); a hang ceiling for one line.
   assert.ok(printed.at - moved <= 2_000, 'the line arrives within two seconds of the move'); // budget: declared by #544's frozen criterion (within two seconds).
   assert.equal(printed.line, `${event.event_id} add #${added.item_id} ${event.event_by} Live watch item (lane app, route strong)`,
     'one line: sequence, kind, item, actor and a short detail');
+  await watch.line((line) => line.startsWith(`${placement.event_id} `), 2_000, 'line for the placement'); // budget: hang ceiling for one line.
 
   const stopped = await watch.stop('SIGINT');
   assert.deepEqual(stopped, { code: 0, signal: null }, 'Ctrl-C stops watch cleanly');
-  assert.equal(watch.out.lines.length, 1, 'one line per event, and nothing else on stdout');
-  assert.equal(events(box).length, before + 1, 'watch wrote no event: the only new one is the add');
+  assert.equal(watch.out.lines.length, 2, 'one line per event, and nothing else on stdout');
+  assert.ok(watch.out.lines[1].line.startsWith(`${placement.event_id} milestone_placed #${added.item_id} `), 'the placement prints as its own line naming the item');
+  assert.equal(events(box).length, before + 2, 'watch wrote no event: the only new ones are the add and its placement');
 });
 
 test('a dropped watch resumes from its last event [A2,N26]', async (t) => {
@@ -312,6 +331,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): fresh work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   const firstSubmission = box.cli(builder.path, 'submit', String(added.item_id), '--no-next');
+  await drainComparisons(box, t);
   const firstCommit = firstSubmission.commit;
   const submitted = lastSequence(box);
   const review = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'review-wait', 10_000, 'review-wait notice')).line); // budget: hang ceiling for a 1.2 s review threshold, not a latency claim.
@@ -334,6 +354,7 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   runFixtureGit(['add', '-A'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   runFixtureGit(['commit', '-q', '-m', 'feat(app): waiting work [G1]'], { cwd: builder.path, env: box.env, stdio: 'pipe' });
   const secondSubmission = box.cli(builder.path, 'submit', String(waiting.item_id), '--no-next');
+  await drainComparisons(box, t);
   const secondCommit = secondSubmission.commit;
   runFixtureGit(['switch', '-q', '--detach', secondCommit], { cwd: reviewer, env: box.env, stdio: 'pipe' });
   box.cli(reviewer, 'next', '--verify', String(waiting.item_id));
@@ -352,7 +373,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   // Main moving is a notice too.
   box.git('commit', '-q', '--allow-empty', '-m', 'chore: move main');
   const head = box.git('rev-parse', 'HEAD');
-  const main = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'main', 5_000, 'main notice')).line); // budget: hang ceiling for one line, not a latency claim.
+  // Landing earlier work may also move main, so wait for the notice naming this commit.
+  const main = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'main' && JSON.parse(line).commit === head, 5_000, 'main notice for the new commit')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(main.commit, head);
   assert.equal(main.detail, `main moved to ${head}`);
 
@@ -362,17 +384,42 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'a waiting review is announced once');
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
-  assert.deepEqual(recorded.map(event => event.event_kind), [
-    'add', 'add', 'claim', 'check_accept', 'release', 'usage', 'claim', 'renew', 'proof-run', 'proof-run',
-    'submit', 'usage', ...(firstSubmission.activity.digests.length ? ['activity-delivered'] : []), 'join', 'reserve', 'proof-run', 'accept', 'claim', 'renew', 'proof-run', 'proof-run',
-    'submit', 'usage', ...(secondSubmission.activity.digests.length ? ['activity-delivered'] : []), 'reserve', 'reject',
-  ], 'watch wrote no event: only the explicit moves, their usage checkpoints and native proof receipts were recorded');
+  const observations = new Set(['fact', 'usage', 'activity-delivered']);
+  assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
+    'add', 'milestone_placed', 'check-baseline', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject',
+  ], 'only the explicit moves, native placements, baseline and submit proofs were recorded');
+  const facts = recorded.filter(event => event.event_kind === 'fact');
+  assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
+  for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
+    const comparisons = facts.filter(event => event.item_id === item).map(event => {
+      const fact = JSON.parse(event.event_detail);
+      assert.equal(fact.kind, 'measurement');
+      assert.ok(fact.text.startsWith(VERIFICATION_COMPARISON_PREFIX));
+      assert.equal(event.event_by, builder.agent, 'the comparison belongs to the submitting seat');
+      return JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
+    });
+    assert.deepEqual(comparisons.map(row => [row.item, row.source, row.status]),
+      [[item, source, 'pending'], [item, source, 'complete']], 'each observational account names its exact submitted source');
+  }
+  const usage = recorded.filter(event => event.event_kind === 'usage');
+  assert.equal(usage.length, 3, 'only release and the two submissions checkpoint usage');
+  assert.ok(usage.every(event => event.event_by === builder.agent));
+  assert.equal(recorded.filter(event => event.event_kind === 'activity-delivered').length,
+    Number(firstSubmission.activity.digests.length > 0) + Number(secondSubmission.activity.digests.length > 0));
+  assert.deepEqual(watch.out.lines.map(({ line }) => JSON.parse(line)).filter(row => !row.notice)
+    .map(row => [row.sequence, row.kind, row.item, row.actor]),
+  recorded.map(event => [event.event_id, event.event_kind, event.item_id, event.event_by]),
+  'watch prints every actual event exactly once, in order, including placements and observations');
+  const acceptance = recorded.find(event => event.event_kind === 'accept');
+  assert.match(JSON.parse(acceptance.event_detail).note, /reused submit proof/u);
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [
-    [added.item_id, firstCommit], [added.item_id, firstCommit], [added.item_id, firstCommit],
+    [added.item_id, firstCommit], [added.item_id, firstCommit],
     [waiting.item_id, secondCommit], [waiting.item_id, secondCommit],
-  ], 'only the two submits and the executed accept check recorded native proofs');
+  ], 'only the two submits record native proofs; accept reuses its sealed submit proof');
   for (let index = 0; index < proofs.length; index++) {
     assert.equal(proofs[index].event_by, receipts[index].seat, 'each proof belongs to its executing seat');
     assert.equal(proofs[index].item_id, receipts[index].item, 'each proof belongs to its checked item');
