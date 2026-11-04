@@ -128,7 +128,10 @@ function submittedItem({ uncovered }) {
 
 test('a fully covered packet accepts in under 10 s with no checkout, test process or main merge, and landing still runs its gate [V4,C7]', { timeout: 240_000 }, () => {
   const { box, id, head, packet, marker, reviewer } = submittedItem({ uncovered: false });
+  assert.equal(packet.head, head, 'the packet belongs to the submitted head');
   assert.deepEqual(packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n), [], 'every clause cites a recorded run');
+  assert.ok(packet.clauses.every(clause => clause.runs.every(run => run.result === 'pass')),
+    'the fast path is available only for green evidence at the exact submitted head');
   const git = loggingGit(box);
   const path = box.env.PATH;
   box.env.PATH = `${git.bin}:${path}`;
