@@ -46,7 +46,7 @@ test('[B5,C7] a new item folder starts at the current main with an empty index a
 
   writeFileSync(join(box.repo, 'main-moved.txt'), 'main advanced after item creation\n');
   box.git(box.repo, 'add', 'main-moved.txt');
-  box.git(box.repo, 'commit', '-m', 'advance main before item claim');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main before item claim');
   const main = box.git(box.repo, 'rev-parse', 'main');
 
   const claimed = box.run(box.web, 'claim', String(id), '--json');
