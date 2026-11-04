@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { endThen, lockPath, releaseOwnSocket } from '../bin/resident-socket.js';
+import { endThen, flushesDue, lockPath, releaseOwnSocket } from '../bin/resident-socket.js';
 
 const ENTRY = resolve(import.meta.dirname, '..', 'bin', 'resident-board.js');
 const dir = mkdtempSync(join(tmpdir(), 'pb-res-'));
@@ -339,4 +339,15 @@ test('a resident that cannot record itself in the pid file gives up its socket i
   const unlock = lockPath(socket);
   assert.equal(typeof unlock, 'function', 'and the path lock is free');
   unlock();
+});
+
+test('a response queued after retirement, by a command that ran long, gets its own whole flush window [C7,H24]', () => {
+  const retiredAt = 1_000;
+  assert.equal(flushesDue([], retiredAt, retiredAt, 2_000), true, 'nothing pending exits at once');
+  assert.equal(flushesDue([{ at: 500 }], retiredAt, 2_999, 2_000), false, 'a response queued before retiring waits from the retirement');
+  assert.equal(flushesDue([{ at: 500 }], retiredAt, 3_000, 2_000), true);
+  // The running command finished 5 s after retirement: its response is not overdue just because the retirement is old.
+  assert.equal(flushesDue([{ at: 6_000 }], retiredAt, 6_001, 2_000), false);
+  assert.equal(flushesDue([{ at: 6_000 }], retiredAt, 8_000, 2_000), true);
+  assert.equal(flushesDue([{ at: 500 }, { at: 6_000 }], retiredAt, 7_000, 2_000), false, 'every pending response must be due');
 });

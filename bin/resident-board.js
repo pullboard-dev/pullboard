@@ -26,6 +26,7 @@ import {
 } from 'node:net';
 import {
   endThen,
+  flushesDue,
   lockPath,
   pathIdentity,
   processAlive,
@@ -64,8 +65,8 @@ let lastActive = clock();
 let retired = false;
 /** The identity of the socket file this process bound, so it never unlinks or serves a successor's socket. */
 let ownSocket = null;
-/** Client responses still being written; a retired process exits only when none are left. */
-let flushing = 0;
+/** When each client response still being written was queued; a retired process exits only when none are left. */
+const flushing = new Set();
 /**
  * How long a retired process waits for clients to read their last responses. Why a bound: a client that stops reading
  * would otherwise keep an orphan alive; the replaced check plus this stays within 5 s of a takeover.
@@ -132,7 +133,7 @@ function retire(reason) {
   if (retired) return;
   retired = true;
   retiredAt = Date.now();
-  setTimeout(exitWhenDone, FLUSH_MS);
+  setTimeout(exitWhenDone, FLUSH_MS + 1);
   trace(`retire:${reason}`, null);
   release();
   // Why no server.close(): Node unlinks a Unix socket's path when its server closes, whoever holds the path by then.
@@ -140,16 +141,24 @@ function retire(reason) {
   closeConnections();
 }
 
-/** Exit a retired process once its running commands have finished and their responses are written, or flushing is overdue. */
+/**
+ * Exit a retired process once its running commands have finished and each response is written or has had its own
+ * flush window, counted from when it was queued or the process retired, whichever is later.
+ */
 function exitWhenDone() {
-  if (retired && !inFlight.size && (!flushing || Date.now() - retiredAt >= FLUSH_MS)) process.exit(0);
+  if (!retired || inFlight.size) return;
+  const now = Date.now();
+  if (flushesDue(flushing, retiredAt, now, FLUSH_MS)) process.exit(0);
 }
 
 /** Send a client its last line, holding a retired process's exit until the line is written. */
 function finish(socket, value) {
-  flushing++;
+  const entry = { at: Date.now() };
+  flushing.add(entry);
   trace(`respond:${value.t}`, null);
-  endThen(socket, JSON.stringify(value) + '\n', () => { flushing--; exitWhenDone(); });
+  // A retired process checks again when this response's window ends, if its client is still not reading.
+  if (retired) setTimeout(exitWhenDone, FLUSH_MS + 1);
+  endThen(socket, JSON.stringify(value) + '\n', () => { flushing.delete(entry); exitWhenDone(); });
 }
 
 const { main, selectedToolEntry } = await import('../apps/cli/src/shell/cli-main.js');

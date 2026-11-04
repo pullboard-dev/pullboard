@@ -74,6 +74,20 @@ export function releaseOwnSocket(path, own, pidFile) {
 }
 
 /**
+ * Whether a retired process may exit with these responses still unwritten: each has had its own flush window, counted
+ * from when it was queued or the process retired, whichever is later. Why per response: a command that finishes long
+ * after retirement still gets the whole window for its client to read its output.
+ *
+ * @param {Iterable<{at: number}>} pending When each unwritten response was queued.
+ * @param {number} retiredAt
+ * @param {number} now
+ * @param {number} windowMs
+ */
+export function flushesDue(pending, retiredAt, now, windowMs) {
+  return [...pending].every(entry => now - Math.max(entry.at, retiredAt) >= windowMs);
+}
+
+/**
  * End a client connection with its last line and call onFlushed once that line is written or the client has gone,
  * so a retiring process never exits with a response still queued. onFlushed runs exactly once.
  *
