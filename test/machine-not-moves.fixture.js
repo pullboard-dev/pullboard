@@ -1,0 +1,22 @@
+/** Setup refusals the lifecycle audit reaches since the cells moves, each checked before any item move [M1,#2886]. */
+export const SETUP_REFUSALS = {
+  BAD_BUILD_ESTIMATE: 'command input parses positive expected minutes before any lifecycle move',
+  BOARD_SCHEMA_BEHIND: 'a physical read refuses an older schema before starting an item move',
+  BOARD_UNAVAILABLE: 'registered repository storage is unavailable before an item move can begin',
+  GIT_SYNC_FOLDER: 'board transport storage must be a directory before synchronization',
+  MILESTONES_CORRUPT: 'shared roadmap metadata is read before queue selection or health reporting',
+  SHIM_IMPORT_PARSER: 'compile-only parser composition is a tooling setup contract, not an item transition',
+  BAR_NOT_READY: 'bar readiness is checked by the review packet before a verdict move runs',
+  LAND_ENVIRONMENT: 'the landing host and candidate check executor are validated before landing, not by an item move',
+  LAND_GATE_OUTPUT: 'a timed gate whose output failed is a machine gate failure, not an item move',
+  LAND_TIMEOUT_CUSTODY: 'a timed gate worker must prove cleanup; this is machine gate custody, not an item move',
+  NO_SHOUT: 'looking up a shout that does not exist is a read, not an item move',
+  PIPEFAIL_UNAVAILABLE: 'the gate shell must support pipefail before the gate runs, a machine setup check',
+  SEAL_REVISION: 'seal Git reads are machine test-selection setup, before any move',
+  SEAL_STALE: 'a test plan that skips sealed packages is checked while selecting tests, before any move',
+  SEAL_STORE: 'seals need a Git repository, a machine setup check before test selection',
+  SUBMISSION_PROOF: 'the submission size and proof documents are validated when the gate records them, not by a verdict move',
+  RUNNER_SETUP: 'a runner that cannot start the gate command is machine setup, not an item move',
+  B26_PERSON_APPROVAL: 'person-only command authorization is checked before an item move',
+  URGENT_VALUE: 'fact urgency input is validated before any item move',
+};

@@ -14,6 +14,8 @@ export const MOVES = [
     verb: 'accept', from: ['submitted', 'verified'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
     guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonIsMet', 'trunkMergeClean', 'noUnverifiedStack', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'proofNoted'],
     alsoRefuses: [
+      { code: 'UNKNOWN_SPEC', rule: 'the reviewed criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
+      { code: 'AGENT_APPROVAL_REQUIRED', rule: 'cited rows satisfy the accepted person approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },
       { code: 'TEST_SELECTION_INCOMPLETE', rule: 'the supplied changed paths exactly match the committed Git diff', next: 'derive test selection from the complete committed diff' },
