@@ -985,7 +985,7 @@ export function requiredExecutorOf(value) {
  * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
-  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false } = options;
+  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; request name "gate"');
   if (!Number.isSafeInteger(capacity) || capacity < (name === 'gate' && scope === 'machine' ? 0 : 1)) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be positive; only the machine gate accepts 0 with a registered runner');
@@ -1094,7 +1094,9 @@ export async function takeResource(options) {
         const activeHolders = name === 'gate' ? state.holders.filter(holder => !holder.runner).length : state.holders.length;
         // Growing a pool never strands a holder, so a caller that allows growth may raise it while held (3 Nov: handoff workers grew from 4 to 10 with jobs running).
         const grows = allowCapacityGrowth && currentCapacity > row.capacity;
-        if (!grows && (!allowIdleCapacityUpdate || activeHolders || state.line.length)) {
+        // A pool whose target fell (fewer runners) may shrink: holders above it finish, new takes wait [C7,#2944].
+        const shrinks = allowCapacityShrink && currentCapacity < row.capacity;
+        if (!grows && !shrinks && (!allowIdleCapacityUpdate || activeHolders || state.line.length)) {
           throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
         }
         db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(currentCapacity, name);
