@@ -152,7 +152,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
       child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
     });
     process.stdin.resume();
-  } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
+  } else process.stdin.pipe(child.stdin); // Health and registration probes carry their capsule on stdin too.` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);
