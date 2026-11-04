@@ -66,7 +66,9 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   const known = [], own = [...absent];
   for (const failure of present) {
     const row = result.files.find(entry => entry.file === failure.file);
-    (row.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
+    // Red on base with no named cases cannot be told apart from the batch's own red, so the batch holds [C7,#2945].
+    if (row.result === 'red' && !(row.failures ?? []).length) return null;
+    (row.result === 'red' && row.failures.some(main => main.name === failure.name) ? known : own).push(failure);
   }
   return { known, own };
 }
