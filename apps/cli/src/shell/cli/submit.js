@@ -71,6 +71,34 @@ export function refuseUnverifiedStack(root, board, item, commit, trunk) {
   }
 }
 
+/**
+ * Refuse a head whose new commits since main all belong to another item, so a branch is never gated as the wrong item [V1].
+ *
+ * Why: #2512 was once submitted from #2344's worktree and #2344's branch was gated as #2512. Commits with no
+ * trailer, and branches with no trailers at all, stay allowed; only another item's trailer with none of this item's refuses.
+ *
+ * @param {string} root
+ * @param {any} item - The item being submitted.
+ * @param {string} commit - The head being submitted.
+ * @param {{ commit: string } | null} trunk - Current accepted main.
+ * @returns {void}
+ */
+export function refuseWrongBranch(root, item, commit, trunk) {
+  if (!trunk?.commit) return;
+  const log = tryGit(root, ['log', '--first-parent', '--no-merges', '--format=%(trailers:key=Pullboard-Item,valueonly,separator=%x2C)%x01', `${trunk.commit}..${commit}`]);
+  if (log.status !== 0) return;
+  const named = new Set(log.stdout.split('\x01').flatMap((entry) => entry.split(',')).map((value) => Number(value.trim().replace(/^#/u, ''))).filter((value) => Number.isSafeInteger(value) && value > 0));
+  if (!named.size || named.has(item.item_id)) return;
+  const other = [...named].sort((a, b) => a - b)[0];
+  throw new Refused('WRONG_BRANCH', `this head's new commits belong to item #${other}, not #${item.item_id}; submit #${other} from here, or switch to the branch built for #${item.item_id}`);
+}
+
+/** Run every stack refusal a submit owes: another item's unverified commits, then a head built for another item [V1]. */
+export function refuseUnsubmittableStack(root, board, item, commit, trunk) {
+  refuseWrongBranch(root, item, commit, trunk);
+  refuseUnverifiedStack(root, board, item, commit, trunk);
+}
+
 /** Report and pin the original submitted commit, including a recovered acknowledged outcome. */
 export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   const { root } = ctx.info;
