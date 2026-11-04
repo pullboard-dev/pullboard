@@ -11,6 +11,8 @@ import { getItem } from "./board-query.js";
 import { listItems } from "./board-query.js";
 import { requireKnownMainReworks } from '../core/known-main-reworks.js';
 import { submissionProof } from '../../../state/index.js';
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../../src/known-main-owner-pattern-engine.js';
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../src/known-main-running-file-engine.js';
 import { itemHold } from "./board-query.js";
 import { recordVerdict } from "../../../verify/index.js";
 import { atomic } from "./board-event-log.js";
@@ -80,7 +82,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       if (!isAccept || !review || knownMainFailures.main !== review.trunk) throw new Refused('SUBMISSION_PROOF', 'known main failures must match the accepting review trunk');
       const proof = submissionProof({ version: 1, files: [], full: false, deferred: false, reason: '', knownMainFailures }, engine);
       proofKnown = proof.knownMainFailures;
-      requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id);
+      requireKnownMainReworks(proofKnown, listItems(board, { all: true }), id,
+        engine >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE);
     }
     if (quarantineProofId !== undefined) {
       if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
