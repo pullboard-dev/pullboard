@@ -18,9 +18,11 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { leaseTokenDigest } from './controller-disposition.js';
+import { openPoolReadOnly } from './pool-lock.js';
+import { recoveryIdentity } from './resource-recovery.js';
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
-export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable }, sourceRoot) {
+export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable, rebindController }, sourceRoot) {
   let file, started, deadline, problem;
   let registered;
   const holderStarted = processStarted(parentPid);
@@ -83,6 +85,16 @@ export function createControllerCustody(owner, parentPid, { processStarted, mach
     },
     /** Read this exact registration's unavailable generation without releasing or certifying remote cleanup. */
     unavailable() { return registered ? observeUnavailable(owner, parentPid, registered) : null; },
+    /**
+     * Name the remote job this lease runs, by its exact recovery identity. Why: if this controller dies,
+     * the orphan sweep can then prove that one job's cleanup on the runner, instead of waiting for the
+     * whole runner to go idle (#2513).
+     */
+    job(recovery) {
+      if (!registered || registered.recovery || !recoveryIdentity(recovery) || typeof rebindController !== 'function') return;
+      const next = { ...registered, recovery };
+      if (rebindController(owner, parentPid, registered, next)) registered = next;
+    },
     close,
   };
 }
@@ -144,7 +156,8 @@ export function orphanedControllerLeases(db, { sameProcess }) {
   return registeredControllers(db).flatMap(({ holder, record }) => {
     if (!holder.runner) return [];
     const cause = orphanReason(record, holder, sameProcess);
-    return cause ? [{ ...holder, controllerPid: record.controllerPid, controllerStarted: record.started, cause }] : [];
+    return cause ? [{ ...holder, controllerPid: record.controllerPid, controllerStarted: record.started, cause,
+      ...(recoveryIdentity(record.recovery) ? { recovery: record.recovery } : {}) }] : [];
   });
 }
 
@@ -152,9 +165,9 @@ export function orphanedControllerLeases(db, { sameProcess }) {
 export function controllerLeaseHealth(now, { processStarted, machineHome, sameProcess }) {
   const expectedPool = join(machineHome(), 'resources.sqlite');
   if (!existsSync(expectedPool)) return [];
-  const pool = realpathSync(expectedPool), db = new DatabaseSync(pool, { readOnly: true });
+  const pool = realpathSync(expectedPool), db = openPoolReadOnly(pool);
   try {
-    const rows = orphanedControllerLeases(db, { sameProcess }).map(({ token: _token, controller_identity: _identity, cause, ...holder }) => ({ ...holder, problem: cause }));
+    const rows = orphanedControllerLeases(db, { sameProcess }).map(({ token: _token, controller_identity: _identity, recovery: _recovery, cause, ...holder }) => ({ ...holder, problem: cause }));
     const orphanPids = new Set(rows.map(row => row.controllerPid));
     for (const record of custodyRecords(pool, machineHome)) {
       const holder = db.prepare('SELECT pid,started,agent,repo,item,kind,runner FROM holder WHERE token=?').get(record.token);
@@ -178,7 +191,8 @@ export function pruneControllerOrphans(db, { sameProcess, recordRunnerFailure })
     const diagnostic = { reason: 'controller-orphan', phase: 'cleanup', cause: row.cause,
       leaseDigest: leaseTokenDigest(row.token), holderPid: row.pid, holderStarted: row.started,
       controllerPid: row.controllerPid, controllerStarted: row.controllerStarted, item: row.item, source: row.repo,
-      remoteCleanup: 'unknown' };
+      // The exact job lets recovery prove this one cleanup on a busy runner; the runner loses only this slot meanwhile.
+      remoteCleanup: 'unknown', ...(row.recovery ? { recovery: row.recovery } : {}) };
     recordRunnerFailure(db, row.runner, 'cleanup-unverified', diagnostic);
     db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), row.runner,
       new Date().toISOString(), 'cleanup', JSON.stringify(diagnostic));
@@ -194,12 +208,13 @@ export function controllerRegistrationPorts({ pool, open, update, processStarted
       if (owner.pool !== pool() || identity.controllerPid !== process.pid
         || identity.started !== processStarted(process.pid)
         || parentPid !== process.pid && parentPid !== process.ppid) return null;
-      const db = new DatabaseSync(owner.pool, { readOnly: true });
+      const db = openPoolReadOnly(owner.pool);
       try {
         const holder = db.prepare('SELECT pid,started,runner,controller_identity FROM holder WHERE token=?').get(owner.token);
         if (!holder || holder.pid !== parentPid || holder.started !== identity.holderStarted
           || holder.controller_identity !== JSON.stringify(identity)) return null;
-        const row = db.prepare('SELECT since,detail FROM runner_unavailable WHERE host=?').get(holder.runner);
+        // Another job's unverified cleanup costs that job's slot only; it never stops this one (#2513).
+        const row = db.prepare("SELECT since,detail FROM runner_unavailable WHERE host=? AND detail <> 'CLEANUP_UNVERIFIED'").get(holder.runner);
         return row ? { host: holder.runner, since: row.since, reason: row.detail } : null;
       } finally { db.close(); }
     },
@@ -218,6 +233,14 @@ export function controllerRegistrationPorts({ pool, open, update, processStarted
           if (holder.controller_identity) throw new Refused('RESOURCE_LEASE_LOST', 'runner controller lease already has a bound controller');
           db.prepare('UPDATE holder SET controller_identity=? WHERE token=?').run(JSON.stringify(identity), owner.token);
         });
+      } finally { db.close(); }
+    },
+    /** Replace this exact registration with one that names its remote job; any other holder state refuses quietly. */
+    rebindController(owner, parentPid, identity, next) {
+      const db = open(pool(), true);
+      try {
+        return update(db, () => db.prepare('UPDATE holder SET controller_identity=? WHERE token=? AND pid=? AND controller_identity=?')
+          .run(JSON.stringify(next), owner.token, parentPid, JSON.stringify(identity)).changes > 0);
       } finally { db.close(); }
     },
     /** Clear only this registration, before a normal controller exit can look like an orphan. */

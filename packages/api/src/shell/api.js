@@ -12,6 +12,7 @@ import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
 import { proofStats } from '../../../stats/index.js';
+import { isProofAgent } from '../../../stats/index.js';
 import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
@@ -149,7 +150,7 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard, workQueue } })
+        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
         : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })
       : null };
   }, isMain, boardOpeners);
@@ -982,7 +983,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
       statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
-    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history), {
+    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
       inputs: before.inputs,
       itemMeta: built.itemMeta,
       itemMoveCounts: built.itemMoveCounts,

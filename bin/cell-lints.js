@@ -14,6 +14,9 @@ import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
+import { strayNextStep } from '../packages/codemap/index.js';
+import { mainCommit } from '../packages/codemap/index.js';
+import { mainCellLintReport } from '../packages/codemap/index.js';
 import { lowerCellLintBaseline } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
@@ -33,20 +36,25 @@ withCellLintParser(compile => {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
     writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
-  } else {
+  } else if (mode === '--update') {
     if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
     const baseline = readCellLintBaseline(root);
-    if (mode === '--update') {
-      lowerCellLintBaseline(report, baseline);
-      const sharded = cellLintCells(root).length > 0;
-      const plan = sharded ? { baseline: cellLintBaseline(report), report } : planCellLintBaseline(report, storedCellLintFiles(root));
-      lowerCellLintBaseline(plan.report, baseline);
-      writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
-    }
-    else process.exitCode = cachedCellsRun(root, ['cell-lints', mode], () => {
-      const problems = cellLintGrowth(build(), baseline);
-      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
+    lowerCellLintBaseline(report, baseline);
+    const sharded = cellLintCells(root).length > 0;
+    const plan = sharded ? { baseline: cellLintBaseline(report), report } : planCellLintBaseline(report, storedCellLintFiles(root));
+    lowerCellLintBaseline(plan.report, baseline);
+    writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
+  } else {
+    // --check counts current main and this checkout now; no committed baseline must match either [C7].
+    const main = mainCommit(root);
+    process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
+      const current = build(), base = mainCellLintReport(root, parsers, main);
+      if (!base) { console.error('no main branch to compare with; nothing can rise'); return 0; }
+      // Advisory transition authority comes only from main, as in the submit check.
+      current.transition = base.report.transition;
+      const problems = cellLintGrowth(current, base.baseline);
+      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
       return problems.some(row => !row.advisory) ? 1 : 0;
-    }, { code: [fileURLToPath(import.meta.url)] });
+    }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../packages/codemap/src/shell/main-cell-lints.js', import.meta.url))] });
   }
 });

@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { settleReceipt } from '../packages/gate/index.js';
 import { startReceipt } from '../packages/gate/index.js';
-import { sourcePreparationFields } from '../src/runner-overhead.js';
+import { sourcePreparationFields } from '../packages/runners/index.js';
 import { writeTimingProfile } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServices } from './gate-execution-fixture.js';
@@ -46,7 +46,7 @@ test('sync and async admitted runner profiles retain the actual worker source ph
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1,
     browserSlots: 0, runners: [{ host: HOST, slots: 1, browser: 0 }],
     gate: { runnersOnly: true, memoryFloorMB: 0 } }));
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '..'), box.env), 'src/gate.js')).href;
+  const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '..'), box.env), 'packages/gate/index.js')).href;
   const command = `node -e "console.log('SOURCE_PREPARATION_CAPTURED')"`;
   for (const mode of ['sync', 'async']) {
     const driver = `import {readFileSync} from 'node:fs';

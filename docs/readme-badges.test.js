@@ -43,7 +43,7 @@ test('landing rewrites stale tracked board badge counts inside the containing me
   assert.equal(box.run(box.repo, 'join', 'coordinator', '--model', 'Badge fixture', '--parent', 'readme-badge-reviewer').code, 0);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, JSON.stringify({ ...config, landing: { publish: 'separate' } }, null, 2));
+  writeFileSync(configPath, JSON.stringify({ ...config, landing: { publish: 'separate', manualOverride: true } }, null, 2));
   mkdirSync(join(box.repo, 'docs/badges'), { recursive: true });
   const stale = [
     ['items', { schemaVersion: 1, label: 'pullboard', message: '99 items', color: '2f7d5b' }],

@@ -1,5 +1,4 @@
 /** Read a recipient's interrupt obligations without consuming a message or writing an acknowledgement [R2,N26,H16]. */
-import { agentActivity } from '../../../../src/board-query.js';
 import { activityEventDetail } from '../../../../src/board-activity-feed.js';
 import { classifyActivityDelivery } from './activity-delivery.js';
 import {
@@ -13,8 +12,16 @@ function rejectionEntry(event, agentId) {
     kind: 'reject', item: event.item_id, recipient: agentId, text: `#${event.item_id} was rejected` };
 }
 
-/** Read old and new complete state in one SQLite snapshot, including immutable answer and rejection recipients. */
-export function readActivityDelivery(board, agentId, options = {}) {
+/**
+ * Read old and new complete state in one SQLite snapshot, including immutable answer and rejection recipients.
+ * Why: the activity projection reads the store's shell, so the shell hands it in as `agentActivity` [C7].
+ *
+ * @param {(board: any, agentId: string, options: any) => any} agentActivity
+ * @param {any} board
+ * @param {string} agentId
+ * @param {any} [options]
+ */
+export function readActivityDeliveryWith(agentActivity, board, agentId, options = {}) {
   board.db.exec('SAVEPOINT activity_delivery_read');
   try {
     const state = activityDeliveryState(board, agentId);

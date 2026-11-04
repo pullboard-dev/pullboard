@@ -1,3 +1,5 @@
+import { requireLandingCompanions } from './landing-composition-guards.js';
+import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { quarantineBatchGates } from '../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -57,10 +59,13 @@ export function requirePushTarget(root, branch) {
 /** Recheck immutable publication inputs after the last awaited canonical operation. */
 function publicationInputs(state, batch) {
   requireLandingCarries(state, batch);
+  requireLandingCompanions(batch.root, state.board, batch.items, batch.tip);
   state.landingPorts.validateQuarantineLandingProof(state.board, batch);
   for (const entry of batch.items) {
     const item = store.getItem(state.board, entry.id);
     requireOutsideOwner(state.board, item);
+    // A hold placed after the batch merged still stops it here, before any receipt or trunk move [C7].
+    if (item.item_hold_at) throw new Refused('ITEM_HELD', `item #${entry.id} is held by coordinator: ${item.item_hold_reason ?? 'held'}; lift it with pullboard hold ${entry.id} --off, then land again`);
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit
       || store.checkedLandingCommit(state.board, item) !== (entry.reviewedCommit ?? entry.commit)) {
       throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed its checked composition; rebuild the landing before publishing`);
@@ -90,16 +95,29 @@ function parallelPublicationRoot(state, batch) {
   if (headCommit(root) !== batch.tip) git(root, ['checkout', '--detach', batch.tip]);
   const computed = quarantineBatchGates(batch).find(gate => gate.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath && gate.blockingVerdict?.green === true);
   if (computed) state.landingPorts.validateQuarantineGate(state.board, computed);
-  if (!(batch.proof.failures ?? []).length && !computed && !isStampedGreen(root)) {
+  if (!(batch.proof.failures ?? []).length && !batch.proof.knownMain?.length && !computed && !isStampedGreen(root)) {
     throw new Refused('LAND_MOVED', 'the gate-owning worktree lost its native green stamp; inspect the recorded gate before adopting');
   }
   return root;
+}
+
+/** Bind the native count to the batch before any trunk or remote publication. */
+export async function prepareFlakeLanding(state) {
+  const result = state.landingPorts.landingFlakeRatchet(state.board);
+  if (!result.allowed) {
+    const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
+      .map(row => `${row.file} :: ${row.name}`);
+    throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
+      'quarantine each newly observed flake with a filed repair item before landing');
+  }
+  return save(state, { flakeRatchet: result.snapshot });
 }
 
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
+  await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
   if (batch.proof?.failures?.length && batch.state !== 'pushed') {
@@ -109,6 +127,7 @@ export async function publish(state) {
   }
   if (batch.state !== 'pushed') {
     await state.checkLease();
+    batch = await prepareFlakeLanding(state);
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
@@ -151,6 +170,7 @@ function requireLandingCarries(state, batch) {
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await state.checkLease();
+  await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])

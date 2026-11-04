@@ -3,3 +3,6 @@ export * from './src/shell/resources.js';
 export * from './src/shell/machine-home.js';
 export * from './src/shell/resource-recovery.js';
 export * from './src/shell/runner-wait-reasons.js';
+export * from './src/shell/pool-lock.js';
+
+export { HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, handoffQueueDirectory, handoffWorkerCapacity, queueHandoffLaunch, reserveHandoffTicket, withHandoffQueueOrder } from './src/shell/handoff-worker-cap.js';

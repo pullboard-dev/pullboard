@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/gate.js src/trusted-policy-read.js */
+/** @pullboard-test-loads packages/gate/index.js src/trusted-policy-read.js */
 /** Real detached fake-SSH jobs carry admitted policy into nested shards [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -16,9 +16,9 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
-import { runnerPolicyRecord } from '../src/runner-policy.js';
-import { RUNNER_POLICY_FILE } from '../src/runner-policy.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { runnerPolicyRecord } from '../packages/runners/index.js';
+import { RUNNER_POLICY_FILE } from '../packages/runners/index.js';
 import { gitPath } from '../src/git.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';

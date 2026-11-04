@@ -6,7 +6,7 @@ import * as store from '../src/board.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { ITEM_NOTES_ENGINE } from '../src/item-notes-engine.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Seed identical private replicas without a background writer or already-active future receipt. */

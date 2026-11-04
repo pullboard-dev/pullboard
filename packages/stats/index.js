@@ -90,6 +90,11 @@ export {
   checkpointAfterMove,
 } from './src/shell/cost-checkpoint.js';
 export {
+  USAGE_CHECKPOINT_ENV,
+  drainUsageCheckpoints,
+  usageDueDirectory,
+} from './src/shell/cost-due.js';
+export {
   usageCheckpoint,
 } from './src/shell/cost-ledger.js';
 export {
@@ -161,3 +166,4 @@ export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMil
 
 export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
 export { buildCalibration } from './src/core/build-calibration.js';
+export { isProofAgent, proofAgentIds } from './src/shell/stats.js';

@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 /** Own both private trees and exercise the public manifest-validated copier. */
 function fixture(t, files) {

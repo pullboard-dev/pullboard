@@ -1,17 +1,17 @@
-import { withBoardRead } from '../src/cli-context.js';
-import { retrySync } from '../src/cli-sync.js';
+import { withBoardRead } from '../apps/cli/index.js';
+import { retrySync } from '../apps/cli/index.js';
 /** Submission verdict delivery and deterministic rejected-work return [V2,V4,B5,B13,A6]. */
 import { dispatchHealth } from '../packages/sentinels/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import * as nativeBoard from '../src/native-board.js';
-import { openBoard } from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
+import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
-import { context } from '../src/cli-read-context.js';
+import { context } from '../apps/cli/index.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';

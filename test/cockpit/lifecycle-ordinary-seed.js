@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
-import { context } from '../../src/cli-read-context.js';
+import { openBoard } from '../../apps/lib/index.js';
+import { cliReadContext$context as context } from '../../apps/cli/index.js';
 import { freezer } from '../../src/cli.js';
 import { build } from './fixture.js';
 

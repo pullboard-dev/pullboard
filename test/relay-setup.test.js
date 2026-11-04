@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as setup from '../src/relay-setup.js';
+import { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation } from '../packages/link/index.js';
+const setup = { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation };
 import { relayClientFixture } from './relay-client-fixture.js';
 import { createDeviceKeys, signDeviceEnrollment } from '../packages/keys/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
@@ -14,16 +15,17 @@ import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/c
 
 /** Run the public view adapter in a process whose complete home, registry and boards are private. */
 async function viewScenario(box, mode) {
-  const setupModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay-setup.js')).href;
-  const relayModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
+  const setupModule = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
+  const relayModule = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const fixtureModule = pathToFileURL(resolve(import.meta.dirname, 'fixture-child.js')).href;
-  const machineModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay-machine.js')).href;
+  const machineModule = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
   return box.script(`
 import assert from 'node:assert/strict';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import * as setup from ${JSON.stringify(setupModule)};
+import { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation } from ${JSON.stringify(setupModule)};
+const setup = { startViewSignIn, viewSignInStatus, cancelViewSignIn, viewSignInPairingNavigation };
 import { apiBoardOpeners as relayPorts } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
 import { relayLinkAvailability } from ${JSON.stringify(relayModule)};
 import { main } from ${JSON.stringify(cliModule)};
@@ -281,7 +283,7 @@ async function phoneAndJoinedComputer(t) {
 /** Run relay devices on the linked computer and keep its text lines and its board name. */
 async function devicesText(box, args) {
   const cliModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href);
-  const projectsModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/projects.js')).href);
+  const projectsModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href);
   const result = await box.script(`
 import { main } from ${cliModule};
 import { listApiProjects } from ${projectsModule};
@@ -421,14 +423,14 @@ process.stdout.write(JSON.stringify({ code, lines: output.split('\\n') }));
 test('the approval wait names the phone in local time once [H17]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const module = name => JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/' + name)).href);
+  const linkModule = JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href);
   const fixtureModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, 'fixture-child.js')).href);
   const result = await box.script(`
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { main } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
-import { readRelayMachine, updateRelayMachine } from ${module('relay-machine.js')};
+import { readRelayMachine, updateRelayMachine } from ${linkModule};
 import { runFixtureGit } from ${fixtureModule};
 process.env.TZ = 'America/Chicago';
 const root = ${JSON.stringify(box.root)};
@@ -579,7 +581,7 @@ function relayOffWorktree(t, { stale }) {
     rmSync(join(gone, '.git'), { recursive: true, force: true });
   }
   // Set up once, then the relay is off: auto-link stays on for the owner, and no board on this machine is linked.
-  const machine = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/relay-machine.js')).href);
+  const machine = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href);
   const saved = runFixtureChild(process.execPath, ['--input-type=module', '-e',
     `import { updateRelayMachine } from ${machine}; updateRelayMachine(state => { state.autoLink = true; state.owner = { account: 'fixture-account', url: 'http://127.0.0.1:9' }; });`],
   { cwd: root, env, encoding: 'utf8' });

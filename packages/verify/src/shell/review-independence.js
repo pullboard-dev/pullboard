@@ -13,6 +13,7 @@ import { saveReviewFamily } from '../core/required-review-family.js';
 import { validateReviewFamily } from '../core/required-review-family.js';
 import { Refused } from '../../../kernel/index.js';
 import { familyName } from '../core/review-policy.js';
+import { builderFamilyOf } from './review-routing.js';
 import { sameFamilyProblem } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
 import { familiesDiffer } from '../core/review-policy.js';
@@ -92,7 +93,7 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   const policy = itemReviewPolicy(board, item.item_id);
   const declared = seatFamily(board, reviewer);
   const family = familyName(declared, familyAliasesOf(board));
-  const builder = familyName(item.item_builder_family, familyAliasesOf(board));
+  const builder = familyName(builderFamilyOf(board, item), familyAliasesOf(board));
   const join = (board.executionEngineVersion ?? ENGINE_VERSION) >= VENDOR_FAMILY_ENGINE ? 'pullboard join --family <vendor>' : undefined;
   if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
     return new Refused('O2_FAMILY_MATCH', join
@@ -101,7 +102,7 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   }
   // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
   const fallback = compositionFamilyFallback(board, item);
-  if (familyPolicy === 'require' && !(fallback ? family && family !== fallback.family : familiesDiffer(board, declared, item.item_builder_family))) {
+  if (familyPolicy === 'require' && !(fallback ? family && family !== fallback.family : familiesDiffer(board, declared, builderFamilyOf(board, item)))) {
     const message = `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one${join && (!family || !builder) ? `; declare missing families with ${join}` : ''}`;
     return family && (fallback?.family ?? builder) && family === (fallback?.family ?? builder)
       ? sameFamilyProblem(board, message) : new Refused('O2_FAMILY_MATCH', message, !family || !builder ? join : undefined);

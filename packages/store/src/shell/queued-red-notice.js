@@ -1,0 +1,49 @@
+/** A red queued gate leads its builder's next, inbox and claim with the exact refusal [V4,H16,N2]. */
+import { submitHandoffFailure } from './submit-handoff-read.js';
+
+/**
+ * The seat's own claimed items whose queued gate went red, each with its retained refusal.
+ * Why: the cause sat unread in refusal.json while builders saw only a generic release note (#2454).
+ *
+ * @param {any} board
+ * @param {string} seat
+ * @returns {{ id: number, title: string, leaseUntil: string, error: { code: string, message: string, next: string } }[]}
+ */
+export function queuedReds(board, seat) {
+  return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner=? ORDER BY item_id").all(seat)
+    .map(item => ({ item, error: submitHandoffFailure(board, item) }))
+    .filter(row => row.error)
+    .map(({ item, error }) => ({ id: item.item_id, title: item.item_title, leaseUntil: item.item_lease_until, error }));
+}
+
+/**
+ * The lines that put each red first: code, full message and next step, then how to resume.
+ *
+ * @param {ReturnType<typeof queuedReds>} reds
+ * @returns {string[]}
+ */
+export function queuedRedLines(reds) {
+  return reds.flatMap(red => [
+    `red queued gate on #${red.id} ${red.title}: ${red.error.code}: ${red.error.message}`,
+    `next: ${red.error.next}`,
+    `#${red.id} stays claimed by you until ${red.leaseUntil}; fix it, commit, then pullboard submit ${red.id}`,
+  ]);
+}
+
+/**
+ * Print this seat's reds before anything else a command says; a seat that cannot be read prints nothing.
+ * Why: a missing seat is the command's own refusal to make, never this notice's.
+ *
+ * @param {any} io
+ * @param {any} board
+ * @param {(() => { id: string }) } seat
+ * @returns {number} how many reds were printed
+ */
+export function sayQueuedReds(io, board, seat) {
+  let me;
+  try { me = seat(); }
+  catch { return 0; }
+  const reds = queuedReds(board, me.id);
+  for (const line of queuedRedLines(reds)) io.say(line);
+  return reds.length;
+}

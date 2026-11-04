@@ -19,11 +19,11 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { json } from './land-board-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../packages/landing/index.js';
 import { withRecordedConflictContext } from '../packages/state/index.js';
-import reopenMove from '../src/moves/reopen.js';
+import { reopen as reopenMove } from '../packages/moves/index.js';
 import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 

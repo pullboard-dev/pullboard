@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { freezer } from '../src/cli.js';
+import { freezer } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 

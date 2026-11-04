@@ -1,3 +1,7 @@
+import { legacyFlakeObservations } from '../core/flake-ratchet.js';
+import { flakeRatchet } from '../core/flake-ratchet.js';
+import { pairedFlakeObservations } from '../core/flake-ratchet.js';
+import { quarantinesAt } from '../core/flake-ratchet.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../store/index.js";
 import { nativeProofBlockingGreen } from "../../../verify/index.js";
@@ -74,6 +78,61 @@ export function flakeQuarantines(board) {
     return { ...entry, ...(entry.nativeCore ? { cleanRuns: clean?.count ?? 0 } : {}),
       status: lifted ? 'lifted' : 'quarantined', since: Math.max(entry.eventId, closing ?? 0, clean?.releasedAt ?? 0) };
   });
+}
+
+/**
+ * Capture the current ratchet against the last landed batch from one consistent read snapshot [C7].
+ *
+ * Why: the capture reads runs, the ledger and quarantines in several queries. Outside a transaction a
+ * concurrent write could land between them, and refusing on that left a busy board unable to land at
+ * all. One read transaction pins every query to the same snapshot, so other writers never disturb it;
+ * a caller already inside a transaction has pinned it for us.
+ */
+export function landingFlakeRatchet(board, ports = {}) {
+  let own = false;
+  try { board.db.exec('BEGIN'); own = true; } catch { /* The caller's open transaction already holds one snapshot. */ }
+  try {
+    const result = captureFlakeRatchet(board, ports);
+    if (own) board.db.exec('COMMIT');
+    own = false;
+    return result;
+  } finally {
+    if (own) board.db.exec('ROLLBACK');
+  }
+}
+
+/** Compute the ratchet from the board as one snapshot shows it, reconstructing the last batch's boundary once. */
+function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
+  const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
+  const row = board.db.prepare(`SELECT event_id, event_kind, event_detail FROM event WHERE json_valid(event_detail) AND
+    (event_kind='landing_batch' AND json_extract(event_detail, '$.batch.state')='landed'
+      OR event_kind='merged' AND json_type(event_detail, '$.flakeRatchet')='object') ORDER BY event_id DESC LIMIT 1`).get();
+  const runs = readRuns(board).filter(run => run.eventId <= eventId);
+  let previous = null;
+  if (row) {
+    const detail = JSON.parse(row.event_detail);
+    previous = (row.event_kind === 'merged' ? detail.flakeRatchet : detail.batch.flakeRatchet) ?? null;
+    if (!previous) {
+      const events = board.db.prepare(`SELECT event_id, event_kind, item_id, event_detail FROM event
+        WHERE event_id<=? AND event_kind IN ('test-quarantine','accept','reject','reopen','claim','submit','withdraw','merged') ORDER BY event_id`).all(row.event_id);
+      const active = quarantinesAt(events, runs, { throughEvent: row.event_id,
+        quarantineCoreEngine: QUARANTINE_CORE_ENGINE, autoSubmitEngine: AUTO_SUBMIT_QUARANTINE_ENGINE }).filter(entry => entry.status === 'quarantined');
+      previous = { version: 1, eventId: row.event_id, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
+    }
+  }
+  const quarantines = readQuarantines(board);
+  const latest = new Map(quarantines.map(row => [testKey(row.file, row.name), row]));
+  const ledger = readLedger(board);
+  const repaired = new Map(ledger.filter(row => row.status === 'fixed' && row.item != null).map(row => [testKey(row.file, row.name),
+    board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind='merged' AND item_id=?").get(row.item).id]));
+  const pairs = [...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }),
+    ...legacyFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })].filter(row => {
+    const quarantine = latest.get(testKey(row.file, row.name));
+    return !(repaired.get(testKey(row.file, row.name)) > row.lastEventId)
+      && (quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId));
+  });
+  const observations = [...ledger, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  return flakeRatchet({ previous, eventId, observations, quarantines });
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */
