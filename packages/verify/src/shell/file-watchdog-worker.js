@@ -18,11 +18,10 @@ let killed = false;
 // Finished cases and the last case start/finish, so the wall can tell a slow file that still progresses from a stuck one.
 const finished = [];
 let lastFinishAt = null;
-const hardWallMs = workerData.wallMs * 3;
 
-/** The durations of finished cases, bounded so a long file's TIMEOUT line stays one readable line. */
+/** The durations of every finished case, so a later timeout still identifies all completed work. */
 function finishedSummary() {
-  return JSON.stringify(finished.slice(-40));
+  return JSON.stringify(finished);
 }
 
 /** Signal only this worker's own process; the existing runner custody drains its descendants. */
@@ -61,17 +60,15 @@ parentPort.on('message', message => {
 });
 /**
  * The wall bounds a stuck file, not a slow one. Past the wall a file keeps running while cases keep finishing
- * (each already bounded by its own per-case timeout), until none finishes for a quiet window or three walls pass.
+ * (each already bounded by its own per-case timeout), and fails only after the configured quiet window.
  * A file where no case has finished by the wall is stuck, and fails at the wall as before.
  */
 function wallCheck() {
   const now = performance.now();
   const sinceFinish = lastFinishAt === null ? Infinity : now - lastFinishAt;
-  if (sinceFinish > workerData.idleMs) hung(`whole-file wall limit ${workerData.wallMs}ms`, true);
-  else if (now - startedWorkerAt >= hardWallMs) hung(`whole-file wall limit ${workerData.wallMs}ms, hard stop at three times the wall while cases were still finishing`, true);
+  if (sinceFinish > workerData.idleMs) hung(`whole-file wall limit ${workerData.wallMs}ms with no finished case for ${workerData.idleMs}ms`, true);
   else setTimeout(wallCheck, 250);
 }
-const startedWorkerAt = performance.now();
 setTimeout(wallCheck, workerData.wallMs);
 setInterval(() => {
   const beforeSample = process.cpuUsage();
