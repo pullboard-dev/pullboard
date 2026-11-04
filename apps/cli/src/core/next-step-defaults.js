@@ -300,7 +300,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "MISSING_SIGNERS": "restore the signer list from git: git checkout HEAD -- .pullboard/signers",
   "MODEL_REQUIRED": "pass --model \"<model name>\", or set PULLBOARD_MODEL in this shell",
   "BAR_COVERAGE": "record whole-file duration evidence, the named-check duration and any install duration in a coverage JSON file, then run pullboard bar sign <id> --coverage-file <path> --note \"...\"",
-  "NOTHING_FREE": "wait for work: pullboard next --wait 9 (minutes)",
+  "NOTHING_FREE": "run pullboard next --take again when new work lands",
   "NOT_COMMITTED": "commit the files the message names, then run the command again",
   "NO_TEST_FILE": "name each test file by its path from the checkout root, then run pullboard test again",
   "NO_TEST_RUNNER": "set affectedTests in pullboard.json to the command that runs named test files, then run pullboard test again",
