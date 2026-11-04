@@ -43,7 +43,10 @@ test('only explicit relay commands open outbound connections; the view defaults 
     (file === 'src/person-signing-cli.js' && line.trim() === "const response = await fetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });") ||
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
     (file === 'packages/link/src/shell/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
-    (['apps/view/src/shell/serve.js', 'src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    (['apps/view/src/shell/serve.js', 'src/serve.js', 'src/api.js', 'packages/api/src/shell/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    // The resident board serves commands over a Unix-domain socket in the machine folder, never a network address.
+    (file === 'bin/resident-board.js' && line.trim() === "} from 'node:net';") ||
+    (file === 'bin/resident-client.js' && line.trim() === "import { connect } from 'node:net';") ||
     (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (['apps/view/src/shell/serve.js', 'src/serve.js'].includes(file) && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
     (['apps/view/src/shell/view-session.js'].includes(file) && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
