@@ -34,7 +34,7 @@ async function run(box, cwd, args) {
 /** Create an isolated real repo, two joined builders, a reviewer and source-backed claim policy. */
 async function project(t, ratio = 3) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-review-cli-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root); mkdirSync(bin);

@@ -19,7 +19,7 @@ function acceptedProject({ separate = false } = {}) {
   const box = landProject();
   if (separate) {
     const path = join(box.repo, 'pullboard.json');
-    writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+    writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
     box.git(box.repo, 'add', 'pullboard.json');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   }
