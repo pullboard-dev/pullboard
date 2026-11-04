@@ -110,7 +110,7 @@ test('actual CLI help and API catalog work through a named cell command front do
   const help = run('help', 'version', '--json');
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /version/u);
-  const script = "import {JSON_SHAPES} from './src/json.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
+  const script = "import {JSON_SHAPES} from './packages/config/index.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
   const catalog = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.root, encoding: 'utf8' });
   assert.equal(catalog.status, 0, catalog.stderr);
   const shape = JSON.parse(catalog.stdout);
