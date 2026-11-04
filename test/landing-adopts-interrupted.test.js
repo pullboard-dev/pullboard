@@ -39,7 +39,7 @@ function waitingItem(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride: true } };
+  const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride: true } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/base.txt'), 'base\n');
