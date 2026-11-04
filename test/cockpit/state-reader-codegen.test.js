@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { applyStateDelta } from '../../src/api-http.js';
 import { expandItemSummaries } from '../../src/view-state-summary.js';
-import { pageScriptPart3 } from '../../src/view/page-script-3.js';
+import { pageScriptPart3 } from '../../apps/view/index.js';
 
 /** Execute the actual generated board reader with explicit transport replies and no browser or board. */
 function compactBoardReader(replies, { local = true, snapshot = false } = {}) {

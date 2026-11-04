@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 test('the repository static style command enforces its source rules [C7]', () => {
   const before = performance.now();
@@ -23,6 +23,7 @@ test('the static checks read every source file for one import binding per line [
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = resolve(import.meta.dirname, '..');
   copyPackageFiles(repository, root);
+  mkdirSync(join(root, 'relay'), { recursive: true });
   mkdirSync(join(root, 'test'), { recursive: true });
   cpSync(join(repository, 'test/wall-clock-budgets.js'), join(root, 'test/wall-clock-budgets.js'));
   cpSync(join(repository, 'pullboard.json'), join(root, 'pullboard.json'));

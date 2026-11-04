@@ -15,6 +15,7 @@ import { recoveryIdentity } from '../../../resources/index.js';
 import { effectiveRunners } from './runner-slots.js';
 import { refreshRunnerMeasurements } from './runner-slots.js';
 import { transportText } from './runner-result.js';
+import { stopLeakedRunnerJobs } from './runner-leak-stop.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
@@ -54,8 +55,9 @@ export async function probeRunnerJob(runner, identity, { signal } = {}) {
 }
 
 /** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
-export async function probeRunnerHealth(runner, previous, { idle = false, restart = false } = {}) {
+export async function probeRunnerHealth(runner, previous, { idle = false, restart = false, stopLeaked = false } = {}) {
   runner = validateRunner(runner);
+  if (stopLeaked) return stopLeakedRunnerJobs(runner);
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
   const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };

@@ -8,7 +8,7 @@ import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../../src/automatic-dispatch
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by addItem, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
-import { barReadySetting } from "../../../../../src/bar-ready-setting.js";
+import { barReadySetting } from "../bar-ready-setting.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 

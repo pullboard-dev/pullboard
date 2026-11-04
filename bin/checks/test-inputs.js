@@ -23,6 +23,8 @@
  * code turns into `.href`, wraps in pathToFileURL(...) or passes to import(...), names a module to
  * import, not a file to read. A test file is `*.test.js` or `*.spec.js`, also .mjs and .cjs. One
  * problem per undeclared test file, at the line of its first anchored source path.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { lex, lineAt, readText, runCheck, TEST_FILE, walk } from './scan.js';
 
@@ -128,10 +130,10 @@ function firstAnchoredSourcePath(source, { code, strings }) {
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function testInputProblems(root) {
+export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path)) {
   const problems = [];
-  for (const path of walk(root, TEST_FILE)) {
-    const source = readText(root, path);
+  for (const path of files.filter(path => TEST_FILE.test(path))) {
+    const source = read(path);
     if (declaresSource(source)) continue;
     const lexed = lex(source);
     if (!READ.test(lexed.code)) continue;

@@ -7,11 +7,11 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { appliedSequence, applyRelayMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
-import { createRelayJournal } from '../relay/journal.js';
+import { createRelayJournal } from '../apps/relay/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

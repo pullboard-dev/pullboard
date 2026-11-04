@@ -17,6 +17,12 @@ import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import { installFileWatchdog } from '../packages/verify/index.js';
+import {
+  DEFAULT_TEST_FILE_TIMEOUT_MS,
+  testFileTimeoutMs,
+  activeHandleSummary,
+  installTestChildDrain,
+} from '../packages/gate/index.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
@@ -57,7 +63,7 @@ const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
 const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
-export const DEFAULT_TEST_FILE_TIMEOUT_MS = 30_000;
+export { DEFAULT_TEST_FILE_TIMEOUT_MS };
 // Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable.
 const LANDING_WORKER_IDENTITY_TIMEOUT_MS = 12_000;
 const LANDING_CHILD_CUSTODY_TIMEOUT_MS = 12_000;
@@ -130,38 +136,10 @@ function testTimeoutMs(value = process.env.PULLBOARD_TEST_TIMEOUT_MS) {
   return Number(value);
 }
 
-/** Read the per-file exit ceiling so a completed file cannot keep the gate open. */
-function testFileTimeoutMs(value = process.env.PULLBOARD_TEST_FILE_TIMEOUT_MS) {
-  if (value === undefined) return DEFAULT_TEST_FILE_TIMEOUT_MS;
-  if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 2_147_483_647) {
-    throw new Error('PULLBOARD_TEST_FILE_TIMEOUT_MS must be a positive integer no greater than 2147483647 milliseconds');
-  }
-  return Number(value);
-}
-
-/** Describe listening ports and live handle types when the test-file exit ceiling expires. */
-function activeHandleSummary() {
-  const handles = process._getActiveHandles();
-  const ports = [];
-  const types = [];
-  for (const handle of handles) {
-    const type = handle?.constructor?.name ?? 'Unknown';
-    types.push(type);
-    if (typeof handle?.address !== 'function' || !handle.listening) continue;
-    try {
-      const address = handle.address();
-      if (address && typeof address === 'object' && typeof address.port === 'number') {
-        ports.push(`${address.address}:${address.port}`);
-      }
-    } catch { /* A handle may close while its diagnostic is collected. */ }
-  }
-  return { ports: [...new Set(ports)].slice(0, 20), types: [...new Set(types)].slice(0, 20) };
-}
-
 /**
  * Keep an independent watchdog for every active test in this test-file process.
  *
- * @returns {void}
+ * @returns {{ pause: () => void, resume: () => void }}
  */
 function installTestWatchdog() {
   const timeoutMs = testTimeoutMs();
@@ -218,6 +196,11 @@ function installTestWatchdog() {
   }
 
   after(armFileExitWatchdog);
+  return {
+    /** Give the bounded child drain custody of cleanup until it settles. */
+    pause() { if (fileWatchdogArmed) { watchdog.postMessage({ type: 'stop', id: fileId }); fileWatchdogArmed = false; } },
+    resume: armFileExitWatchdog,
+  };
 }
 
 /** Quote a path for the private Git shim without interpreting shell metacharacters. */
@@ -255,6 +238,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   delete env[LANDING_SHARD_ENV];
   delete env[TIMING_RUN_ID_ENV];
   delete env[COLLECTION_ID_ENV];
+  env.PULLBOARD_TEST_SANDBOX = sandbox;
   env.HOME = home;
   env.USERPROFILE = home;
   env.PULLBOARD_HOME = home;
@@ -1016,6 +1000,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           // Node 22.13 leaves ordinary/file completions untyped; newer versions label them as tests.
           if (file && details?.passed === false && (details.type === undefined || details.type === 'test') && !firstFailure) {
             if (hungFiles.has(file)) return;
+            // Once this shard stops, its in-flight files end aborted: interrupted by the stop, never its first failure.
+            if (controller.signal.aborted || details.error?.failureType === 'testAborted') return;
             // A failure a live person waiver covers does not stop the run; every other file still runs.
             if (landingFailureWaived(waivers, file, name)) { waivedFiles.set(file, waivedFiles.get(file) ?? true); return; }
             // A file or suite failing only through its tests was decided by those tests already.
@@ -1032,6 +1018,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           if (data.success === false) successful = false;
           if (data.file) {
             startedFiles.add(data.file);
+            // A file cancelled by this shard's stop did not complete; it is reported as interrupted, not failed.
+            if (data.success === false && controller.signal.aborted) return;
             completedFiles.add(data.file);
             if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true && !hungFiles.has(data.file)) {
               firstFailure = { file: data.file, name: 'test file failed before a test completed' };
@@ -1327,7 +1315,7 @@ async function main(args) {
             process.exitCode = 1;
           }
         }
-      } finally { rmSync(sandbox, { recursive: true, force: true }); }
+      } finally { (await import('../packages/gate/index.js')).removeTestSandbox(sandbox); }
     }
   };
   try {
@@ -1439,9 +1427,10 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   const startsPath = process.env[LANDING_WORKER_STARTS_ENV];
   const attempt = process.env[LANDING_ATTEMPT_ENV];
   const landingWorker = Boolean(startsPath && attempt);
+  let cleanupWatchdog;
   if (landingWorker) {
     // Preserve #589 timing/custody behavior and announce before any browser-capacity wait.
-    installTestWatchdog();
+    cleanupWatchdog = installTestWatchdog();
     const file = resolve(process.argv[1]);
     let identityAvailable = false;
     appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
@@ -1489,5 +1478,9 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   // After any browser wait, so a file never holds a core while it queues for a browser (#1046).
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
   reportFileTest = installFileWatchdog(process.argv[1]);
-  if (!landingWorker) installTestWatchdog();
+  if (!landingWorker) cleanupWatchdog = installTestWatchdog();
+  if (process.env.NODE_TEST_CONTEXT === 'child-v8') installTestChildDrain({
+    sandbox: process.env.PULLBOARD_TEST_SANDBOX, timeoutMs: testFileTimeoutMs(),
+    onStart: cleanupWatchdog.pause, onEnd: cleanupWatchdog.resume,
+  });
 }

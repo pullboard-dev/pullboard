@@ -1,15 +1,15 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** Native view state against the sealed relay presentation, field by field [H5,H17]. Run it explicitly: the default gate skips *.study.js. */
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { relayPresentation } from '../packages/pages/index.js';
-import { presentationState } from '../relay/browser-model.js';
+import { presentationState } from '../apps/relay/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { paths, valueDifferences } from './relay-study-fixture.js';

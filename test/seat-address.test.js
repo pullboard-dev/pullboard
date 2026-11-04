@@ -79,10 +79,14 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const denied = await second.cliAt(sender.path, 'shout', initial.address, 'After known revocation');
   assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
+  document(await second.cliAt(second.root, 'shout', sender.id, 'Fresh local interrupt'));
+  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  const deliveriesBefore = replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count;
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
   assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
-  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  assert.equal(replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count, deliveriesBefore,
+    'the revoked seat cannot append an activity-delivery event');
   let localInbox;
   try {
     // Inspect the real sender replica with the inbox's canonical audience query without recording a delivery.

@@ -214,5 +214,5 @@ test('checkpoint scheduling executes the supplied process worker with its exact 
 });
 
 test('importing the checkpoint process entry does not start a publisher [H5,C7]', async () => {
-  await assert.doesNotReject(() => import('../../../src/relay-checkpoint-worker.js'), 'only invoking the worker file may read process board arguments or publish');
+  await assert.doesNotReject(() => import('../../../apps/lib/src/shell/relay-checkpoint-worker.js'), 'only invoking the worker file may read process board arguments or publish');
 });

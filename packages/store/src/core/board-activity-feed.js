@@ -1,5 +1,5 @@
-import { localDependencyIds } from "../../../../src/item-dependencies.js";
-import { itemFiles } from "../../../../src/item-files.js";
+import { localDependencyIds } from "../../../items/core.js";
+import { itemFiles } from "../../../items/core.js";
 /** Read item activity without duplicating a landing's immutable board-wide receipt [R2,N26]. */
 
 /** Include a batch's main-moving receipt only for the exact item ids that receipt records. */

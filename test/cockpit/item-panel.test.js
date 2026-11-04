@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/serve.js src/view.css src/view/item-panel.css src/view/page-render.js src/view/page-script-2.js src/view/page-script-4.js src/view/timeline-render.js */
+/** @pullboard-test-input src/serve.js apps/view/src/shell/view.css apps/view/src/shell/view/item-panel.css src/view/page-render.js src/view/page-script-2.js src/view/page-script-4.js src/view/timeline-render.js */
 /** @pullboard-test-gui */
 /** Approved item-panel presentation over native item, verdict, baseline and history records [N26,B23]. */
 import assert from 'node:assert/strict';
@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { addItem } from '../../src/board.js';
 import { closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { machine } from './fixture.js';
 import { project } from './fixture.js';
 import { build } from './fixture.js';

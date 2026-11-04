@@ -10,7 +10,7 @@ export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'packages/link/src/shell/relay-requests.js', 'packages/link/src/shell/relay-request-execution.js', 'src/relay-sender.js',
   'packages/state/src/core/relay-sender-policy.js', 'src/board-engine-ports.js',
   'src/row-decisions.js', 'src/row-decision-state.js', 'src/spec-approval.js', 'src/spec-approval-baseline.js',
-  'src/hooks.js', 'packages/commits/src/shell/hooks.js', 'src/commands/hook.js', 'src/commands/hooks.js', 'pullboard.json',
+  'src/hooks.js', 'packages/commits/src/shell/hooks.js', 'apps/cli/src/shell/commands/hook.js', 'apps/cli/src/shell/commands/hooks.js', 'pullboard.json',
 ]);
 
 /** Cells that hold gate, landing, merge, verdict or credential code; the committed plan names them, so a move follows. */

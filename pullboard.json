@@ -7,6 +7,7 @@
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
+  "landing": { "manualOverride": false, "publish": "separate" },
   "submit": { "requireInfraNote": true, "handoff": true },
   "claim": { "reopenFirstRefusalMinutes": 30 },
   "submitInvariants": [
@@ -27,7 +28,7 @@
         "src/formats/board-schema.json",
         "src/machine.js",
         "packages/moves/src/shell/move-registry.js",
-        "relay/browser-model.js"
+        "apps/relay/src/shell/browser-model.js"
       ],
       "tests": [
         "test/relay-parity.test.js",
@@ -145,6 +146,7 @@
         "src/serve.js",
         "src/view.css",
         "src/view/",
+        "apps/view/",
         "test/cockpit.test.js",
         "test/cockpit/",
         "test/journeys.test.js"

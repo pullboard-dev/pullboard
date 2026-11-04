@@ -312,12 +312,14 @@ export function addRunner(value) {
 
 /** Store measured facts on the latest registered host without changing fixed policy or clearing recovery fences. */
 export function recordRunnerMeasurement(host, observation) {
-  return updateRunnerSettings(host, () => {
+  return updateRunnerSettings(host, ({ held = 0 } = {}) => {
     const current = loadMachineSettings();
     const index = (current.runners ?? []).findIndex(runner => runner.host === host);
     if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is no longer registered; run pullboard runner list`);
-    const runner = validateRunner({ ...current.runners[index], cores: observation.cores,
-      memoryMB: observation.memoryMB, measuredAt: observation.measuredAt,
+    const prior = current.runners[index];
+    // A busy runner records only its live load: new cores could shrink its slots under admitted jobs.
+    const size = held && Number.isSafeInteger(prior.cores) ? {} : { cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: observation.measuredAt };
+    const runner = validateRunner({ ...prior, ...size,
       ...(observation.cpuLoad === undefined ? {} : { cpuLoad: observation.cpuLoad }),
       ...(observation.gui === undefined ? {} : { gui: observation.gui }) });
     const runners = [...current.runners]; runners[index] = runner;

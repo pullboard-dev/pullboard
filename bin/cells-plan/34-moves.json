@@ -98,7 +98,7 @@
   ["src/moves/startSubmitHandoff.js","packages/moves/src/core/moves/startSubmitHandoff.js","rule"],
   ["src/moves/completeSubmitHandoff.js","packages/moves/src/core/moves/completeSubmitHandoff.js","rule"]
  ],
- "reexports": ["src/bar-ready-setting.js","src/move-registry.js","src/moves/reopen.js","src/moves/shout.js"],
+ "reexports": ["src/move-registry.js"],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},
   {"cell":"state","imports":291,"before":true},

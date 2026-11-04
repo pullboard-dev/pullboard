@@ -43,8 +43,20 @@ export function resultFrom(request, result, { privateCheckPhases }) {
   // never manufacture source/proof metadata or treat the refusal as a transport retry.
   if (!result.error && Number.isInteger(result.status) && result.status > 0 && result.status <= 255 && output.length === 0 && receipts.length === 0
       && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
-    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution`);
-    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: 'invalid work specification' };
+    // The runner's fixed rule text (never a value); an older runner sends none.
+    const ruleLine = lines.find(line => line.startsWith('PULLBOARD_RUNNER_SPEC_RULE '));
+    const rule = ruleLine && /^[A-Za-z][A-Za-z0-9 ,'-]{0,119}$/u.test(ruleLine.slice(27)) ? ruleLine.slice(27) : '';
+    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution${rule ? `: ${rule}` : ''}`);
+    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: rule ? `invalid work specification: ${rule}` : 'invalid work specification' };
+    throw refused;
+  }
+
+  // Exit 127 before the pinned worker starts is a remote setup failure, not a test result or a lost SSH connection.
+  if (!result.error && result.status === 127 && request.phase !== 'ready' && output.length === 0 && receipts.length === 0) {
+    const diagnostic = runnerFailure(request, result, 'setup-command-missing').diagnostic;
+    const command = request.runner.node ?? 'node';
+    const refused = new Refused('RUNNER_SETUP', `runner ${request.runner.host} could not start ${JSON.stringify(command)} (remote exit 127); install it or update --node`);
+    refused.diagnostic = diagnostic;
     throw refused;
   }
 

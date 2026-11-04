@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('Needs you summarizes item809, keeps raw questions in details and places navigation in its header [N26,B26]', { timeout:120_000 }, async () => { // budget: native809-item seed, authenticated HTTP and real Chrome at desktop/phone widths.
