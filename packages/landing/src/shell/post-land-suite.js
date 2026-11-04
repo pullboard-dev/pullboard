@@ -60,7 +60,7 @@ export async function postLandSuite(state, ports) {
     const filed = [];
     if (fresh.length) {
       const items = readItems(state.board);
-      const missing = unownedMainReds({ failures: fresh }, items, null);
+      const missing = unownedMainReds({ failures: fresh }, items, null, true);
       if (missing === null) throw new Error('a new red case already has several open owners; ask the coordinator to settle which repair owns it');
       for (const { file, names: cases } of missing) {
         const lane = laneOf({ lanes: state.config.lanes }, file);

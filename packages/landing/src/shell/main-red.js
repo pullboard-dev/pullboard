@@ -526,7 +526,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
       !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
-    const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
+    const owner = matched && linkKnownMainReworks(matched, items, exclude, true, true)?.failures[0].item;
     const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
     const message = matched
       ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
