@@ -36,6 +36,7 @@ import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
+import { singleItemLanding } from './landing-step-selection.js';
 import { runLandingCliSmoke } from './landing-cli-smoke.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
@@ -88,7 +89,17 @@ function batchAffectedTests(state, readEvents, readItem) {
 }
 
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
-export function batchGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
+export function batchGatePlan(state, options = {}) {
+  try { return selectedGatePlan(state, options); } catch (error) {
+    // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
+    if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
+    const config = { ...state.config, [VALUE_GATE]: true };
+    return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+  }
+}
+
+/** The narrowest proved plan for the batch's merged tree, refusing LAND_DIAGNOSTIC when none can be read. */
+function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.testTiers) {
     const command = testTierCommand(selection.testTiers, selection.files) || 'true';
@@ -215,7 +226,8 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
-  const known = await knownMainAccount(state, result);
+  // One item's red is its own: a per-item landing never compares main [C7,#2901].
+  const known = singleItemLanding(state) ? null : await knownMainAccount(state, result);
   if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
