@@ -31,6 +31,28 @@ export async function save(state, patch) {
   return state.batch;
 }
 
+/** Find the earliest first-parent commit containing a source using the monotone ancestry predicate. */
+export function firstContainingCommit(root, source) {
+  const commits = git(root, ['rev-list', '--first-parent', 'HEAD']).split('\n').filter(Boolean);
+  if (!commits.length) return undefined;
+  /** Test one point in the first-parent chain; ancestry is false before the first containing point and true after it. */
+  const contains = (commit) => {
+    const result = tryGit(root, ['merge-base', '--is-ancestor', source, commit]);
+    if (result.status === 0) return true;
+    if (result.status === 1) return false;
+    throw new Refused('LAND_GIT', `could not locate the first landing containing ${source}: ${result.stderr || result.stdout}`);
+  };
+  if (!contains(commits[0])) return undefined;
+  let containing = 0;
+  let absent = commits.length;
+  while (absent - containing > 1) {
+    const middle = Math.floor((containing + absent) / 2);
+    if (contains(commits[middle])) containing = middle;
+    else absent = middle;
+  }
+  return commits[containing];
+}
+
 /**
  * A batch's own worktree left dirty by its staged steps (engine numbers, docs) is reset to the batch base once and
  * merged again; dirty a second time, the batch stops as blocked with its refusal recorded. Why: the dirty refusal used
@@ -104,8 +126,7 @@ export async function mergeGroup(state, items) {
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
     const engines = amendLandingEngines(batch.root);
     for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
-    const first = git(batch.root, ['rev-list', '--first-parent', '--reverse', 'HEAD']).split('\n')
-      .find((commit) => tryGit(batch.root, ['merge-base', '--is-ancestor', checked, commit]).status === 0);
+    const first = firstContainingCommit(batch.root, checked);
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
   }
   if (merged.length) {
