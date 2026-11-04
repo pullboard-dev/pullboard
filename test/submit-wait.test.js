@@ -44,10 +44,9 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     await child.closed;
   });
-  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'),
-    'a public submission or its actionable refusal');
+  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'), 'a public submission or its actionable refusal', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
   assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
-  await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict');
+  await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
   await child.closed;
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(onBoard(box, board => store.verdictsFor(board, 1).length), 0, 'gate completion requires no review');
@@ -130,7 +129,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
-  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: () => {}, err: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt, waitPorts),
     error => error.code === 'SUBMISSION_CHANGED');
 });
@@ -158,7 +157,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any', clause: 'The fixture check passes.',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
-  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: () => {}, err: () => {} };
   let superseded;
   const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt, waitPorts)
     .catch(error => { superseded = error; });
