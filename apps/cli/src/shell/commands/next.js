@@ -231,7 +231,7 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
-    if (found.retry) await progress.retry(found);
+    if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
 }
