@@ -185,7 +185,7 @@ export function nextFor(board, options) {
     });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
-      && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
+      && (!restrictFocus || focus.ids.has(candidate.entry.item_id) || !focusOnly && greenAtHead(board, candidate.entry)))?.entry;
     if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return reviewResult({ item, reasons: focusReasons(board, item, [], { milestones }) });
     if (focus && !overflow) return reviewResult(focusIdle());
     if (item) return reviewResult(empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] }));
@@ -318,9 +318,26 @@ export function nextFor(board, options) {
 function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
+  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
+  if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether a submitted item's gate went green at its submitted head [C7, #2961].
+ * Finished work waits only on a reviewer, so focus never hides it from review: a green submission
+ * outside the focused milestone is still offered, while focused reviews keep sorting first.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+function greenAtHead(board, entry) {
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && entry.item_commit && job.commit === entry.item_commit && job.state === 'green');
 }
 
 /** The unlanded items a claim released for waiting still waits on (#1225); empty when none. */
