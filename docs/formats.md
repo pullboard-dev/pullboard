@@ -378,6 +378,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 <!-- board-indexes:start -->
 | Index | Table | Columns | Unique |
 | --- | --- | --- | --- |
+| `board_meta_agent_session_value_v1` | `board_meta` | `meta_value` | no |
 | `board_meta_grant_activation_unsafe_v1` | `board_meta` | `meta_key` | no |
 | `board_meta_grant_activation_v2` | `board_meta` | `(expression)` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
