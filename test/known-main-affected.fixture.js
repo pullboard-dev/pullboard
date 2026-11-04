@@ -1,5 +1,5 @@
 /** An affected (mandatory) test case that fails identically on main at the base submits as a known main red [V4,B3]. */
-import '../src/cli.js'; // This test invokes the real CLI through its public executable.
+import '../apps/cli/index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
 import {
   chmodSync,

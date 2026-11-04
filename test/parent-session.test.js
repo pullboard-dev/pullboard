@@ -1,5 +1,5 @@
 import * as queueStore from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */
@@ -79,8 +79,12 @@ test('[V1,B3] ordered parent registration survives replay and board export witho
 test('[V1,B3] an unknown-parent primary session and its child cannot review each other, including queue', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-primary-parent-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  runFixtureGit(['init', '-q'], { cwd: root });
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
+  runFixtureGit(['add', 'pullboard.json'], { cwd: root });
+  runFixtureGit(['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture policy'], { cwd: root });
   const board = openBoard(join(root, '.git', 'board.sqlite'));
+  board.gitRoot = root;
   t.after(() => store.closeBoard(board));
   const primary = store.register(board, { lane: 'web', path: root, family: 'fixture-builder', session: 'primary-R' });
   const child = store.register(board, { lane: 'web', path: join(root, 'child'), family: 'fixture-builder', parent: 'primary-R', session: 'child-C' });

@@ -1,1 +1,1 @@
-export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "../packages/gate/src/shell/chrome-clone-check.js";
+export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "../packages/gate/index.js";

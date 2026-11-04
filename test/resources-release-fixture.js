@@ -1,3 +1,5 @@
+import { openBoard } from '../apps/lib/index.js';
+import { addItem, addMilestone, closeBoard } from '../packages/store/index.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
@@ -8,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href;
 const RELEASE_WORKER = `
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
 ${executionServicesSource(GATE_MODULE)}
@@ -29,12 +31,15 @@ function command(box, root, ...args) {
   return result.stdout;
 }
 
-/** Initialize a real private board with current, later and unplanned work through public commands. */
+/** Initialize through the real CLI, then seed the queue's real SQLite roadmap through canonical public writes. */
 function board(box, root) {
   command(box, root, 'init');
-  for (const title of ['Current work', 'Later work', 'Unplanned work']) command(box, root, 'add', 'coordinator', title);
-  command(box, root, 'milestone', 'add', 'current', '--items', '1');
-  command(box, root, 'milestone', 'add', 'later', '--items', '2');
+  const state = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    for (const title of ['Current work', 'Later work', 'Unplanned work']) addItem(state, { by: 'coordinator', lane: 'coordinator', title });
+    addMilestone(state, { agentId: 'coordinator', name: 'current', items: [1], reason: 'Arrange current release for queue fixture' });
+    addMilestone(state, { agentId: 'coordinator', name: 'later', items: [2], reason: 'Arrange later release for queue fixture' });
+  } finally { closeBoard(state); }
 }
 
 /** Change only this test's private machine settings, preserving both gate slots. */

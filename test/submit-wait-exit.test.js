@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { BIN } from './submit-main-red-fixture.js';
@@ -113,7 +113,7 @@ test('a queued wait names an actually lost worker before any gate admission [V4,
   const script = join(box.directory, 'checkout-barrier.mjs');
   writeFileSync(script, [
     "import { existsSync,writeFileSync } from 'node:fs';",
-    `import { exactStart } from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};`,
+    `import { exactStart } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};`,
     "if(process.cwd().includes('/submit-handoffs/') && process.cwd().endsWith('/source')) {",
     ` writeFileSync(${JSON.stringify(ready)},JSON.stringify({git:process.ppid,gitStart:exactStart(process.ppid)}));`,
     ' const deadline=Date.now()+120000;',

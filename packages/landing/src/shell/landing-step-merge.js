@@ -1,7 +1,10 @@
+import { requireLandingCompanions } from './landing-composition-guards.js';
+import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
+import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../merge/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { refreshLandingDocs } from './landing-docs.js';
@@ -29,12 +32,50 @@ export async function save(state, patch) {
   return state.batch;
 }
 
+/** Find the earliest first-parent commit containing a source using the monotone ancestry predicate. */
+export function firstContainingCommit(root, source) {
+  const commits = git(root, ['rev-list', '--first-parent', 'HEAD']).split('\n').filter(Boolean);
+  if (!commits.length) return undefined;
+  /** Test one point in the first-parent chain; ancestry is false before the first containing point and true after it. */
+  const contains = (commit) => {
+    const result = tryGit(root, ['merge-base', '--is-ancestor', source, commit]);
+    if (result.status === 0) return true;
+    if (result.status === 1) return false;
+    throw new Refused('LAND_GIT', `could not locate the first landing containing ${source}: ${result.stderr || result.stdout}`);
+  };
+  if (!contains(commits[0])) return undefined;
+  let containing = 0;
+  let absent = commits.length;
+  while (absent - containing > 1) {
+    const middle = Math.floor((containing + absent) / 2);
+    if (contains(commits[middle])) containing = middle;
+    else absent = middle;
+  }
+  return commits[containing];
+}
+
+/**
+ * A batch's own worktree left dirty by its staged steps (engine numbers, docs) is reset to the batch base once and
+ * merged again; dirty a second time, the batch stops as blocked with its refusal recorded. Why: the dirty refusal used
+ * to leave the batch adoptable, so every automatic wake retried it and refused again every few seconds (#2624).
+ */
+async function resetDirtyOnce(state) {
+  if (!state.batch.dirtyReset) {
+    git(state.batch.root, ['reset', '--hard', '--quiet', state.batch.base]);
+    git(state.batch.root, ['clean', '-fdq']);
+    await save(state, { dirtyReset: true });
+    if (isClean(state.batch.root) && !untracked(state.batch.root).length) return;
+  }
+  await save(state, { state: 'blocked', refusal: { code: 'LAND_DIRTY', message: 'the landing worktree has uncommitted changes', at: state.board.clock.now().toISOString() } });
+  throw new Refused('LAND_DIRTY', `landing batch ${state.batch.id} left its worktree dirty again after one reset; it is blocked and will not retry; inspect ${state.batch.root}`);
+}
+
 /** Merge one ordered group from the immutable batch base, preserving each first-containing commit. */
 export async function mergeGroup(state, items) {
   await state.checkLease();
   const { batch } = state;
-  if (!isClean(batch.root) || untracked(batch.root).length) throw new Refused('LAND_DIRTY', 'the landing worktree has unfinished edits; inspect its recorded path before adopting');
-  git(batch.root, ['checkout', '--detach', batch.base]);
+  if (!isClean(batch.root) || untracked(batch.root).length) await resetDirtyOnce(state);
+  git(state.batch.root, ['checkout', '--detach', state.batch.base]);
   // Every message is built and checked before the first merge, so a bad one cannot land half a batch.
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
     landingContext(batch.root, batch.base, state.config, (item) => store.checkedLandingCommit(state.board, item)));
@@ -47,6 +88,7 @@ export async function mergeGroup(state, items) {
     if (item.item_status !== 'verified' || item.item_commit !== (entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} changed; rebuild the batch from current verified work`);
     const checked = store.checkedLandingCommit(state.board, item);
     if (checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
+    requireLandingCompanions(batch.root, state.board, [item], checked);
     const stale = verdictProjector(state.root, state.board, { main: batch.base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     // The body is the trailer paragraph alone: the header carries the title, and no lane branch is named [B3,R3].
@@ -85,8 +127,7 @@ export async function mergeGroup(state, items) {
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
     const engines = amendLandingEngines(batch.root);
     for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
-    const first = git(batch.root, ['rev-list', '--first-parent', '--reverse', 'HEAD']).split('\n')
-      .find((commit) => tryGit(batch.root, ['merge-base', '--is-ancestor', checked, commit]).status === 0);
+    const first = firstContainingCommit(batch.root, checked);
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
   }
   if (merged.length) {
@@ -114,7 +155,10 @@ export async function mergeGroup(state, items) {
     throw error;
   }
   for (const change of doctrineCounts) state.say(`doctrine ${change.id}: ${change.before} -> ${change.count}`);
-  return { items: merged, conflicts, resolutions, tip: headCommit(batch.root), doctrineCounts };
+  const tip = headCommit(batch.root);
+  requireLandingCompanions(batch.root, state.board, merged, tip);
+  await requireLandingModuleResolution(batch.root, batch.base, tip);
+  return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 
 /** Allocate and stage engine history, then place it before amending that same item merge. */
@@ -122,7 +166,9 @@ export function amendLandingEngines(root) {
   const engines = assignEngineNumbers(root);
   if (existsSync(join(root, 'src', 'formats')) && existsSync(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);
+  refreshLandingDocs(root);
+  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
+  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
   if (engines.files.length) {
     // Canonical rule placement accepts only staged regular files, including this just-generated history.
     git(root, ['add', '--', ...engines.files]);
@@ -136,7 +182,7 @@ export function amendLandingEngines(root) {
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
 export function landingOperations(ports) {
   const names = ['badgeCounts', 'writeBadges', 'flakeLedger', 'flakeSource', 'observeNativeFailure', 'quarantineWaivers', 'parseProcessCensus',
-    'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns'];
+    'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns', 'landingFlakeRatchet'];
   if (!names.every(name => typeof ports?.[name] === 'function')) throw new TypeError('landing needs explicit canonical operation ports');
   return Object.freeze(Object.fromEntries(names.map(name => [name, ports[name]])));
 }

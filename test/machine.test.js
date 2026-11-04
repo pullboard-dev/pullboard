@@ -11,7 +11,7 @@ import { moveOf } from './machine-source-functions.fixture.js';
 import { declaredBoardOrder } from './machine-source-functions.fixture.js';
 import { sourceReader } from './machine-source-functions.fixture.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
-import { packageFiles } from '../src/package-files.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { assertSyncFacadeAudit } from './machine-source-functions.fixture.js';
 import { assertGitFacadeAudit } from './machine-source-functions.fixture.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
@@ -28,10 +28,10 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
-import { HELP } from '../src/cli.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { HELP } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
@@ -123,7 +123,7 @@ const ENTRY_POINTS = [
   { verbs: ['release'], at: ['board.js#release'] },
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['board.js#verify', 'commands/verify.js#verifyHere'] },
+  { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
@@ -131,7 +131,7 @@ const ENTRY_POINTS = [
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
 const NON_MOVE_ENTRY_POINTS = [
-  'native-board.js#openBoard', // Physical storage is composed before any item move.
+  '../apps/lib/src/core/native-board.js#openBoard', // Physical storage is composed before any item move.
   'cli.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
@@ -151,12 +151,12 @@ const CAUGHT = {
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
-  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  'commands/verify.js#verifyHere': ['commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
@@ -296,7 +296,7 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
-  const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
+  const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set(['../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -1385,7 +1385,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
     const boardFile = join(dir, 'src', 'board.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
-    const copyNative = await import(pathToFileURL(join(dir, 'src', 'native-board.js')).href);
+    const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);
     const board = copyNative.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
@@ -1452,7 +1452,7 @@ test('lifecycle source walks follow Git shims and catch a planted body refusal [
 
 /** The bound storage callback must reach its real body through the moved public facade. */
 test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
-  const entry = 'native-board.js#openBoard';
+  const entry = '../apps/lib/src/core/native-board.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
   const planted = editedSource('../packages/store/src/shell/board-read-open.js',
     /^export function readEventLogVersion\(db\) \{$/m,

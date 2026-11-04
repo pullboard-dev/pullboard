@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Two loaded copies of the runner worker's front door each own their handles, timers and flags [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { gateJudgmentPath } from '../packages/verify/index.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,7 +10,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from './fixture-child.js';
 
-const FRONT_DOOR = pathToFileURL(resolve(import.meta.dirname, '../src/runner-worker.js')).href;
+const FRONT_DOOR = pathToFileURL(resolve(import.meta.dirname, '../apps/runner/src/shell/runner-worker.js')).href;
 
 /** The probe loads the front door twice, the second time under a query suffix, and mutates only the first copy. */
 const PROBE = `
@@ -45,4 +47,13 @@ test('a second copy of the worker front door keeps its own process state, not th
   const report = JSON.parse(/^REPORT (.*)$/mu.exec(child.stdout)[1]);
   assert.deepEqual(report, { distinct: true, collections: true, timers: true, custody: true, goneA: 'settled', goneB: 'pending' });
   assert.equal(child.stdout.match(/"worker":true/gu).length, 2, 'each copy ran its own dispatch');
+});
+
+/** Existing review authority follows every moved runner body [C7]. */
+test('runner move preserves strict review for every strict planned source [C7]', () => {
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/40-app-runner.json', import.meta.url), 'utf8'));
+  const strict = plan.paths.filter(([old]) => gateJudgmentPath(old));
+  assert.ok(strict.length > 0, 'the plan includes existing strict paths');
+  for (const [old, moved] of strict) assert.equal(gateJudgmentPath(moved), true, old);
+  assert.equal(gateJudgmentPath('apps/view/src/core/ordinary.js'), false, 'unrelated app paths stay outside strict');
 });

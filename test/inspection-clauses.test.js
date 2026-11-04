@@ -7,7 +7,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
@@ -66,7 +66,7 @@ test('reasoning is flagged weakest and cannot stand in for a declared test or co
   assert.match(problem(f).message, /clause 3 .*needs screenshot evidence/u);
   tick(f, 'clause 3 [screenshot]: shots/375.png');
   assert.equal(problem(f), null, 'the latest matching tick for each clause stands');
-  const loose = fixture(t, '1. Explain design\n2. Explain result');
+  const loose = fixture(t, '1. Explain design [reasoning]\n2. Explain result [reasoning]');
   tick(loose, 'clause 1 [reasoning]: source argument');
   tick(loose, 'clause 2 [reasoning]: observed outcome');
   assert.match(clauseInspectionSummary(store.getItem(loose.board, loose.id), store.itemThread(loose.board, loose.id)), /2\. .*reasoning \(weakest evidence\)/u);
@@ -80,7 +80,7 @@ test('a tick by anyone but the holder does not count [V4,B3]', t => {
 });
 
 test('a free-text criterion is unaffected [V4,B3]', t => {
-  for (const text of ['the page works and the count is right', 'one numbered line only:\n1. just this', 'out of order\n2. b\n1. a']) {
+  for (const text of ['the page works and the count is right', 'one numbered line only:\n1. just this [test]', 'out of order\n2. b [test]\n1. a [test]']) {
     const f = fixture(t, text);
     assert.deepEqual(criterionClauses(text), []);
     assert.equal(problem(f), null);

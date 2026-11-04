@@ -1,3 +1,4 @@
+import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './rank-inversion-history.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing-failure.js';
@@ -166,6 +167,18 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
   const items = db.prepare('SELECT * FROM item ORDER BY item_id').all();
+  const shimMaxAgeDays = config?.cells?.shimMaxAgeDays ?? 7;
+  report.shims = shimLifecycle(root, { commit: trunkTip(root)?.commit ?? 'HEAD', items });
+  for (const shim of report.shims) {
+    if (!shim.moveLandedAt || at - Date.parse(shim.moveLandedAt) <= shimMaxAgeDays * 86_400_000) continue;
+    report.stuck.push(finding('CELL_SHIM_OVERDUE', null, {
+      subject: shim.path, key: `CELL_SHIM_OVERDUE:${shim.path}`, since: shim.moveLandedAt, now: at,
+      title: `${shim.cell} compatibility shim exceeds ${shimMaxAgeDays} days`,
+      why: `${shim.path} remains after the ${shim.cell} move landed on ${shim.moveLandedAt}`,
+      next: shim.removalItem ? `finish shim removal item #${shim.removalItem}` : 'coordinator: file a shim removal item naming this path',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: shim,
+    }));
+  }
   const byId = new Map(items.map((item) => [item.item_id, item]));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);

@@ -11,6 +11,7 @@ export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
 export { counterCaught, counterProofStats } from './src/shell/proof-counter-read.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/shell/proof-counters.js';
+export { refreshCapacityOutsideWrite } from './src/shell/proof-counters.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/core/proof-provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/core/required-review-family.js';
 export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibility.js';
@@ -28,6 +29,7 @@ export { cachedVerdictStates, captureVerdictReview, staleVerdictRefusal, verdict
 export { retryReviewCommit } from './src/core/verdict-retry.js';
 export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/core/verdict-reviews.js';
 export { judgeTrunkMove } from './src/shell/verdict-trunk.js';
+export { itemTrunkMove } from './src/shell/verdict-trunk.js';
 export { checkOptions, verdictWithdrawalTarget, verdictWithdrawals } from './src/shell/verdict-withdrawal.js';
 export { finishVerdict, rejectionClauseDetail, rejectionClauseProblem, sharpenRepeatedClause } from './src/shell/reject-clause.js';
 export { classifiedStrict, gateJudgmentItem, gateJudgmentPath, reviewTierFloor } from './src/shell/review-tier.js';
@@ -44,3 +46,8 @@ export { compareVerification, comparisonCommand, renderVerificationComparison, r
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
+
+export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
+export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/shell/review-packet.js';
+
+export { reusableSubmitProof } from './src/shell/submit-proof-reuse.js';

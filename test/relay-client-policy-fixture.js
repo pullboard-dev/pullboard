@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROLES } from '../src/skills.js';
+import { ROLES } from '../apps/cli/index.js';
 
 const INITIALIZED_REPO_FILES = [
   '.claude/settings.json',

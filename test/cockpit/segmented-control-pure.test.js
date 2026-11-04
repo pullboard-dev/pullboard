@@ -1,7 +1,7 @@
 /** The shared segmented HTML component takes explicit choices without DOM reach [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { segmentedToggle } from '../../src/view/segmented-control.js';
+import { segmentedToggle } from '../../apps/view/src/core/view/segmented-control.js';
 
 test('the shared segmented component escapes labels, values and counts and exposes each pressed state [N26]', () => {
   const html = segmentedToggle({ label: 'A "group"', attribute: 'data-rows', value: 'chosen', options: [

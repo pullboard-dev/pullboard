@@ -1,6 +1,6 @@
 import { releaseSource } from '../../../gate/index.js';
 import { runReleaseGate } from '../../../gate/index.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
 import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
@@ -43,7 +43,7 @@ import {
 import { testsNeedGui } from '../../../gate/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
-import { localRunnerDescriptor } from '../../../../src/runner-load.js';
+import { localRunnerDescriptor } from '../../../runners/index.js';
 import { guiSession } from '../../../gate/index.js';
 import { headTree } from '../../../../src/git.js';
 import { cpuRunnerRequired } from '../../../gate/index.js';
@@ -368,7 +368,7 @@ export function runnerFailureClass(error, { RunnerDropped, Refused }) {
   if (error instanceof RunnerDropped) return { action: 'rerun', reason: 'runner transport lost', code: null };
   if (!(error instanceof Refused)) return null;
   if (RERUN_REFUSALS.has(error.code)) return { action: 'rerun', reason: `runner refused: ${error.code}`, code: error.code };
-  if (error.code === 'RUNNER_CLEANUP_TIMEOUT') return { action: 'quarantine', reason: `runner refused: ${error.code}`, code: error.code };
+  if (error.code === 'RUNNER_CLEANUP_TIMEOUT' || error.code === 'RUNNER_SETUP') return { action: 'quarantine', reason: `runner refused: ${error.code}`, code: error.code };
   return { action: 'fail', reason: `runner refused: ${error.code}`, code: error.code };
 }
 
@@ -407,8 +407,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
-  const { withLandingGateSlot } = await import('../../../../src/gate.js');
-  const runners = await import('../../../../src/runners.js');
+  const { withLandingGateSlot } = await import('../../../gate/index.js');
+  const runners = await import('../../../runners/index.js');
   const { RunnerDropped } = runners;
   // A test may stand in for the SSH round trip to make a runner answer with a given refusal.
   const runOnRunnerAsync = remoteRun ?? runners.runOnRunnerAsync;

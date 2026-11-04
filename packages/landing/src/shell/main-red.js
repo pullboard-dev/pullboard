@@ -1,7 +1,7 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { testClosures } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { randomUUID } from 'node:crypto';
@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import {
   withGateSlot,
 } from '../../../gate/index.js';
-import { runMainComparison } from '../../../../src/gate-execution.js';
+import { runMainComparison } from '../../../gate/index.js';
 import {
   readGateReceipt,
   receiptBody,
@@ -279,10 +279,10 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
+ * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -346,7 +346,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
         const measure = remote => withGateSlot(checkout, async lease => {
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-          const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } });
+          const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
             || !sameEnvironment(run.environment, execution.environment)
             || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {
@@ -361,7 +361,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
           coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
-          const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
+          const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout, { allowCancelled }) : null;
           // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).
           const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
@@ -526,7 +526,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
       !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
-    const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
+    const owner = matched && linkKnownMainReworks(matched, items, exclude, true, true)?.failures[0].item;
     const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
     const message = matched
       ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`

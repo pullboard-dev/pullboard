@@ -8,11 +8,59 @@ import { tryGit } from "../../../git/index.js";
 import { inPlanScope } from "../../../codemap/index.js";
 import { Refused } from "../../../kernel/index.js";
 
-/** Bind placement to committed source, never an unstaged plan or the process working directory. */
-export function requirePlannedSource(root, base, commit) {
+/** Git variables that could narrow which objects a read sees; trunk reads run without them. */
+const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|WORK_TREE|INDEX_FILE)$/u;
+
+/**
+ * Read one trunk tree entry. Main lands while a job runs, so the trunk commit can be missing from the checkout that
+ * reads it: a failed read is retried through the repository's common Git dir, then the commit is fetched from the
+ * checkout's recorded source (a runner job checkout has no remote; it records pullboard.fetchSource) and every remote,
+ * and read again, once more after a second fetch. A read that still fails is an infrastructure error (not a Refused),
+ * so the gate retries it and the builder never sees 'not a tree object' (#2521, #2534).
+ *
+ * @param {string} root
+ * @param {string} base
+ * @param {string} file
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+export function readTrunkEntry(root, base, file) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !OBJECT_ENV.test(key)));
+  const args = ['ls-tree', '-z', base, '--', file];
+  let result = tryGit(root, args, { env });
+  if (result.status === 0) return result;
+  const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
+  if (common.status === 0 && common.stdout) {
+    result = tryGit(root, ['--git-dir', common.stdout, ...args], { env });
+    if (result.status === 0) return result;
+  }
+  const sources = trunkSources(root, env);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const fetched = sources.map(source => tryGit(root, ['-c', 'protocol.version=2', '-c', 'protocol.file.allow=always', 'fetch', '--quiet', '--no-tags', source, base], { env }));
+    result = tryGit(root, args, { env });
+    if (result.status === 0) return result;
+    if (!fetched.length) break;
+    const failed = fetched.find(row => row.status !== 0);
+    if (failed?.stderr) result = { ...result, stderr: `${result.stderr}\nfetch: ${failed.stderr}` };
+  }
+  throw Object.assign(new Error(`the accepted cells-plan presence could not be read from Git (infrastructure error, retry the submit: ${result.stderr.split('\n')[0] || 'trunk object missing'}; fetched from ${sources.length ? sources.join(', ') : 'no recorded source'})`),
+    { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
+}
+
+/** Where a missing trunk commit can be fetched from: the recorded job source first, then each named remote. */
+function trunkSources(root, env) {
+  const recorded = tryGit(root, ['config', '--get', 'pullboard.fetchSource'], { env });
+  const remotes = tryGit(root, ['remote'], { env });
+  return [...new Set([...(recorded.status === 0 && recorded.stdout ? [recorded.stdout] : []),
+    ...(remotes.status === 0 ? remotes.stdout.split('\n').filter(Boolean) : [])])];
+}
+
+/**
+ * Bind placement to committed source, never an unstaged plan or the process working directory. With deferUnplaced
+ * a missing placement returns to the cells check, which refuses it only on Cells reorg work (#2473).
+ */
+export function requirePlannedSource(root, base, commit, { deferUnplaced = false } = {}) {
   const index = 'bin/cells-plan.json';
-  const accepted = tryGit(root, ['ls-tree', '-z', base, '--', index]);
-  if (accepted.status !== 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the accepted cells-plan presence could not be read from Git');
+  const accepted = readTrunkEntry(root, base, index);
   if (!accepted.stdout) return;
   if (!/^100(?:644|755) blob /u.test(accepted.stdout)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore a regular cells-plan index on accepted main');
   /** Read only regular committed JSON blobs from the exact candidate. */
@@ -56,6 +104,7 @@ export function requirePlannedSource(root, base, commit) {
     if (!/^100(?:644|755) blob /u.test(row)) throw new Refused('CELLS_PLAN_UNPLACED', `restore a regular committed source path before placement: ${file}`);
     if (!known.has(file)) missing.push(file);
   }
+  if (missing.length && deferUnplaced) return { unplaced: missing };
   if (missing.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${missing.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
 }
 
@@ -72,10 +121,12 @@ const STAND_IN_PROOF = Object.freeze({ version: 1, files: [], full: false, defer
  * @param {number} id
  * @param {{ agentId: string, commit: string, tree: string }} submission
  */
-export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit }, review = {}) {
+export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit, prepareSubmit }, review = {}) {
+  const options = { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) };
+  const prepared = prepareSubmit ? prepareSubmit(board, id, options) : options;
   try {
     atomic(board, () => {
-      submit(board, id, { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) });
+      submit(board, id, prepared);
       // The item is submitted only inside this rolled-back transaction, which is what the native eligibility projection reads.
       review.refuse?.(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id));
       throw PASSED;

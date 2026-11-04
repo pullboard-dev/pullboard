@@ -1,5 +1,6 @@
 import { committedRunnerController, observeDirtyRunnerTooling, dirtyToolingFindings } from '../packages/runners/index.js';
 import { utimesSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 /** Dirty tooling is never execution authority; registered protocol checks use committed bytes [O5,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -7,7 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
@@ -43,7 +44,9 @@ console.log('DIRTY_TOOLING_CHECK_PASSED');`;
   }); // Budget: ordinary fixture protocol and cleanup must finish within the existing per-test cap.
   assert.equal(result.status, 0, result.context);
   assert.match(result.stdout, /DIRTY_TOOLING_CHECK_PASSED/u);
-  assert.equal(readFileSync(join(tooling, 'src/runner-worker.js'), 'utf8'), 'UNCOMMITTED TOOLING IS NOT JAVASCRIPT {');
+  const dirty = 'UNCOMMITTED TOOLING IS NOT JAVASCRIPT {';
+  const dirtyObject = createHash('sha1').update(`blob ${Buffer.byteLength(dirty)}\0${dirty}`).digest('hex');
+  assert.equal(box.git(tooling, 'hash-object', 'src/runner-worker.js'), dirtyObject, 'the dirty working entry stays untouched');
   const attempts = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(attempts.length, 1, 'exactly one runner execution, without retrying dirty source');
   assert.equal(attempts[0].workerStarted, true);
@@ -98,7 +101,7 @@ test('archived tooling still refuses modified archive bytes [O5,C7]', async t =>
   const worker = join(archive.root, 'src/runner-worker.js');
   writeFileSync(worker, readFileSync(worker, 'utf8') + '\n// altered archive bytes\n');
   const script = `import assert from 'node:assert/strict';
-const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.root, 'src/runner-remote-tooling.js')).href)});
+const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.root, 'packages/runners/index.js')).href)});
 assert.throws(()=>trustedTooling(),{code:'RUNNER_TOOLING_CHANGED'});`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);

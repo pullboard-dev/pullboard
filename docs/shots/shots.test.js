@@ -67,19 +67,18 @@ test('the demo board stages a Shouts conversation [I11,I13]', () => {
   const agents = state.agents.filter((agent) => agent.agent_id !== 'person');
   assert.equal(agents.length, 3, 'the demo has a coordinator, builder and reviewer');
   const senders = new Set(state.shouts.map((shout) => shout.shout_from).filter((id) => id !== 'person'));
-  assert.deepEqual([...senders].sort(), ['app-1', 'coordinator', 'review-1']);
+  assert.deepEqual([...senders].sort(), ['app-1', 'coordinator']);
   const decision = state.shouts.find((shout) => shout.shout_decision && shout.shout_to === 'person');
   assert.ok(decision, 'the coordinator asks the person');
   const answer = state.shouts.find((shout) => shout.shout_from === 'person' && shout.shout_answers === decision.shout_id);
   assert.ok(answer, 'the person answers that decision');
   assert.ok(agents.some((agent) => ['all', agent.agent_id, agent.agent_lane].includes(answer.shout_to)
     && agent.agent_last_shout_id >= answer.shout_id), 'an addressed agent has Heard the person');
-  const receipt = state.shouts.find((shout) => shout.shout_evidence_kind === 'receipt');
-  assert.ok(receipt, 'the conversation includes an evidence receipt');
-  assert.equal(receipt.shout_evidence_item, 1);
-  assert.equal(receipt.shout_evidence_outcome, 'edge passes');
-  assert.equal(receipt.shout_evidence_commit, state.items.find((item) => item.id === 1).commit);
-  assert.ok(state.shouts.some((shout) => shout.shout_text.includes(`src/demo.js:1@${receipt.shout_evidence_commit}`)), 'the code reference points at the reviewed fix');
+  const reviewed = state.items.find((item) => item.id === 1);
+  const accept = reviewed.verdicts.find((verdict) => verdict.by === 'review-1' && verdict.decision === 'ACCEPT');
+  assert.ok(accept, 'the board records review-1\'s accept verdict on the reviewed item');
+  assert.equal(accept.commit, reviewed.commit, 'the accept is at the reviewed commit');
+  assert.match(accept.note, /edge passes/, 'the recorded verdict note proves the outcome');
 });
 
 test('the demo board declares every agent\'s model [I11,I13]', () => {
@@ -88,8 +87,8 @@ test('the demo board declares every agent\'s model [I11,I13]', () => {
     const source = fileURLToPath(ROOT);
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['src', 'bin', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
-    for (const file of ['test/chrome-fixture.js', 'test/chrome-launch-args.js', 'test/fixture-child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
+    for (const directory of ['apps', 'packages', 'src', 'bin', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
+    for (const file of ['test/chrome-fixture.js', 'test/chrome-graceful-shutdown.js', 'test/chrome-launch-args.js', 'test/fixture-child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
     const shims = join(fixture, 'bin');
     mkdirSync(shims);
     const pullboard = join(shims, 'pullboard');
@@ -154,11 +153,11 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
   try {
     const root = join(fixture, 'repo');
     mkdirSync(root);
-    for (const directory of ['bin', 'src', 'skills', 'docs/shots', 'docs/img']) {
+    for (const directory of ['apps', 'packages', 'bin', 'src', 'skills', 'docs/shots', 'docs/img']) {
       cpSync(join(source, directory), join(root, directory), { recursive: true });
     }
     mkdirSync(join(root, 'test'));
-    for (const file of ['package.json', 'CHANGELOG.md', 'test/chrome-fixture.js', 'test/chrome-launch-args.js', 'test/fixture-child.js']) {
+    for (const file of ['package.json', 'CHANGELOG.md', 'test/chrome-fixture.js', 'test/chrome-graceful-shutdown.js', 'test/chrome-launch-args.js', 'test/fixture-child.js']) {
       cpSync(join(source, file), join(root, file));
     }
     const shims = join(fixture, 'bin');
@@ -290,8 +289,8 @@ test('the exported demo is synthetic and contains no machine paths or unrelated 
     'The review is complete. May the verified change proceed?',
     'Passed up from app-1: The review is complete. May the verified change proceed?\nCoordinator note: The review passed; ask the person before proceeding.',
     'Proceed with the verified change.',
-    'Person answered #3: Proceed with the verified change.',
-  ].includes(shout.shout_text) || /^#1 passes the edge that failed before\. The fix is in src\/demo\.js:1@[a-f0-9]{40}\.$/.test(shout.shout_text)), 'the board contains only the synthetic conversation');
+    'Person answered #2: Proceed with the verified change.',
+  ].includes(shout.shout_text)), 'the board contains only the synthetic conversation');
 });
 
 test('the demo capture starts its view on a free port [I11,I13]', () => {

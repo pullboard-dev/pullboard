@@ -13,10 +13,10 @@ import { browserBoundFiles } from '../packages/gate/index.js';
 import { testsNeedGui } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
-import { packageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
-import * as affectedTests from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
 
 installSubmitTestTreeCases();
@@ -330,9 +330,9 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import './commands/index.js';\nimport './machine.js';\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('src/commands/alpha.js', 'export function run() { return 0; }\n');
+  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport './machine.js';\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('src/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
@@ -341,7 +341,7 @@ test('a discovered command module or engine leaf selects what reads its registry
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
-  box.put('src/commands/alpha.js', 'export function run() { return 1; }\n');
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 1; }\n');
   const commandCommit = box.commit();
   const command = selectAffectedTests(box.root, { base, commit: commandCommit });
   assert.equal(command.full, false, command.reason);
@@ -359,13 +359,13 @@ test('a discovered command module or engine leaf selects what reads its registry
 test('runtime discovery and the selector agree on which files are engines and commands [C7,V4]', (t) => {
   const box = graph(t);
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('test/reader.test.js', "import '../src/machine.js';\n");
-  box.put('test/commands.test.js', "import '../src/commands/index.js';\n");
+  box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
   for (const [file, reader] of [['src/check-alpha-engine.js', 'test/reader.test.js'], ['src/check.alpha-engine.js', 'test/reader.test.js'],
-    ['src/commands/beta.js', 'test/commands.test.js'], ['src/commands/gamma.delta.js', 'test/commands.test.js']]) {
+    ['apps/cli/src/shell/commands/beta.js', 'test/commands.test.js'], ['apps/cli/src/shell/commands/gamma.delta.js', 'test/commands.test.js']]) {
     box.put(file, 'export const ENGINE = 1;\n');
     const commit = box.commit();
     const selected = selectAffectedTests(box.root, { base, commit });
@@ -382,22 +382,22 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
-  box.put('test/person.test.js', "import '../src/person.js';\n");
+  box.put('test/person.test.js', "import '../src/config.js';\n");
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
-  const mapped = mappedWorkingSource(sourceRoot, 'src/person.js');
+  const mapped = mappedWorkingSource(sourceRoot, 'src/config.js');
   // The helper copy already installed the mapped shim at this path; the ordinary change appends to it rather than copying tool bytes.
-  assert.equal(mapped.shimPath, 'src/person.js');
+  assert.equal(mapped.shimPath, 'src/config.js');
   appendFileSync(join(box.root, mapped.shimPath), '\n// ordinary source change\n');
   const commit = box.commit();
-  const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
+  const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/config.js'] });
   assert.equal(selected.full, false, selected.reason);
   assert.deepEqual(selected.files, ['test/person.test.js', 'test/runner-reader.test.js']);
-  box.put('src/unresolved-reader.js', "import './person.js'; export const load = () => import(process.env.UNKNOWN_MODULE);\n");
+  box.put('src/unresolved-reader.js', "import './config.js'; export const load = () => import(process.env.UNKNOWN_MODULE);\n");
   box.put('test/unresolved-reader.test.js', "import '../src/unresolved-reader.js';\n");
   const unresolved = box.commit();
-  const fallback = selectAffectedTests(box.root, { base: unresolved, commit: unresolved, changed: ['src/person.js'] });
+  const fallback = selectAffectedTests(box.root, { base: unresolved, commit: unresolved, changed: ['src/config.js'] });
   assert.equal(fallback.full, true, 'a genuinely unresolved reached helper still requires the full suite');
   assert.match(fallback.reason, /non-literal dynamic import in reached file src\/unresolved-reader\.js/u);
 });
@@ -412,10 +412,10 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/scanner.test.js', 'export const scan = false;\n');
   box.put('test/new.test.js', 'export const added = true;\n');
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
 
 
@@ -430,11 +430,11 @@ test('a repo guard the base names follows its file through a rename, and a delet
   box.git('mv', 'test/old-scanner.test.js', 'packages/area/tests/scanner.test.js');
   rmSync(join(box.root, 'test/doomed.test.js'));
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }),
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }),
     ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'the renamed guard is read at its new path; the deleted guard keeps the old path so submit refuses it');
   box.put('packages/area/tests/scanner.test.js', body);
   const stripped = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: stripped, changed: ['src/api.js'] }),
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit: stripped, changed: ['src/api.js'] }),
     ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'a renamed guard that drops its declaration still counts as a guard');
 });
 
@@ -447,17 +447,17 @@ test('explicit pure repo guards cover source and test changes while behavior rea
   const base = box.commit();
   box.put('src/api.js', 'export const value = 2;\n');
   const sourceCommit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/repo-scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/repo-scanner.test.js']);
   assert.ok(selectAffectedTests(box.root, { base, commit: sourceCommit }).files.includes('test/behavior.test.js'), 'real source-tree behavior remains selected by ordinary affected policy');
   box.put('test/new.test.js', 'export const added = true;\n');
   const testCommit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/repo-scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/repo-scanner.test.js']);
   box.put('test/repo-scanner.test.js', 'export const scan = false;\n');
   box.put('src/api.js', 'export const value = 3;\n');
   const removed = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'the old committed guard obligation survives removal');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'the old committed guard obligation survives removal');
   box.put('test/text.test.js', guardHeader + 'export const dirty = true;\n');
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'dirty and string-only headers never create native obligations');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'dirty and string-only headers never create native obligations');
 });
 
 /** Keep only source-text scanners in the mandatory test-edit guard set. */
@@ -469,28 +469,40 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/gui-marker-guard.test.js',
     'test/privacy-scan-guard.test.js',
     'test/shared-wait-guard.test.js',
+    'test/test-lint-sleeps.test.js',
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
-  const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
+  const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
-  const forbiddenImports = new Set(['../src/board.js', '../src/serve.js', '../src/gate.js', './board-fixture.js',
+  const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
     './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
-  for (const file of guards) {
-    const source = readFileSync(join(root, file), 'utf8');
+  const scanFiles = [
+    'packages/gate/tests/gui-marker-guard.test.js',
+    'test/board-file-guard.test.js',
+    'test/cell-lint-guard.test.js',
+    'test/privacy-scan-guard.test.js',
+    'test/shared-wait-guard.test.js',
+    'test/view-test-policy.test.js',
+    'test/wall-clock-budgets.test.js',
+  ];
+  assert.equal(guards.length, 7, 'all selected guards are scanned');
+  for (const guardScanFile of scanFiles) {
+    assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
+    const source = readFileSync(join(root, guardScanFile), 'utf8');
     const imports = importsIn([source])[0];
-    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${file} imports no board, server or browser fixture`);
+    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${guardScanFile} imports no board, server or browser fixture`);
     const code = lex(source).code;
     assert.doesNotMatch(code, /\b(?:openBoard|startView|serveView|createServer|launchChromeProcess|startChrome|runFixtureChild|runProfiledShell|withGateSlot)\s*\(/u,
-      `${file} only scans source text`);
+      `${guardScanFile} only scans source text`);
   }
 });
 
 test('gate source changes still select the static failure regression [C7]', () => {
   const root = join(import.meta.dirname, '..');
-  const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['src/gate.js'] });
+  const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/shell/gate.js'] });
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('test/submit-gate.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
@@ -505,7 +517,7 @@ test('repo-wide test guards are found in a CommonJS project while affected tests
   const base = box.commit();
   box.put('src/api.js', 'module.exports = { value: 2 };\n');
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'],
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'],
     'a header scan needs no ES-module graph, so a plain project is not refused');
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.equal(selected.full, true, 'the import-graph selection still refuses to guess for CommonJS');

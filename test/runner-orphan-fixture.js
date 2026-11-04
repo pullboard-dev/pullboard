@@ -211,7 +211,7 @@ export async function unprovenProcessFixture(t, { createDescendantTracker, parse
   rows = [...rows, line(reusedPid, 1, reusedPid)];
   tracker.observe();
   assert.deepEqual(await stop().then(state => state.kills), [], 'a reused pid never matches the exact start its receipt recorded');
-  assert.deepEqual(tracker.cleanupState().pending.map(entry => entry.pid), [reusedPid], 'the lookalike stays unidentified, so cleanup cannot verify');
+  assert.deepEqual(tracker.cleanupState().pending.map(entry => entry.pid), [], 'a different exact start proves the lookalike is foreign and cannot hold cleanup');
   rows = rows.filter(entry => Number(entry.split(' ')[0]) !== reusedPid);
   tracker.observe();
 

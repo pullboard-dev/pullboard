@@ -5,6 +5,16 @@ import { flowStats } from '../core/stats-flow.js';
 import { barStats } from '../core/bar-stats.js';
 import { caughtFrom } from '../../../items/index.js';
 
+/** Identify a registered agent seat without counting board-owned actors. */
+export function isProofAgent({ agent_id: id, agent_lane: lane }) {
+  return lane !== 'coordinator' && !['board', 'person', 'clock', 'coordinator', 'rigor', 'sentinel'].includes(id);
+}
+
+/** Return registered agent seats, excluding the board's system actors. */
+export function proofAgentIds(board) {
+  return new Set(board.db.prepare('SELECT agent_id, agent_lane FROM agent').all().filter(isProofAgent).map(row => row.agent_id));
+}
+
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */
 export function sinceDate(value) {
   if (value === undefined || value === null) return null;
@@ -64,13 +74,13 @@ export function eventCounts(board, { since } = {}, reads) {
 }
 
 /** Attribute only recorded actor families, retaining earlier declarations across date windows. */
-function actorsFrom(history, boundary) {
+function actorsFrom(history, boundary, seats) {
   const declared = new Map();
   const actors = new Map();
   const families = new Map();
   for (const event of history) {
     const id = event.event_by;
-    if (id === 'board' || id === 'person') continue;
+    if (!seats.has(id)) continue;
     const detail = proofEventDetail(event);
     if (Object.hasOwn(detail, 'family')) {
       declared.set(id, typeof detail.family === 'string' && detail.family.trim() ? detail.family : 'unknown');
@@ -118,17 +128,20 @@ function proofStatsSnapshot(board, boundary, now, onFallback, reads) {
   const history = reads.events(board);
   const counts = countsFrom(history, boundary);
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
-  return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts) };
+  const seats = proofAgentIds(board);
+  return { ...counts, ...actorsFrom(history, boundary, seats), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts, { agentIds: seats }) };
 }
 
 /** Count holder notes and successful submissions per seat in the same stats snapshot [R1,R2]. */
 function notesPerSubmit(board, boundary) {
+  const seats = proofAgentIds(board);
   return board.db.prepare(`SELECT event_by AS seat,
     SUM(CASE WHEN event_kind='fact' THEN 1 ELSE 0 END) AS notes,
     SUM(CASE WHEN event_kind='submit' THEN 1 ELSE 0 END) AS submits
     FROM event WHERE (event_kind='submit' OR event_kind='fact' AND json_extract(event_detail,'$.kind')='note')
     AND event_by NOT IN ('board','person','clock','coordinator') AND (? IS NULL OR event_at>=?)
     GROUP BY event_by ORDER BY event_by`).all(boundary, boundary)
+    .filter(row => seats.has(row.seat))
     .map(row => ({ ...row, notesPerSubmit: row.submits ? row.notes / row.submits : null }));
 }
 import { readWorkFreeReleases } from '../core/work-free-releases.js';

@@ -1,8 +1,8 @@
-import { viewApiPorts } from '../../../src/view-api-ports.js';
+import { viewApiPorts } from '../../../apps/view/index.js';
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import { apiBoardOpeners } from '../../../test/board-fixture.js';
 
-import { refusalDocument } from '../../../src/next-step-words.js';
+import { refusalDocument } from '../../../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { serveApi } from '../../api/index.js';
 import { fetchFresh } from '../../../test/http-fixture.js';
@@ -217,15 +217,16 @@ test('Dashboard API projects the same read-time windows from cached event histor
   assert.equal(command.code, 0, command.stderr);
   assert.deepEqual(document.state.statsComparison, command.data.comparison);
   assert.equal(document.state.statsComparison.current.until, at(120));
-  now = Date.parse(at(121));
+  now = Date.parse(at(120)) + 20_000; // Item progress is shown by the minute, so a cached build serves reads inside one minute.
+  const readAt = new Date(now).toISOString();
   const next = await fetchFresh(route, { headers });
   assert.equal(next.status, 200);
   const cached = await next.json();
-  assert.equal(cached.state.observedAt, at(121));
+  assert.equal(cached.state.observedAt, readAt);
   assert.deepEqual(cached.state.statsComparison, compareFlowWindows(before, { now, windowMinutes: 120, complete: true }),
     'read-time windows project from the same cached event prefix without another database scan');
-  assert.equal(cached.state.statsComparison.current.until, at(121));
-  now = Date.parse(at(122));
+  assert.equal(cached.state.statsComparison.current.until, readAt);
+  now = Date.parse(at(120)) + 40_000;
   const deltaResponse = await fetchFresh(`${route}?since=${document.state.sequence}`, { headers });
   assert.equal(deltaResponse.status, 200);
   const delta = await deltaResponse.json();

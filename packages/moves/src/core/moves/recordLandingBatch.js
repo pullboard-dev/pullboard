@@ -1,3 +1,4 @@
+import { FLAKE_RATCHET_ENGINE } from '../../../../../src/flake-ratchet-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { quarantineBatchGates } from "../../../../verify/src/core/quarantine-verdict.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -9,7 +10,7 @@ import {
   carriesFlakeDiagnostics,
 } from "../../../../../src/flake-engine.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../../src/land-engine.js";
-import { landingBatches } from "../../../../../src/landing-batch-history.js";
+import { landingBatches } from "../../../../git/core.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { landingTestDefects } from "../../../../../src/board-landing-test-defect-history.js";
@@ -42,7 +43,7 @@ function existingEngine(args, board, at) {
 
 /** Optional computed evidence requires its own floor without changing any old first-match rule. */
 function minimumEngine(args, board, at) {
-  return Math.max(existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
+  return Math.max(args[0]?.batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

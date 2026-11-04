@@ -217,7 +217,7 @@ console.log('RUNNER_JOURNAL_FILES ' + readdirSync(journal).filter(name => /^chil
   assert.equal(readRemoteGateHolders(join(remoteMachineHome, 'resources.sqlite')).length, 0,
     'the physical runner lease is released after successful cleanup');
   const callsAfterManyJournals = readFileSync(requests, 'utf8').trim().split('\n').length;
-  assert.equal(callsAfterManyJournals, 3, 'the large-journal command ran remotely exactly once');
+  assert.equal(phaseCounts(requests + '.phases').dispatched, 3, 'the large-journal command ran remotely exactly once');
 
   const tagSecretAssignment = `${['RUNNER', 'FIXTURE', 'SECRET'].join('_')}=${SECRET}`;
   git(repo, env, 'tag', '-a', 'runner-private-tag', '-m', tagSecretAssignment, 'HEAD');

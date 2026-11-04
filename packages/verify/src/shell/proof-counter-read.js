@@ -6,6 +6,7 @@ import { proofCounter } from './proof-counters.js';
 import { currentProofCounters } from './proof-counters.js';
 import { proofCounterRows } from './proof-counters.js';
 import { projectFlowStats } from '../../../stats/index.js';
+import { proofAgentIds } from '../../../stats/index.js';
 
 /** Assemble selected-window counters from timestamped contributions, not decoded native events. */
 function windowCounts(facts, boundary) {
@@ -20,11 +21,11 @@ function windowCounts(facts, boundary) {
 }
 
 /** Attribute a date window using the family recorded at each move, including older declarations. */
-function windowActors(facts, boundary) {
+function windowActors(facts, boundary, seats) {
   const actors = new Map();
   const families = new Map();
   for (const row of facts) {
-    if (row.at < Date.parse(boundary) || ['board', 'person'].includes(row.by)) continue;
+    if (boundary && row.at < Date.parse(boundary) || !seats.has(row.by)) continue;
     if (!actors.has(row.by)) actors.set(row.by, { id: row.by, moves: 0, families: new Set() });
     const actor = actors.get(row.by); actor.moves += 1; actor.families.add(row.family);
     if (!families.has(row.family)) families.set(row.family, { name: row.family, moves: 0, agents: new Set() });
@@ -48,16 +49,14 @@ export function counterProofStats(board, boundary, now) {
   if (!summary) return null;
   const items = proofCounterRows(board, 'item');
   const actors = proofCounterRows(board, 'actor');
-  const facts = boundary ? proofCounterRows(board, 'event') : null;
+  const facts = proofCounterRows(board, 'event');
+  const seats = proofAgentIds(board);
   const counts = boundary ? windowCounts(facts, boundary) : {
     since: null, submissions: summary.submissions, rejections: summary.rejections, merged: summary.merged,
     mergedWithoutAccept: summary.mergedWithoutAccept, firstEventAt: summary.firstEventAt, lastEventAt: summary.lastEventAt,
   };
   counts.rejectionShare = counts.submissions ? counts.rejections / counts.submissions : 0;
-  const attributed = boundary ? windowActors(facts, boundary) : {
-    agents: actors.map(actor => ({ id: actor.id, moves: actor.moves, families: [...actor.families].sort() })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-    families: proofCounterRows(board, 'family').sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-  };
+  const attributed = windowActors(facts, boundary, seats);
   const creators = items.filter(item => item.creator !== undefined).map(item => ({ event_kind: 'add', item_id: item.id, event_by: item.creator }));
   const corrections = proofCounterRows(board, 'bar').map(row => decodedProofEvent({ ...row, event_kind: 'edit' }, row.detail));
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
@@ -65,7 +64,7 @@ export function counterProofStats(board, boundary, now) {
   const reportCurrent = report?.version === FLOW_REPORT_VERSION && !report.invalid && report.last === summary.last;
   const flow = { reportPolicy: reportCurrent ? proofCounter(board, 'report-policy') : null,
     ...(reportCurrent ? { reportItems: proofCounterRows(board, 'report-item') } : {}), items: items.filter(item => item.id !== null && item.id !== undefined).map(item => item.flow),
-    actors: actors.filter(actor => actor.id !== 'clock').map(actor => actor.flow), dailyEvents: proofCounterRows(board, 'daily') };
+    actors: actors.filter(actor => seats.has(actor.id)).map(actor => actor.flow), dailyEvents: proofCounterRows(board, 'daily') };
   return { ...counts, agentCount: attributed.agents.length, familyCount: attributed.families.length, ...attributed,
     bars: barStats([...creators, ...corrections], verdicts, boundary), caught: counterCaught(board, boundary),
     flow: projectFlowStats(flow, boundary, now, counts) };

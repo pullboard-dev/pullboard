@@ -1,11 +1,11 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../shell/landing-shards.js';
-import { runProfiledShell } from '../../../../src/gate.js';
-import { pinRunMain } from '../../../../src/gate.js';
-import { withLandingGateSlot } from '../../../../src/gate.js';
-import { testsNeedBrowser } from '../../../../src/browser-admission.js';
-import { testsNeedGui } from '../../../../src/gui-admission.js';
+import { runProfiledShell } from '../../../gate/index.js';
+import { pinRunMain } from '../../../gate/index.js';
+import { withLandingGateSlot } from '../../../gate/index.js';
+import { testsNeedBrowser } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 
 import { Refused } from '../../../kernel/index.js';
@@ -29,6 +29,8 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
 export function requireLocalGuardClassification(state, gate) {
   if (state.config.flakes?.rerun !== true) return;
   const recorded = gate.flakeDiagnostics?.observations ?? [];
+  // No measurement exists to classify after an observer error; diagnose will isolate each failing file once.
+  if (gate.flakeDiagnostics?.error && !recorded.length) return;
   if (gate.flakeDiagnostics?.error || !recorded.length || recorded.some(row => !row.recorded || row.classification === 'unclassified')) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk red has no complete classified diagnostic; inspect its recorded gate');
   }

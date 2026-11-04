@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** Seat identity survives heartbeat-based presence changes on a real SQLite board [B3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -74,7 +74,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { importSeatObservations } = await import('../packages/store/index.js');
   const { dispatchWork } = await import('../packages/store/index.js');
-  const { dispatchHealth } = await import('../src/dispatch-health.js');
+  const { dispatchHealth } = await import('../packages/sentinels/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -246,7 +246,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { readFileSync } = await import('node:fs');
   const { DatabaseSync } = await import('node:sqlite');
-  const { projectState } = await import('../src/cli/view-state.js');
+  const { projectState } = await import('../apps/cli/src/shell/cli/view-state.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -590,7 +590,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../packages/state/index.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { nativeBoardPorts } = await import('../src/native-board.js');
+  const { nativeBoardPorts } = await import('../apps/lib/index.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const f = goneClaimFixture(t);
@@ -664,7 +664,7 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
 test('gone maintenance leaves unknown imported holders and submitted reviews alone [B3,V1,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { releaseGoneClaims } = await import('../src/gone-claims.js');
+  const { releaseGoneClaims } = await import('../packages/sentinels/index.js');
   const { submitFixture } = await import('./board-submit-fixture.js');
   const f = goneClaimFixture(t);
   const id = f.claim();

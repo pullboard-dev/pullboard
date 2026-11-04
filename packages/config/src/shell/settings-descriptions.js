@@ -10,9 +10,10 @@ const ROWS = [
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],
   ['gate.shortSlots', 'Quick-check lane', 'Extra slots kept for runs that name their test files, so they do not wait behind long runs; 0 turns it off.', 'Capacity', 'count'],
   ['gate.memoryFloorMB', 'Memory floor', 'The queue holds new checks while free memory is below this; blank means it never waits for memory.', 'Capacity', 'MB'],
+  ['gate.diskFloorMB', 'Runner disk floor', 'A runner refuses new jobs when less than this much disk is free after its sweep; an absolute amount, never a percentage.', 'Capacity', 'MB'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
-  ['gate.loadAwareDispatch', 'Prefer quieter runners', 'Dispatch prefers recent runner-reported CPU readings among compatible free runners.', 'Capacity', 'on/off'],
+  ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
@@ -85,6 +86,7 @@ const ROWS = [
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],
   ['itemSizeBudget', 'Item size budget', 'Changed lines an item may carry before submit notes it as oversize.', 'Checks', 'lines'],
+  ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
@@ -107,6 +109,7 @@ const ROWS = [
   // This repo: Claims
   ['lease', 'Build claim length', 'How long a build claim lasts before it expires.', 'Claims', 'duration'],
   ['reviewLease', 'Review claim length', 'How long a review reservation lasts before it expires.', 'Claims', 'duration'],
+  ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
   ['claim.reopenFirstRefusalMinutes', 'Builder repair window', 'After a reopen, the original builder gets this long to repair it first; 0 turns it off.', 'Claims', 'minutes'],
   // This repo: Landing
@@ -131,6 +134,7 @@ const ROWS = [
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.route.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.returnRejectedWork', 'Return rejected work', 'Rejected work goes to its builder first; after 30 minutes another lane seat may claim it.', 'Line', 'on/off'],
+  ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.order', 'Board-controlled order', 'The board sets queue order itself.', 'Line', 'on/off'],
   ['line.focusMilestone', 'Focus milestone', 'The milestone whose work is offered first.', 'Line', 'text'],
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],

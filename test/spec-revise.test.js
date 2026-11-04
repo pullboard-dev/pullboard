@@ -12,7 +12,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { personNeedsState } from '../src/needs-state.js';
+import { personNeedsState } from '../apps/view/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import {
@@ -133,6 +133,8 @@ test('[B23,N39] a real gate rename gives the new path and an exact revision comm
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'test: establish the existing gate');
   box.git(root, 'mv', 'test/old.test.js', 'test/new.test.js');
+  writeFileSync(join(root, 'test/new.test.js'), '// A tracked test in the project before Pullboard was installed.\n// Renamed with an edit, so the gate repoint needs a person.\n');
+  box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'test: rename the gate');
   succeeds(box.run(root, 'init'));
   const check = box.run(root, 'spec', 'check');

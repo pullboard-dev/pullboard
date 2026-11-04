@@ -18,7 +18,7 @@ import { tryGit } from '../packages/git/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { laneOf } from '../packages/seats/index.js';
 import { outOfLane } from '../packages/seats/index.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { runnerWorkerFiles } from './cells-move-closure.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
 import { Refused } from '../packages/kernel/index.js';
 import { checkCuts, entryPlacementProblems, retiredProblems } from './cells-plan-cuts.js';
@@ -272,7 +272,8 @@ function pathToken(token, path, argument) {
   const fileUrl = token.startsWith('file:');
   const prefix = token.slice(0, -path.length).replace(/^file:/u, '');
   if (prefix && !prefix.endsWith('/')) return false;
-  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
+  // A lone leading slash is a root-relative URL a server answers, like /relay/x.js; an absolute file path has a root before it.
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || (prefix.startsWith('/') && (prefix !== '/' || fileUrl)) || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
 }
 
 /**
@@ -356,9 +357,9 @@ function runnerEntries(box, parsers) {
 }
 
 /** Every file the runner closures reach, or the bound or resolution problem that stops them. */
-function runnerClosure(root, entries) {
+function runnerClosure(root, entries, parsers, inventoryFiles) {
   const files = new Set();
-  try { for (const entry of entries) for (const file of Object.keys(runnerPackage(root, entry).files)) files.add(file); }
+  try { for (const entry of entries) for (const file of runnerWorkerFiles(root, { ...parsers, files: inventoryFiles.keys() }, entry)) files.add(file); }
   catch (error) { return { files: null, problem: error.message }; }
   return { files, problem: null };
 }
@@ -400,7 +401,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   // A deletion or a dropped row rewrites these plan files, so a lane that does not own every one of them changes neither.
   const foreignPlan = planFiles.filter(file => outOfLane(settings, lane, [file]).length).map(file => `${file} (${laneOf(settings, file)} lane)`);
   const entries = runnerEntries(box, parsers);
-  box.runner = runnerClosure(root, entries);
+  box.runner = runnerClosure(root, entries, parsers, inventory.files);
   box.move = moveClosure(root, parsers, inventory.files);
   const kept = new Map(), absent = foreignPlan.length ? [] : cell.reexports.filter(shim => !existsSync(join(root, shim)));
   const live = cell.reexports.filter(shim => !absent.includes(shim) && existsSync(join(root, shim)));
@@ -429,7 +430,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
         }
         if (blamed.length === count) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing broke the ${what} and no shim edit explains it: ${now.problem}`);
       };
-      closureBlame(box.runner, runnerClosure(root, entries), 'runner-worker closure');
+      closureBlame(box.runner, runnerClosure(root, entries, parsers, after.files), 'runner-worker closure');
       closureBlame(box.move, moveClosure(root, parsers, after.files), 'move-registry closure');
       if (!fresh.length && !blamed.length) break;
       for (const [key, problem] of fresh) {

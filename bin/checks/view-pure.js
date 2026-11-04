@@ -13,8 +13,10 @@
  */
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +35,32 @@ export const ENFORCED_FILE = 'bin/checks/view-pure-roots.json';
 const RENDERER_MODULES = /^src\/view\/(?!page-)(?:.*-(?:model|render)|activity-words|needs-panel|needs-list|roadmap-summary|roadmap-block|home|row-component|pipeline|lifecycle-chart|held-items|record-row|items-selection|segmented-control|lifecycle-diagram)\.js$/u;
 
 /**
+ * Point each coverage row at the body the checked tree's path map moved it to, so a test importing the moved body
+ * still witnesses the module it covered before the move. The gate runs main's table against a candidate whose tests
+ * already import the new paths (#2470); an unreadable map leaves rows unmapped, which fails closed.
+ *
+ * @param {string} root - repository root of the tree being checked
+ * @param {object[]} coverage - rows of { module, names, tests }
+ * @returns {object[]}
+ */
+function movedCoverage(root, coverage) {
+  const map = new Map(), shards = resolve(root, 'bin/cells-plan/path-map');
+  const names = existsSync(shards) ? readdirSync(shards).filter(name => name.endsWith('.json')).map(name => join(shards, name)) : [];
+  for (const file of [resolve(root, 'path-map.json'), ...names]) {
+    let data;
+    try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { continue; }
+    if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
+  }
+  return coverage.map(row => {
+    let module = row.module;
+    for (const seen = new Set(); map.has(module) && !seen.has(module);) { seen.add(module); module = map.get(module); }
+    let moved = false;
+    try { moved = module !== row.module && lstatSync(resolve(root, module)).isFile(); } catch { moved = false; }
+    return moved ? { ...row, module } : row;
+  });
+}
+
+/**
  * Every finding over the view test roots and their compile-only import closure.
  *
  * @param {string} root - repository root
@@ -41,6 +69,7 @@ const RENDERER_MODULES = /^src\/view\/(?!page-)(?:.*-(?:model|render)|activity-w
  */
 export function viewPureReport(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RENDERER_COVERAGE } = {}) {
   const canonical = realpathSync(root);
+  coverage = movedCoverage(root, coverage);
   /** Refuse a symlink or outside file rather than reading an unrelated file as a dependency. */
   const readSource = file => {
     const absolute = resolve(canonical, file), actual = realpathSync(absolute);
@@ -120,7 +149,7 @@ export function viewPureGate(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RE
   }
   const held = new Set(declared.roots);
   for (const file of scanned) if (roles[file]?.kind === 'logic' && !held.has(file)) failures.push({ path: file, line: 1, text: 'declared logic root must be promoted into ' + ENFORCED_FILE });
-  for (const finding of viewPureReport(root, { roles, coverage })) (held.has(finding.path) || finding.path.startsWith('src/view/') ? failures : reported).push(finding);
+  for (const finding of viewPureReport(root, { roles, coverage })) (held.has(finding.path) || /^(?:src|apps\/view\/src\/(?:core|shell))\/view\//u.test(finding.path) ? failures : reported).push(finding);
   return { failures, reported, enforced: declared.roots };
 }
 
