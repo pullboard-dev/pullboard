@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { builderRepo } from './submit-gate-fixture.js';
 import { commitAll } from './submit-gate-fixture.js';
 import { privateRepo } from './submit-gate-fixture.js';
@@ -28,7 +28,7 @@ function project(t, { staticFails = false, staticLint = false } = {}) {
     put(box.root, 'bin/checks/test-waits-baseline.json', '{}\n');
     put(box.root, 'bin/static-style-checks.js', `import { readFileSync } from 'node:fs';
 import { importStyleViolations } from ${JSON.stringify(GATE_FRONT_DOOR)};
-const sources = ['src/a.js'].map(file => ({ file, source: readFileSync(file, 'utf8') }));
+const sources = ['test/style-bad.js'].map(file => ({ file, source: readFileSync(file, 'utf8') }));
 const failures = importStyleViolations(sources);
 for (const row of failures) console.error(row.file + ':' + row.line + ': one import binding per line (' + row.count + ' bindings)');
 if (failures.length) process.exitCode = 1;
@@ -40,7 +40,7 @@ if (failures.length) process.exitCode = 1;
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Fail fast\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
-  assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--check', MARK(markers.item)).code, 0);
+  assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item)).code, 0);
   assert.equal(builder.run('claim', '1').code, 0);
   // Adding the item ran its check once to baseline it; only runs after this point count.
   for (const path of Object.values(markers)) rmSync(path, { force: true });
@@ -89,16 +89,18 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
 
 test('changed import style is refused while other stages may run [V4,C7]', t => {
   const { box, markers } = project(t, { staticLint: true });
-  put(box.root, 'src/a.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
+  // The commit hook splits multi-binding imports under src, packages and apps, so the style violation lives in test, which it leaves alone; the build lane owns test.
+  put(box.root, 'test/style-bad.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
   commitAll(box, 'feat(core): change source with bad import style [G1]');
   const checked = runFixtureChild(process.execPath, ['--experimental-vm-modules', 'bin/static-style-checks.js'],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   const checkerOutput = checked.failure ?? checked.stderr ?? '';
   assert.notEqual(checked.status, 0, checkerOutput);
-  assert.match(checkerOutput, /src\/a\.js:1: one import binding per line/u);
+  assert.match(checkerOutput, /test\/style-bad\.js:1: one import binding per line/u);
   const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
   assert.equal(existsSync(markers.staticCheck), true, 'the submit static stage actually ran');
   assert.notEqual(result.code, 0, result.err + result.out);
-  assert.match(result.err + result.out, /src\/a\.js:1: one import binding per line/u);
-  for (const name of ['item', 'gate', 'doctrine']) assert.equal(existsSync(markers[name]), false, `${name} proof did not run before static refusal`);
+  assert.match(result.err + result.out, /test\/style-bad\.js:1: one import binding per line/u);
+  // The independent stages start beside the static check, so whether they ran before the refusal is not part of the contract.
+  assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed', 'a static refusal leaves the item claimed');
 });
