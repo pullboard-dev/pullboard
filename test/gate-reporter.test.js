@@ -31,5 +31,5 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
   const frame = output.split('\n').find(line => line.startsWith('# pullboard test outcomes '));
   assert.ok(frame, 'the failure remains accounted after landing abort');
   assert.deepEqual(JSON.parse(frame.slice('# pullboard test outcomes '.length)).tests,
-    [{ file: 'test/spec-failure.test.js', name: 'spec default failure [C7,V4]', passed: false, skipped: false }]);
+    [{ file: 'test/spec-failure.test.js', name: 'spec default failure [C7]', passed: false, skipped: false }]);
 });
