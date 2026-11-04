@@ -71,23 +71,25 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.match(uncounted.err, /Q4 The keep file stays\. cannot count: its check exited 3/);
   assert.equal(uncounted.code, 1, uncounted.out);
 
-  // A rise above the committed count is refused, naming the rule, the counts and the new line.
+  // A rise reports what it would refuse during this rule's twenty-clean-gate trial.
   commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
-  assert.doesNotMatch(rose.err, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
-  assert.equal(rose.code, 1, rose.out);
-  assert.match(rose.err, /RATCHET_ROSE/);
-  assert.match(rose.err, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
-  assert.match(rose.err, /web\/b\.html:1:TODO three/);
-  assert.doesNotMatch(rose.err, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
+  const roseOutput = `${rose.out}${rose.err}`;
+  assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
+  assert.equal(rose.code, 0, rose.err);
+  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
+  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+  assert.match(roseOutput, /web\/b\.html:1:TODO three/);
+  assert.doesNotMatch(roseOutput, /web\/a\.html:1:TODO one/, 'only the new problem lines are named');
 
-  // A changed file that gains a problem is refused even when the total falls.
+  // A later gate reports a new per-file problem even when the total falls.
   commitWeb(box, { 'a.html': 'done\n' }, 'feat(web): clear the old markers [G1]');
   const gained = box.run(box.web, 'submit', '1');
-  assert.equal(gained.code, 1, gained.out);
-  assert.match(gained.err, /RATCHET_ROSE/);
-  assert.match(gained.err, /web\/b\.html gains 1 problem/);
-  assert.match(gained.err, /web\/b\.html:1:TODO three/);
+  const gainedOutput = `${gained.out}${gained.err}`;
+  assert.equal(gained.code, 0, gained.err);
+  assert.match(gainedOutput, /would refuse RATCHET_ROSE \(report-only, 1\/20 clean gates\)/);
+  assert.match(gainedOutput, /web\/b\.html gains 1 problem/);
+  assert.match(gainedOutput, /web\/b\.html:1:TODO three/);
 
   // A fall passes and is shown as N, was M.
   commitWeb(box, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
@@ -164,9 +166,10 @@ test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", 
 
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
-  assert.equal(rose.code, 1, rose.out);
-  assert.match(rose.err, /RATCHET_ROSE/);
-  assert.match(rose.err, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+  const roseOutput = `${rose.out}${rose.err}`;
+  assert.equal(rose.code, 0, rose.err);
+  assert.match(roseOutput, /would refuse RATCHET_ROSE \(report-only, 0\/20 clean gates\)/);
+  assert.match(roseOutput, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
 });
 
 
