@@ -22,7 +22,7 @@ function succeeded(result) {
 function addBuild(box, repo, title, check) {
   const result = succeeded(box.run(repo, 'add', 'web', title, '--specs', 'G1',
     '--criterion', 'the real fixture gate passes', '--check', check,
-    '--brief', 'Files: web/receipt.txt\nTest: the real fixture gate passes', '--wait', '--json'));
+    '--route', 'strong', '--wait', '--json'));
   return JSON.parse(result.out).item.item_id;
 }
 
