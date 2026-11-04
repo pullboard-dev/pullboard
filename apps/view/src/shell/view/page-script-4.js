@@ -893,12 +893,7 @@ document.addEventListener('click', (event) => {
   const itemPanelHistory = event.target.closest('[data-item-panel-history]');
   if (itemPanelHistory) {
     const list = itemPanelHistory.closest('.item-panel-history').querySelector('.item-panel-history-list');
-    view.itemPanelHistoryOpen ||= new Map();
-    const key = JSON.stringify([view.root, view.item]);
-    const expanded = view.itemPanelHistoryOpen.get(key) !== true;
-    if (expanded) view.itemPanelHistoryOpen.set(key, true);
-    else view.itemPanelHistoryOpen.delete(key);
-    list.classList.toggle('expanded', expanded);
+    const expanded = list.classList.toggle('expanded');
     itemPanelHistory.setAttribute('aria-expanded', String(expanded));
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
