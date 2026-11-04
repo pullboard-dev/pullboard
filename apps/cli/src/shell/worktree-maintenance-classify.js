@@ -104,6 +104,16 @@ export function classifyMaintenanceTree(tree, {
   if (!path || !main || !Number.isFinite(now)) return result('active', true, 'path-or-clock-unknown');
   if (maintenanceProtectedPath(path)) return result('active', true, 'recovery-checkout');
 
+  // Item folders are separate Git worktrees, but custody belongs to their registered parent seat.
+  const itemSeat = Array.isArray(seats) ? seats.find(seat => {
+    const root = absolutePath(seat.path ?? seat.agent_path);
+    return root && path.startsWith(`${root}-item-`) && /^[1-9]\d*$/u.test(path.slice(root.length + 6));
+  }) : null;
+  const folderItem = itemSeat ? Number(path.slice(absolutePath(itemSeat.path ?? itemSeat.agent_path).length + 6)) : null;
+  const folderClaim = Array.isArray(items) ? items.find(item => item.item_id === folderItem
+    && (item.item_owner === itemSeat?.agent_id || item.item_built_by === itemSeat?.agent_id)
+    && itemObligation(item, now)) : null;
+  if (folderClaim) return result('active', true, 'item-folder-obligation', [itemSeat.agent_id], [folderItem]);
   const matchingSeats = Array.isArray(seats) ? seats.filter(seat => absolutePath(seat.path ?? seat.agent_path) === path) : [];
   const agentIds = matchingSeats.map(seat => seat.agent_id).filter(id => typeof id === 'string' && id.length);
   const priorAgents = Array.isArray(previous?.agents) ? previous.agents.filter(id => typeof id === 'string') : [];

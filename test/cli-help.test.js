@@ -150,7 +150,7 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   const undocumented = (await run('help', 'milestone', 'bogus'));
   assert.equal(undocumented.status, 2, 'a name the CLI does not dispatch stays refused');
   assert.equal(undocumented.stdout, '');
-  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone items". Run pullboard help --all for the full list.\n');
+  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone focus". Run pullboard help --all for the full list.\n');
   t.diagnostic('help overview bytes ' + JSON.stringify(overview.stdout));
 
   const directory = resolve(import.meta.dirname, '../src');
