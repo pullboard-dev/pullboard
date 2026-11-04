@@ -78,6 +78,8 @@ export async function diagnose(state, failures, gate) {
 
 /** Bisect a reproducible red without retrying any previously tested group. */
 export async function bisect(state, items, failures, label = 'split', evaluate = gateGroup, compare = compareMainFailures) {
+  // A live-waived red never reaches the base-main comparison: only the batch's own reds decide a split [C7,#2900].
+  failures = unwaivedFailures(state.board, failures, state.landingPorts);
   if (!await landingBaseGreen(state, failures, compare)) {
     await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
       message: 'a failing file is red or unavailable on base main', at: state.board.clock.now().toISOString() } });

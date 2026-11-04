@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { bisectableFailures, unwaivedFailures } from '../packages/landing/src/shell/landing-step-failures.js';
+import { bisect } from '../packages/landing/src/shell/landing-step-diagnose.js';
 
 const PORTS = { quarantineWaivers: () => [] };
 
@@ -32,4 +33,16 @@ test('waived failures are dropped before bisect, so a waived red never blocks a 
 
 test('an unnamed failure still needs a person to read the gate [C7,#2900]', t => {
   assert.equal(bisectableFailures(board(t), [own, { file: null, name: 'This operation was aborted' }], PORTS), null);
+});
+
+test('bisect compares only unwaived reds with base main; a live-waived red file is never compared [C7,#2900]', async t => {
+  const opened = board(t);
+  const compared = [];
+  const compare = async (_root, { tests }) => { compared.push(...tests.map(test => test.file)); return { main: 'base', files: [] }; };
+  const state = { board: opened, landingPorts: PORTS, culprits: [], say() {}, onWait: undefined,
+    batch: { id: 'batch', root: '/nowhere', base: 'base', tip: 'tip', revision: 0 },
+    write: async (_operation, [{ batch }]) => batch };
+  const green = await bisect(state, [{ id: 1, commit: 'c1' }, { id: 2, commit: 'c2' }], [waived, own], 'split', async () => { throw new Error('no gate'); }, compare);
+  assert.deepEqual(compared, [own.file], 'the unwaived file is checked on main and the waived one is not');
+  assert.deepEqual(green, [], 'an own red that is not green on main holds the batch');
 });
