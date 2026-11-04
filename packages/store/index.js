@@ -83,7 +83,7 @@ export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, sub
 export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
-export { itemPinned, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
+export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
