@@ -34,6 +34,8 @@ function fixture() {
     PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;
+  // The fixture is a shell with no agent session: an inherited session id would make the builder's session judge its own work.
+  for (const name of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[name];
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   /** Run Git in this private fixture with its isolated identity. */
