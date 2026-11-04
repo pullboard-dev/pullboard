@@ -894,6 +894,9 @@ document.addEventListener('click', (event) => {
   if (itemPanelHistory) {
     const list = itemPanelHistory.closest('.item-panel-history').querySelector('.item-panel-history-list');
     const expanded = list.classList.toggle('expanded');
+    view.historyOpen ||= new Set();
+    const historyKey = JSON.stringify([view.root, view.item]);
+    if (expanded) view.historyOpen.add(historyKey); else view.historyOpen.delete(historyKey);
     itemPanelHistory.setAttribute('aria-expanded', String(expanded));
     itemPanelHistory.textContent = expanded ? 'Show less' : 'Show all ' + itemPanelHistory.dataset.count;
     return;
