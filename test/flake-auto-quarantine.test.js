@@ -2,7 +2,7 @@
 /** Actual private Submit cycles retain raw reds while repeated native pairs acquire quarantine authority [C7,H16]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { flakyProject, TITLE } from '../packages/git/tests/flakes-fixture.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
@@ -22,7 +22,7 @@ function fixture(t, deterministic = false, companion = false) {
     return join(root, 'bin/pullboard.js');
   } });
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  config.lanes = { core: { owns: ['src/', 'test/'], specs: [] } };
+  config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
   config.gate = 'node --test --test-reporter=tap test/alternating.test.mjs';
   config.affectedTests = 'node --test';
@@ -31,7 +31,11 @@ function fixture(t, deterministic = false, companion = false) {
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(config) + '\n');
   // Remove only the consumer's generated cells plan; keep the shipped runtime manifest and modules intact.
   rmSync(join(box.root, 'bin/cells-plan.json'), { force: true });
-  if (deterministic) writeFileSync(join(box.root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';\nimport {test} from 'node:test';\nimport {appendFileSync} from 'node:fs';\ntest(${JSON.stringify(TITLE)},()=>{appendFileSync(${JSON.stringify(box.counter)},'run\\n');assert.fail('deterministic controlled failure');});\n`);
+  const behavior = join(box.root, 'packages/controlled/src/behavior.js');
+  mkdirSync(dirname(behavior), { recursive: true });
+  writeFileSync(behavior, '/** Return whether this controlled run should fail. */\nexport function shouldFail() { return false; }\n');
+  writeFileSync(join(box.root, 'packages/controlled/index.js'), "export { shouldFail } from './src/behavior.js';\n");
+  writeFileSync(join(box.root, 'test/alternating.test.mjs'), `import assert from 'node:assert/strict';\nimport {appendFileSync,readFileSync} from 'node:fs';\nimport {test} from 'node:test';\nimport {shouldFail} from '../packages/controlled/index.js';\ntest(${JSON.stringify(TITLE)},()=>{appendFileSync(${JSON.stringify(box.counter)},'run\\n');const runs=readFileSync(${JSON.stringify(box.counter)},'utf8').trim().split('\\n').length;assert.equal(shouldFail(runs),false);});\n`);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: prepare controlled submit consumer');
   const made = box.cli('worktree', 'core');
   assert.equal(made.code, 0, JSON.stringify(made.document));
@@ -44,15 +48,14 @@ function fixture(t, deterministic = false, companion = false) {
   assert.equal(added.document.item.item_check, 'true', JSON.stringify(added.document));
   const id = added.document.item.item_id;
   assert.equal(cli('claim', String(id)).code, 0);
-  mkdirSync(join(root, 'src'), { recursive: true });
-  writeFileSync(join(root, 'src/controlled-proposal.js'), 'export const controlled = true;\n');
-  git('add', 'src/controlled-proposal.js'); git('commit', '-q', '-m', 'chore: retain controlled proposal');
+  writeFileSync(join(root, 'packages/controlled/src/behavior.js'), `/** Return whether this controlled run should fail. */\nexport function shouldFail(runs) { return ${deterministic ? 'true' : 'runs % 2 === 1'}; }\n`);
+  git('add', 'packages/controlled/src/behavior.js'); git('commit', '-q', '-m', 'chore: retain controlled proposal');
   if (companion) {
-    const file = join(root, 'src/controlled-companion.js');
+    const file = join(root, 'packages/controlled/src/companion.js');
     writeFileSync(file, 'export const companion = true;\n');
-    git('add', 'src/controlled-companion.js');
+    git('add', 'packages/controlled/src/companion.js');
     const patch = git('diff', '--cached', '--binary') + '\n';
-    git('restore', '--staged', 'src/controlled-companion.js');
+    git('restore', '--staged', 'packages/controlled/src/companion.js');
     rmSync(file);
     const patchFile = box.counter + '.patch';
     writeFileSync(patchFile, patch);
