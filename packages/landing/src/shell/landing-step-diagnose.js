@@ -21,6 +21,7 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
 import { compareMainFailures } from './main-red.js';
+import { spawnSync } from 'node:child_process';
 
 /** Require a green base for every failing file before attributing a red to an item. */
 export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
@@ -35,23 +36,39 @@ export async function landingBaseGreen(state, failures, compare = compareMainFai
 }
 
 /**
+ * False only when the batch base commit resolves and does not contain this test file; anything undeterminable counts as
+ * present, so an unreadable base still goes through the base comparison [C7,#2947].
+ */
+function fileOnBase(state, file) {
+  const git = args => spawnSync('git', ['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
+  if (!git(['cat-file', '-e', `${state.batch.base}^{commit}`])) return true;
+  return git(['cat-file', '-e', `${state.batch.base}:${file}`]);
+}
+
+/**
  * Split named failures into those base main fails in the same file and test name, and the batch's own; null when main
  * cannot be compared for every file [C7,#2941]. Why: a red that main already has is not the batch's doing, and holding
  * the whole batch for it kept every landing waiting on reds no batch item caused.
  */
-export async function splitBaseRed(state, failures, compare = compareMainFailures) {
-  const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
-  if (!files.length || failures.some(failure => !failure.file)) return null;
+export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file)) {
+  if (!failures.length || failures.some(failure => !failure.file)) return null;
+  // A failing file that base main does not have is the batch's own new test, so it splits the batch [C7,#2947].
+  const absent = failures.filter(failure => !onBase(failure.file));
+  const present = failures.filter(failure => onBase(failure.file));
+  if (!present.length) return { known: [], own: absent };
+  const files = [...new Set(present.map(failure => failure.file))];
   let result;
   try {
     result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
       { commit: state.batch.base, detailed: true, allowCancelled: true });
   } catch { return null; }
   if (result?.main !== state.batch.base || result.unavailable || !files.every(file => result.files?.some(row => row.file === file))) return null;
-  const known = [], own = [];
-  for (const failure of failures) {
+  const known = [], own = [...absent];
+  for (const failure of present) {
     const row = result.files.find(entry => entry.file === failure.file);
-    (row.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
+    // Red on base with no named cases cannot be told apart from the batch's own red, so the batch holds [C7,#2945].
+    if (row.result === 'red' && !(row.failures ?? []).length) return null;
+    (row.result === 'red' && row.failures.some(main => main.name === failure.name) ? known : own).push(failure);
   }
   return { known, own };
 }

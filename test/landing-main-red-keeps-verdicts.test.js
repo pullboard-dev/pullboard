@@ -62,9 +62,29 @@ test('real base comparison keeps a red or missing file from becoming a culprit [
   const state = { batch: { id: 'batch', base, root: box.repo, logPath: join(box.dir, 'batch.log'), revision: 0 },
     board: { clock: { now: () => new Date() } }, culprits: [], write: async (_operation, args) => args[0].batch, say: () => {} };
   const red = [{ file: 'web/land-9.test.js', name: 'base-red' }];
-  assert.deepEqual(await bisect(state, [{ id: 1, commit: base }], red), []);
-  assert.equal(state.batch.state, 'blocked');
+  // A red main already has never blames the item [#2941,#2945]: with named base cases it stays green (known-main);
+  // when main's comparison names no cases, the batch holds instead. Either way no culprit is recorded.
+  const green = await bisect(state, [{ id: 1, commit: base }], red);
+  if (green.length) {
+    assert.deepEqual(green, [{ id: 1, commit: base }]);
+    assert.deepEqual(state.batch.knownMain, [{ file: 'web/land-9.test.js', name: 'base-red' }], 'the matching base case is recorded as known-main');
+  } else {
+    assert.equal(state.batch.state, 'blocked');
+    assert.equal(state.batch.refusal.code, 'LAND_DIAGNOSTIC');
+  }
   assert.deepEqual(state.culprits, []);
   const missing = [{ file: 'web/not-on-base.test.js', name: 'unavailable' }];
   assert.equal(await landingBaseGreen(state, missing), false);
+});
+
+test('a case base main fails by the same file and name is recorded as known-main and the item stays green [B3,C7,#2941]', async () => {
+  const state = { batch: { id: 'batch', base: 'base', root: '.', revision: 0 }, culprits: [], board: { clock: { now: () => new Date('2026-01-01T00:00:00Z') } },
+    write: async (_operation, args) => args[0].batch, say: () => {} };
+  const failures = [{ file: 'test/red.test.js', name: 'fails' }];
+  const comparison = { main: 'base', files: [{ file: 'test/red.test.js', result: 'red', failures: [{ file: 'test/red.test.js', name: 'fails' }] }] };
+  const result = await bisect(state, [{ id: 1, commit: 'candidate' }], failures, 'split', undefined, async () => comparison);
+  assert.deepEqual(result, [{ id: 1, commit: 'candidate' }]);
+  assert.deepEqual(state.batch.knownMain, [{ file: 'test/red.test.js', name: 'fails' }]);
+  assert.notEqual(state.batch.state, 'blocked');
+  assert.deepEqual(state.culprits, []);
 });
