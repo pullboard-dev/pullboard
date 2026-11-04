@@ -33,7 +33,6 @@ function realNodeGate(box) {
 function realNodeMainProject() {
   const box = redMainProject();
   realNodeGate(box);
-  realNodeGate(box);
   const red = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('main-red-case', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('main red'); });\n";
   const pass = "import { test } from 'node:test'; test('later-passing-case', () => {});\n";
   box.env.LAND_SUPPRESS_RED = '1';
@@ -46,7 +45,14 @@ function realNodeMainProject() {
 
 /** Submit an item that carries the known main red and selects a later real test body. */
 function acceptedRealNodeItem(box, number, red, later) {
-  const entry = itemWorktree(box, number, MAIN_RED);
+  const path = join(box.dir, `land-${number}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
+  assert.equal(box.run(path, 'join', 'web').code, 0);
+  const added = box.run(box.repo, 'add', 'web', `Real Node landing fixture ${number}`, '--specs', 'G1',
+    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node --test ${MAIN_RED} ${LATER_FILE}`, '--json');
+  assert.equal(added.code, 0, added.err);
+  const entry = { path, item: JSON.parse(added.out).item.item_id, file: MAIN_RED };
+  assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
   writeFileSync(join(entry.path, LATER_FILE), later);
   box.env.LAND_SUPPRESS_RED = '1';
   try { submitItem(box, entry, red); acceptItem(box, entry); return entry; }
