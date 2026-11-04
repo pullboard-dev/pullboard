@@ -316,7 +316,9 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
 export function crossLaneFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const fixture = helpers.sandbox();
+  fixture.env.PULLBOARD_MODEL = 'Cross-lane test';
+  const box = helpers.project('true', fixture);
   const session = 'cross-lane-owner-session';
   /** Each command gets its actual invoking session, and the surrounding fixture keeps none. */
   function runAs(identity, cwd, ...args) {
