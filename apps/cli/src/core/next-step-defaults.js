@@ -243,6 +243,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "BAD_SHOUT_ITEM": "name an existing positive item: pullboard shout --item <id> \"<text>\"",
   "REPORT_RESTATES_EVENT": "the board already recorded it: pullboard show <id>; shout the coordinator only a question, blocker or decision with --kind",
   "COORDINATOR_STATUS_FACT": "record progress or results on the item: pullboard fact <id> note \"<progress or result>\"; use --kind question, blocker, decision, exception or idea when shouting the coordinator",
+  "EMPTY_SUBMIT": "cd to the folder that holds the item's commits and run pullboard submit <id> there, or commit the work first",
   "EMPTY_SIGNERS": "restore the signer list from Git: git restore --source=HEAD -- .pullboard/signers",
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "EXPORT_EXISTS": "name an empty folder for the export",
