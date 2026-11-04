@@ -820,6 +820,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const completedFiles = new Set();
   const failureDiagnostics = new Map();
   let firstFailure = null;
+  let firstFailureOutcome = null;
   let collectionCancelled = false;
   let successful = true;
   let reportersEnded = false;
@@ -1022,6 +1023,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
             if (waivers.length && details.error?.failureType === 'subtestsFailed' && waivedFiles.get(file) === true) return;
             waivedFiles.set(file, false);
             firstFailure = { file, name, error: details.error };
+            firstFailureOutcome = { file: relative(process.cwd(), file).split(sep).join('/'), name,
+              passed: false, skipped: data.skip !== undefined || data.todo !== undefined };
             retainedFailure.remember(data);
             // Node emits completion before finalizing its result. Aborting inside that callback
             // replaces the real failure with cancellation; let the current publication finish.
@@ -1118,7 +1121,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     if (interrupted.length) process.stderr.write(`Interrupted test files: ${interrupted.join(', ')}\n`);
     if (notRun.length) process.stderr.write(`Files not run: ${notRun.join(', ')}\n`);
     process.exitCode = 1;
-    return { status: 1, signal: null };
+    return { status: 1, signal: null, testOutcomes: firstFailureOutcome ? [firstFailureOutcome] : null,
+      completedFiles: [...completedFiles], collectionComplete: false };
   }
   return { status: successful && !firstFailure ? 0 : 1, signal: null, testOutcomes, completedFiles: [...completedFiles],
     collectionComplete: !stoppedByLanding && !collectionCancelled && !cleanupUnverifiedReported && selectedFiles?.length > 0
