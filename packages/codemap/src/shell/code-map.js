@@ -300,7 +300,7 @@ function endOfStatement(m, k) {
   return m.length;
 }
 
-const CODE_MAP_FORMAT = 1;
+const CODE_MAP_FORMAT = 3;
 const EFFECT_KINDS = ['git', 'spawn', 'fs-read', 'fs-write', 'network', 'board-write', 'board-open', 'env', 'exit', 'prints'];
 /** Quote regex syntax in an identifier before matching it as source text. */
 const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -327,19 +327,19 @@ function requireSourcePin(root, commit) {
     || gitText(root, ['rev-parse', 'main']) !== commit) {
     throw new Error('the primary source checkout is not at the requested main commit');
   }
-  if (gitText(root, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching', '--', 'src', 'bin', 'test'])) {
-    throw new Error('src/, bin/ or test/ differs from the committed main source');
+  if (gitText(root, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching', '--', 'src', 'bin', 'packages', 'apps', 'test'])) {
+    throw new Error('mapped source or test/ differs from the committed main source');
   }
 }
 
 /** Read committed modes and object IDs once; NUL records preserve unusual input path names. */
 function committedInputs(root, commit) {
   const inputs = new Map();
-  for (const record of gitText(root, ['ls-tree', '-r', '-z', commit, '--', 'src', 'bin', 'test']).split('\0')) {
+  for (const record of gitText(root, ['ls-tree', '-r', '-z', commit, '--', 'src', 'bin', 'packages', 'apps', 'test']).split('\0')) {
     if (!record) continue;
     const separator = record.indexOf('\t');
     const path = record.slice(separator + 1);
-    if (!/^(?:src|bin)\/.*\.m?js$/u.test(path) && !/^test\/.*\.test\.m?js$/u.test(path)) continue;
+    if (!/^(?:src|bin|packages|apps)\/.*\.m?js$/u.test(path) && !/^test\/.*\.test\.m?js$/u.test(path)) continue;
     const metadata = record.slice(0, separator).split(' ');
     if (separator < 0 || metadata.length !== 3 || metadata[1] !== 'blob'
       || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(metadata[2])) {
@@ -421,8 +421,9 @@ export function buildCodeMap(root, mainCommit) {
   const commit = String(mainCommit ?? '').trim();
   if (!/^[\da-f]{40,64}$/u.test(commit)) throw new Error('a full main commit is required to stamp the map');
   requireSourcePin(sourceRoot, commit);
-  const files = [...listJavaScript(sourceRoot, 'src'), ...listJavaScript(sourceRoot, 'bin')].sort();
-  const testPaths = listJavaScript(sourceRoot, 'test').filter(path => /\.test\.m?js$/u.test(path));
+  const packageFiles = ['packages', 'apps'].flatMap(directory => listJavaScript(sourceRoot, directory));
+  const files = [...listJavaScript(sourceRoot, 'src'), ...listJavaScript(sourceRoot, 'bin'), ...packageFiles.filter(path => !/\.test\.m?js$/u.test(path))].sort();
+  const testPaths = [...listJavaScript(sourceRoot, 'test'), ...packageFiles].filter(path => /\.test\.m?js$/u.test(path)).sort();
   const inputs = committedInputs(sourceRoot, commit);
   if (JSON.stringify([...inputs.keys()].sort()) !== JSON.stringify([...files, ...testPaths].sort())) {
     throw new Error('the scanned input paths differ from the committed main source');
@@ -675,7 +676,7 @@ export function renderMapCard(map, key) {
 function itemPaths(item) {
   const text = `${item.item_title ?? ''}\n${item.item_criterion ?? ''}\n${item.item_brief ?? ''}\n${item.item_files ?? ''}`;
   const found = new Set([...text.matchAll(/\b(?:src|bin|test)\/[\w./-]+\.(?:m?js)\b/gu)].map(match => match[0]));
-  if (/\bpullboard\s+map\b/u.test(text)) found.add('src/commands/map.js');
+  if (/\bpullboard\s+map\b/u.test(text)) found.add('apps/cli/src/shell/commands/map.js');
   return found;
 }
 

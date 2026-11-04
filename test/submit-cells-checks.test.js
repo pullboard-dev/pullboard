@@ -1,13 +1,13 @@
 /** @pullboard-test-input source-tree */
 import { inventoryCache } from '../bin/cells-inventory-cache.js';
 import { observationCache } from '../bin/cells-inventory-cache.js';
+import { inventoryCacheFile } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
-import { cachedSubmitSourceStep } from '../src/submit-controller-cache.js';
+import { cachedSubmitSourceStep } from '../apps/cli/src/shell/submit-controller-cache.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
@@ -86,7 +86,7 @@ function plannedFixture(t, prepare = () => {}) {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
-  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
+  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries.' }) } };
 }
 
 /** Commit the exact candidate the real immutable-snapshot preflight will inspect. */
@@ -101,7 +101,7 @@ test('submit accepts unchanged scheduled debt but refuses an unplaced committed 
   const clean = await requireSubmitCells(box.root, box.main, box.main, box.item);
   assert.deepEqual(clean.problems, []);
   box.put('src/new-unsafe.js', 'throw new Error("candidate module must never execute");\n');
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/new-unsafe.js/u);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /no cells-plan entry: src\/new-unsafe.js/u);
 });
 
 test('submit names a new later edge even when candidate metadata declares it temporary [C7,D3,CD64]', async t => {
@@ -113,7 +113,7 @@ test('submit names a new later edge even when candidate metadata declares it tem
     expires: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }] }));
   const declared = commitCandidate(box);
   await assert.rejects(requireSubmitCells(box.root, box.main, declared, box.item), /frozen criterion does not name exact edge/u);
-  const authorized = { item_frozen: JSON.stringify({ criterion: 'Temporary src/refused.js -> src/stats-flow.js under contract 123.' }) };
+  const authorized = { item_title: box.item.item_title, item_frozen: JSON.stringify({ criterion: 'Temporary src/refused.js -> src/stats-flow.js under contract 123.' }) };
   await assert.rejects(requireSubmitCells(box.root, box.main, declared, authorized), /kernel --cuts: kernel still imports later stats/u,
     'exact metadata authority never exempts the actual new later-cell edge');
 });
@@ -475,7 +475,7 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   assert.deepEqual(result.cells, []);
   assert.deepEqual(result.problems, []);
   box.put('src/unplanned.js', 'export const value = 1;\n');
-  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /no cells-plan entry: src\/unplanned.js/u);
 });
 
 /** The refusal text a candidate draws, or an empty string when submit accepts it. */
@@ -544,6 +544,9 @@ test('shared cell inventory updates changed modules and reports structural fallb
   assert.deepEqual(updated.unknown, full.unknown);
   box.put('src/extra.js', 'export const extra = true;\n');
   second.candidate(box.root, restored, ['src/extra.js']);
+  assert.equal(modes.at(-1), 'candidate-incremental', 'an added file is updated in place (#2531)');
+  box.put('package.json', JSON.stringify({ type: 'module', imports: {} }));
+  second.candidate(box.root, restored, ['package.json']);
   assert.equal(modes.at(-1), 'candidate-full-fallback');
 });
 
@@ -551,8 +554,7 @@ test('damaged inventory cache is discarded and rebuilt from the immutable snapsh
   const box = fixture(t), main = git(box.root, 'rev-parse', 'HEAD').trim();
   const key = { checkDigest: 'damaged-inventory' }, parsers = { importsIn, commonJsIn }, modes = [];
   const first = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
-  const directory = join(box.root, '.git', 'pullboard', 'cells-inventory');
-  const file = join(directory, readdirSync(directory).find(name => name.endsWith('.json.gz')));
+  const file = inventoryCacheFile(key, main);
   writeFileSync(file, 'not a valid compressed inventory');
   const rebuilt = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
   assert.equal(modes.at(-1), 'base-full');
@@ -706,7 +708,7 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
 
 test('controller source steps cache only exact green source and base [C7,D3]', async t => {
   const box = plannedFixture(t);
-  const code = [fileURLToPath(new URL('../src/submit-controller-cache.js', import.meta.url))];
+  const code = [fileURLToPath(new URL('../apps/cli/src/shell/submit-controller-cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
   let calls = 0;
   const first = await cachedSubmitSourceStep(box.root, run, () => { calls++; });

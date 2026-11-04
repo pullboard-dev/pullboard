@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { usageDifference } from '../packages/stats/index.js';
@@ -15,7 +15,7 @@ import { SPLIT_COUNTS } from '../packages/stats/index.js';
 import { sumUsage } from '../packages/stats/index.js';
 import { COST_ENGINE } from '../src/cost-engine.js';
 import { COST_INPUT_SPLIT_ENGINE } from '../src/cost-input-split-engine.js';
-import { MOVE_REGISTRY } from '../src/move-registry.js';
+import { MOVE_REGISTRY } from '../packages/moves/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 

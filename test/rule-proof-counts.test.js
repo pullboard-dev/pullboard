@@ -1,7 +1,7 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Rule proof counts come from trunk gate evidence, not a row merely naming a test [S1,A1,A2]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -9,9 +9,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
@@ -153,7 +153,7 @@ test('a read-only legacy board retains recent red counts and exact expiry withou
 function simulatedReaderContext(box, identity) {
   const script = `
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-import { openBoard } from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
+import { openBoard } from ${JSON.stringify(new URL("../apps/lib/index.js", import.meta.url).href)};
 import { ruleProofCounts } from ${JSON.stringify(new URL('../packages/verify/src/shell/rule-proof-counts.js', import.meta.url).href)};
 import { loadSpec } from ${JSON.stringify(new URL('../packages/spec/src/shell/spec.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.root)};

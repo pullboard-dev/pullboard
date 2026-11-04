@@ -1,4 +1,4 @@
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
 /** Opt-in landing cadence uses real acceptances and an injected observation clock [E30,E10,E29]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';

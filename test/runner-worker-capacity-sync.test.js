@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as resources from '../packages/resources/index.js';
-import { registeredCapacity } from '../src/runner-worker-environment.js';
+import { registeredCapacity } from '../apps/runner/src/shell/runner-worker-environment.js';
 
 /** Give this test a private machine resource database and restore the caller's environment. */
 function privateMachine(t) {

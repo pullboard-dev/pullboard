@@ -11,7 +11,7 @@ export async function recordedRelayRefusal(t) {
   assert.equal(linked.code, 0, linked.failure);
   const result = await box.script(`
     const { main } = await import(${JSON.stringify(box.mainURL)});
-    const { relayOperation } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const { relayOperation } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const { spawn } = await import('node:child_process');
     const { mkdirSync, writeFileSync, rmSync, readFileSync } = await import('node:fs');
     const { DatabaseSync } = await import('node:sqlite');

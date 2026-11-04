@@ -262,15 +262,15 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  */
 export function stagedPaths(root, base = null) {
   const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
-  const touched = [];
+  const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
   while (index < fields.length - 1) {
     const status = fields[index] ?? '';
     const isMove = /^[RC]/.test(status);
-    const paths = fields.slice(index + 1, index + (isMove ? 3 : 2));
+    const paths = fields.slice(index + 1, index + (isMove ? 3 : 2)).filter(path => !companion.has(path));
     touched.push(...paths);
-    if (!status.startsWith('D')) written.push(paths.at(-1) ?? '');
+    if (!status.startsWith('D') && paths.length) written.push(paths.at(-1));
     index += isMove ? 3 : 2;
   }
   return { touched, written };
@@ -521,7 +521,7 @@ export function preCommitProblems(context) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
@@ -541,6 +541,22 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
   problems.push(...deletedGateProblems(root, config));
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
+  if (shimImports) {
+    const revisions = new Map();
+    problems.push(...shimImports({ paths: written,
+      read: (revision, path) => {
+        // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
+        if (revision !== ':index') {
+          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.get(revision)) return undefined;
+        }
+        const entry = importFileEntry(root, revision, path);
+        if (!entry) return undefined;
+        const bytes = importFileBlob(root, entry.oid);
+        if (bytes === null) throw new Refused('SHIM_IMPORT_INPUT', `cannot analyze the staged source blob ${path}; split it into bounded modules`);
+        return bytes.toString('utf8');
+      } }));
+  }
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');

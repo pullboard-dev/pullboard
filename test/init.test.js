@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { HOSTED_ORIGIN } from '../src/serve.js';
+import { HOSTED_ORIGIN } from '../apps/view/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { takeDefaultViewPort } from './view-port-fixture.js';
 

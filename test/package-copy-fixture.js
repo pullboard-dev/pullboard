@@ -1,7 +1,7 @@
 /** Commit complete shipped-source fixtures without exceeding the native staged-diff scan bound [C7]. */
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
@@ -205,9 +205,10 @@ export function copyPackageSubset(source, destination, files) {
 // Leave room for diff headers and one added-line marker per byte below the native 8 MiB limit.
 const COMMIT_SOURCE_BYTES = 3 * 1024 * 1024;
 
-/** Copy every manifest path and commit bounded groups through the fixture's ordinary Git hooks. */
-export function copyCommittedPackageFiles(box, source) {
-  const files = copyPackageFiles(source, box.repo);
+/** Copy every manifest path into the project or its tooling dependency, retaining ordinary Git hooks. */
+export function copyCommittedPackageFiles(box, source, { directory = '' } = {}) {
+  if (directory !== '' && !/^[a-z][a-z0-9-]*$/u.test(directory)) throw new Error('fixture tooling needs one relative directory name');
+  const files = copyPackageFiles(source, join(box.repo, directory)).map(file => directory ? `${directory}/${file}` : file);
   commitFixtureFiles(box, files);
   return files;
 }

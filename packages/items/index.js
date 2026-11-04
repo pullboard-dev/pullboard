@@ -1,5 +1,6 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
 export { criterionSize } from './src/core/criterion-size.js';
+export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
 export { briefFiles } from './src/core/brief.js';
@@ -48,7 +49,7 @@ export { waitForSubmissionVerdict } from './src/shell/submit-wait.js';
 export { EFFORT, milestoneRanks, workOrderActive, milestoneOverrides, unblockCounts, computedOrder, workOrderCompare, queueReasons } from './src/core/work-order.js';
 export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/core/check-timing.js';
 export { itemEditBar } from './src/core/item-edit-bar.js';
-export { safeItemPatchPath, itemPatchPaths, normalizeItemPatch } from './src/core/item-patch-paths.js';
+export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/core/item-patch-paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/shell/item-patch-submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';
@@ -57,3 +58,5 @@ export { auditFailureItem } from './src/core/audit-failure-item.js';
 export { claimProgress } from './src/core/claims.js';
 export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/core/claim-overlap.js';
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/core/expected-build.js';
+
+export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';

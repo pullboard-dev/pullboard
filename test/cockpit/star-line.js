@@ -7,10 +7,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { fetchLive, machine, project, startView } from './fixture.js';
 import { press } from './stable.js';
-export { STAR_TEXT, starRepository } from '../../src/view/star.js';
+export { STAR_TEXT, starRepository } from '../../apps/view/index.js';
 
 /**
  * Start the fixture. `state.account` is the account's linked list as the relay serves it, or a 401 while `state.refused`
@@ -36,7 +36,7 @@ export async function starLineFixture() {
     const send = (type, body, status = 200) => response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' }).end(body);
     if (['/in', '/in-local', '/out'].includes(url.pathname)) return send('text/html; charset=utf-8', page(url.pathname !== '/out'));
     if (url.pathname === '/star-transport.js') return send('text/javascript', "export async function createTransport() { return { async request(path) { return (await fetch('/relay' + path)).json(); } }; }");
-    if (url.pathname === '/view.css') return send('text/css', readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8'));
+    if (url.pathname === '/view.css') return send('text/css', readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url), 'utf8'));
     // The account's linked list: metadata only, read by the page on its own origin.
     if (url.pathname === '/api/v1/boards' && state.refused) return send('application/json', JSON.stringify({ error: { code: 'AUTH_REQUIRED', message: 'Sign in.' } }), 401);
     if (url.pathname === '/api/v1/boards') return send('application/json', JSON.stringify({ version: 1, boards: state.account }));

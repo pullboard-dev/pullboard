@@ -11,6 +11,8 @@
  * `src/cli.js:1601: lines 1601-1700 are over the 1500-line cap`. Why per block: a doctrine count
  * only falls, and one line per file would let an over-cap file grow forever without the count
  * moving. With one per block, adding 100 lines to an over-cap file raises the count by one.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { readText, runCheck, walk } from './scan.js';
 
@@ -35,10 +37,10 @@ export function lineCount(text) {
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function fileSizeProblems(root) {
+export function fileSizeProblems(root, files = walk(root, /\.(?:[cm]?js|css)$/u), read = path => readText(root, path)) {
   const problems = [];
-  for (const path of walk(root, /\.(?:[cm]?js|css)$/u)) {
-    const lines = lineCount(readText(root, path));
+  for (const path of files.filter(path => /\.(?:[cm]?js|css)$/u.test(path))) {
+    const lines = lineCount(read(path));
     for (let first = CAP + 1; first <= lines; first += BLOCK) {
       problems.push({ path, line: first, text: `lines ${first}-${first + BLOCK - 1} are over the ${CAP}-line cap` });
     }

@@ -1,7 +1,13 @@
 /** Synthetic native board moves test classification and guard composition; they are not gate receipts [V4,B26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import { readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { sealStrictRenames } from '../packages/store/index.js';
+import { STRICT_RENAME_ENGINE } from '../packages/state/index.js';
+import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { gateJudgmentPath } from '../packages/verify/index.js';
@@ -12,7 +18,7 @@ import {
   prepareEngineMove,
   applyEngineMove,
 } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import {
   exportBoard,
   importBoard,
@@ -53,7 +59,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
     'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
-    'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js',
+    'src/moves/reserveReview.js', 'src/commands/submit.js', 'apps/cli/src/shell/commands/verify.js',
     'src/relay-key.js', 'packages/kernel/src/core/seal.js', 'src/source-advance.js', 'src/source-advance-worker.js',
     'packages/spec/src/shell/signature.js',
     'packages/sandbox/src/shell/source-advance.js', 'packages/sandbox/src/shell/source-advance-worker.js',
@@ -67,7 +73,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
   assert.equal(gateJudgmentPath('packages/github/src/shell/pr-github.js'), false, 'no widening to the other github modules');
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
     'packages/sandbox/src/shell/trusted-policy.js', 'packages/sandbox/src/shell/source-advance-origin.js',
-    'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'src/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
+    'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'apps/cli/src/core/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
     'src/test-value.js', 'src/test-economics.js', 'src/board.js', 'src/board-query.js',
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
@@ -94,6 +100,63 @@ test('quarantine inventory drives show eligibility and next without relaxing aut
   assert.equal(skipped.item, null);
   const next = store.reserveNextReview(f.board, { agentId: 'core-4', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' });
   assert.equal(next.item.item_id, id);
+});
+
+test('Git renames preserve built-in and configured sensitive tiers with an unrelated control [V4,B26,H16]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  for (const folder of ['src', 'data', 'lib']) mkdirSync(join(box.repo, folder), { recursive: true });
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.intake = { sensitivePaths: ['data/private.json'] };
+  writeFileSync(configFile, JSON.stringify(config));
+  writeFileSync(join(box.repo, 'src/quarantine.js'), 'export const boundary = true;\n');
+  writeFileSync(join(box.repo, 'data/private.json'), '{"private":true}\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: declare private boundaries');
+  const base = box.git(box.repo, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'mv', 'src/quarantine.js', 'lib/renamed.js');
+  box.git(box.repo, 'mv', 'data/private.json', 'lib/renamed.json');
+  writeFileSync(join(box.repo, 'lib/unrelated.js'), 'export const unrelated = 42;\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: rename boundaries');
+  const commit = box.git(box.repo, 'rev-parse', 'HEAD');
+  const f = fixture(t), id = f.add();
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, head: base,
+    freeze: () => ({ text: '{}', digest: 'rename-git-fixture' }) });
+  f.board.gitRoot = box.repo;
+  const witness = sealStrictRenames(f.board, id, { commit });
+  assert.deepEqual([...witness.strictRenames].sort(([left], [right]) => left.localeCompare(right)),
+    [['data/private.json', 'lib/renamed.json'], ['src/quarantine.js', 'lib/renamed.js']],
+    'both exact rename pairs are retained independently of Git destination ordering');
+  delete f.board.gitRoot;
+  submitFixture(f.board, id, { agentId: 'core-1', commit, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'),
+    files: ['lib/renamed.js', 'lib/renamed.json', 'lib/unrelated.js'], strictRenames: witness.strictRenames });
+  assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
+  for (const pair of witness.strictRenames) {
+    const renamed = f.add();
+    store.claim(f.board, renamed, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
+      freeze: () => ({ text: '{}', digest: 'rename-policy-fixture' }) });
+    submitFixture(f.board, renamed, { agentId: 'core-1', commit, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'), files: [pair[1]], strictRenames: [pair] });
+    assert.equal(itemReviewPolicy(f.board, renamed).tier, 'strict', pair[0]);
+    assert.equal(minimumMoveEngine('reserveReview', [renamed, { agentId: 'core-3', leaseMs: LEASE, policy: 'any' }], f.board), STRICT_RENAME_ENGINE);
+  }
+  const ordinary = f.add();
+  f.submit(ordinary, ['lib/unrelated.js']);
+  assert.equal(itemReviewPolicy(f.board, ordinary).tier, 'standard', 'a new unrelated file gains no inherited tier');
+});
+
+test('a sealed strict rename remains strict under the modern review default [V4,B26,H16]', t => {
+  const f = fixture(t), id = f.add();
+  store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
+    freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'synthetic-rename-bar' }) });
+  submitFixture(f.board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40),
+    files: ['src/quarantine.js', 'lib/moved.js'], strictRenames: [['src/quarantine.js', 'lib/moved.js']] });
+  assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
+  const ordinary = f.add();
+  f.submit(ordinary, ['lib/ordinary.js']);
+  assert.equal(itemReviewPolicy(f.board, ordinary).tier, 'standard');
 });
 
 test('docs-only submission remains Standard with optional same-vendor review [V4,B26]', t => {
@@ -305,6 +368,14 @@ test('verify move retains Strict for each protected destination and excludes unr
 });
 
 
+test('runners move preserves strict tier for every previously strict body [V4,B26,H16]', () => {
+  const paths = JSON.parse(readFileSync(new URL('../bin/cells-plan/path-map/runners.json', import.meta.url), 'utf8'));
+  for (const [oldPath, movedPath] of Object.entries(paths)) {
+    if (gateJudgmentPath(oldPath)) assert.equal(gateJudgmentPath(movedPath), true, movedPath);
+  }
+  assert.equal(gateJudgmentPath('packages/runners/tests/unrelated.test.js'), false);
+});
+
 test('outbox move keeps the format guard strict without broadening test paths [V4,B26,H16]', () => {
   assert.equal(gateJudgmentPath('test/relay-outbox-format.test.js'), true);
   assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format.test.js'), true);
@@ -474,4 +545,13 @@ test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
     assert.equal(gateJudgmentPath(`apps/lib/src/shell/${name}.js`), true);
   }
   assert.equal(gateJudgmentPath('apps/lib/src/shell/cli-hook-work.js'), false);
+});
+
+test('cli move preserves strict tier on every previously strict body, and only those [V4,B26,C7]', () => {
+  const paths = JSON.parse(readFileSync(new URL('../bin/cells-plan/path-map/cli.json', import.meta.url), 'utf8'));
+  for (const [oldPath, movedPath] of Object.entries(paths)) assert.equal(gateJudgmentPath(movedPath), gateJudgmentPath(oldPath), movedPath);
+  assert.equal(gateJudgmentPath('apps/cli/src/shell/commands/submit.js'), true);
+  assert.equal(gateJudgmentPath('apps/cli/src/core/runner-loss-health.js'), true);
+  assert.equal(gateJudgmentPath('apps/cli/src/shell/commands/status.js'), false);
+  assert.equal(gateJudgmentPath('apps/cli/src/core/runner-loss-extra.js'), false);
 });

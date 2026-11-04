@@ -1,7 +1,7 @@
 import { hasTestTiers } from '../../../gate/index.js';
 import { requireTestTierAccount } from '../../../gate/index.js';
 /** Coordinator landing diagnose step; source-preserving partition of land.js [B3,R3,C7]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
 import * as store from '../../../../src/board.js';
@@ -24,8 +24,9 @@ import { testBlob } from './landing-step-selection.js';
 export async function diagnose(state, failures, gate) {
   // The enabled observer already made the only allowed exact-target pair under the original lease.
   // A saved gate retains that association, so adopting it cannot repeat a confidence measurement.
-  if (state.config.flakes?.rerun === true) {
-    const observations = gate?.flakeDiagnostics?.observations ?? [];
+  const observations = gate?.flakeDiagnostics?.observations ?? [];
+  // An observer failure without any observations provides no measurement to reuse; isolate the files instead.
+  if (state.config.flakes?.rerun === true && !(gate?.flakeDiagnostics?.error && !observations.length)) {
     if (gate?.flakeDiagnostics?.error || !observations.length || observations.some(row => !row.recorded || row.classification === 'unclassified')) {
       await save(state, { state: 'blocked', failures, flakeDiagnostics: gate?.flakeDiagnostics });
       throw new Refused('LAND_DIAGNOSTIC', `the original red has no complete classified diagnostic; no additional run or landing is allowed; inspect ${gate.logPath} and pullboard flakes`);

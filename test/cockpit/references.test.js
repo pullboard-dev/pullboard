@@ -1,13 +1,13 @@
 /** @pullboard-test-gui */
 /** Cockpit references checks, using the shared real-board fixtures [N26]. */
 import { main as nativeTestMain } from '../native-cli-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts } from '../../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts } from '../../apps/lib/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { exportView } from '../../src/commands/view.js';
+import { exportView } from '../../apps/cli/src/shell/commands/view.js';
 import { relayPresentation } from '../../packages/pages/index.js';
 import { openShoutConversation, machine, project, build, fetchLive, startView, target, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 

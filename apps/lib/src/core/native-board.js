@@ -4,7 +4,7 @@ import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
-} from '../../../../src/gate-submit.js';
+} from '../../../../packages/gate/index.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
@@ -48,7 +48,7 @@ import {
   gateRuns,
   recordGateRun,
   requireBound,
-} from '../../../../src/quarantine.js';
+} from '../../../../packages/flakes/index.js';
 import {
   sealKnownMainAutofile,
   receiptFields,
@@ -90,11 +90,11 @@ import {
   decideSentinel,
   beginSentinelRun,
   finishSentinelRun,
-} from '../../../../src/sentinels.js';
+} from '../../../../packages/sentinels/index.js';
 import {
   flakeLedger,
   recordFlakeObservation,
-} from '../../../../src/flakes.js';
+} from '../../../../packages/flakes/index.js';
 import {
   personProposals,
   personSigning,
@@ -140,8 +140,8 @@ import {
   deriveRigorCause,
   recordAutomaticRigorDrafts,
 } from '../../../../packages/rigor/index.js';
-import { normalizedDispatch } from '../../../../src/dispatch-health.js';
-import { rejectedWorkReturns } from '../../../../src/rejected-work-return.js';
+import { normalizedDispatch } from '../../../../packages/sentinels/index.js';
+import { rejectedWorkReturns } from '../../../../packages/sentinels/index.js';
 import { guardLandingWrite } from '../../../../src/board-landing-lease.js';
 
 import { recordRowVerification as applyRowVerification } from '../../../../packages/spec/index.js';
@@ -267,7 +267,7 @@ import {
 
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
-import * as self from '../../../../src/native-board.js';
+import * as self from './native-board.js';
 import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
@@ -367,9 +367,9 @@ export function recordRowVerification(board, options) { return applyRowVerificat
 
 /** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
 export { advanceItemSource } from '../../../../packages/sandbox/index.js';
-export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from '../../../../src/sentinels.js';
-export { flakeLedger, recordFlakeObservation } from '../../../../src/flakes.js';
-export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../src/quarantine.js';
+export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from '../../../../packages/sentinels/index.js';
+export { flakeLedger, recordFlakeObservation } from '../../../../packages/flakes/index.js';
+export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../packages/flakes/index.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../packages/person/index.js';
 export { recordPublishFinding } from '../../../../packages/github/index.js';
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../../../../packages/landing/index.js';

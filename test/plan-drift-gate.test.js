@@ -40,7 +40,7 @@ function plannedProject(t, { companionLanes = false } = {}) {
   // This is a tiny real project, not a claim that all production source exists in it.
   const plan = readPlan(SOURCE);
   plan.cells = plan.cells.map(cell => ({ ...cell, paths: [], reexports: [], cuts: [], imports: [] }));
-  plan.stays = []; plan.retired = [];
+  plan.stays = []; plan.retired = []; plan.entries = []; plan.engineStays = [];
   writePlan(box.repo, plan);
   const config = loadConfig(box.repo);
   if (companionLanes) {
@@ -66,7 +66,7 @@ function success(box, cwd, ...args) {
 
 test('native submit names an unplanned source before its check, then the same placed source submits [C7]', t => {
   const box = plannedProject(t);
-  const id = success(box, box.repo, 'add', 'web', 'Place the new source', '--specs', 'G1',
+  const id = success(box, box.repo, 'add', 'web', 'Cells move 1/1: place the new source', '--specs', 'G1',
     '--criterion', 'the added source is planned', '--check', 'node check.cjs', '--wait').item.item_id;
   assert.equal(existsSync(box.marker), true, 'the real add baseline completed its check');
   success(box, box.web, 'claim', String(id));
@@ -100,7 +100,7 @@ test('native submit names an unplanned source before its check, then the same pl
   mkdirSync(join(box.web, 'apps/web'), { recursive: true });
   writeFileSync(join(box.web, 'packages/items/src/shell/plan-gate-added.js'), 'export const value = 1;\n');
   writeFileSync(join(box.web, 'packages/items/index.js'), "export { value } from './src/shell/plan-gate-added.js';\n");
-  writeFileSync(join(box.web, 'src/plan-gate-added.js'), "export { value } from '../packages/items/index.js';\n");
+  rmSync(join(box.web, 'src/plan-gate-added.js')); // A first move of a never-landed source leaves no forwarding shim.
   writeFileSync(join(box.web, 'apps/web/index.js'), "import { value } from '../../packages/items/index.js'; console.log(value);\n");
   box.git(box.web, 'add', 'bin/cells-plan.json', 'bin/cells-plan', 'src', 'packages', 'apps');
   box.git(box.web, 'commit', '-q', '-m', 'chore: place and complete the real fixture move');
@@ -117,7 +117,7 @@ test('native view submit validates its core companion placement on the composed 
     success(box, path, 'join', lane);
   }
   const author = success(box, core, 'whoami').id;
-  const id = success(box, box.repo, 'add', 'view', 'Place through a core companion', '--specs', 'G1',
+  const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
     '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
@@ -125,7 +125,7 @@ test('native view submit validates its core companion placement on the composed 
   mkdirSync(join(view, 'apps/view/src/shell/view'), { recursive: true });
   writeFileSync(join(view, 'apps/view/src/shell/view/plan-companion-added.js'), 'export const companionPlaced = true;\n');
   writeFileSync(join(view, 'apps/view/index.js'), "export { companionPlaced } from './src/shell/view/plan-companion-added.js';\n");
-  writeFileSync(join(view, file), "export { companionPlaced } from '../../apps/view/index.js';\n");
+  writeFileSync(join(view, file), 'export const companionPlaced = true;\n'); // A new source, not a forwarding shim over main.
   box.git(view, 'add', file, 'apps/view');
   box.git(view, 'commit', '-q', '-m', 'feat(view): add the companion-placed source [G1]');
   const source = box.git(view, 'rev-parse', 'HEAD');

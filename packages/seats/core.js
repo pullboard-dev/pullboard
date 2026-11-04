@@ -16,3 +16,24 @@ export {
   dependencyReferences,
   localDependencyIds,
 } from './src/core/dependency-references.js';
+export {
+  laneOf,
+} from './src/core/lane-of.js';
+export {
+  computerLabel,
+  coordinatorHolder,
+} from './src/core/coordinator-holder.js';
+export {
+  displayAgentName,
+} from './src/core/agent-names.js';
+export {
+  ROUTES,
+  canTake,
+} from './src/core/route-escalation.js';
+export {
+  takeoverReady,
+} from './src/core/line-capacity.js';
+export {
+  ACTIVE_REVIEWER_WINDOW_MINUTES,
+  lineWipLimit,
+} from './src/core/line-wip-limit.js';

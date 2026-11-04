@@ -21,7 +21,7 @@ import { test } from 'node:test';
 test('inner', () => { appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ who: 'inner', runner: process.env.PULLBOARD_TEST_RUNNER_PID }) + '\\n'); });
 `);
   writeFileSync(outer, `import { appendFileSync } from 'node:fs';
-import { awaitNestedRun } from ${JSON.stringify(new URL('../src/test-file-pool.js', import.meta.url).href)};
+import { awaitNestedRun } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 test('outer', async () => {

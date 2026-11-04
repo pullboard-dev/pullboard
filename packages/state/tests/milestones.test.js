@@ -1,3 +1,5 @@
+import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../src/milestone-queue-order-engine.js';
+import { orderMilestoneItems } from '../../store/index.js';
 /** The roadmap counts what landed on main, and shipping a milestone carries the rest forward [N26]. */
 import assert from 'node:assert/strict';
 import {
@@ -21,7 +23,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import {
   shipMilestone,
   addMilestone,
@@ -291,4 +293,48 @@ test('[N26,H16] an older-engine client cannot add work after a milestone ships',
   assert.equal(outcome.error?.code, 'MILESTONE_SHIPPED', 'a supported older client cannot add work after shipment');
   assert.deepEqual(store.milestones(board)[0].items, [], 'refusal preserves the shipped milestone membership');
   assert.deepEqual(store.milestones(board)[1].items, [id], 'the legacy addition before shipment remains');
+});
+
+
+/** Read the queue's own release order as the oracle, never duplicate its comparator. */
+function queueIds(box) {
+  const queue = box.json('queue');
+  return [...queue.releases.flatMap(release => release.items), ...queue.unreleased].map(item => item.id);
+}
+
+test('[N22,B13] ordering three of a hundred items leads both queue and roadmap after named pins', t => {
+  const box = fixture(t);
+  const ids = Array.from({ length: 100 }, (_, n) => box.item('Ranked item ' + n, 'open'));
+  box.json('milestone', 'add', 'hundred', '--items', ids.join(','));
+  const chosen = [ids[92], ids[77], ids[89]];
+  const ordered = box.json('milestone', 'order', 'hundred', chosen.join(','));
+  assert.deepEqual(ordered.pins, []);
+  assert.deepEqual(queueIds(box).slice(0, 3), chosen);
+  assert.deepEqual(milestone(box.json('roadmap'), 'hundred').items.map(item => item.id), queueIds(box));
+  box.json('milestone', 'pin', 'hundred', String(ids[98]), '--reason', 'First real priority');
+  assert.equal(queueIds(box)[0], ids[98], 'a new pin leads the existing explicit order');
+  box.json('milestone', 'pin', 'hundred', String(ids[99]), '--reason', 'Newest urgent priority');
+  assert.deepEqual(queueIds(box).slice(0, 2), [ids[99], ids[98]], 'a new pin leads prior pins too');
+  const again = box.json('milestone', 'order', 'hundred', chosen.join(','));
+  assert.deepEqual(again.pins, [ids[99], ids[98]], 'JSON names the preserved pins');
+  const text = box.run('milestone', 'order', 'hundred', chosen.join(','));
+  assert.equal(text.status, 0, text.stdout + text.stderr);
+  assert.ok(text.stdout.includes('pins keep their place ahead of this order: #' + ids[99] + ', #' + ids[98]));
+  const expected = [ids[99], ids[98], ...chosen];
+  assert.deepEqual(queueIds(box).slice(0, expected.length), expected);
+  assert.deepEqual(milestone(box.json('roadmap'), 'hundred').items.map(item => item.id), queueIds(box));
+  assert.equal(new Set(queueIds(box)).size, 100, 'ranking and pinning preserve every milestone member');
+});
+
+test('[N22,B13] old recorded pin moves retain append semantics and current pins lead', t => {
+  const box = fixture(t), ids = ['first', 'second', 'third'].map(title => box.item(title, 'open'));
+  addMilestone(box.board, { agentId: 'coordinator', name: 'replay-pins', items: ids, reason: 'Fixture replay coverage' });
+  box.board.executionEngineVersion = MILESTONE_QUEUE_ORDER_ENGINE - 1;
+  for (const id of ids.slice(0, 2)) orderMilestoneItems(box.board, 'replay-pins', {
+    agentId: 'coordinator', items: [id], place: 'pin', reason: 'Recorded old priority',
+  });
+  assert.deepEqual(store.milestones(box.board).find(item => item.name === 'replay-pins').order, ids.slice(0, 2));
+  delete box.board.executionEngineVersion;
+  orderMilestoneItems(box.board, 'replay-pins', { agentId: 'coordinator', items: [ids[2]], place: 'pin', reason: 'Current priority' });
+  assert.deepEqual(store.milestones(box.board).find(item => item.name === 'replay-pins').order, [ids[2], ids[0], ids[1]]);
 });

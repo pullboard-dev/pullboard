@@ -6,9 +6,9 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ACCESS_WINDOW_MS, createRelayAuth } from '../relay/auth.js';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createGitHubClient } from '../relay/github.js';
+import { ACCESS_WINDOW_MS, createRelayAuth } from '../apps/relay/index.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 /** Exercise real OAuth, GitHub HTTP, SQLite auth and public write routes with only the auth clock controlled. */

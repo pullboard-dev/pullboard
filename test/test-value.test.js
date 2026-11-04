@@ -1,6 +1,6 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
 import { testCapacityReport } from '../packages/gate/index.js';
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { defaults, configFromSource } from '../packages/config/index.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';

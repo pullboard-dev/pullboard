@@ -6,9 +6,9 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { protectHistory } from '../src/runner-source-scan.js';
-import { sourceGit } from '../src/runner-source-scan.js';
-import { sourceObjects } from '../src/runner-source-scan.js';
+import { protectHistory } from '../packages/runners/index.js';
+import { sourceGit } from '../packages/runners/index.js';
+import { sourceObjects } from '../packages/runners/index.js';
 import { defaults } from '../packages/config/index.js';
 
 /** Construct history with long names using shared blob objects, without checking files out. */

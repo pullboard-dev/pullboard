@@ -1,5 +1,5 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
-import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { digestNativePorts } from './digest-native-ports.fixture.js';
 /** Automatic Rigor proposals retain evidence, never invent proof or person approval [D1,D3,H16]. */
 import { loadDoctrine } from '../src/doctrine.js';
@@ -9,9 +9,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { personNeedsState } from '../src/needs-state.js';
-import { resumeNeeds } from '../src/resume-needs.js';
+import { openBoard } from '../apps/lib/index.js';
+import { personNeedsState } from '../apps/view/index.js';
+import { resumeNeeds } from '../apps/view/index.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
 import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';

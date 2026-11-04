@@ -1,10 +1,10 @@
 /** Native landing is resumed by a captured wake with an injected board clock, never by editing board history [B35,B3,R3]. */
 import assert from 'node:assert/strict';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import * as outbox from '../packages/outbox/index.js';
 import { repoInfo } from '../packages/git/index.js';
-import { landAfterAcceptance } from '../src/commands/land.js';
+import { landAfterAcceptance } from '../apps/cli/index.js';
 import { scheduleAutomaticLanding, resumeAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
 import { readFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { join } from 'node:path';

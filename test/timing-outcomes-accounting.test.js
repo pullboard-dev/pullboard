@@ -5,8 +5,8 @@ import {
   formatSuiteTiming,
   timingAccountingOutput,
   timingAccountingStages,
-} from '../src/run-timing.js';
-import { formatTestOutcomes } from '../src/test-outcomes.js';
+} from '../packages/gate/index.js';
+import { formatTestOutcomes } from '../packages/gate/index.js';
 import { tapFailures } from '../packages/landing/index.js';
 import { accountedFailures } from '../packages/landing/index.js';
 

@@ -1,3 +1,4 @@
+import { MILESTONE_QUEUE_ORDER_ENGINE } from '../../../../src/milestone-queue-order-engine.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
@@ -18,6 +19,7 @@ import {
 import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";
+import { LIVE_RELEASE_PLACEMENT_ENGINE } from "../../../../src/live-release-placement-engine.js";
 import { placementFor } from "./placement.js";
 import { placementNote } from "./placement.js";
 
@@ -296,7 +298,7 @@ export function placeNewItem(board, id, item, ports) {
   const entries = milestones(board);
   /** The row for a local id, or null when it is not on this board. */
   const itemOf = ref => { try { return ref === null ? null : itemById(board, ref) ?? null; } catch { return null; } };
-  let placed = placementFor(entries, item, itemOf);
+  let placed = placementFor(entries, item, itemOf, { liveReleases: engineOf(board) >= LIVE_RELEASE_PLACEMENT_ENGINE });
   if (placed.index >= 0) {
     const full = [];
     let index = placed.index;
@@ -385,7 +387,9 @@ function overrideMilestoneItems(board, name, { agentId, items, place, reason }, 
     if (index < 0) throw new Refused('NO_MILESTONE', `no milestone named ${name}; list them with pullboard roadmap`);
     const current = entries[index];
     if (ids.some(id => !current.items.includes(id))) throw new Refused('MILESTONE_ITEMS', 'override only items in this milestone; read pullboard roadmap and retry');
-    const order = [...(current.order ?? []).filter(id => !ids.includes(id)), ...(place === 'pin' ? ids : [])];
+    const retained = (current.order ?? []).filter(id => !ids.includes(id));
+    const order = place === 'pin' && engineOf(board) >= MILESTONE_QUEUE_ORDER_ENGINE
+      ? [...ids, ...retained] : [...retained, ...(place === 'pin' ? ids : [])];
     const sunk = [...(current.sunk ?? []).filter(id => !ids.includes(id)), ...(place === 'sink' ? ids : [])];
     const reasons = { ...Object.fromEntries(Object.entries(current.reasons ?? {}).filter(([id]) => !ids.map(String).includes(id))),
       ...(place === 'lift' ? {} : Object.fromEntries(ids.map(id => [String(id), text]))) };

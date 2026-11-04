@@ -8,6 +8,8 @@
  * Only code counts: a catch inside a string, a template's text or a comment is not one, and a
  * promise's `.catch(...)` method is not a catch clause. Every .js, .mjs and .cjs file under the
  * root is read (see scan.js for the walk). One problem per bare empty catch, at its `catch`.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { lex, lineAt, readText, runCheck, walk } from './scan.js';
 
@@ -19,10 +21,10 @@ const CLAUSE = /(?<![\w$.])catch\s*(?:\([^()]*\)\s*)?\{(\s*)\}/gu;
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function emptyCatchProblems(root) {
+export function emptyCatchProblems(root, files = walk(root, /\.[cm]?js$/u), read = path => readText(root, path)) {
   const problems = [];
-  for (const path of walk(root, /\.[cm]?js$/u)) {
-    const source = readText(root, path);
+  for (const path of files.filter(path => /\.[cm]?js$/u.test(path))) {
+    const source = read(path);
     const { code, comments } = lex(source);
     for (const clause of code.matchAll(CLAUSE)) {
       const open = clause.index + clause[0].length - clause[1].length - 2;

@@ -1,4 +1,7 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
+export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
+export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/shell/refusal-trial.js";
+export { machineryRefusal, runMachineryGuard } from "./src/shell/refusal-trial.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
@@ -8,7 +11,7 @@ export { withBrowserSourceFiles, browserSourceFiles, memoryBrowserSourceFiles, s
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/core/capacity-summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/core/check-baseline-format.js";
 export { retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/shell/check-baseline-worker.js";
-export { checkBaseline, baselineTestEvidence, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
+export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, prepareCheckBaseline } from "./src/shell/check-baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/shell/child-journal-preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/shell/chrome-clone-check.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/shell/cpu-load-admission.js";
@@ -19,9 +22,9 @@ export { digestOf, writeTimingProfile } from "./src/shell/gate-output.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-policy-load.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
-export { requireGateExecutionServices, settleReceipt, withGateSlot } from "./src/shell/gate-slot.js";
+export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/shell/gate-slot.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
-export { submitGateConfig, submitGatePlan, runSubmitGate } from "./src/shell/gate-submit.js";
+export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/shell/gate.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/shell/gui-admission.js";
@@ -29,7 +32,8 @@ export { guiSession } from "./src/shell/gui-session.js";
 export { nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-scheduler.js";
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
-export { runMainAudits } from "./src/shell/main-audit-worker.js";
+export { runMainAudits, mainAuditJobs, routeAuditFailures } from "./src/shell/main-audit-worker.js";
+export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/shell/main-audit-attribution.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
 export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
@@ -63,4 +67,22 @@ export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
 
-export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
+export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/shell/prove-once.js';
+export { redGateScope, redGateReport, runnerErrors } from './src/shell/red-gate-report.js';
+export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
+
+export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
+
+export { runGateStages } from "./src/core/gate-stages.js";
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
+
+export { privateCheckAdmission } from './src/shell/private-check-admission.js';
+export {
+  DEFAULT_TEST_FILE_TIMEOUT_MS,
+  TEST_CHILD_CLEANUP_FAILED,
+  testFileTimeoutMs,
+  activeHandleSummary,
+  installTestChildDrain,
+} from './src/shell/test-child-drain.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
+export { changedStaticFailures, stagedHookFailures } from './src/shell/changed-static.js';

@@ -40,8 +40,12 @@ import {
   recordRunnerFailure,
   recoverUnavailableRunners,
   runnerRecoveryStatus,
+  cleanupCharges,
 } from './resource-recovery.js';
+import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
+import { pickTieredRunner } from './runner-load-pick.js';
+import { troubledRunners } from './runner-load-pick.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -489,7 +493,7 @@ function validatedRunners(value) {
       throw new Refused('BAD_RUNNER_POOL', 'runners require unique nonempty hosts, positive slots, and browser capacity from zero through slots');
     }
     seen.add(runner.host);
-    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
+    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(Number.isSafeInteger(runner.cores) ? { cores: runner.cores } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
       ...(typeof runner.node === 'string' ? { node: runner.node } : {}),
       ...(typeof runner.root === 'string' ? { root: runner.root } : {}) };
   });
@@ -522,14 +526,17 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
     // predates the name guard and has no runner column value.
-    const remoteHolders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
-      slots: remoteHolders.length,
+      slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
+      admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
       browsers: remoteHolders.filter(holder => holder.browser === 1).length,
     }];
   }));
-  const unavailable = unavailableRunnerHosts(db, now);
+  const unavailable = unavailableRunnerHosts(db, now, runners);
+  const troubled = loadPolicy.enabled === true ? troubledRunners(db, now, LEASE_MS) : new Set();
   let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
@@ -562,25 +569,12 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       if (!compatible.length) return null;
       let selected = compatible[0], dispatch;
       if (loadPolicy.enabled === true) {
-        const ceiling = Number.isFinite(loadPolicy.ceiling) && loadPolicy.ceiling >= 1 && loadPolicy.ceiling <= 100 ? loadPolicy.ceiling : 90;
-        const measured = compatible.filter(runner => {
-          const sample = runner.cpuLoad, age = now - Date.parse(sample?.at);
-          return sample && Number.isFinite(sample.busyPercent) && sample.busyPercent >= 0 && sample.busyPercent <= 100
-            && Number.isFinite(age) && age >= 0 && age <= 30_000;
-        });
-        const quiet = measured.filter(runner => runner.cpuLoad.busyPercent < ceiling);
-        if (quiet.length) {
-          selected = quiet.sort((a, b) => a.cpuLoad.busyPercent - b.cpuLoad.busyPercent)[0];
-          dispatch = { reason: 'lowest recent runner-reported CPU busy share', busyPercent: selected.cpuLoad.busyPercent, ceiling };
-        } else {
-          selected = [...compatible].sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots)[0];
-          dispatch = { reason: measured.length === compatible.length ? 'all compatible runners at or above CPU ceiling; falling back to free slots' : 'missing or stale runner CPU readings; falling back to free slots', ceiling };
-        }
-      }
-      // Flexible work preserves browser capacity whenever a compatible browser-free host is available.
-      if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
+        // Live load: skip overloaded runners, prefer healthy ones, take the most headroom, or queue (#2509).
+        ({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now));
+        if (!selected) return null;
+      } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
+        // Flexible work preserves browser capacity whenever a compatible browser-free host is available.
         selected = compatible.find(runner => runner.browser === 0);
-        dispatch = undefined;
       }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
       return { ...selected, ...(dispatch ? { dispatch } : {}), ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1 } : {}), shortSlot: false };
@@ -647,6 +641,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
         if (executor.host) {
           const used = usage.get(executor.host);
           used.slots += 1;
+          used.admittedSince += 1;
           used.browsers += Number(waiter.browser === 1);
           used.timing ||= waiter.timing === 1;
         } else {
@@ -711,23 +706,21 @@ function timingDrainEvents(db) {
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
-function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe) {
+function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, leakProbe) {
   if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
   let recovery;
   try { recovery = open(file); }
   catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
-  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe }).finally(() => recovery.close())
+  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe, leakProbe }).finally(() => recovery.close())
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Every recorded failure stays unavailable until exact recovery or explicit manual clearance, never merely age. */
-function runnerUnavailable(entry) { return Boolean(entry); }
-
-/** Use the same current transport and draining exclusions for admission and local-memory status. */
-function unavailableRunnerHosts(db, now) {
+/** Exclusions for admission and local-memory status; unverified cleanups exclude a runner only once they cost every slot. */
+function unavailableRunnerHosts(db, now, runners = []) {
+  const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => runnerUnavailable(row, now)).map(row => row.host),
+      .filter(row => row.healing === 1 && row.probe_until > now || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
@@ -768,7 +761,7 @@ export function runnerResourceStatus(runners) {
           .all(runnerResourceName(runner.host));
         if (runner.draining && !holders.length) return [];
         const recorded = db.prepare('SELECT * FROM runner_unavailable WHERE host = ?').get(runner.host);
-        const unavailable = runnerUnavailable(recorded, Date.now()) ? recorded : null;
+        const unavailable = recorded ?? null;
         const transport = db.prepare('SELECT at,diagnostic FROM runner_transport_error WHERE host=?').get(runner.host);
         let transportFailure;
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
@@ -800,10 +793,10 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
     return update(db, () => {
       const resourceName = runnerResourceName(host);
       const held = db.prepare('SELECT COUNT(*) AS count FROM holder WHERE name = ?').get(resourceName).count;
-      if (held && !drain) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
+      if (held && !drain && !observation) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
-      const result = persist();
+      const result = persist({ held });
       // A capacity observation is not cleanup evidence or an explicit host registration.
       if (observation) return result;
       if (drain && held) {
@@ -817,7 +810,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
         db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET capacity = excluded.capacity')
           .run(resourceName, result.slots);
       }
-      db.prepare('DELETE FROM runner_unavailable WHERE host = ?').run(host);
+      db.prepare('DELETE FROM runner_unavailable WHERE host = ? AND probe_until <= ?').run(host, Date.now());
       db.prepare('DELETE FROM runner_draining WHERE host = ?').run(host);
       return result;
     });
@@ -990,7 +983,7 @@ export function requiredExecutorOf(value) {
  * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
-  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false } = options;
+  const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; request name "gate"');
   if (!Number.isSafeInteger(capacity) || capacity < (name === 'gate' && scope === 'machine' ? 0 : 1)) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be positive; only the machine gate accepts 0 with a registered runner');
@@ -1053,7 +1046,7 @@ export async function takeResource(options) {
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
-  // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
+  // Capture once per admission attempt; an infrastructure requeue explicitly starts a fresh attempt.
   let runnerDeadlineAt = resume?.runnerDeadlineAt ?? options.runnerDeadlineAt ?? 0;
   let runnerDispatched = resume?.runnerDispatched === true;
   let readinessFailover = resume?.readinessFailover === true;
@@ -1097,7 +1090,9 @@ export async function takeResource(options) {
       if (row && row.capacity !== currentCapacity) {
         const state = snapshot(db, name);
         const activeHolders = name === 'gate' ? state.holders.filter(holder => !holder.runner).length : state.holders.length;
-        if (!allowIdleCapacityUpdate || activeHolders || state.line.length) {
+        // Growing a pool never strands a holder, so a caller that allows growth may raise it while held (3 Nov: handoff workers grew from 4 to 10 with jobs running).
+        const grows = allowCapacityGrowth && currentCapacity > row.capacity;
+        if (!grows && (!allowIdleCapacityUpdate || activeHolders || state.line.length)) {
           throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "${name}" already has capacity ${row.capacity}`);
         }
         db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(currentCapacity, name);
@@ -1167,7 +1162,7 @@ export async function takeResource(options) {
         db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
           .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
-        const unavailable = unavailableRunnerHosts(db, now);
+        const unavailable = unavailableRunnerHosts(db, now, runners);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
           || !runners.some(runner => runnerAllowed(waiter, runner) && runnerCompatible(db, runner, waiter, unavailable))));
         db.prepare('UPDATE waiter SET memory_held = ? WHERE token = ?').run(Number(memoryHeld), token);
@@ -1226,7 +1221,7 @@ export async function takeResource(options) {
       // A missed READY grants one immediate ordered admission, never another queue wait budget.
       if (!acquired.state.rejoined) readinessFailover = false;
       if (acquired.acquired) {
-        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1259,14 +1254,14 @@ export async function takeResource(options) {
           heartbeat.unref();
         };
         startHeartbeat();
-        /** Commit this holder's deletion before closing; a failed update remains live and retryable. */
-        const release = () => {
+        /** Commit deletion before closing; an owner with its own retry loop can request an immediate lock failure. */
+        const release = ({ retryMs } = {}) => {
           if (released || transferred) return;
-          update(db, () => {
+          writeWhileLocked(() => update(db, () => {
             if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
-          });
+          }), { retryMs });
           released = true;
           clearInterval(heartbeat);
           db.close();
@@ -1296,6 +1291,8 @@ export async function takeResource(options) {
           clearInterval(heartbeat);
           let requeueTicket = acquired.ticket;
           let requeueOpportunity = acquired.queueTicket;
+          // A failed host's pin describes the old attempt, not the replacement executor.
+          const retryRestriction = quarantine && restriction?.kind === 'ssh' ? undefined : restriction;
           try {
             update(db, () => {
               const holderName = runnerResourceName(acquired.runner.host);
@@ -1320,7 +1317,7 @@ export async function takeResource(options) {
               db.prepare('DELETE FROM holder WHERE token = ?').run(token);
               db.prepare('INSERT INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 .run(requeueTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote && (!local || runnerOnly)), marker, 1, boardKey, releaseRank, requeueOpportunity, Number(shortEligible), Number(gui), Number(timing), 1);
-              db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(requiredExecutor, token);
+              db.prepare('UPDATE waiter SET required_executor = ? WHERE token = ?').run(retryRestriction ? JSON.stringify(retryRestriction) : '', token);
             });
           } catch (error) {
             transferred = false;
@@ -1328,11 +1325,11 @@ export async function takeResource(options) {
             throw error;
           }
           if (reason === 'worker-unresponsive' && runnerProvider) {
-            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
+            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
           }
           db.close();
-          const retryingInfrastructure = infrastructureRetryCount > 0 && reason !== 'worker-unresponsive';
-          return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
+          const retryingInfrastructure = quarantine || infrastructureRetryCount > 0;
+          return takeResource({ ...options, requiredExecutor: retryRestriction ?? undefined, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
             runnerDispatched: retryingInfrastructure ? false : runnerDispatched,
@@ -1354,7 +1351,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe })) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

@@ -1,14 +1,12 @@
 import { seatFamily } from '../../../../src/family-declaration.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
 import * as store from '../../../../src/board.js';
-import { withPrivateBoard } from '../../../../src/projects.js';
-import { originRepository } from '../../../../src/github-origin.js';
-import { relayMachineOwner } from '../../../../src/relay-machine.js';
-import { relayMachineContext } from '../../../../src/relay.js';
+import { withPrivateBoard } from '../../../seats/index.js';
+import { originRepository } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Run one add with the caller's native opener while keeping the repo checkout's own seat binding. */
-export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard }) {
+export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard, relayMachineOwner, relayMachineContext }) {
   return withBoard(ctx, async (repoBoard) => {
     const repoActor = whoAmI(ctx, repoBoard);
     const repository = originRepository(ctx.info.root, { optional: true });

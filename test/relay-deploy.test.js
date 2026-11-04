@@ -5,8 +5,8 @@ import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagn
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { dirname, join, resolve } from 'node:path';
+import { packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -14,8 +14,9 @@ import { releaseHeadlinesBetween } from '../packages/config/index.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
+import { lex } from '../packages/kernel/index.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../packages/keys/index.js';
 import { approvalContext, openApproval, sealApproval, signApprovalIntent, verifyApprovalIntent } from '../packages/link/index.js';
@@ -39,14 +40,11 @@ function copyDockerSource(source, destinationPath, omitted) {
     for (const entry of readdirSync(sourcePath)) copyDockerSource(join(source, entry), join(destinationPath, entry), omitted);
   } else {
     mkdirSync(join(destinationPath, '..'), { recursive: true });
-    if (SHIPPED.has(source)) {
-      copyPackageFiles(ROOT, dirname(destinationPath), { files: [{ path: source, as: basename(destinationPath) }] });
-    } else if (/^packages\/[^/]+\/tests\//u.test(source)) {
-      return; // package test folders are deliberately left out of the manifest (70e02358) and are not tool sources
-    } else {
+    if (!SHIPPED.has(source)) {
+      if (/^packages\/[^/]+\/tests\//u.test(source)) return; // package test folders are not tool sources
       assert.ok(!/^(?:src|bin|packages)\//u.test(source), 'Docker tool sources must be shipped by the manifest');
-      copyFileSync(sourcePath, destinationPath);
     }
+    copyFileSync(sourcePath, destinationPath);
   }
 }
 
@@ -689,10 +687,10 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
   for (const omitted of [
     'src/cockpit.js',
     'src/machine.js',
-    'src/view.css',
+    'apps/view/src/shell/view.css',
     'packages/kernel/src/core/seal.js',
-    'relay/browser-client.js',
-    'relay/browser-model.js',
+    'apps/relay/src/shell/browser-client.js',
+    'apps/relay/src/shell/browser-model.js',
     'packages/kernel/src/core/refused.js',
   ]) {
     const damagedImage = copiedImage(t, [omitted]);
@@ -786,7 +784,10 @@ async function servedRelayClient(t) {
     const source = await servedAsset(handler, path);
     mkdirSync(join(folder, dirname(path)), { recursive: true });
     writeFileSync(join(folder, path), source);
-    for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/gu)) pending.push(new URL(match[1], 'https://relay.example' + path).pathname);
+    const info = lex(source);
+    for (const literal of info.strings.filter(row => /\b(?:from|import)\s*\(?\s*$/u.test(info.code.slice(0, row.start)))) {
+      if (literal.text.startsWith('./') || literal.text.startsWith('../')) pending.push(new URL(literal.text, 'https://relay.example' + path).pathname);
+    }
   }
   t.diagnostic(`served ${written.size} modules`);
   return { written, module: await import(pathToFileURL(join(folder, 'relay', 'client.js')).href) };

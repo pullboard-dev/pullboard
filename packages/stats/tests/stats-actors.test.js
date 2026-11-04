@@ -9,7 +9,7 @@ import { closeBoard } from '../../store/index.js';
 import { events } from '../../store/index.js';
 import { register } from '../../store/index.js';
 import { release } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { eventCounts } from '../src/shell/stats.js';
@@ -29,7 +29,7 @@ function fixture(t) {
   setTime('2026-02-01T00:00:00.000Z');
   register(board, { lane: 'coordinator', path: '/actors/coordinator' });
   setTime('2026-02-01T00:01:00.000Z');
-  register(board, { lane: 'web', path: '/actors/web-builder', family: 'legacy-family' });
+  register(board, { lane: 'web', path: '/actors/web-builder' });
   return { board, setTime };
 }
 
@@ -112,14 +112,13 @@ test('[R1,R2] legacy family declarations are unknown until a family event and do
   assert.equal(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('web-1').agent_family, 'new-family',
     'the current declaration is newer than the initial events');
   assert.deepEqual(stats.agents, [
-    { id: 'coordinator', moves: 4, families: ['unknown'] },
     { id: 'web-1', moves: 8, families: ['new-family', 'unknown'] },
   ]);
   assert.deepEqual(stats.families, [
     { name: 'new-family', agents: 1, moves: 5 },
-    { name: 'unknown', agents: 2, moves: 7 },
+    { name: 'unknown', agents: 1, moves: 3 },
   ]);
-  assert.equal(stats.agentCount, 2);
+  assert.equal(stats.agentCount, 1);
   assert.equal(stats.familyCount, 2);
   assertCountsUnchanged(board, stats);
 });
@@ -129,16 +128,14 @@ test('[R1,R2] a window keeps earlier family evidence but excludes earlier unknow
   const since = '2026-02-04';
   const stats = proofStats(board, { since }, statsReadPorts);
   assert.equal(stats.since, '2026-02-04T00:00:00.000Z');
-  assert.equal(stats.agentCount, 2);
+  assert.equal(stats.agentCount, 1);
   assert.deepEqual(stats.agents, [
-    { id: 'coordinator', moves: 2, families: ['unknown'] },
     { id: 'web-1', moves: 4, families: ['new-family'] },
   ], 'the pre-window family event classifies selected legacy-format moves');
   assert.deepEqual(stats.families, [
     { name: 'new-family', agents: 1, moves: 4 },
-    { name: 'unknown', agents: 1, moves: 2 },
   ]);
-  assert.equal(stats.familyCount, 2);
+  assert.equal(stats.familyCount, 1);
   assertCountsUnchanged(board, stats, { since });
 });
 
@@ -166,7 +163,6 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
   const imported = importedBoard(t, document);
   const stats = proofStats(imported, {}, statsReadPorts);
   assert.deepEqual(stats.agents, [
-    { id: 'coordinator', moves: 4, families: ['unknown'] },
     { id: 'web-1', moves: 8, families: ['join-snapshot', 'move-snapshot', 'new-family', 'third-snapshot', 'unknown'] },
   ]);
   assert.deepEqual(stats.families, [
@@ -174,9 +170,9 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
     { name: 'move-snapshot', agents: 1, moves: 1 },
     { name: 'new-family', agents: 1, moves: 1 },
     { name: 'third-snapshot', agents: 1, moves: 2 },
-    { name: 'unknown', agents: 2, moves: 6 },
+    { name: 'unknown', agents: 1, moves: 2 },
   ]);
-  assert.equal(stats.agentCount, 2, 'board and person are system actors, not agents');
+  assert.equal(stats.agentCount, 1, 'board, coordinator and person are system actors, not agents');
   assert.equal(stats.familyCount, 5);
   assertCountsUnchanged(imported, stats);
   assert.ok(laterReleases.length === 2, 'both later missing-snapshot moves inherit the previous explicit evidence');
@@ -203,5 +199,6 @@ test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
     notesPerSubmit: [],
     bars: {},
     caught: { counts: { sentBack: 0, conflict: 0, redHead: 0, flake: 0, stuck: 0 }, total: 0, entries: [] },
+    workFreeReleases: [],
   }, 'an empty board has no bar corrections and nothing caught');
 });

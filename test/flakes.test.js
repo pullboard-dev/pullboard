@@ -1,14 +1,14 @@
 import { flakyProject, writeTarget, TITLE } from '../packages/git/tests/flakes-fixture.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import './quarantine-core-cases.js';
 import { landingPorts } from './landing-ports-fixture.js';
-import { checkAtCommit } from '../src/runner-private-check.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 /** @pullboard-test-input source-tree */
 /** Native flake observations preserve the first red verdict and carry evidence into repair work [C7,D1,H16]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -18,26 +18,26 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
+import { flakeSource, observeNativeFailure } from '../packages/flakes/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 import { land } from '../packages/landing/index.js';
 import { nudgeMainAudit } from '../packages/gate/index.js';
 import { nudgeSourceAdvances } from '../packages/git/index.js';
 import { runMainAudits } from '../packages/gate/index.js';
 import { hasSourceAdvanceJobs } from '../packages/sandbox/index.js';
 import { runSourceAdvances } from '../packages/sandbox/index.js';
-import { context } from '../src/cli.js';
-import { ordered } from '../src/cli.js';
-import { withBoard } from '../src/cli.js';
+import { context } from '../apps/cli/index.js';
+import { ordered } from '../apps/cli/index.js';
+import { withBoard } from '../apps/cli/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 import { readMainAudit } from '../packages/gate/index.js';
 import { saveMainAudit } from '../packages/gate/index.js';
 import { landingLeaseState } from '../src/board-landing-lease.js';
 import { executionServices } from './gate-execution-fixture.js';
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 
 const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
