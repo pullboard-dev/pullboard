@@ -25,7 +25,7 @@ import { safeSetupMessage } from './runner-worker-receipt.js';
 import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
-import { receiveAnalysisArtifact } from '../../../../packages/runners/index.js';
+import { receiveAnalysisArtifact } from '../../../../packages/resources/index.js';
 import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/execution-environment.js';
 import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
 import { Refused } from '../../../../packages/kernel/index.js';

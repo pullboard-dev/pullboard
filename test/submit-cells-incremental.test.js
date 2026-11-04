@@ -42,7 +42,7 @@ import { withFileLock } from '../packages/outbox/index.js';
 import {
   analysisArtifactDescriptor,
   readAnalysisArtifact,
-} from '../packages/runners/index.js';
+} from '../packages/resources/index.js';
 import {
   fixture,
   git,
@@ -282,7 +282,7 @@ test('trusted inventory transport rejects changed bytes, identity and symlink so
 
 /** Run a receiver in a separate process so real stdin chunking and EOF are exercised without changing this test runner. */
 function receiveFixture(directory, bytes, digest) {
-  const module = new URL('../packages/runners/index.js', import.meta.url).href;
+  const module = new URL('../packages/resources/index.js', import.meta.url).href;
   const code = `import {receiveAnalysisArtifact} from ${JSON.stringify(module)};
 import {readFileSync} from 'node:fs';
 const state={transportLost:false,rejectPendingFrame:null};

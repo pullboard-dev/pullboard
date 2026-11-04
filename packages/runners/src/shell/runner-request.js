@@ -19,7 +19,7 @@ import { protectHistory } from './runner-source-scan.js';
 import { protectionAt } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { sourceObjects } from './runner-source-scan.js';
-import { readAnalysisArtifact } from './runner-analysis-artifact.js';
+import { readAnalysisArtifact } from '../../../resources/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';

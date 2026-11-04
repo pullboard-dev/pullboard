@@ -31,4 +31,3 @@ export { cleanupTimeoutDetails, readCleanupTimeoutDetails, cleanupProcessText } 
 
 export { committedRunnerController, archivedToolingSource } from './src/shell/committed-tooling.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/shell/dirty-tooling.js';
-export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/shell/runner-analysis-artifact.js';

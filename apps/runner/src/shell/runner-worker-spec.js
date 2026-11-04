@@ -2,7 +2,7 @@ import { processCensus } from './runner-custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
 import { runnerPolicyRecord } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
-import { analysisArtifactDescriptor } from '../../../../packages/runners/index.js';
+import { analysisArtifactDescriptor } from '../../../../packages/resources/index.js';
 import { recoveryIdentity } from '../../../../packages/resources/index.js';
 import { claimRunnerWorker } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { createHash } from 'node:crypto';
