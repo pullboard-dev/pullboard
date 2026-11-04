@@ -107,9 +107,14 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   const config = loadConfig(root);
   const box = { root, file, board, clock, seats, config, git, advance: ms => { at += ms; } };
   /** File an ordinary runnable item; tests never prefilter a candidate list for next. */
-  box.add = (title, options = {}) => store.addItem(board, { by: 'coordinator', lane: 'web', title,
-    criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'],
-    brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options });
+  box.add = (title, options = {}) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'web', title,
+      criterion: 'The real fixture succeeds.', check: 'true', specIds: ['G1'], route,
+      brief: `Files: ${options.lane === 'docs' ? 'docs' : 'web'}/dispatch.js\nTest: the real board selects the eligible item and retains its ownership.`, ...options });
+    if (store.getItem(board, id).item_route === 'light') store.appendFact(board, id, { agentId: seats.builder.id,
+      kind: 'diagnosis', text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next assigns the item to an eligible seat.' });
+    return id;
+  };
   /** Set up authentic board ownership without claiming execution of a gate. */
   box.claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane,
     leaseMs: 3_600_000, freeze: item => {
