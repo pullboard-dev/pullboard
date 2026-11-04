@@ -88,6 +88,8 @@ function submittedItem({ uncovered }) {
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'));
   writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n");
+  // Keep one unrelated committed test so the fixture's changed test is a selective landing proof.
+  writeFileSync(join(box.repo, 'web/unrelated.test.js'), "import { test } from 'node:test';\ntest('unrelated test remains independent', () => {});\n");
   outcomeReporter(box);
   commit(box, box.repo, 'chore: seed accept fixture [G1]');
   const builder = join(box.dir, 'web-builder');
