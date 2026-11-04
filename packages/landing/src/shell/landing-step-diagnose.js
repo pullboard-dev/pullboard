@@ -159,10 +159,36 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
 }
 
 /**
- * Record one item as the culprit of its own red and send it back to open with the evidence, once.
- * Why shared: a bisection's last item and a per-item landing's only item are the same case [C7,#2901].
+ * The failures in a file the item changed or its check names; empty when its changed files cannot be read.
+ * Why: a red in a file the item never touched is main's or the machine's, and reopening the item for it bounced
+ * accepted work that was never at fault [C7,#2967].
+ */
+export function ownFailures(state, entry, failures) {
+  const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+  if (changed.status !== 0) return [];
+  const files = new Set(changed.stdout.split('\0').filter(Boolean));
+  const check = store.getItem(state.board, entry.id)?.item_check ?? '';
+  return failures.filter(failure => failure.file && (files.has(failure.file) || check.includes(failure.file)));
+}
+
+/**
+ * Send an item back to open for the reds that are its own; true when it was recorded as a culprit. A red only in files
+ * it neither changed nor names in its check reopens nothing: the batch keeps the failure and the item stays verified.
+ * Why shared: a bisection's last item and a per-item landing's only item are the same case [C7,#2901,#2967].
  */
 export async function returnCulprit(state, item, failures) {
+  const own = ownFailures(state, item, failures);
+  if (!own.length) {
+    await save(state, { failures });
+    state.say(`landing red is not #${item.id}'s: ${failures.map((failure) => `${failure.file ?? 'gate'}: ${failure.name}`).join('; ')}; it stays verified`);
+    return false;
+  }
+  await recordCulprit(state, item, own);
+  return true;
+}
+
+/** Record one item as the culprit of the given failures and send it back to open with the evidence, once. */
+async function recordCulprit(state, item, failures) {
   const text = `Landing batch ${state.batch.id} reproduces failures: ${failures.map((failure) => `${failure.file ?? 'gate'}: ${failure.name}`).join('; ')}`;
   if (!store.itemThread(state.board, item.id).some((entry) => entry.type === 'fact' && entry.text === text)) {
     await state.write('appendFact', [item.id, { agentId: 'coordinator', kind: 'measurement', text }]);
@@ -179,20 +205,30 @@ export function namedFailures(gate) {
   return gate.failures?.length ? gate.failures : [{ file: 'gate', name: `the landing check exited ${gate.exitCode ?? 'non-zero'}; log ${gate.logPath ?? 'unavailable'}` }];
 }
 
-/** Refusals that mean the landing itself lost its footing, never the item; they stop the run and send nothing back. */
-const LANDING_FAULTS = new Set(['LAND_LEASE_LOST', 'LAND_TRUNK_MOVED', 'LAND_ITEM_MOVED', 'LAND_WORKTREE', 'LAND_PUSH', 'LAND_REMOTE_MOVED', 'LAND_ADOPT']);
+/**
+ * Refusals the candidate's own content causes; every other refusal is the landing's infrastructure or diagnosis
+ * (board busy, runners, git, timeouts, diagnostics) and reopens nothing [C7,#2901,#2967].
+ */
+const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
+
+/** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
+export function itemRefusal(error) {
+  if (!(error instanceof Refused)) return false;
+  return ITEM_REFUSALS.has(error.code) || (error.code === 'LAND_CLI_SMOKE' && /^the candidate's /u.test(error.message));
+}
 
 /**
  * Send a per-item landing's only item back to open with a refusal it caused, once; true when it went back.
- * Why: a refusal on one item's merge or plan otherwise leaves it verified, and every later run stops on it again [C7,#2901].
+ * Why: a refusal on one item's content otherwise leaves it verified and every later run stops on it again; a refusal
+ * of the landing's own machinery leaves it verified, since the item did nothing wrong [C7,#2901,#2967].
  */
 export async function returnRefusedItem(state, error) {
-  if (!(error instanceof Refused) || LANDING_FAULTS.has(error.code)) return false;
+  if (!itemRefusal(error)) return false;
   const entry = (state.batch.items?.length ? state.batch.items : state.batch.candidates ?? [])[0];
   const item = entry && store.getItem(state.board, entry.id);
   if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) return false;
   // The refusal is recorded as the item's culprit case, so the existing culprit return carries it with its evidence.
-  await returnCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
+  await recordCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
   return store.getItem(state.board, entry.id).item_status !== 'verified';
 }
 
