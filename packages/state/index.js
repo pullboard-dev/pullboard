@@ -170,6 +170,7 @@ export { AGENT_GRANT_ENGINE } from '../../src/agent-grant-engine.js';
 export { HANDOFF_ENGINE } from '../../src/handoff-engine.js';
 export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
+export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../src/known-main-running-file-engine.js';
 
 export { CLAIM_PROGRESS_ENGINE } from '../../src/claim-progress-engine.js';
 
@@ -185,5 +186,6 @@ export { STRICT_RENAME_ENGINE } from '../../src/strict-rename-engine.js';
 export { DEAD_HANDOFF_RETRY_ENGINE } from '../../src/dead-handoff-retry-engine.js';
 
 export { TWO_TIER_DIAGNOSIS_ENGINE } from '../../src/two-tier-diagnosis-engine.js';
+export { REJECT_OPEN_ENGINE } from '../../src/reject-open-engine.js';
 export { CLAUSE_EVIDENCE_ENGINE } from '../../src/clause-evidence-engine.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings } from './src/core/clause-evidence.js';

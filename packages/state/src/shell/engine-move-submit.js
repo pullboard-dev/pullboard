@@ -11,7 +11,7 @@ export function prepareBefore(board, values, { ports, store }) {
   values[1] = store.sealStrictRenames(board, values[0], values[1]);
   values[1] = ports.sealKnownMainAutofile(board, values[0], values[1]);
   values[1] = ports.sealItemPatchSubmit(board, values[0], values[1]);
-  if (ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);
+  if (ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof, ENGINE_VERSION);
   // Derive once before sealing; replicas never re-decide a recorded carry from their local objects.
   if (ENGINE_VERSION >= MERGE_ONLY_VERDICT_ENGINE && values[1]) {
     const carry = store.prepareMergeOnlySubmit(board, values[0], values[1], { getItem: store.getItem, acceptedVerdict: store.acceptedVerdict, identity: board.nativePorts });

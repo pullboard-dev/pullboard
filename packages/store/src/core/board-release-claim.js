@@ -19,6 +19,7 @@ import { firstRefusal } from "./board-item-read.js";
 import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
 import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
+import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {
@@ -50,7 +51,7 @@ function chosenQualityRelease(board, id, row, detail) {
 
 /** Apply the existing ordinary release transition with narrowly frozen maintenance authority. */
 export function releaseClaim(board, id, agentId, note, observation, dependencies, reasonCode) {
-  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies } = dependencies;
+  const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies, escalate } = dependencies;
   // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
   if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
   const worktreeSnapshot = observation?.worktreeSnapshot;
@@ -126,6 +127,11 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     const qualityHolds = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_QUALITY_HOLD_ENGINE;
     const currentEligible = qualityHolds ? !stale && !gone && !exitHandoff && !untouchedAutoClaim && item.item_status === 'claimed' && item.item_owner === agentId
       && ['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(reasonCode) : !stale && !gone && !exitHandoff && reasonCode;
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= ROUTE_CALIBRATION_ENGINE && currentEligible
+      && ['BUDGET', 'INELIGIBLE'].includes(reasonCode)) {
+      const seatRoute = board.db.prepare('SELECT agent_route FROM agent WHERE agent_id=?').get(agentId)?.agent_route;
+      if (seatRoute === item.item_route) escalate(board, id, { agentId: 'coordinator', note: `${agentId} released at the ${seatRoute} route: ${reasonCode}${note?.trim() ? ` (${note.trim()})` : ''}` });
+    }
     if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
       const releases = board.db.prepare(`SELECT event_id, event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
