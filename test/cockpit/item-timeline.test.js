@@ -115,7 +115,10 @@ test('the native item timeline reads as sentences with clamped notes and working
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
     await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
-    await chrome.waitFor(notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0");
+    const previewError = noteRow + "?.querySelector('.code-ref.open .code.no')";
+    await chrome.waitFor("(" + notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0) || !!" + previewError);
+    const errorText = await chrome.stable(previewError + "?.textContent || ''");
+    assert.equal(errorText, '', 'the selected note opens its actual referenced source preview: ' + errorText);
     assert.ok(await chrome.stable(notePreview + "?.getBoundingClientRect().height > 0"), 'the selected note shows its actual referenced source preview');
     await press(chrome, "document.querySelector('#detail .tl [data-go=\"item:2\"]')");
     await chrome.waitFor("view.item === 2 && document.querySelector('#detail h2')?.textContent.includes('Reference target')");
