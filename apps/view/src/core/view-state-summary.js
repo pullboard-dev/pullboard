@@ -55,12 +55,9 @@ export function compactItemSummaries(state) {
     || !Object.hasOwn(row, 'title') || typeof row.title !== 'string')) return state;
   const keys = [...new Set(items.flatMap(row => Object.keys(row)))];
   const columns = [];
-  for (const key of keys) {
-    const absent = [], values = items.map((row, index) => {
-      if (!Object.hasOwn(row, key)) { absent.push(index); return null; }
-      return row[key];
-    });
-    let best = [key, 'r', values, absent];
+  /** Pick the cheapest of raw, dictionary and time-offset forms for one named column of values. */
+  const encodeColumn = (name, values, absent) => {
+    let best = [name, 'r', values, absent];
     const missingIndices = new Set(absent);
     const dictionary = [], positions = new Map();
     const indices = values.map((value, index) => {
@@ -70,18 +67,42 @@ export function compactItemSummaries(state) {
       if (!positions.has(text)) { positions.set(text, dictionary.length); dictionary.push(value); }
       return positions.get(text);
     });
-    if (indices.includes(-2)) return state;
-    const dict = [key, 'd', indices, dictionary];
+    if (indices.includes(-2)) return null;
+    const dict = [name, 'd', indices, dictionary];
     if (cost(dict) < cost(best)) best = dict;
     const times = values.map(value => typeof value === 'string' ? Date.parse(value) : null);
     if (values.every((value, index) => value === null || (Number.isSafeInteger(times[index])
       && new Date(times[index]).toISOString() === value))) {
       const base = times.find(value => value !== null) ?? 0;
-      const timed = [key, 't', times.map(value => value === null ? null : value - base), [base, absent]];
+      const timed = [name, 't', times.map(value => value === null ? null : value - base), [base, absent]];
       if (timed[2].every(value => value === null || Number.isSafeInteger(value))
         && cost(timed) < cost(best)) best = timed;
     }
-    columns.push(best);
+    return best;
+  };
+  /** A plain JSON object, the only shape a column may be split into one column per field. */
+  const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  for (const key of keys) {
+    const absent = [], values = items.map((row, index) => {
+      if (!Object.hasOwn(row, key)) { absent.push(index); return null; }
+      return row[key];
+    });
+    const whole = encodeColumn(key, values, absent);
+    if (!whole) return state;
+    // A column whose every row holds a non-empty object is also tried split by field, so repeated fields cost once.
+    const fields = [...new Set(values.flatMap(value => plain(value) ? Object.keys(value) : []))];
+    if (!absent.length && fields.length && values.every(plain)) {
+      const split = fields.map(field => {
+        const missing = [];
+        const data = values.map((value, index) => {
+          if (!Object.hasOwn(value, field)) { missing.push(index); return null; }
+          return value[field];
+        });
+        return encodeColumn([key, field], data, missing);
+      });
+      if (split.every(Boolean) && cost(split) < cost(whole)) { columns.push(...split); continue; }
+    }
+    columns.push(whole);
   }
   const candidates = [defaultItemCandidate(items),
     { itemEncoding: { version: 2, count: items.length }, items: columns }].filter(Boolean);
@@ -122,12 +143,19 @@ export function expandItemSummaries(state) {
       || state.items.length < 2 || state.items.some(column => !Array.isArray(column)
         || column.length !== 4 || !Array.isArray(column[2]) || column[2].length !== encoding.count)) invalid();
     items = Array.from({ length: encoding.count }, () => ({}));
-    const keys = new Set();
+    const keys = new Set(), parents = new Set(), wholes = new Set();
     for (const column of state.items) {
       if (!Array.isArray(column) || column.length !== 4) invalid();
-      const [key, mode, data, extra] = column;
-      if (typeof key !== 'string' || keys.has(key) || !Array.isArray(data) || data.length !== items.length) invalid();
-      keys.add(key);
+      const [name, mode, data, extra] = column;
+      const split = Array.isArray(name);
+      if (split ? name.length !== 2 || name.some(part => typeof part !== 'string') : typeof name !== 'string') invalid();
+      const path = split ? name : [name], key = path[path.length - 1];
+      const identity = JSON.stringify(path);
+      if (keys.has(identity) || !Array.isArray(data) || data.length !== items.length) invalid();
+      keys.add(identity);
+      (split ? parents : wholes).add(path[0]);
+      if (split) for (const row of items) if (!Object.hasOwn(row, path[0])) put(row, path[0], {});
+      if (!split && parents.has(name) || split && wholes.has(path[0])) invalid();
       if (!['r', 'd', 't'].includes(mode) || !Array.isArray(extra)) invalid();
       const absent = mode === 'r' ? extra : mode === 't' ? extra[1] : [];
       if (!Array.isArray(absent) || absent.some((index, position) => !Number.isSafeInteger(index)
@@ -138,15 +166,15 @@ export function expandItemSummaries(state) {
         if (missing.has(index)) { if (value !== null) invalid(); return; }
         if (mode === 'd') {
           if (!Number.isSafeInteger(value) || value < -1 || value >= extra.length) invalid();
-          if (value !== -1) put(items[index], key, clone(extra[value]));
+          if (value !== -1) put(split ? items[index][path[0]] : items[index], key, clone(extra[value]));
         } else if (mode === 't') {
-          if (value === null) put(items[index], key, null);
+          if (value === null) put(split ? items[index][path[0]] : items[index], key, null);
           else {
             if (!Number.isSafeInteger(value) || !Number.isSafeInteger(extra[0] + value)
               || Math.abs(extra[0] + value) > 8640000000000000) invalid();
-            put(items[index], key, new Date(extra[0] + value).toISOString());
+            put(split ? items[index][path[0]] : items[index], key, new Date(extra[0] + value).toISOString());
           }
-        } else put(items[index], key, clone(value));
+        } else put(split ? items[index][path[0]] : items[index], key, clone(value));
       });
     }
   } else invalid();
