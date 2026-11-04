@@ -703,9 +703,9 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#2', label: 'Ready', tone: 'unclaimed', button: true },
+      { id: '#2', label: 'Ready', tone: 'ready', button: true },
       { id: '#1', label: 'Verified', tone: 'verified', button: true },
-      { id: 'beacon#1', label: 'Ready', tone: 'unclaimed', button: true },
+      { id: 'beacon#1', label: 'Ready', tone: 'ready', button: true },
     ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
