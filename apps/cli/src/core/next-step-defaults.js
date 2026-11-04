@@ -231,6 +231,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "DIGEST_SIZE": "shout the coordinator with the board size: pullboard shout coordinator --kind exception \"digest outgrew 50 KB\"",
   "DIGEST_WRITE": "choose a writable file outside .git: pullboard digest --out briefing.md",
   "EMPTY_BLUEPRINT": "ask the person to approve exportable rows written as \"<rule> Why: <reason>\", then run pullboard blueprint save again",
+  "EMPTY_SUBMIT": "commit the item work in the folder the refusal names, then run pullboard submit <id> there",
   "FIT_CHANGED": "read the batch again with pullboard spec fit, then approve it with the batch code it prints: pullboard spec fit approve <batch>",
   "FIT_READING": "read the batch again with pullboard spec fit, then approve it with the batch code it prints: pullboard spec fit approve <batch>",
   "FIT_FILE": "restore or remove .git/pullboard/blueprint-fit.json, then have the seat record its proposals again with pullboard blueprint fit",
