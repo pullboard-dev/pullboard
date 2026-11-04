@@ -66,6 +66,13 @@ let retired = false;
 let ownSocket = null;
 /** Client responses still being written; a retired process exits only when none are left. */
 let flushing = 0;
+/**
+ * How long a retired process waits for clients to read their last responses. Why a bound: a client that stops reading
+ * would otherwise keep an orphan alive; the replaced check plus this stays within 5 s of a takeover.
+ */
+const FLUSH_MS = Number(process.env.PULLBOARD_RESIDENT_FLUSH_MS) || 2_000;
+/** Wall time when this process retired, for the flush bound. */
+let retiredAt = null;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
 const activeEnv = () => running?.env ?? baseEnv;
@@ -124,6 +131,8 @@ function holderAlive() {
 function retire(reason) {
   if (retired) return;
   retired = true;
+  retiredAt = Date.now();
+  setTimeout(exitWhenDone, FLUSH_MS);
   trace(`retire:${reason}`, null);
   release();
   // Why no server.close(): Node unlinks a Unix socket's path when its server closes, whoever holds the path by then.
@@ -131,9 +140,9 @@ function retire(reason) {
   closeConnections();
 }
 
-/** Exit a retired process once its running commands have finished and their responses are written. */
+/** Exit a retired process once its running commands have finished and their responses are written, or flushing is overdue. */
 function exitWhenDone() {
-  if (retired && !inFlight.size && !flushing) process.exit(0);
+  if (retired && !inFlight.size && (!flushing || Date.now() - retiredAt >= FLUSH_MS)) process.exit(0);
 }
 
 /** Send a client its last line, holding a retired process's exit until the line is written. */
@@ -341,8 +350,12 @@ function listen() {
     server.listen(socketPath, () => {
       if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
       ownSocket = socketIdentity();
-      // The pid file names the live holder that keeps a busy resident's path from being taken over.
-      try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* A starter then finds no live holder named. */ }
+      // The pid file names the live holder that keeps a busy resident's path from being taken over; without it a busy
+      // moment would let a starter take this path, so a process that cannot name itself does not serve.
+      try { writeFileSync(pidFile, `${process.pid}\n`); } catch (error) {
+        try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+        return leave(`cannot record the resident process in ${pidFile}: ${error.code ?? error.message}`);
+      }
       unlock();
       // Idle time counts from when the process can serve, never from a slow start under load.
       lastActive = clock();

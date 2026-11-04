@@ -293,3 +293,50 @@ test('an orphaned resident finishes the client response in flight, then exits wi
     rmSync(work, { recursive: true, force: true });
   }
 });
+
+test('an orphaned resident whose client never reads its response still exits within 5 s of the takeover [C7,H24]', async () => {
+  const socket = join(dir, 'k.sock');
+  const pid = join(dir, 'k.pid');
+  const traceFile = join(dir, 'k.trace');
+  const work = mkdtempSync(join(tmpdir(), 'pb-res-work-'));
+  const orphan = resident(socket, pid, { PULLBOARD_RESIDENT_TRACE: traceFile });
+  let successor;
+  let client;
+  try {
+    await within(orphan.listening, 15_000, 'the resident listens');
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_RESIDENT')));
+    const request = JSON.stringify({ code: 'commit:test', argv: ['help', '--all'], cwd: work, env, tty: {} }) + '\n';
+    client = spawn(process.execPath, ['-e', [
+      "const net = require('node:net');",
+      "const socket = net.connect(process.argv[1], () => socket.write(process.argv[2], () => process.stdout.write('sent\\n')));",
+      "socket.on('data', () => {});",
+    ].join('\n'), socket, request], { stdio: ['ignore', 'pipe', 'inherit'] });
+    await within(new Promise(done => client.stdout.on('data', chunk => { if (String(chunk).includes('sent')) done(); })), 15_000, 'the client sends');
+    client.kill('SIGSTOP');
+    const traced = event => { try { return readFileSync(traceFile, 'utf8').includes(event); } catch { return false; } };
+    await within(new Promise(done => { const look = () => traced('respond:exit') ? done() : setImmediate(look); look(); }), 15_000, 'the response is queued');
+    rmSync(socket);
+    successor = await listenAt(socket);
+    const { code } = await within(orphan.exited, 5_000, 'the orphan exits within 5 s of the takeover');
+    assert.equal(code, 0);
+  } finally {
+    client?.kill('SIGCONT');
+    client?.kill('SIGKILL');
+    orphan.child.kill('SIGKILL');
+    if (successor) await new Promise(done => successor.close(done));
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
+test('a resident that cannot record itself in the pid file gives up its socket instead of serving unnamed [C7,H24]', async () => {
+  const socket = join(dir, 'l.sock');
+  const pid = join(dir, 'missing-folder', 'l.pid');
+  const unnamed = resident(socket, pid);
+  const { code, stderr } = await within(unnamed.exited, 15_000, 'the resident exits');
+  assert.equal(code, 0);
+  assert.match(stderr, /cannot record the resident process/u);
+  assert.equal(existsSync(socket), false, 'its socket is removed, so a starter binds a free path');
+  const unlock = lockPath(socket);
+  assert.equal(typeof unlock, 'function', 'and the path lock is free');
+  unlock();
+});
