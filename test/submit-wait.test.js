@@ -35,6 +35,7 @@ function onBoard(box, action, clock) {
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1',
+    '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/wait.txt', 'submitted work\n', 'feat(web): await verdict [G1]').status, 0);
@@ -138,6 +139,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
 test('a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1',
+    '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/retry.txt', 'same source\n', 'feat(web): pin the attempt [G1]').status, 0);
