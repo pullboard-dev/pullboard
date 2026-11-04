@@ -80,6 +80,40 @@ test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', (t)
 });
 
 /**
+ * Prove the coordinator's resume names a person's row decision that awaits `pullboard spec apply`,
+ * and puts the apply ahead of every other step [N19]. The local view records the decision silently,
+ * so a coordinator that reads only `needs the person` sees an approved row as still pending.
+ */
+test('resume names row decisions awaiting spec apply [N19]', t => {
+  const APPLY_LINE = "The coordinator must apply the person's recorded row decision: ";
+  const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
+  const drafted = box.run(box.repo, 'spec', 'draft', 'The person can name the project.');
+  assert.equal(drafted.status, 0, drafted.failure || drafted.stderr || drafted.stdout);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  const approved = box.run(box.repo, 'spec', 'approve', 'G1');
+  assert.equal(approved.status, 0, approved.failure || approved.stderr || approved.stdout);
+  /** Resume's text and JSON from the main checkout, without diagnostics: the session-start form. */
+  const resume = () => {
+    const text = box.run(box.repo, 'resume');
+    assert.equal(text.status, 0, text.failure || text.stderr || text.stdout);
+    const json = box.run(box.repo, 'resume', '--json');
+    assert.equal(json.status, 0, json.failure || json.stderr || json.stdout);
+    return { lines: text.stdout.split('\n'), card: JSON.parse(json.stdout) };
+  };
+  const before = resume();
+  assert.deepEqual(before.card.pendingApply, [{ id: 'G1', kind: 'spec', decision: 'approve' }], JSON.stringify(before.card.pendingApply ?? null));
+  assert.ok(before.lines.includes(`${APPLY_LINE}G1 approved, pending apply: cd ${box.repo} && pullboard spec apply`), before.lines.join('\n'));
+  assert.match(before.card.next, /^apply the person's recorded row decisions first: cd .+ && pullboard spec apply \(G1 approved\); then /u);
+  const applied = box.run(box.repo, 'spec', 'apply');
+  assert.equal(applied.status, 0, applied.failure || applied.stderr || applied.stdout);
+  const after = resume();
+  assert.deepEqual(after.card.pendingApply, [], 'an applied decision is no longer pending');
+  assert.equal(after.lines.some((line) => line.startsWith(APPLY_LINE)), false, after.lines.join('\n'));
+  assert.doesNotMatch(after.card.next, /^apply the person's recorded row decisions first/u);
+});
+
+/**
  * Prove resume gives each uncommitted file its right owner: the row file `spec apply` changed goes
  * to the coordinator, the setup files init wrote go to the person, and nothing else is named [I1,L3].
  * The blueprint trial found resume blaming the person for the coordinator's own applied SPEC.md
