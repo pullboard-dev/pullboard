@@ -52,5 +52,8 @@ export function copyFixtureRunner(source, destination) {
     if (!lstatSync(join(source, file)).isFile() || lstatSync(join(source, file)).isSymbolicLink()
       || !realpathSync(join(source, file)).startsWith(sourceRoot + '/')) throw new Error(`unsafe fixture runtime: ${file}`);
   }
+  // This repository-only gate helper is not part of the published runner package; callers that
+  // exercise its static preflight copy it explicitly into their private fixture.
+  files.delete('test/wall-clock-budgets.js');
   return copyPackageFiles(source, destination, { files: [...files].sort() });
 }
