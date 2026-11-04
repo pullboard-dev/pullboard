@@ -1,6 +1,6 @@
 /** Landing retains the first real assertion identity when abort interrupts a reporter [C7,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
@@ -36,17 +36,26 @@ test('an aborted landing publishes the first failing file and test as a structur
       "  process.stderr.write('TRACE run-tests: before execution branch\\n');\n  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)"],
   ]);
   instrument('packages/gate/src/shell/test-file-dispatch.js', [
+    ["    const observe = ({ process: child }) => {", "    const observe = ({ process: child }) => { process.stderr.write('TRACE child observer: spawn event\\n');"],
+    ["    await Promise.all(owned.map(record => record.closed));", "    process.stderr.write('TRACE child observer: owned=' + owned.length + '\\n');\n    await Promise.all(owned.map(record => record.closed));\n    process.stderr.write('TRACE child observer: closed\\n');"],
     ["  const files = options.selectedFiles ?? options.files ?? [];", "  const files = options.selectedFiles ?? options.files ?? [];\n  process.stderr.write('TRACE dispatch: files=' + files.length + '\\n');"],
     ["      browser = await browserLease(file);", "      process.stderr.write('TRACE fileRun: start\\n');\n      browser = await browserLease(file);\n      process.stderr.write('TRACE fileRun: browser acquired\\n');"],
     ["      unlock = await acquire();", "      unlock = await acquire();\n      process.stderr.write('TRACE fileRun: queue acquired\\n');"],
     ["      token = await reserveTestFileToken(env, signal);", "      token = await reserveTestFileToken(env, signal);\n      process.stderr.write('TRACE fileRun: token reserved\\n');"],
-    ["      await Promise.race([token.transferred(), completed]);", "      await Promise.race([token.transferred(), completed]);\n      process.stderr.write('TRACE fileRun: transfer or completion\\n');"],
+    ["      const events = [];", "      process.stderr.write('TRACE fileRun: source created\\n');\n      const events = [];"],
+    ["        for await (const event of source) {", "        process.stderr.write('TRACE drain: started\\n');\n        for await (const event of source) {\n          process.stderr.write('TRACE drain event: ' + event.type + '\\n');"],
+    ["        const actualWorkers = await fileExited();", "        process.stderr.write('TRACE drain: stream ended\\n');\n        const actualWorkers = await fileExited();\n        process.stderr.write('TRACE drain: fileExited resolved ' + actualWorkers + '\\n');"],
+    ["      const completed = drained.finally(async () => { await fileExited(); await token.drained(); token.release(); });", "      const completed = drained.finally(async () => { process.stderr.write('TRACE completed: cleanup start\\n'); await fileExited(); process.stderr.write('TRACE completed: worker exited\\n'); await token.drained(); process.stderr.write('TRACE completed: token drained\\n'); token.release(); });"],
+    ["      await Promise.race([token.transferred(), completed]);", "      await Promise.race([token.transferred().then(() => { process.stderr.write('TRACE race: transferred\\n'); }), completed.then(() => { process.stderr.write('TRACE race: completed\\n'); })]);\n      process.stderr.write('TRACE fileRun: race settled\\n');"],
     ["      await completed;", "      await completed;\n      process.stderr.write('TRACE fileRun: completed\\n');"],
-    ["      for await (const event of source) for (const input of inputs) input.write(event);", "      for await (const event of source) { process.stderr.write('TRACE dispatch: first event\\n'); for (const input of inputs) input.write(event); }\n      process.stderr.write('TRACE dispatch: stream ended\\n');"],
-    ["    await Promise.all(ends);", "    await Promise.all(ends);\n    process.stderr.write('TRACE dispatch: reporters ended\\n');"],
+    ["      for await (const event of source) for (const input of inputs) input.write(event);", "      for await (const event of source) { process.stderr.write('TRACE dispatch: ' + event.type + '\\n'); for (const input of inputs) input.write(event); }\n      process.stderr.write('TRACE dispatch: stream ended\\n');"],
+    ["    await Promise.all(ends);", "    process.stderr.write('TRACE dispatch: waiting reporters\\n');\n    await Promise.all(ends);\n    process.stderr.write('TRACE dispatch: reporters ended\\n');"],
   ]);
-  writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import assert from 'node:assert/strict';
+  const activityMarker = join(root, 'fixture-activity');
+  writeFileSync(join(root, 'test', 'spec-failure.test.js'), `import { writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import { test } from 'node:test';
+writeFileSync(${JSON.stringify(activityMarker)}, 'loaded');
 test('spec default failure [C7]', () => assert.fail('intentional reporter fixture failure'));
 `);
   const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -89,7 +98,7 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
   for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_RUNNER_PRELOAD', 'PULLBOARD_RUNNER_JOB', 'PULLBOARD_RUNNER_INSTANCE', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   const result = runFixtureChild(process.execPath, [join(root, 'bin', 'run-tests.js'), '--test-reporter=spec', 'test/spec-failure.test.js'],
     { cwd: root, env, encoding: 'utf8', timeout: 60000 });
-  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  const output = `fixture loaded=${existsSync(activityMarker)}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   assert.equal(result.status, 1, `${result.context}\n${output}`);
   const frame = output.split('\n').find(line => line.startsWith('# pullboard test outcomes '));
   assert.ok(frame, 'the failure remains accounted after landing abort');
