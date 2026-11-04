@@ -43,3 +43,15 @@ test('[V1] a branch carrying the submitted item trailer, or no trailers, submits
   const bare = repoWith(['feat(x): untrailed']);
   refuseWrongBranch(bare.root, { item_id: 3 }, bare.head, { commit: bare.main });
 });
+
+test('[V1] a topic merged --no-ff onto main still names its item, so the wrong submitted item is refused', () => {
+  const { root, main, head } = repoWith(['feat(x): one [G1]\n\nPullboard-Item: #7']);
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', '-c', 'commit.gpgsign=false', ...args], { cwd: root, encoding: 'utf8' }).trim();
+  git('checkout', '-q', '-b', 'candidate', main);
+  git('merge', '-q', '--no-ff', '-m', 'Merge work', 'work');
+  const merged = git('rev-parse', 'HEAD');
+  assert.notEqual(merged, head);
+  assert.throws(() => refuseWrongBranch(root, { item_id: 3 }, merged, { commit: main }),
+    (error) => error.code === 'WRONG_BRANCH' && /#7/u.test(error.message));
+  refuseWrongBranch(root, { item_id: 7 }, merged, { commit: main });
+});
