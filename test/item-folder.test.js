@@ -36,6 +36,29 @@ test('[B5,C7] claim opens a folder; release removes a clean folder and the next 
   assert.ok(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), 'next retains the released branch');
 });
 
+test('[B5,C7] claim refuses a dirty reused folder and names files that are not in the item', t => {
+  const helpers = createE2eHelpers();
+  t.after(() => helpers.cleanup());
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'dirty reused folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const first = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(first.code, 0, first.err || first.out);
+  const path = JSON.parse(first.out).itemFolder;
+  writeFileSync(join(path, 'stray.txt'), 'unrelated staged-folder content\n');
+  box.git(path, 'add', 'stray.txt');
+  const released = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'retain dirty folder', '--no-next');
+  assert.equal(released.code, 0, released.err || released.out);
+
+  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.notEqual(reclaimed.code, 0, reclaimed.out);
+  const refusal = JSON.parse(reclaimed.out);
+  assert.equal(refusal.error.code, 'ITEM_FOLDER_DIRTY');
+  assert.match(refusal.error.message, /stray\.txt/u);
+  assert.equal(existsSync(join(path, 'stray.txt')), true, 'the refused folder remains intact');
+});
+
 
 /** Leave exactly the old native item folder a later seat must recover. */
 function priorItemFolder(t) {

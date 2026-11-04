@@ -121,6 +121,10 @@ export async function openItemFolder(ctx, me, id, options = {}) {
     const actual = tryGit(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
     const common = tryGit(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     if (actual.status !== 0 || actual.stdout !== ref || common.status !== 0 || common.stdout !== ctx.info.commonDir) throw new Error(`item folder ${path} is occupied by another checkout`);
+    const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
+    if (status.status !== 0) throw new Error(`cannot inspect item folder ${path}; preserve it and retry`);
+    const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
+    if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
     writeItemMarker(path, me.id, id);
     return path;
   }
