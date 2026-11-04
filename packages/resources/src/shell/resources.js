@@ -715,12 +715,14 @@ function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, 
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Exclusions for admission and local-memory status; unverified cleanups exclude a runner only once they cost every slot. */
+/** Exclude quarantined hosts; an unverified cleanup costs only its slot until every slot is charged. */
 function unavailableRunnerHosts(db, now, runners = []) {
   const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => row.healing === 1 && row.probe_until > now || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
+      .filter(row => row.detail !== 'CLEANUP_UNVERIFIED'
+        || row.healing === 1 && row.probe_until > now
+        || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
