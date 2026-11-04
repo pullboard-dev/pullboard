@@ -30,6 +30,7 @@ import { receiptStore } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { literalShellWords } from '../../../kernel/index.js';
+import { mappedCheck } from '../../../codemap/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
@@ -127,7 +128,9 @@ function criterionTestFiles(root, entry, item, runner, detail) {
     || Object.hasOwn(detail, 'criterionDigest') && detail.criterionDigest !== item.item_frozen_digest) return null;
   let frozen;
   try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
-  const words = literalShellWords(frozen.check);
+  let check;
+  try { check = mappedCheck(root, frozen.check, { commit: entry.commit }); } catch { return null; }
+  const words = literalShellWords(check);
   if (!words?.length) return null;
   const prefix = literalShellWords(runner);
   const ownRunner = prefix?.length && prefix.every((word, index) => words[index] === word) ? prefix.length : 0;

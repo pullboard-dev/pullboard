@@ -1,7 +1,7 @@
 /** A landing gate executes its merged batch's selected test files, not the full project gate [C7,S10]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -12,7 +12,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
-function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false } = {}) {
+function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false, moved = false } = {}) {
   const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
   const packageFile = join(box.repo, 'package.json');
   const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
@@ -28,7 +28,13 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   box.git(box.repo, 'commit', '-q', '-m', 'test: add fixture tests');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   for (const name of changed) writeFileSync(join(dir, `${name}.test.js`), `import { test } from 'node:test';\ntest('${name} fixed', () => {});\n`);
-  box.git(box.repo, 'add', 'test');
+  if (moved) {
+    mkdirSync(join(box.repo, 'packages', 'example', 'tests'), { recursive: true });
+    renameSync(join(dir, 'a.test.js'), join(box.repo, 'packages', 'example', 'tests', 'a.test.js'));
+    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
+  }
+  box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: fix selected tests');
   const runner = join(box.dir, 'record-runner.cjs');
   const calls = join(box.dir, 'calls.json');
@@ -85,4 +91,9 @@ test('a stale submission cannot broaden landing beyond a source-matched union [C
 
 test('a full fallback proof cannot make landing run an unbounded selection [C7,S10]', () => {
   assert.throws(() => plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true }), { code: 'LAND_DIAGNOSTIC' });
+});
+
+test('a frozen moved test resolves through the submitted source map [C7,S10]', () => {
+  const { files } = plannedFiles(['a'], { proof: [], moved: true });
+  assert.deepEqual(files, ['packages/example/tests/a.test.js']);
 });
