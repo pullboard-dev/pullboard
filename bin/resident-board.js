@@ -26,7 +26,9 @@ import {
 } from 'node:net';
 import {
   endThen,
+  lockPath,
   pathIdentity,
+  processAlive,
   releaseOwnSocket,
 } from './resident-socket.js';
 
@@ -98,7 +100,7 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 function release() {
   // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
   // The socket goes before the pid file, so a successor never finds the path held with no live holder named.
-  releaseOwnSocket(socketPath, ownSocket, String(process.pid));
+  releaseOwnSocket(socketPath, ownSocket);
   try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
 }
 
@@ -112,13 +114,11 @@ function replaced() {
 
 /** Whether the process named by the pid file is alive and is not this one. */
 function holderAlive() {
-  try {
-    const pid = Number(readFileSync(pidFile, 'utf8').trim());
-    if (!Number.isSafeInteger(pid) || pid <= 0 || pid === process.pid) return false;
-    process.kill(pid, 0);
-    return true;
-  } catch (error) { return error?.code === 'EPERM'; }
+  try { return processAlive(Number(readFileSync(pidFile, 'utf8').trim())); } catch { return false; }
 }
+
+/** The path lock while this process takes over a stale socket path, released once its pid file names it. */
+let takeover = null;
 
 /** Stop taking commands and free the socket path for a successor now; exitWhenDone ends the process. */
 function retire(reason) {
@@ -139,6 +139,7 @@ function exitWhenDone() {
 /** Send a client its last line, holding a retired process's exit until the line is written. */
 function finish(socket, value) {
   flushing++;
+  trace(`respond:${value.t}`, null);
   endThen(socket, JSON.stringify(value) + '\n', () => { flushing--; exitWhenDone(); });
 }
 
@@ -322,19 +323,26 @@ function listen(retry = true) {
       process.exit(0);
     });
     probe.on('error', () => {
+      // Why the lock: two starters that both find the holder dead must not both unlink, or the second deletes the first's
+      // new socket. Under it the holder is checked again, since a starter that just finished names itself there.
+      takeover = process.platform === 'win32' ? () => {} : lockPath(socketPath);
       // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
-      if (holderAlive()) {
+      if (!takeover || holderAlive()) {
+        takeover?.();
         process.stderr.write(`pullboard resident: the resident process at ${socketPath} is alive but busy\n`);
         process.exit(0);
       }
-      if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Raced with another. */ }
+      if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
       listen(false);
     });
   });
   server.listen(socketPath, () => {
     if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
     ownSocket = socketIdentity();
-    try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* The pid file only helps people and tests find it. */ }
+    // The pid file names the live holder that keeps a busy resident's path from being taken over.
+    try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* A starter then finds no live holder named. */ }
+    takeover?.();
+    takeover = null;
     // Idle time counts from when the process can serve, never from a slow start under load.
     lastActive = clock();
     watchIdle();

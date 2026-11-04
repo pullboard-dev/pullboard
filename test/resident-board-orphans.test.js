@@ -6,11 +6,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { connect, createServer } from 'node:net';
-import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { endThen, releaseOwnSocket } from '../bin/resident-socket.js';
+import { endThen, lockPath, releaseOwnSocket } from '../bin/resident-socket.js';
 
 const ENTRY = resolve(import.meta.dirname, '..', 'bin', 'resident-board.js');
 const dir = mkdtempSync(join(tmpdir(), 'pb-res-'));
@@ -112,19 +112,26 @@ test('releasing the socket removes only this process\'s own socket, even when a 
   const successor = await listenAt(path);
   const theirs = identity(path);
   try {
-    assert.equal(releaseOwnSocket(path, own, 'd'), false);
+    assert.equal(releaseOwnSocket(path, own), false);
     assert.equal(identity(path), theirs, 'the successor keeps its socket at the path');
     assert.equal(await reachable(path), true, 'the successor still answers at the path');
-    assert.deepEqual(readdirSync(dir).filter(name => name.startsWith('d.sock.')), [], 'no moved-aside file is left');
+    assert.deepEqual(readdirSync(dir).filter(name => name.startsWith('d.sock.')), [], 'no lock file is left');
   } finally {
     await new Promise(done => successor.close(done));
     await new Promise(done => mine.close(done));
   }
   const again = await listenAt(join(dir, 'e.sock'));
   const ownAgain = identity(join(dir, 'e.sock'));
-  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain, 'e'), true);
+  // While another live process holds the path lock, even this process's own socket stays: no check races an unlink.
+  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+  try {
+    writeFileSync(join(dir, 'e.sock.lock'), `${holder.pid}\n`);
+    assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), false);
+    assert.equal(identity(join(dir, 'e.sock')), ownAgain, 'a busy lock leaves the path as it is');
+  } finally { holder.kill('SIGKILL'); rmSync(join(dir, 'e.sock.lock'), { force: true }); }
+  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), true);
   assert.equal(existsSync(join(dir, 'e.sock')), false, 'a process\'s own socket is removed');
-  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain, 'e'), false, 'an empty path is left alone');
+  assert.equal(releaseOwnSocket(join(dir, 'e.sock'), ownAgain), false, 'an empty path is left alone');
   await new Promise(done => again.close(done));
 });
 
@@ -178,4 +185,89 @@ test('an owner retiring idle frees its own path and exits [C7,H24]', async () =>
     assert.equal(existsSync(socket), false, 'its own socket is removed for a successor');
     assert.equal(existsSync(pid), false, 'its pid file is removed');
   } finally { owner.child.kill('SIGKILL'); }
+});
+
+test('two residents starting at one stale path at once leave exactly one listening there [C7,H24]', async () => {
+  const socket = join(dir, 'h.sock');
+  const pid = join(dir, 'h.pid');
+  writeFileSync(socket, '');
+  writeFileSync(pid, '999999\n');
+  const starters = [resident(socket, pid), resident(socket, pid)];
+  try {
+    const winner = await within(Promise.race(starters.map((one, index) => one.listening.then(() => index))), 15_000, 'one resident listens');
+    const loser = starters[1 - winner];
+    const { code } = await within(loser.exited, 15_000, 'the other resident exits');
+    assert.equal(code, 0);
+    assert.equal(starters[winner].child.exitCode, null, 'the resident that took the path still runs');
+    assert.equal(await reachable(socket), true, 'its socket is still at the path');
+    assert.equal(readFileSync(pid, 'utf8').trim(), String(starters[winner].child.pid));
+  } finally {
+    for (const one of starters) one.child.kill('SIGKILL');
+    await Promise.all(starters.map(one => one.exited));
+  }
+});
+
+test('a path lock left by a dead process is broken, and one held by a live process is not [C7,H24]', () => {
+  const path = join(dir, 'i.sock');
+  writeFileSync(`${path}.lock`, '999999\n');
+  const unlock = lockPath(path);
+  assert.equal(typeof unlock, 'function', 'a dead holder\'s lock is taken');
+  assert.equal(readFileSync(`${path}.lock`, 'utf8').trim(), String(process.pid));
+  unlock();
+  assert.equal(existsSync(`${path}.lock`), false);
+  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+  try {
+    writeFileSync(`${path}.lock`, `${holder.pid}\n`);
+    assert.equal(lockPath(path), null, 'a live holder keeps its lock');
+    assert.equal(readFileSync(`${path}.lock`, 'utf8').trim(), String(holder.pid));
+  } finally { holder.kill('SIGKILL'); rmSync(`${path}.lock`, { force: true }); }
+});
+
+test('an orphaned resident finishes the client response in flight, then exits within 5 s [C7,H24]', async () => {
+  const socket = join(dir, 'j.sock');
+  const pid = join(dir, 'j.pid');
+  const traceFile = join(dir, 'j.trace');
+  const work = mkdtempSync(join(tmpdir(), 'pb-res-work-'));
+  const received = join(work, 'received.txt');
+  const orphan = resident(socket, pid, { PULLBOARD_RESIDENT_TRACE: traceFile });
+  let successor;
+  let client;
+  try {
+    await within(orphan.listening, 15_000, 'the resident listens');
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_RESIDENT')));
+    const request = JSON.stringify({ code: 'commit:test', argv: ['help', '--all'], cwd: work, env, tty: {} }) + '\n';
+    // A separate client process, stopped once its request is sent, reads nothing: the response stays queued in the resident.
+    client = spawn(process.execPath, ['-e', [
+      "const net = require('node:net'); const fs = require('node:fs');",
+      'const [path, request, out] = process.argv.slice(1); let text = "";',
+      "const socket = net.connect(path, () => socket.write(request, () => process.stdout.write('sent\\n')));",
+      "socket.setEncoding('utf8').on('data', chunk => { text += chunk; }).on('end', () => fs.writeFileSync(out, text));",
+    ].join('\n'), socket, request, received], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const clientDone = new Promise(done => client.on('exit', done));
+    await within(new Promise(done => client.stdout.on('data', chunk => { if (String(chunk).includes('sent')) done(); })), 15_000, 'the client sends');
+    client.kill('SIGSTOP');
+    const traced = event => { try { return readFileSync(traceFile, 'utf8').includes(event); } catch { return false; } };
+    const seen = event => new Promise(done => { const look = () => traced(event) ? done() : setImmediate(look); look(); });
+    await within(seen('respond:exit'), 15_000, 'the command finishes and its response is queued');
+    // A successor takes the path, as when a connect was refused.
+    rmSync(socket);
+    successor = await listenAt(socket);
+    // The 5 s bound starts at the takeover and covers finishing the response.
+    const exitedInTime = within(orphan.exited, 5_000, 'the orphan exits within 5 s of the takeover');
+    exitedInTime.catch(() => {});
+    await within(seen('retire:replaced'), 5_000, 'the orphan retires');
+    client.kill('SIGCONT');
+    await within(clientDone, 5_000, 'the client reads the whole response');
+    const frames = readFileSync(received, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(frames.at(-1), { t: 'exit', code: 0 }, 'the last frame arrives whole');
+    assert.ok(frames.filter(frame => frame.t === 'out').map(frame => frame.d).join('').length > 30_000, 'the whole output arrives');
+    const { code } = await exitedInTime;
+    assert.equal(code, 0);
+  } finally {
+    client?.kill('SIGCONT');
+    client?.kill('SIGKILL');
+    orphan.child.kill('SIGKILL');
+    if (successor) await new Promise(done => successor.close(done));
+    rmSync(work, { recursive: true, force: true });
+  }
 });
