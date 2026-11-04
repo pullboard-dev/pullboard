@@ -5,13 +5,16 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../packages/runners/index.js';
+import { gateSlotEnvironment, takeResource } from '../packages/resources/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
-test('an aborted landing publishes the first failing file and test as a structured outcome [C7,V4]', t => {
+test('an aborted landing publishes the first failing file and test as a structured outcome [C7,V4]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gate-reporter-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const machineHome = join(root, 'machine');
+  mkdirSync(machineHome);
   mkdirSync(join(root, 'test'));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   copyPackageFiles(ROOT, root);
@@ -19,11 +22,16 @@ test('an aborted landing publishes the first failing file and test as a structur
 import { test } from 'node:test';
 test('spec default failure [C7]', () => assert.fail('intentional reporter fixture failure'));
 `);
-  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1' };
-  if (env.PULLBOARD_GATE_SLOT_HELD !== '1' || !env.PULLBOARD_GATE_SLOT_POOL || !env.PULLBOARD_GATE_SLOT_TOKEN) {
-    env.PULLBOARD_MACHINE_HOME = join(root, 'machine');
-    for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
+  const priorMachineHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = machineHome;
+  let lease;
+  try { lease = await takeResource({ name: 'gate', capacity: 1, root, agent: 'gate-reporter-fixture' }); }
+  finally {
+    if (priorMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = priorMachineHome;
   }
+  t.after(() => lease.release());
+  const env = { ...process.env, ...gateSlotEnvironment(lease), PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_LANDING_RUN: '1' };
   const result = runFixtureChild(process.execPath, [join(root, 'bin', 'run-tests.js'), '--test-reporter=spec', 'test/spec-failure.test.js'],
     { cwd: root, env, encoding: 'utf8', timeout: 60000 });
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
