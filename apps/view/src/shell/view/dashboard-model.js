@@ -7,8 +7,9 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
   const laneHolds = new Map((project.holds ?? []).map(hold => [hold.hold_lane, hold.hold_reason]));
   const items = (project.items ?? []).map(item => ({ ...item, landingBatchAt: landingAt.get(item.id) || null,
     heldReason: holds.get(item.id) || null, laneHoldReason: laneHolds.get(item.lane) || null,
-    owner: item.status === 'claimed' ? item.claim?.by : null,
-    reviewer: item.status === 'submitted' ? item.claim?.by : null, reviewUntil: item.claim?.until }));
+    owner: item.status === 'claimed' ? item.claim?.by || item.owner : null,
+    reviewer: item.status === 'submitted' ? item.reviewer || item.claim?.by : null,
+    reviewUntil: item.status === 'submitted' ? item.reviewUntil || item.claim?.until : null }));
   const byId = new Map(items.map(item => [item.id, item]));
   const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
   const prefix = project.sequence ?? Infinity;
@@ -80,7 +81,7 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     }
     if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind)) close('review:' + id, at);
   }
-  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
+  const claims = items.filter(item => item.status === 'claimed' && item.owner && Date.parse(item.claim?.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
   // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
   // a build at once still reports each one's age; null means the history holds no open stay for this holder.
