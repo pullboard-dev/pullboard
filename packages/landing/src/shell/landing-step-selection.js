@@ -114,6 +114,32 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   return { ready, blocked };
 }
 
+/**
+ * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
+ * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
+ */
+export function landsPerItem(config) {
+  return config?.landing?.perItem !== false && config?.landing?.parallel !== true;
+}
+
+/** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
+export function perItemMaximum(config, maximum = Infinity) {
+  return landsPerItem(config) ? 1 : maximum ?? Infinity;
+}
+
+/**
+ * Whether this landing batch is one per-item landing: a red, conflict or refusal is then that item's alone, so it goes
+ * back to open with the evidence instead of a bisection, a main comparison or a trunk hold [C7,#2901].
+ */
+export function singleItemLanding(state) {
+  return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
+/** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
+export function landingHooks(config) {
+  return landsPerItem(config) ? ['-c', 'core.hooksPath=/dev/null'] : [];
+}
+
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
 export function idleLanding(board, trunk) {
   const lease = landingLeaseState(board);
