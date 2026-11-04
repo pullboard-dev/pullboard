@@ -16,13 +16,21 @@ import { Refused } from '../../../../packages/kernel/index.js';
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
   'RUNNER_BUSY', 'RUNNER_BROWSER_SLOT_REQUIRED', 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
-  'MERGE_CHECK_FAILED',
+  'MERGE_CHECK_FAILED', 'RESOURCE_LEASE_LOST',
 ]));
+/**
+ * Codes that name a briefly locked or changing database: they say nothing about any runner, so their reruns have
+ * their own bound and never spend INFRA_RETRIES. Why: on 4 Nov a busy board spent every queued gate's 3 runner
+ * retries on BOARD_BUSY and left it GATE_INFRA_EXHAUSTED for a coordinator requeue (#3101).
+ */
+export const CONTENTION_CODES = Object.freeze(new Set(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED', 'RESOURCE_LEASE_LOST']));
 const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
 const PAUSE_MS = 5_000;
 const NO_RUNNER_PAUSE_MS = 30_000;
 /** Reruns of the same candidate after its first infrastructure failure. */
 export const INFRA_RETRIES = 3;
+/** Reruns after lock contention, counted apart from INFRA_RETRIES. */
+export const CONTENTION_RETRIES = 12;
 /** Health waits before an attempt counts as exhausted: about 10 minutes with the default pause. */
 const HEALTH_WAITS = 20;
 
@@ -63,7 +71,7 @@ function pause(ms) {
 
 /**
  * Run one queued submit attempt, and after an infrastructure failure run the same candidate again, up to
- * INFRA_RETRIES times. Each rerun avoids only the hosts the previous attempt failed on, so it moves to another runner
+ * INFRA_RETRIES times; lock contention (CONTENTION_CODES) reruns under its own CONTENTION_RETRIES bound. Each rerun avoids only the hosts the previous attempt failed on, so it moves to another runner
  * when one is configured, while a host that failed earlier and has since recovered can take it again. With no healthy
  * executor a rerun waits a bounded time for one. When the retries are spent the attempt ends GATE_INFRA_EXHAUSTED,
  * which the board records as an infrastructure stop for the coordinator, not a red for the builder. A real result,
@@ -73,9 +81,10 @@ function pause(ms) {
  * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, contentionRetries = CONTENTION_RETRIES } = {}) {
   const attempts = [];
   let avoided = new Set();
+  let runnerFailures = 0, contentionFailures = 0;
   for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
@@ -85,7 +94,8 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
       if (!code) throw error;
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
-      if (attempt > retries) throw exhausted(attempts, error);
+      const contention = CONTENTION_CODES.has(code);
+      if (contention ? ++contentionFailures > contentionRetries : ++runnerFailures > retries) throw exhausted(attempts, error);
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
