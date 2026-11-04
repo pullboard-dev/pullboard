@@ -109,6 +109,16 @@ export function batchGatePlan(state, { readEvents = id => store.events(state.boa
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
 
+/**
+ * True when one verified item has no source-matched test plan of its own, so selection leaves it out of the batch
+ * before the merge and the rest still land [C7,#2897].
+ */
+export function itemLandingPlanMissing(root, board, item, runner) {
+  const entry = { id: item.item_id, commit: item.item_commit };
+  return submittedSelections([entry], id => store.events(board, { itemId: id }),
+    (row, detail) => criterionTestFiles(root, row, store.getItem(board, row.id), runner, detail)) === null;
+}
+
 /** Return a complete source-matched proof union, or null when any item lacks one. */
 export function submittedSelections(items, readEvents, readCriterion) {
   if (!items.length) return null;

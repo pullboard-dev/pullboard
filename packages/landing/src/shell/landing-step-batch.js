@@ -40,6 +40,7 @@ import { landingEntry } from './landing-step-selection.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { gateGroup } from './landing-step-gate.js';
+import { itemLandingPlanMissing } from './landing-step-gate.js';
 import { parallelLanding } from './landing-step-parallel.js';
 import { diagnose } from './landing-step-diagnose.js';
 import { waivedProof } from './landing-step-failures.js';
@@ -113,7 +114,8 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, options.maximum ?? Infinity, { firstReady: true, landingPorts: options.landingPorts });
+    const selected = candidates(options.board, options.root, trunk.commit, options.maximum ?? Infinity, { firstReady: true, landingPorts: options.landingPorts,
+      planMissing: config.affectedTests?.trim() ? item => itemLandingPlanMissing(options.root, options.board, item, config.affectedTests) : null });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
@@ -244,11 +246,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
-  const selected = candidates(board, root, trunk.commit, maximum, { landingPorts });
+  const selected = candidates(board, root, trunk.commit, maximum, { landingPorts,
+    planMissing: config.affectedTests?.trim() ? item => itemLandingPlanMissing(root, board, item, config.affectedTests) : null });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
+  const planless = selected.blocked.filter(item => item.code === 'LAND_PLAN_MISSING').map(item => `#${item.id}`);
+  if (!selected.ready.length && planless.length) throw new Refused('LAND_DIAGNOSTIC', `the batch has no complete source-matched affected-test plan (${planless.join(', ')}); refresh its items' submit proofs before landing`);
   if (dryRun) {
     if (selected.ready.length && !landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
     const conflicts = [];
