@@ -105,7 +105,7 @@ try {
     readCutItems: () => input.cutRows,
     onInventory: mode => result.notes.push('submit cells inventory: ' + mode),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) }));
-  if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source }));
+  if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
   if (selected('selection') && typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
@@ -191,7 +191,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    browserFreeChecks: request.browserFreeChecks === true, collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
+    browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -209,6 +209,25 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   return { ...value, directory, sha256, runner: lease.runner.host };
+}
+
+/**
+ * Accept a runner's test plan and browser admission for the controller's gate only when they bind the pinned commits and
+ * cover the tests this submit must prove; anything else refuses and never runs a smaller selection (#3006).
+ *
+ * @param {{main?: string, source?: string, plan?: {proofFiles?: string[]}, admission?: object}} analysis
+ * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @returns {{plan: object, admission: object|undefined}}
+ */
+export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] }) {
+  if (analysis?.main !== main || analysis.source !== source) {
+    throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan is not bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; submit again`);
+  }
+  const files = analysis.plan?.proofFiles;
+  if (!Array.isArray(files)) throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan names no proof files; submit again');
+  const missing = crossRunTests.filter(path => !files.includes(path));
+  if (missing.length) throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan omits call-adjacent tests ${missing.join(', ')}; submit again`);
+  return { plan: analysis.plan, admission: analysis.admission };
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
