@@ -33,7 +33,7 @@ export function exitContinuationProblem(board, id, actor) {
   if (!row) return null;
   const handoff = JSON.parse(row.meta_value), identity = exitSessionIdentity(board, actor), family = seatFamily(board, actor);
   if (actor === handoff.agent || !identity || identity === handoff.session || !family || familyName(family, familyAliasesOf(board)) !== familyName(handoff.family, familyAliasesOf(board)))
-    return new Refused('EXIT_CONTINUATION', `item #${id} is reserved for a fresh ${handoff.family} session; read its summary and use a new native seat`);
+    return new Refused('REOPEN_HELD_FOR_BUILDER', `item #${id} is reserved for a fresh ${handoff.family} session; read its summary and use a new native seat`);
   return null;
 }
 

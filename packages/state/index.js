@@ -170,6 +170,7 @@ export { AGENT_GRANT_ENGINE } from '../../src/agent-grant-engine.js';
 export { HANDOFF_ENGINE } from '../../src/handoff-engine.js';
 export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
+export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../src/known-main-running-file-engine.js';
 
 export { CLAIM_PROGRESS_ENGINE } from '../../src/claim-progress-engine.js';
 
