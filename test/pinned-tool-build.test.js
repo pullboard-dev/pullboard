@@ -45,6 +45,7 @@ if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:res
 function generation(box, label) {
   writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'status.js'), `/** Synthetic generation probe for the pin integration fixture. */
 import {existsSync,writeFileSync} from 'node:fs';
+export const nativeBoardRequired = false;
 export async function run(io){
  if(process.env.PULLBOARD_PIN_READY)writeFileSync(process.env.PULLBOARD_PIN_READY,'ready');
  while(process.env.PULLBOARD_PIN_RELEASE&&!existsSync(process.env.PULLBOARD_PIN_RELEASE))await new Promise(resolve=>setTimeout(resolve,10));
