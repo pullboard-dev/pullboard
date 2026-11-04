@@ -52,12 +52,8 @@ if (process.argv[2] === 'hook') {
   if (composed !== null) process.exit(composed);
 }
 
-// A worktree behind the main checkout runs the main checkout's CLI, so landed fixes reach every agent (B17).
-const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1]);
-if (handed !== null) process.exit(handed);
-
-// Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-const { main, selectedToolEntry, asksVersion } = await import('../apps/cli/src/shell/cli-main.js');
+// A pin belongs to this board worktree, so select it before redirecting old worktrees to today's CLI.
+const { selectedToolEntry, asksVersion } = await import('../apps/cli/src/shell/cli-main.js');
 // Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
 if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
@@ -79,7 +75,12 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   }
 }
 
+// An unpinned worktree behind main runs today's CLI, so landed fixes reach every agent (B17).
+const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1]);
+if (handed !== null) process.exit(handed);
+
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
+const { main } = await import('../apps/cli/src/shell/cli-main.js');
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../apps/lib/index.js'),
