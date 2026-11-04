@@ -3,6 +3,9 @@ import { submit } from '../packages/store/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sep } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 /** Construct the existing stale-verdict check and read its exact immutable per-fixture invocation log. */
 export function staleVerdictCheckFixture(directory) {
@@ -31,12 +34,23 @@ function bindBoardRepository(board) {
 /** Record a synthetic board move without claiming that this fixture ran a gate. */
 export function submitFixture(board, id, options) {
   bindBoardRepository(board);
-  const policyCommit = options.policyCommit
-    ?? (board.gitRoot ? board.enginePorts.sandboxPolicyReads.mainPolicy(board.gitRoot).commit : undefined);
   return submit(board, id, {
     submissionProof: { version: 1, files: [], full: false, deferred: true,
       reason: 'synthetic board-state fixture; no gate execution' },
-    ...(policyCommit ? { policyCommit } : {}),
     ...options,
   });
+}
+
+/**
+ * Make `directory` a real repository with one commit on main and return the board file inside its .git, as the native
+ * CLI places it, so submit seals the repository's accepted policy instead of refusing NO_POLICY [V4,C7].
+ */
+export function repositoryBoardFile(directory) {
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: directory, stdio: 'ignore' });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(directory, 'pullboard.json'), JSON.stringify({ lanes: {} }));
+  git('add', 'pullboard.json');
+  git('commit', '-q', '-m', 'fixture policy');
+  mkdirSync(join(directory, '.git', 'pullboard'));
+  return join(directory, '.git', 'pullboard', 'board.sqlite');
 }
