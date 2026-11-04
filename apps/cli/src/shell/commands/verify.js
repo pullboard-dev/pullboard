@@ -328,9 +328,9 @@ export async function verifyHere(ctx, id, { second, values }) {
             expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
-        const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan.check, affectedTests: ctx.config.affectedTests ?? '',
-          gate: ctx.config.gate ?? '', supplement, expectedPlan }) : { reason: 'clean submit plan unavailable' };
+        const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && (frozenCheck(item) || supplement)) {
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
