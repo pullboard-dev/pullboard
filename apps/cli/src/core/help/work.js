@@ -111,6 +111,7 @@ export const workHelp = `Work
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree; --wait ends at the final gate result, never a review verdict (alias: done)
+                                        --precheck: run cheap submit checks only, without cells or gate
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show

@@ -1,6 +1,7 @@
 /** Submit refuses main conflicts and static failures while independent gate stages run [V4,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,6 +36,33 @@ function project(t, { staticFails = false, staticLint = false } = {}) {
   for (const path of Object.values(markers)) rmSync(path, { force: true });
   return { box: builder, markers };
 }
+
+test('submit precheck refuses a dirty tree without scanning cells or running a gate [V4,C7]', t => {
+  const { box, markers } = project(t);
+  const receiptDir = join(box.dir, 'repo', '.git', 'pullboard', 'gate-receipts');
+  const receipts = () => existsSync(receiptDir) ? readdirSync(receiptDir).sort() : [];
+  const before = receipts();
+  put(box.root, 'src/a.js', 'export const value = 2;\n');
+  const result = box.run('submit', '1', '--precheck');
+  assert.equal(result.code, 1, result.out + result.err);
+  assert.match(result.out + result.err, /\[DIRTY\]/u);
+  assert.doesNotMatch(result.out + result.err, /submit cells inventory|submit cells:/u);
+  assert.deepEqual(receipts(), before, 'precheck writes no gate receipt');
+  for (const marker of Object.values(markers)) assert.equal(existsSync(marker), false, 'no check or gate ran');
+});
+
+test('a clean submit precheck completes without starting proof [V4,C7]', t => {
+  const { box, markers } = project(t);
+  put(box.root, 'src/a.js', 'export const value = 2;\n');
+  commitAll(box, 'feat(core): change the source [G1]');
+  const start = Date.now();
+  const result = box.run('submit', '1', '--precheck', '--json');
+  const elapsed = Date.now() - start;
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.equal(JSON.parse(result.out).precheck, true);
+  assert.ok(elapsed < 15_000, `precheck completed in ${elapsed}ms`); // budget: declared frozen precheck bound.
+  for (const marker of Object.values(markers)) assert.equal(existsSync(marker), false, 'no check or gate ran');
+});
 
 test('a change that conflicts with main is refused in seconds, before any static, item or gate run [V4,C7]', t => {
   const { box, markers } = project(t);
