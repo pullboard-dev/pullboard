@@ -180,11 +180,13 @@ const SCOPED_ROWS = 512;
 function scopedSnapshot(board, rows) {
   const sessions = new Map(), peers = new Map(), ids = new Set();
   const members = board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`);
+  // One prepared exact-key lookup serves every row; originalSession would prepare the same SQL once per seat.
+  const exact = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?');
   for (const row of rows) {
     const id = row?.agent_id;
     if (!id) continue;
     ids.add(id);
-    const original = originalSession(board, id);
+    const original = exact.get(`agent_session:${id}`)?.meta_value ?? null;
     if (!original) continue;
     sessions.set(id, original);
     if (!peers.has(original)) peers.set(original, members.all(original).map(entry => entry.meta_key.slice('agent_session:'.length)));
