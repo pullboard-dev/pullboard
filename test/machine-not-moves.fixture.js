@@ -22,6 +22,7 @@ export const SETUP_REFUSALS = {
   // The release handoff writes a note fact; only a diagnosis fact raises these, and no move appends one.
   DIAGNOSIS_ROUTE: 'only a diagnosis fact checks the recording seat\'s route; a release appends a note',
   DIAGNOSIS_HELD: 'only a diagnosis fact checks who holds the item; a release appends a note',
+  DIAGNOSIS_REQUIRED: 'only a diagnosis fact parses a diagnosis; a release appends a note, and claim declares its own route check',
   BRIEF_TOO_LONG: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   NO_BRIEF: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   CHECK_MASKS_EXIT: 'only a diagnosis fact routes the item and checks its check; a release appends a note',
