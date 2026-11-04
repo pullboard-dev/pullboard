@@ -82,6 +82,7 @@ async function liveBoard(name, { proxied = false } = {}) {
   try {
     proxy = proxied ? await cuttableProxy(view) : null;
     chrome = await openSnapshotChrome(executable, proxy?.href ?? view.link.href, profile);
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor('data?.project?.items?.some(item => item.id === 1) && !!document.querySelector(\'#chain [data-item="1"]\')');
     await liveReady(chrome);
   } catch (error) {
