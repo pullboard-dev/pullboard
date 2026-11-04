@@ -114,7 +114,7 @@ test('the native item timeline reads as sentences with clamped notes and working
     await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
     await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
-    console.error('DBG1', await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail .item-panel-history-list .tl > li')].map(r=>[r.dataset.timelineKind,!!r.closest('[hidden]'),r.getBoundingClientRect().width,r.getBoundingClientRect().height,(r.querySelector('.tl-body')?.textContent||'').slice(0,40)]))"));
+    console.error('DBG1', await chrome.stable("JSON.stringify([document.querySelector('#detail .item-panel-history-list').className, document.querySelector('#detail [data-item-panel-history]')?.textContent, getComputedStyle(document.querySelectorAll('#detail .item-panel-history-list .tl > li')[7]).display])"));
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
     const previewError = noteRow + "?.querySelector('.code-ref.open .code.no')";
     await chrome.waitFor("(" + notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0) || !!" + previewError);
