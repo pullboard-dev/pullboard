@@ -1,3 +1,4 @@
+/** @pullboard-test-loads src/board.js src/machine.js */
 /** In-memory engine replay coverage for sealed review-skipped snapshots [Q1,V15,H3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

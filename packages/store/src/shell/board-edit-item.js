@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
 import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
@@ -181,6 +182,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   };
   const evidenceWarnings = criterion !== undefined && engine >= CLAUSE_EVIDENCE_ENGINE ? requireCriterionEvidence(next.item_criterion) : [];
   checkRoute(next.item_route);
+  const diagnosisProblem = lightDiagnosisProblem(board, { ...item, ...next });
+  if (diagnosisProblem) throw diagnosisProblem;
   const moved = ['item_route', 'item_criterion', 'item_check', 'item_after', 'item_check_timing'].filter((key) => next[key] !== item[key]);
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
