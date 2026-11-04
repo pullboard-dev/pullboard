@@ -118,9 +118,10 @@ test('the native item timeline reads as sentences with clamped notes and working
     console.error('DBGA', await chrome.stable("document.querySelector('#detail .item-panel-history-list').className+'|'+document.querySelectorAll('#detail .item-panel-history-list .tl > li').length+'|'+(document.querySelectorAll('#detail .item-panel-history-list .tl > li')[7]?.getBoundingClientRect().width)"));
     const noteRow = "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=note]')].find(row => !row.closest('[hidden]') && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))";
     await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
-    console.error('DBGB', await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail .item-panel-history-list .tl > li')].map(r=>[r.dataset.timelineKind,!!r.closest('[hidden]'),r.getBoundingClientRect().width,r.getBoundingClientRect().height,(r.querySelector('.tl-body')?.textContent||'').slice(0,30)]).filter(r=>r[0]=='note'||r[4]))"));
+    console.error('DBGB', await chrome.stable("[...document.querySelectorAll('#detail .tl > li[data-timeline-kind=note]')].map(r=>r.querySelector('.tl-body')?.innerHTML.replace(/Line [0-9]+[^<]*?\\n/g,'').slice(-900)).join('@@')"));
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
     await press(chrome, noteRow + "?.querySelector('.tl-body [data-code=" + sourceRef + "]')");
+    console.error('DBGC', await chrome.stable(noteRow+"?.innerHTML.slice(-1500)"));
     const notePreview = noteRow + "?.querySelector('.code-ref.open .code-wrap')";
     const previewError = noteRow + "?.querySelector('.code-ref.open .code.no')";
     await chrome.waitFor("(" + notePreview + "?.textContent.includes('timelineFixture') && " + notePreview + "?.getBoundingClientRect().height > 0) || !!" + previewError);
