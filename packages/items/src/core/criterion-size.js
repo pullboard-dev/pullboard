@@ -25,3 +25,9 @@ export function criterionSize(criterion = '', catalog = []) {
   return { version: 1, score: files.length + cells.size + clauses, files, cells: [...cells].sort(), clauses,
     oversized: cells.size > 1 || clauses > 3 };
 }
+
+/** Give small items to light seats and explicitly multi-cell or multi-clause work to mid seats. */
+export function defaultItemRoute(criterion, catalog = []) {
+  const size = criterionSize(criterion, catalog);
+  return size.cells.length > 1 || size.clauses > 2 ? 'mid' : 'light';
+}
