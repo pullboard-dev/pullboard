@@ -33,6 +33,7 @@ import {
   requiredModel,
   shellWord,
   withBoard,
+  withBoardRead,
   primaryCheckoutRoot,
 } from '../cli.js';
 
@@ -69,6 +70,14 @@ export async function run(io, { first, values }) {
   }
   const route = values.route ?? process.env.PULLBOARD_ROUTE ?? 'strong';
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
+  if (existing?.agent_lane === first && existing.agent_model === model) {
+    const displayName = displayAgentName(existing, ctx.config.agents.names);
+    io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
+      model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
+    io.say(`already joined as ${displayName}${existing.agent_family ? ` (family ${existing.agent_family})` : ''}; run pullboard next`);
+    return 0;
+  }
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   const joined = await withBoard(ctx, async (board) => ({
