@@ -34,6 +34,9 @@ test('an aborted landing publishes the first failing file and test as a structur
       "  process.stderr.write('TRACE run-tests: before executeTests\\n');\n  const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);\n  process.stderr.write('TRACE run-tests: after executeTests\\n');"],
     ["  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)",
       "  process.stderr.write('TRACE run-tests: before execution branch\\n');\n  const result = process.env[LANDING_RUN_ENV] === '1'\n    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)"],
+    ["    await abortPromise;\n    await Promise.all(reporterEnds);",
+      "    process.stderr.write('TRACE landing: before abortPromise\\n');\n    await abortPromise;\n    process.stderr.write('TRACE landing: after abortPromise, reporterEnds=' + reporterEnds.length + '\\n');\n    await Promise.all(reporterEnds);\n    process.stderr.write('TRACE landing: reporters ended\\n');"],
+    ["    stream.on('end', endReporters);", "    stream.on('end', () => { process.stderr.write('TRACE landing: stream ended\\n'); endReporters(); });"],
   ]);
   instrument('packages/gate/src/shell/test-file-dispatch.js', [
     ["  const files = options.selectedFiles ?? options.files ?? [];", "  const files = options.selectedFiles ?? options.files ?? [];\n  process.stderr.write('TRACE dispatch: files=' + files.length + '\\n');"],
