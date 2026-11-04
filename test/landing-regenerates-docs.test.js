@@ -38,6 +38,7 @@ test('a stale generated document is regenerated and amended into the merge befor
   const dir = temporaryRepository();
   try {
     writeFileSync(join(dir, 'docs', 'cli-help.txt'), 'stale generated documentation\n');
+    writeFileSync(join(dir, 'README.md'), `${readFileSync(join(dir, 'README.md'), 'utf8')}\nLanding fixture source change.\n`);
     git(dir, 'commit', '-q', '-am', 'docs: stale shared documentation');
     const merge = git(dir, 'rev-parse', 'HEAD');
     const parents = git(dir, 'rev-list', '--parents', '-n', '1', merge).split(' ').length;
