@@ -44,7 +44,7 @@ function project(separate = true) {
   const box = helpers.project('true');
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  writeFileSync(file, JSON.stringify({ ...config, ...(separate ? { landing: { manualOverride: true, publish: 'separate' } } : {}) }));
+  writeFileSync(file, JSON.stringify({ ...config, ...(separate ? { landing: { perItem: false, manualOverride: true, publish: 'separate' } } : {}) }));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   for (const path of [FILE, SECOND]) writeFileSync(join(box.repo, path), 'export const value = "base";\n');
   box.git(box.repo, 'add', '-A');
