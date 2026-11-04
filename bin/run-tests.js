@@ -35,7 +35,7 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
-import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../packages/landing/index.js';
+import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
 import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/index.js';
 import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/index.js';
 import { optionTakesValue } from '../packages/gate/index.js';
@@ -716,8 +716,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
-  const { landingFailureReport } = await import('../packages/landing/index.js');
-  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../packages/landing/index.js');
+  const { landingFailureReport } = await import('../src/landing-failure-report.js');
+  const { landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await import('../src/landing-test-policy.js');
   const retainedFailure = landingFailureReport();
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
   let testOutcomes = null;
@@ -1231,7 +1231,7 @@ async function main(args) {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../packages/gate/index.js'), import('../src/runners.js'), import('../packages/landing/index.js'),
+        import('../packages/gate/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
@@ -1305,7 +1305,7 @@ async function main(args) {
       const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
       signal = result.signal;
       process.exitCode = result.status ?? 1;
-      if (fileTimes) (await import('../packages/landing/index.js')).printShardFileTimes(fileTimes);
+      if (fileTimes) (await import('../src/landing-shards.js')).printShardFileTimes(fileTimes);
     } finally {
       try {
         if (clonesBefore) {
@@ -1334,7 +1334,7 @@ async function main(args) {
           : explicitTestFiles(args));
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
-        const { runLandingShards } = await import('../packages/landing/index.js');
+        const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { testsNeedBrowser } = await import('../packages/gate/index.js');
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
@@ -1357,7 +1357,7 @@ async function main(args) {
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
       const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../packages/landing/index.js'),
+        import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;
