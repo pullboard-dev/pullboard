@@ -32,7 +32,7 @@ test('a worktree command records the family from the canonical model-tier table 
   try {
     const seat = store.agentAt(board, result.path);
     assert.equal(seat.agent_model, 'claude-sonnet-5-5');
-    assert.equal(seat.family, 'anthropic', 'known model tiers declare their canonical family when the worktree is registered');
+    assert.equal(seat.agent_family, 'anthropic', 'known model tiers declare their canonical family when the worktree is registered');
   } finally { board.db.close(); }
 });
 
