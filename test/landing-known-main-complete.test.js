@@ -17,14 +17,29 @@ const RUNNER = join(SOURCE, 'bin/run-tests.js');
 const MAIN_RED = 'web/land-9.test.js';
 const LATER_FILE = 'web/land-99.test.js';
 
+/** Run real Node tests one file at a time, stopping early unless landing explicitly requests full collection. */
+function nodeGate(box) {
+  const gate = join(box.dir, 'real-node-land-gate.cjs');
+  writeFileSync(gate, [
+    "const fs = require('node:fs'); const path = require('node:path'); const { spawnSync } = require('node:child_process');",
+    "const args = process.argv.slice(2); const alone = args.includes('--alone'); const files = args.filter(arg => arg !== '--alone');",
+    "if (!files.length) files.push(...fs.readdirSync(path.join(process.cwd(), 'web')).filter(file => /^land-\\d+\\.test\\.js$/.test(file)).map(file => 'web/' + file));",
+    "const collectAll = process.env.PULLBOARD_LANDING_COLLECT_ALL === '1'; let status = 0;",
+    "for (let index = 0; index < files.length; index++) { const run = spawnSync(process.execPath, ['--test', files[index]], { cwd: process.cwd(), env: process.env, encoding: 'utf8' }); process.stdout.write(run.stdout || ''); process.stderr.write(run.stderr || ''); status ||= run.status ?? 1; if (status && !collectAll && !alone) { const rest = files.slice(index + 1); if (rest.length) process.stdout.write('Interrupted test files: ' + rest.join(', ') + '\\n'); break; } }",
+    "process.exitCode = status;",
+  ].join('\n'));
+  return `node ${JSON.stringify(gate)}`;
+}
+
 /** Make the configured affected-test command run real Node test files with landing continuation semantics. */
 /** Prepare a separate-publish landing project with one exact-main red and one passing selected test. */
 function realNodeMainProject() {
   const box = landProject({ withWorktree: false });
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const gate = nodeGate(box);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ type: 'module' }));
-  writeFileSync(configPath, JSON.stringify({ ...config, gate: `node ${RUNNER}`, affectedTests: `node ${RUNNER}`,
+  writeFileSync(configPath, JSON.stringify({ ...config, gate, affectedTests: `${gate} --alone`,
     landing: { manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'add', '-A');
