@@ -128,6 +128,44 @@ export function commitOwnerLines(owners) {
 }
 
 /**
+ * The person's row decisions recorded on the board but not yet applied to the row file. The local
+ * view records a decision silently, so resume must name it or the coordinator never applies it.
+ *
+ * @param {ReturnType<typeof store.rowDecisions>} records
+ * @returns {{ id: string, kind: string, decision: string }[]}
+ */
+export function pendingRowApply(records) {
+  return records.filter((record) => !record.applied).map(({ id, kind, decision }) => ({ id, kind, decision }));
+}
+
+/** One decision as resume says it: `G9 approved`. */
+const decided = (record) => `${record.id} ${record.decision === 'approve' ? 'approved' : 'declined'}`;
+
+/**
+ * @param {ReturnType<typeof pendingRowApply>} pending
+ * @param {string} root the main checkout
+ * @returns {string[]}
+ */
+export function rowDecisionLines(pending, root) {
+  if (!pending.length) return [];
+  return [`The coordinator must apply the person's recorded row decision${pending.length === 1 ? '' : 's'}: ${pending.map(decided).join(', ')}, pending apply: cd ${root} && pullboard spec apply`];
+}
+
+/**
+ * The coordinator's next step with a recorded row decision still unapplied, so it applies first:
+ * every other step would plan against rows the person has already decided differently.
+ *
+ * @param {ReturnType<typeof pendingRowApply>} pending
+ * @param {string} root
+ * @param {string} next the step the board names otherwise
+ * @returns {string}
+ */
+export function applyFirst(pending, root, next) {
+  if (!pending.length) return next;
+  return `apply the person's recorded row decisions first: cd ${root} && pullboard spec apply (${pending.map(decided).join(', ')}); then ${next}`;
+}
+
+/**
  * The coordinator's next step with an applied row file still uncommitted, so it commits first:
  * a worktree started before that commit would work from the old rows.
  *

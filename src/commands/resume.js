@@ -49,12 +49,15 @@ import {
   unlinkedRelayProjects,
 } from '../relay-setup.js';
 import {
+  applyFirst,
   commitFirst,
   commitOwnerLines,
   commitOwners,
   coordinatorInbox,
   coordinatorInboxLines,
   inboxFirst,
+  pendingRowApply,
+  rowDecisionLines,
 } from '../resume.js';
 import {
   resumeSentinels,
@@ -193,6 +196,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       health: recordedHealthFindings(board),
       all,
       needsYou: personNeeds(needsState),
+      ...(isMain ? { pendingApply: pendingRowApply(store.rowDecisions(board)) } : {}),
       ...(me.id === COORDINATOR ? { rigor: { undrafted: needsState.rigorUndrafted, ...(needsState.rigorNotice ? { notice: needsState.rigorNotice } : {}) } } : {}),
       ...(decisionSections ? { ...decisions, ...(diagnostics ? verifiedMergeGroups(root, pendingMerges, shouts, ctx.clock.now().getTime()) : {}),
         flow, ...(proofStatsFallback ? { proofStatsFallback } : {}) } : {}),
@@ -321,6 +325,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     section(card.needsYou, (need) => need.kind === 'decision'
       ? `waiting on the person: #${need.id} from ${need.ref} (${span(ctx, need.at)}): ${firstLine(need.text)}`
       : `needs the person: ${need.ref}: ${firstLine(need.text)} (${need.what})`);
+    for (const line of rowDecisionLines(card.pendingApply, root)) say(line);
     if (card.rigor?.notice) say(card.rigor.notice);
     section(card.rigor?.undrafted ?? [], (cause) => `Rigor needs a proved draft: ${cause.key}, items ${cause.items.map(item => `#${item.id}`).join(', ')}; pullboard rigor draft "${cause.key.replaceAll('"', '\\"')}" "<rule>" --check "<command>" --red <commit> --green <commit>`);
     if (card.toVerify.length) say('review queue:');
@@ -350,6 +355,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   else if (card.awaiting.length) next = 'pullboard next --wait 9 (minutes); a rejected item comes back to your lane';
   else next = 'pullboard next; take its ranked work, including eligible reviews or work in another lane';
   if (card.setup) next = card.setup.agentNext ?? card.setup.command;
+  if (card.pendingApply?.length) next = applyFirst(card.pendingApply, root, next);
   if (card.commits) next = commitFirst(card.commits, next);
   if (card.inbox) next = inboxFirst(card.inbox, next);
   io.result?.({ ...card, root, ...(diagnostics ? { dirty } : {}), next });
