@@ -31,6 +31,11 @@ function selected(ctx, board, values, services, reviewHeartbeats, agents) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
+  if (process.env.PULLBOARD_TEST_REVIEW_TRACE === '1') {
+    const held = store.listItems(board).find(item => item.item_status === 'submitted' && item.item_review_by);
+    const heartbeat = held ? reviewHeartbeats?.get(held.item_review_by) ?? null : null;
+    ctx.io.stderr?.write(`TRACE next selection: now=${ctx.clock.now().toISOString()} item=${held?.item_id ?? 'none'} holder=${held?.item_review_by ?? 'none'} until=${held?.item_review_until ?? 'none'} heartbeat=${heartbeat ?? 'none'} agents=${agents?.length ?? 'none'}\n`);
+  }
   const mandatory = store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
