@@ -1,4 +1,4 @@
-import { submitReusePlanDigest } from '../packages/verify/index.js';
+import { submitReusePlanDigest } from '../core/submit-reuse-plan.js';
 import { createHash } from 'node:crypto';
 
 /** Accept only both origin-sealed submit phases from the exact admission and source [C7,H16]. */
@@ -11,7 +11,7 @@ export function reusableSubmitProof(events, { item, commit, tree, main, check, a
   if (detail.policyCommit !== main) return { reason: 'composed main changed' };
   if (detail.criterionDigest !== item.item_frozen_digest) return { reason: 'frozen criterion changed' };
   const proof = detail.submissionProof;
-  if (detail.gateGreen !== true || !proof || proof.deferred || proof.knownMainFailures || detail.companion) return { reason: 'submission proof is incomplete or not green' };
+  if (detail.gateGreen !== true || !proof || proof.deferred && expectedPlan?.tiered !== true || proof.knownMainFailures || detail.companion) return { reason: 'submission proof is incomplete or not green' };
   if (expectedPlan && (proof.full !== expectedPlan.full || proof.deferred !== expectedPlan.deferred
     || JSON.stringify([...proof.files].sort()) !== JSON.stringify([...expectedPlan.files].sort()))) return { reason: 'submit selection changed' };
   const admissionEvent = rows.findLast(row => row.event_id < submission.event_id && row.event_by === submission.event_by
