@@ -90,10 +90,6 @@ export async function runComposedHook(entry, args, { cwd, env }) {
   const top = git(cwd, ['rev-parse', '--show-toplevel'], env);
   const root = top.status === 0 ? real(top.stdout.trim()) : null;
   if (!root || real(entry) !== join(root, 'bin', 'pullboard.js')) return null;
-  // A simple web document cannot change the CLI or its policy. Let the current process check its real staged index
-  // directly; building a temporary Git tree and spawning another Node process made an ordinary one-line commit slow.
-  // Source, config, merge and companion changes still use the exact composed tree below.
-  if (args[1] === 'pre-commit' && directContentHook(root, env) && !(await hookCompanionPatches(root, env)).length) return null;
   const path = git(root, ['rev-parse', '--path-format=absolute', '--git-path', 'index'], env).stdout.trim();
   const indexFile = env.GIT_INDEX_FILE ? resolve(root, env.GIT_INDEX_FILE) : path;
   const patches = await hookCompanionPatches(root, env);
@@ -120,18 +116,6 @@ export async function runComposedHook(entry, args, { cwd, env }) {
       env: { ...env, GIT_INDEX_FILE: composed.index, PULLBOARD_HOOK_COMPOSED: '1', PULLBOARD_HOOK_COMPANION_PATHS: JSON.stringify(composed.companionPaths) } });
     return run.status ?? 1;
   } finally { for (const directory of directories) rmSync(directory, { recursive: true, force: true }); }
-}
-
-/** The only direct-index fast path: web HTML with unchanged CLI/policy code and no configured fixers. */
-function directContentHook(root, env) {
-  const changed = git(root, ['diff', '--cached', '--name-only', '-z'], env);
-  if (changed.status !== 0) return false;
-  const paths = changed.stdout.split('\0').filter(Boolean);
-  if (!paths.length || paths.some(path => !/^web\/(?:[^/]+\/)*[^/]+\.html$/u.test(path))) return false;
-  try {
-    const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-    return !(Array.isArray(config.fix) && config.fix.length);
-  } catch { return false; }
 }
 
 /** Whether the staged pullboard.json declares fixers; none means the fixer pass is skipped. */
