@@ -3,6 +3,7 @@
  * every coding agent reads (AGENTS.md, which CLAUDE.md points at).
  */
 import { DOCTRINE_FILE } from './config.js';
+import { defaults } from './config.js';
 
 export const AGENTS_START = '<!-- pullboard:start -->';
 export const AGENTS_END = '<!-- pullboard:end -->';
@@ -23,6 +24,7 @@ export function configTemplate(gate, fix = []) {
     practice: DOCTRINE_FILE,
     worktrees: 'inside',
     verify: { policy: 'any', family: 'off' },
+    modelTiers: defaults().modelTiers,
     agents: { names: 'suffix' },
     lease: '2h',
     lanes: { review: { owns: [], starts: 'any time: verifiers check submitted work and own no folders' } },

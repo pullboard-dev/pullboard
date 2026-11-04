@@ -25,6 +25,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
+import { modelTierRoute } from '../model-tier-route.js';
 import {
   context,
   ordered,
@@ -45,8 +46,8 @@ export async function run(io, { first, values }) {
   const sessionDigest = runtime?.session ? parentSessionDigest(runtime.session) : undefined;
   if (ctx.info.isMain) {
     if (first !== COORDINATOR) throw new Refused('MAIN_IS_COORDINATOR', 'the main checkout is the coordinator; join from a worktree: git worktree add ../<dir>');
-    const route = values.route ?? 'strong';
     const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+    const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
     const joined = await withBoard(ctx, async (board) => ({
       id: await ordered(ctx, board, 'register', [
@@ -65,8 +66,8 @@ export async function run(io, { first, values }) {
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
-  const route = values.route ?? 'strong';
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   const joined = await withBoard(ctx, async (board) => ({

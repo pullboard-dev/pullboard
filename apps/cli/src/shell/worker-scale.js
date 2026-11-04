@@ -31,6 +31,7 @@ import { machineHome } from '../../../../packages/resources/index.js';
 import { readyItems } from '../../../../src/queue-readiness.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
+import { modelTierRoute } from './model-tier-route.js';
 
 const HOUR = 3_600_000;
 
@@ -207,9 +208,14 @@ export async function scaleWorkers(io, values, deps) {
   if (!budget || !budget.seatHours) throw new Refused('WORKER_BUDGET_UNSET', 'set the seat-hours this machine may spend first: pullboard settings workers.budget 40/day');
   const lane = values.lane;
   const command = String(values.agent ?? '').trim();
-  if (!lane || !command || !values.model) {
-    throw new Refused('USAGE', 'pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>": the command starts one agent session in the worker worktree ($PULLBOARD_PROMPT) that takes work with pullboard next --take');
+  if (!lane || !command) {
+    throw new Refused('USAGE', 'pullboard run --scale --lane <lane> --agent "<command>": the command starts one agent session in the worker worktree ($PULLBOARD_PROMPT) that takes work with pullboard next --take');
   }
+  const model = String(process.env.PULLBOARD_MODEL ?? '').trim();
+  if (!model || /[\u0000-\u001f\u007f-\u009f]/u.test(model)) {
+    throw new Refused('MODEL_REQUIRED', 'this session has not declared its model; set PULLBOARD_MODEL in this shell, then rerun pullboard run --scale');
+  }
+  const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
   const every = Number(values.every ?? '60');
   const cycles = values.cycles === undefined ? Infinity : Number(values.cycles);
   if (!Number.isInteger(every) || every < 5 || every > 3600) throw new Refused('USAGE', '--every is whole seconds from 5 to 3600');
@@ -224,7 +230,9 @@ export async function scaleWorkers(io, values, deps) {
   const quiet = sink => ({ ...io, say() {}, err: message => io.err?.(message), result: value => { sink.value = value; } });
   const ports = {
     observe: () => deps.withBoard(ctx, board => {
-      const observed = observeWorkers(board, { lane, managed: [...running.keys()], now: now() });
+      const observed = deps.observe
+        ? deps.observe(board, { lane, managed: [...running.keys()], now: now() })
+        : observeWorkers(board, { lane, managed: [...running.keys()], now: now() });
       const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id));
       return { ...observed, budget, usedHours: used.usedHours, spent: used.spent, cycleHours };
     }),
@@ -237,7 +245,7 @@ export async function scaleWorkers(io, values, deps) {
       let seat = parked.shift();
       if (!seat) {
         const made = {};
-        await deps.worktreeFor(quiet(made), lane, values.route ?? 'strong', values.family ?? null, values.model);
+        await deps.worktreeFor(quiet(made), lane, route, values.family ?? null, model);
         seat = { id: made.value.agent, path: made.value.path, prompt: made.value.prompt };
       }
       const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_PROMPT: `${seat.prompt}\nTake work with pullboard next --take until it has nothing for you, then stop.` };
