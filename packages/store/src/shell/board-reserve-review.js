@@ -11,6 +11,7 @@ import { reviewFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
+import { listAgents } from './board-query.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -22,7 +23,8 @@ import { ENGINE_VERSION } from '../../../state/index.js';
  * @returns {any} The item, reserved.
  */
 export function reserveReview(board, id, who) {
-  return atomic(board, () => reserveWithin(board, id, who));
+  const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
+  return atomic(board, () => reserveWithin(board, id, { ...who, reviewHeartbeats }));
 }
 
 /**
@@ -33,13 +35,13 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string }} who
  * @returns {any}
  */
-export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt }) {
+export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, reviewHeartbeats = null }) {
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
   const frozen = found ? frozenRelaxAt(found) : undefined;
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-  const witness = enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
+  const witness = enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) : null;
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
@@ -51,7 +53,7 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
         const cooldown = reviewReleaseCooldown(board, id, agentId);
         return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
       },
-      ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: () => witness } : {}) }),
+      ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: () => witness } : {}) }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });

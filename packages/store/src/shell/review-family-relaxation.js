@@ -17,7 +17,7 @@ export function frozenRelaxAt(item) {
 }
 
 /** Derive a reservation witness solely from native events and the current unreserved review queue [V1,H16]. */
-export function relaxationWitness(board, subject, agentId, threshold, policy, { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, seatFamily, familiesDiffer, itemReviewPolicy }) {
+export function relaxationWitness(board, subject, agentId, threshold, policy, { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats = null }) {
   if (!Number.isSafeInteger(threshold) || threshold < 1 || subject.item_status !== 'submitted'
     || itemReviewPolicy(board, subject.item_id).tier !== 'standard') return null;
   const family = seatFamily(board, agentId);
@@ -29,10 +29,10 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, { 
   const busy = new Set(board.db.prepare("SELECT item_review_by AS id FROM item WHERE item_status='submitted' AND item_review_by IS NOT NULL AND item_review_until>?")
     .all(now.toISOString()).map(row => row.id));
   const seats = active.filter(id => !busy.has(id));
-  const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item));
+  const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item, reviewHeartbeats));
   const blocked = waiting.filter(item => !seats.some(id => {
     if (reviewReleaseCooldown(board, item.item_id, id)) return false;
-    const checks = reviewerChecks(board, { agentId: id, policy, familyPolicy: 'require' });
+    const checks = reviewerChecks(board, { agentId: id, policy, familyPolicy: 'require', reviewHeartbeats });
     return Object.values(checks).every(check => !check(item));
   }));
   if (!blocked.some(item => item.item_id === subject.item_id) || blocked.length < threshold) return null;

@@ -174,13 +174,13 @@ export function itemsInStatus(board, status, owner = null) {
  *
  * @param {any} board
  * @param {any} item
+ * @param {Map<string, string | null> | null} [heartbeatSnapshot] - Heartbeats captured before a board write, when one is active.
  * @returns {string | null}
  */
-export function reviewHolder(board, item) {
+export function reviewHolder(board, item, heartbeatSnapshot = null) {
   if (item.item_status !== 'submitted' || !item.item_review_by || (item.item_review_until ?? '') <= now(board)) return null;
-  const reviewer = board.db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(item.item_review_by);
-  if (!reviewer) return null;
-  const heartbeatAt = withSeatPresence(board, [reviewer])[0]?.heartbeatAt;
+  if (!heartbeatSnapshot) return item.item_review_by;
+  const heartbeatAt = heartbeatSnapshot.get(item.item_review_by);
   const heartbeatAge = heartbeatAt === null || heartbeatAt === undefined ? Infinity : board.clock.now().getTime() - Date.parse(heartbeatAt);
   return heartbeatAge < REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS ? item.item_review_by : null;
 }

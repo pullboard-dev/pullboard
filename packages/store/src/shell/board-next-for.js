@@ -84,7 +84,7 @@ function skippedReviewReasons(failures) {
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, reviewHeartbeats = null }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -95,7 +95,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
     const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
-      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, focusOnly: true }).item;
+      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, reviewOrder, reviewHeartbeats, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
   const route = routeOf(board, agentId);
@@ -111,7 +111,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -131,7 +131,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const candidates = reviewable.map((entry) => ({
       entry,
-      holder: reviewHolder(board, entry),
+      holder: reviewHolder(board, entry, reviewHeartbeats),
       problem: failures.get(entry)?.problem,
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
@@ -142,7 +142,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
-      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry)), { listAgents }) : null;
+      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy, reviewHeartbeats })).every(guard => !guard(entry)), { listAgents }) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)
