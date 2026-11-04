@@ -243,7 +243,7 @@ test('an agent grant narrows at claim without trapping its own verdict withdrawa
   let instant = Date.parse('2026-10-24T00:00:00Z');
   const clock = { now: () => new Date(instant) };
   const boards = ['withdraw-grant-primary.sqlite', 'withdraw-grant-peer.sqlite']
-    .map(name => openBoard(join(box.dir, name), clock));
+    .map(name => openBoard(join(box.dir, name), clock, { gitRoot: box.repo }));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const primary = boards[0];
   store.register(primary, { lane: 'coordinator', path: box.repo });
@@ -404,7 +404,7 @@ test('an agent grant narrows at claim after the recorded engine high-water mark 
 test('an agent grant narrows at claim without losing its submitted attempt receipt [E21,H16]', t => {
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-24T00:00:00Z') };
-  const boards = ['attempt-primary.sqlite', 'attempt-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock));
+  const boards = ['attempt-primary.sqlite', 'attempt-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock, { gitRoot: box.repo }));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const primary = boards[0];
   store.register(primary, { lane: 'coordinator', path: box.repo });
