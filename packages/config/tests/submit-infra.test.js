@@ -117,7 +117,7 @@ async function builderRepo(box, { requireInfraNote = true } = {}) {
   if (requireInfraNote) config.submit = { requireInfraNote: true };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
-  const made = await box.run('worktree', 'build', '--json');
+  const made = await box.run('worktree', 'build', '--model', 'fixture-agent', '--json');
   assert.equal(made.code, 0, made.err);
   const root = JSON.parse(made.out).path;
   /** Run Git only in the joined builder. */
