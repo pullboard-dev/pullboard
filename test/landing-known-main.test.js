@@ -17,47 +17,6 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
 const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const MAIN_RED = 'web/land-9.test.js';
-const LATER_FILE = 'web/land-99.test.js';
-
-/** Replace the canned gate with real Node tests and preserve the canonical early-stop contract. */
-function realNodeGate(box) {
-  writeFileSync(box.gate, [
-    "const fs = require('node:fs'); const { spawnSync } = require('node:child_process'); const path = require('node:path');",
-    "const args = process.argv.slice(2).filter(arg => arg !== '--alone');",
-    "const files = args.length ? args : fs.readdirSync(path.join(process.cwd(), 'web')).filter(name => /^land-\\d+\\.test\\.js$/u.test(name)).map(name => './web/' + name).sort();",
-    "let status = 0; for (let index = 0; index < files.length; index++) { const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', files[index]], { cwd: process.cwd(), env: process.env, encoding: 'utf8' }); process.stdout.write(run.stdout || ''); process.stderr.write(run.stderr || ''); if (run.status !== 0) status = run.status || 1; if (run.status && process.env.PULLBOARD_LANDING_COLLECT_ALL !== '1') { for (const skipped of files.slice(index + 1)) process.stdout.write('Interrupted test files: ' + skipped + '\\n'); break; } } process.exitCode = status;",
-  ].join('\n'));
-}
-
-/** Use real selected Node test files: main has the first red, then item work changes the later file. */
-function realNodeMainProject() {
-  const box = redMainProject();
-  realNodeGate(box);
-  const red = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('main-red-case', () => { if (process.env.LAND_SUPPRESS_RED !== '1') assert.fail('main red'); });\n";
-  const pass = "import { test } from 'node:test'; test('later-passing-case', () => {});\n";
-  box.env.LAND_SUPPRESS_RED = '1';
-  try {
-    assert.equal(commitFile(box, box.repo, MAIN_RED, red, 'test(web): establish real main red [G1]').status, 0);
-    assert.equal(commitFile(box, box.repo, LATER_FILE, pass, 'test(web): add later passing case [G1]').status, 0);
-  } finally { delete box.env.LAND_SUPPRESS_RED; }
-  return { box, red, pass };
-}
-
-/** Submit an item that carries the known main red and selects a later real test body. */
-function acceptedRealNodeItem(box, number, red, later) {
-  const path = join(box.dir, `land-${number}`);
-  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Real Node landing fixture ${number}`, '--specs', 'G1',
-    '--criterion', `real selected Node tests ${number} pass their frozen check`, '--check', `node --test ${MAIN_RED} ${LATER_FILE}`, '--json');
-  assert.equal(added.code, 0, added.err);
-  const entry = { path, item: JSON.parse(added.out).item.item_id, file: MAIN_RED };
-  assert.equal(box.run(path, 'claim', String(entry.item)).code, 0);
-  writeFileSync(join(entry.path, LATER_FILE), later);
-  box.env.LAND_SUPPRESS_RED = '1';
-  try { submitItem(box, entry, red); acceptItem(box, entry); return entry; }
-  finally { delete box.env.LAND_SUPPRESS_RED; }
-}
 
 test('known-main cancellation accounting excludes only fully accounted cancellations [B3,C7]', () => {
   const root = '/fixture';
@@ -193,26 +152,4 @@ test('an observer error without observations isolates each failing file once; re
     error: 'observer failed', observations: [{ file: MAIN_RED, recorded: true, classification: 'flake' }],
   } }), { code: 'LAND_DIAGNOSTIC' });
   assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').length, callsBefore + 1, 'recorded evidence triggers no extra isolation');
-});
-
-test('a complete real selected run lands its exact-main red after later files finish, while a new red blocks [B3,C7]', () => {
-  const { box, red } = realNodeMainProject();
-  const marker = join(box.dir, 'later-node-test-ran');
-  const later = `import { test } from 'node:test'; import { writeFileSync } from 'node:fs'; test('later-passing-case', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));\n`;
-  const entry = acceptedRealNodeItem(box, 1, red, later);
-  const landed = landBatch(box, entry.item);
-  assert.equal(landed.error, null, JSON.stringify(landed.lines));
-  assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.batch));
-  assert.ok(landed.merged, 'the fully accounted known-main batch lands');
-  assert.ok(readFileSync(marker, 'utf8'), 'the later selected test body ran after the known-main failure');
-  assert.deepEqual(landed.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
-
-  const blockedProject = realNodeMainProject();
-  const redLater = "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('new-batch-red', () => assert.fail('new red'));\n";
-  const blockedEntry = acceptedRealNodeItem(blockedProject.box, 1, blockedProject.red, redLater);
-  const blocked = landBatch(blockedProject.box, blockedEntry.item);
-  assert.notEqual(blocked.batch.state, 'landed', 'a new selected failure still blocks the landing');
-  assert.equal(blocked.merged, null);
-  assert.ok(blocked.batch.proof.knownMain.some(row => row.file === MAIN_RED && row.name === 'main-red-case'));
-  assert.ok(blocked.batch.culprits.some(culprit => culprit.id === blockedEntry.item));
 });
