@@ -12,7 +12,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
-function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false } = {}) {
+function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false } = {}) {
   const box = e2e.project('true', e2e.sandbox(), { withWorktree: false });
   const packageFile = join(box.repo, 'package.json');
   const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
@@ -39,7 +39,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   } };
   const frozen = JSON.stringify({ check: 'node --test test/a.test.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');
-  const readEvents = () => [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: stale ? base : commit, criterionDigest: digest, gateGreen: true, submissionProof: { files: proof, deferredFiles: ['test/b.test.js'] } }) }];
+  const readEvents = () => [{ event_kind: 'submit', event_detail: JSON.stringify({ commit: stale ? base : commit, criterionDigest: digest, gateGreen: true, submissionProof: { files: proof, full, deferredFiles: ['test/b.test.js'] } }) }];
   const readItem = () => ({ item_commit: commit, item_frozen: frozen, item_frozen_digest: digest });
   const plan = batchGatePlan(state, { readEvents, readItem });
   const run = runFixtureChild('/bin/sh', ['-c', plan.config.gate], { cwd: box.repo, env: box.env, encoding: 'utf8' });
@@ -79,7 +79,10 @@ test('the frozen criterion and submission proof contribute their complete file u
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a stale submission cannot narrow the merged-tree selection [C7,S10]', () => {
-  const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true });
-  assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
+test('a stale submission cannot broaden landing beyond a source-matched union [C7,S10]', () => {
+  assert.throws(() => plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true }), { code: 'LAND_DIAGNOSTIC' });
+});
+
+test('a full fallback proof cannot make landing run an unbounded selection [C7,S10]', () => {
+  assert.throws(() => plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true }), { code: 'LAND_DIAGNOSTIC' });
 });

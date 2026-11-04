@@ -63,6 +63,9 @@ function batchAffectedTests(state, readEvents, readItem) {
   const root = state.batch.root;
   const commit = headCommit(root);
   const submitted = submittedSelections(state.batch.items, readEvents, (entry, detail) => criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail));
+  if (state.batch.items.length && submitted === null) {
+    throw new Refused('LAND_DIAGNOSTIC', 'the batch has no complete source-matched affected-test plan; refresh its items\' submit proofs before landing');
+  }
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
