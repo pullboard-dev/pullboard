@@ -663,6 +663,7 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 .feed .day { margin: 0; padding: var(--space-4) 0 var(--space-1); font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: var(--space-2); }
 button.ref, a.ref[data-go] { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }
+.activity-events .activity-item a.ref[data-go] { text-decoration: none; }
 /* Item anchors use their inherited line box, rather than the shorter inline glyph box. */
 a.ref[data-go] { display: inline-block; }
 /* A code reference (path:lines@sha) is one long token: wider than its line, it breaks anywhere rather than push the page sideways. */

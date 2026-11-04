@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Cockpit activity checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -5,7 +6,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { activityModel } from '../../apps/view/src/core/view/activity-model.js';
+import { activityHtml } from '../../apps/view/src/core/view/activity-render.js';
 import { IN_STATE, MACHINE, effectiveGuards } from '../../src/machine.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { openBoard } from '../../apps/lib/index.js';
@@ -685,4 +689,24 @@ export async function createTransport({ onUpdate }) {
     await new Promise((closed) => server.close(closed));
     await live.stop();
   }
+});
+
+test('Activity collapses consecutive continued-building rows by one seat for one item, and item links are not underlined [N26]', () => {
+  const at = minute => new Date(Date.UTC(2026, 10, 4, 12, minute)).toISOString();
+  const event = (id, kind, by, item, minute) => ({ event_id: id, event_kind: kind, event_by: by, item_id: item, event_at: at(minute), event_detail: '{}' });
+  const project = { items: [{ id: 7, title: 'Seven' }, { id: 8, title: 'Eight' }], agents: [], shouts: [], events: [
+    event(1, 'claim', 'web-1', 7, 0), event(2, 'renew', 'web-1', 7, 10), event(3, 'renew', 'web-1', 7, 20), event(4, 'renew', 'web-1', 7, 30),
+    event(5, 'renew', 'web-2', 8, 31), event(6, 'renew', 'web-1', 7, 40)] };
+  const rows = activityModel(project).rows;
+  const renewals = rows.filter(row => row.kind === 'renew');
+  assert.deepEqual(renewals.map(row => [row.by, row.item.id, row.verb, row.at]), [
+    ['web-1', 7, 'continued building', at(40)],
+    ['web-2', 8, 'continued building', at(31)],
+    ['web-1', 7, 'continued building · 3 updates', at(30)],
+  ], 'three adjacent updates by web-1 on #7 become one row with the latest time; another seat or item breaks the run');
+  const html = activityHtml(activityModel(project), { controls: false });
+  assert.match(html, /continued building · 3 updates/u);
+  assert.equal([...html.matchAll(/continued building · \d+ updates/gu)].length, 1, 'only the collapsed run carries a count');
+  const css = readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url), 'utf8');
+  assert.match(css, /\.activity-events \.activity-item a\.ref\[data-go\] \{ text-decoration: none; \}/u, 'item-number links on Activity are not underlined');
 });
