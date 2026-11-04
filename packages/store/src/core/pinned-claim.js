@@ -15,3 +15,16 @@ export function itemPinned(board, id) {
   return milestones(board).some(entry => (entry.order ?? []).includes(id) && (entry.items ?? []).includes(id)
     && !(entry.sunk ?? []).includes(id) && Object.hasOwn(entry.reasons ?? {}, String(id)));
 }
+
+/**
+ * Whether the item's work jumps routine queues: the coordinator marked it urgent or pinned it in its milestone.
+ * Why: an unblocking fix (#3001) waited 20 minutes behind about 50 routine resubmits in the gate queue (#3062).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {boolean}
+ */
+export function itemUrgent(board, id) {
+  const flag = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_urgent:${id}`);
+  return flag?.meta_value === 'on' || itemPinned(board, id);
+}
