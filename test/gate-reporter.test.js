@@ -40,8 +40,7 @@ test('spec default failure [C7]', () => assert.fail('intentional reporter fixtur
     }
   });
   const env = { ...process.env, ...gateSlotEnvironment(lease), PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_LANDING_RUN: '1' };
-  delete env.NODE_TEST_CONTEXT;
-  delete env.PULLBOARD_RELEASE_EXECUTORS;
+  for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_RUNNER_PRELOAD', 'PULLBOARD_RUNNER_JOB', 'PULLBOARD_RUNNER_INSTANCE', 'PULLBOARD_RELEASE_EXECUTORS']) delete env[key];
   const result = runFixtureChild(process.execPath, [join(root, 'bin', 'run-tests.js'), '--test-reporter=spec', 'test/spec-failure.test.js'],
     { cwd: root, env, encoding: 'utf8', timeout: 60000 });
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
