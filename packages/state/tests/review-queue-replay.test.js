@@ -119,6 +119,8 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
     store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
     if (board === legacyBoard) delete board.executionEngineVersion;
   }
+  // The v4 replica cannot carry the current engine's review-default activation witness.
+  legacyBoard.db.prepare("DELETE FROM board_meta WHERE meta_key='review_default:active' OR meta_key LIKE 'review_default:normalized:%'").run();
   assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
 
   const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
