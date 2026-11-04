@@ -1,5 +1,7 @@
 /** Defaults, check-file brief inference and one-step route feedback through real coordinator and seat commands [C7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -7,7 +9,9 @@ const helpers = createE2eHelpers();
 test.after(helpers.cleanup);
 
 test('an inferred one-file light item moves to mid after its matched seat releases it once [C7]', () => {
-  const box = helpers.project('true');
+  const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Route calibration fixture';
+  const box = helpers.project('true', isolated);
   const lightSeat = box.dir + '/light-seat';
   box.git(box.repo, 'worktree', 'add', '-q', lightSeat, '-b', 'web/light-seat');
   assert.match(box.run(lightSeat, 'join', 'web', '--route', 'light').out, /joined as web-/u);
@@ -18,6 +22,7 @@ test('an inferred one-file light item moves to mid after its matched seat releas
   const light = box.run(lightSeat, 'next', '--build', '--json');
   assert.equal(light.code, 0, light.out + light.err);
   assert.equal(JSON.parse(light.out).item.item_id, id);
+  writeFileSync(join(lightSeat, 'route-attempt.txt'), 'the light seat attempted its diagnosis\n');
   const release = box.run(lightSeat, 'release', String(id), '--reason', 'BUDGET', '--note', 'The matched light route reached its bounded budget', '--no-next', '--json');
   assert.equal(release.code, 0, release.out + release.err);
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_route, 'mid');
