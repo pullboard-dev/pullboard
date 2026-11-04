@@ -238,7 +238,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
-    const gated = gateAtHead(board, entry.item_id);
+    const gated = gateAtHead(board, entry);
     if (gated) { reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
@@ -284,13 +284,15 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered.
  *
+ * Only a job for the item's current head counts: a job left from an older head proves nothing about new work.
+ *
  * @param {any} board
- * @param {number} id
+ * @param {any} entry
  * @returns {string | null}
  */
-function gateAtHead(board, id) {
-  const job = submitHandoff(board, id);
-  if (!job) return null;
+function gateAtHead(board, entry) {
+  const job = submitHandoff(board, entry.item_id);
+  if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;

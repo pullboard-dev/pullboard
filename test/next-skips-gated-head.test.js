@@ -7,7 +7,8 @@ import { fixtureBoard } from './board-fixture.js';
 const HEAD = 'a'.repeat(40);
 
 /** Record a queue observation for an item the way the submit queue does, with no worker running. */
-function observe(board, id, job) {
+function observe(board, id, job, head = HEAD) {
+  board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(head, id);
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(`submit_handoff:${id}`, JSON.stringify({ commit: HEAD, agentId: 'web-1', ...job }));
 }
@@ -31,4 +32,12 @@ test('nextFor skips an open item whose gate is queued, running, green or infra-e
   const red = make('red');
   observe(board, red, { state: 'red', error: { code: 'TEST_FAILURE' } });
   assert.equal(nextFor(board, { agentId: 'web-2', lane: 'web' }).item.item_id, red, 'a red gate still offers the item');
+});
+
+test('a gate left from an older head never hides an item whose head moved on [C7, #2881]', t => {
+  const board = fixtureBoard(t);
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'moved head' });
+  observe(board, id, { state: 'green' }, 'b'.repeat(40));
+  const reasons = nextFor(board, { agentId: 'web-2', lane: 'web' });
+  assert.equal(reasons.item?.item_id, id, `a green job at another head still offers the item: ${reasons.reasons.join(' | ')}`);
 });
