@@ -19,4 +19,7 @@ export const SETUP_REFUSALS = {
   RUNNER_SETUP: 'a runner that cannot start the gate command is machine setup, not an item move',
   B26_PERSON_APPROVAL: 'person-only command authorization is checked before an item move',
   URGENT_VALUE: 'fact urgency input is validated before any item move',
+  // The release handoff writes a note fact; only a diagnosis fact raises these, and no move appends one.
+  DIAGNOSIS_ROUTE: 'only a diagnosis fact checks the recording seat\'s route; a release appends a note',
+  DIAGNOSIS_HELD: 'only a diagnosis fact checks who holds the item; a release appends a note',
 };

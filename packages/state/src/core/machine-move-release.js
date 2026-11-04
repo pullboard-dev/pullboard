@@ -12,8 +12,6 @@ export const MOVES = [
     // Exit handoff appends its summary through the ordinary fact guards in this atomic release.
     alsoRefuses: [
       { code: 'DIAGNOSIS_WRONG', rule: 'a wrong-diagnosis release names what was wrong and returns a diagnosed claim the caller holds', next: 'claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note "<what was wrong>"' },
-      { code: 'DIAGNOSIS_ROUTE', rule: 'the canonical fact writer takes a diagnosis only from a mid or strong seat', next: 'release with --reason DIAGNOSIS_WRONG and let a mid or strong seat record the diagnosis' },
-      { code: 'DIAGNOSIS_HELD', rule: 'the canonical fact writer diagnoses open work or the caller\'s own claim', next: 'diagnose open work or your own claim; ask the holder to release other work first' },
       { code: 'DIAGNOSIS_REQUIRED', rule: 'a release that keeps or moves the item light needs its current diagnosis', next: 'keep it mid or strong, then have a capable seat record Files, Change and Test case with pullboard fact <id> diagnosis' },
       { code: 'BRIEF_TOO_LONG', rule: 'a rerouted item keeps a brief under the brief limit', next: 'shorten the brief and point to longer docs by path' },
       { code: 'NO_BRIEF', rule: 'a rerouted item below strong stays buildable cold', next: 'add the missing fields with pullboard edit <id> --brief "..." --criterion "..."' },
