@@ -17,15 +17,6 @@ import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/c
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 
-/** Create isolated real-repository helpers for one parallel end-to-end test file. */
-export function createE2eHelpers() {
-  const sandboxes = [];
-  /** Remove this test file's fixtures after its tests finish. */
-  const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
-  };
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
 export const FIXTURE_MODEL = 'fixture-model';
 
@@ -38,6 +29,16 @@ export const FIXTURE_MODEL = 'fixture-model';
 export function withoutPullboardEnv(source) {
   return Object.fromEntries(Object.entries(source).filter(([key]) => !key.startsWith('PULLBOARD_')));
 }
+
+/** Create isolated real-repository helpers for one parallel end-to-end test file. */
+export function createE2eHelpers() {
+  const sandboxes = [];
+  /** Remove this test file's fixtures after its tests finish. */
+  const cleanup = () => {
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
+  };
+const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
 
 /**
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
