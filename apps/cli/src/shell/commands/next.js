@@ -181,7 +181,7 @@ async function nextWithProgress(io, values, progress) {
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
-        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
+        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
       }
       return 0;
     }
