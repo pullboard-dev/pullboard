@@ -20,6 +20,7 @@ import {
   gzipSync,
 } from 'node:zlib';
 import * as store from './board.js';
+import { compactReviewMove } from './compact-verdict-review.js';
 import {
   engineReceipt,
   executableArgs,
@@ -672,9 +673,12 @@ async function sendQueued(link, key) {
   let sent = 0;
   for (const entry of outbox?.moves ?? []) {
     if ((entry.refs ?? []).some((ref) => outbox.moves.some((other) => other.move.id === ref.add))) break;
-    const { move, lost } = resolveMove(entry, outbox);
+    const { move: queued, lost } = resolveMove(entry, outbox);
     if (lost.length) break;
-    if (localRecords(root, (board) => engineReceipt(board, move.id))) continue;
+    if (localRecords(root, (board) => engineReceipt(board, queued.id))) continue;
+    // Older writers queued literal paths. Compact only the unsent wire copy: the original intent and
+    // reverse captures remain exact, and an acknowledged move is settled by its existing receipt.
+    const move = compactReviewMove(queued);
     const sequence = outbox.baseSequence + sent + 1;
     const sealed = await sealedRecord(key, move, state, 'move', sequence);
     const registration = seatReceipt(move, sequence, sealed);
