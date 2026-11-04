@@ -9,7 +9,9 @@ import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { resultFrom } from '../packages/runners/src/shell/runner-result.js';
 import { specRefusalRule } from '../apps/runner/src/shell/runner-worker-receipt.js';
-import { startFixtureChild, runFixtureChildAsync } from './fixture-child.js';
+import { runFixtureChildAsync } from './fixture-child.js';
+import { requestFor } from '../packages/runners/src/shell/runner-request.js';
+import { privateCheckEnvelope } from '../apps/runner/src/shell/runner-private-mode.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -61,3 +63,24 @@ test('a known-main comparison runs on a real runner worker and finds the case re
 
 /** Read a fixture log that may not exist yet. */
 function existsOrEmpty(path) { try { return readFileSync(path, 'utf8'); } catch { return ''; } }
+
+test('a private check taken under a landing lease is sent as a private check, never as the landing run [C7,B3]', async () => {
+  const box = landProject();
+  const head = box.git(box.repo, 'rev-parse', 'HEAD'), tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
+  const mode = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: 'true', timeoutMs: 60000, policyCommit: head,
+    trunk: { ref: 'refs/heads/main', commit: head }, guard: null });
+  const cwd = process.cwd();
+  process.chdir(box.repo);
+  try {
+    const request = await requestFor(box.repo, 'true', { runner: { host: HOST, slots: 1, browser: 0 }, source: { commit: head, tree },
+      metadata: { landing: true, timeoutMs: 1000, diagnostic: true, item: '0', kind: 'land-diagnostic' }, checkedSource: { commit: head, tree },
+      privateCheck: mode, rawOutputPath: join(box.dir, 'raw.log'), waivers: [{ kind: 'file', test: 'web/land-1.test.js' }] }, { privateCheckEnvelope });
+    try {
+      // The worker refuses a trusted check that is also marked landing, a timeout without landing, or a stage marker.
+      assert.equal(request.spec.landing, false, 'a trusted private check is never the landing run');
+      assert.equal(request.spec.timeoutMs, undefined);
+      assert.deepEqual(request.spec.waivers, []);
+      assert.equal(request.spec.stageMarker, undefined);
+    } finally { request.cleanup(); }
+  } finally { process.chdir(cwd); }
+});
