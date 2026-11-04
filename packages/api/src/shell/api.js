@@ -1,4 +1,4 @@
-import { claimWorktrees } from '../../../activity/index.js';
+import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { costAnalytics } from '../../../stats/index.js';
@@ -532,7 +532,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
   }), isMain, boardOpeners);
   projection.claimOverlaps = withBoard(root, board => {
     const items = store.listItems(board);
-    const overlaps = claimOverlaps(items, claimWorktrees(items, store.listAgents(board)));
+    const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     return Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
   }, isMain, boardOpeners);
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
