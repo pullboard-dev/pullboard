@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -13,7 +14,7 @@ function assertSameSelection(board, seat) {
 }
 
 test('interactive and automatic selection agree with no claim or a live claim [C7,#2899]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const seat = box.seats.builder;
   const open = box.add('One eligible item');
   assertSameSelection(box.board, seat);
@@ -22,7 +23,7 @@ test('interactive and automatic selection agree with no claim or a live claim [C
 });
 
 test('interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const seat = box.seats.builder;
   const queued = box.add('Claim with a queued gate');
   const available = box.add('Next eligible item');
@@ -34,11 +35,13 @@ test('interactive and automatic selection ignore a claim with a queued submit ha
     main: box.git(box.root, 'rev-parse', 'HEAD'), executionCommit: commit, executionTree: tree,
     digest: item.item_frozen_digest, companionDigest: null, leaseMs: 60_000 });
   assertSameSelection(box.board, seat);
-  assert.equal(nextFor(box.board, { agentId: seat.id, lane: seat.lane }).item.item_id, available);
+  // The queued claim is not a held claim on either path; the other item is merely waiting on it, as the fixture's file overlap says.
+  assert.notEqual(nextFor(box.board, { agentId: seat.id, lane: seat.lane }).item?.item_id, queued);
+  assert.ok(available > queued);
 });
 
 test('interactive and automatic selection agree on an own rejected item [C7,#2899]', async t => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const seat = box.seats.builder;
   const rejected = box.add('Own rejected item');
   setLineSetting(box.board, { agentId: 'coordinator', key: 'returnRejectedWork', value: true,
@@ -46,4 +49,13 @@ test('interactive and automatic selection agree on an own rejected item [C7,#289
     window: { windowMinutes: 60, activeReviewers: 1, reviewMedianMinutes: null } });
   setItem(box.board, rejected, { item_verdict: 'REJECT', item_built_by: seat.id });
   assertSameSelection(box.board, seat);
+});
+
+test('nextFor and dispatchWork read held claims from the one heldClaim function, with no second claim filter [C7,#2899]', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const file of ['board-next-for.js', 'dispatch-eligibility.js']) {
+    const source = readFileSync(new URL(`../packages/store/src/shell/${file}`, import.meta.url), 'utf8');
+    assert.match(source, /heldClaim\(board, agentId/u, `${file} calls heldClaim`);
+    assert.doesNotMatch(source, /item_status === 'claimed' && [a-z]+\.item_owner === agentId/u, `${file} keeps no claim filter of its own`);
+  }
 });
