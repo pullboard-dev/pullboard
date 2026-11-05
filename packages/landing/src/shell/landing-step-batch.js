@@ -31,6 +31,7 @@ import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
+import { relandAcceptedItems } from './accepted-reland.js';
 import { perItemMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
@@ -106,6 +107,7 @@ export async function land(options) {
     requireParallelGateAdmission(options.root, policy);
     requirePublishGreen(options.root, options.board, policy, options.landingPorts);
   }
+  if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (!options.due || idleLanding(options.board, trunk.commit)) {
@@ -368,10 +370,13 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       try { await recordRefusal(state, error); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
-    // A per-item landing's refusal is its one item's: that item goes back to open and the next run moves on [C7,#2901].
-    const returned = state.batch.state !== 'landed' && singleItemLanding(state) && await returnRefusedItem(state, error);
-    if (returned) await save(state, { state: 'blocked' });
-    else if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;
+    // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
+    // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
+    const single = state.batch.state !== 'landed' && singleItemLanding(state);
+    const returned = single && await returnRefusedItem(state, error);
+    if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST'
+      && ['merging', 'gating'].includes(state.batch.state))) await save(state, { state: 'blocked' });
+    if (!returned && (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT')) throw error;
     say(error.message);
   }
   await returnMergeConflicts(state);
