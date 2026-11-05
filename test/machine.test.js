@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
 import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+import { SETUP_REFUSALS } from './machine-not-moves.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -51,6 +52,7 @@ import {
  * registration and machine-wide settings are checked before any item move.
  */
 const NOT_MOVES = {
+  ...SETUP_REFUSALS,
   USAGE: 'how a command was typed',
   NO_FILE: 'how a command was typed: a --note-file that does not exist',
   ALREADY_JOINED: 'registering who is asking, before any move',
@@ -113,11 +115,6 @@ const NOT_MOVES = {
   UNMERGED_SCHEMA: 'shared-board schema compatibility checked before a command opens the database',
   PERSON_SIGNED: 'a person-only move on a board that signs person moves needs a passkey; no item move is person-only',
   PERSON_SIGNING_CORRUPT: 'the stored relay key is read when a command fetches the relay\'s authority, before any move; it is no item lifecycle rule',
-  B26_PERSON_APPROVAL: 'person-only command authorization is checked before an item move',
-  BOARD_UNAVAILABLE: 'the registered board is opened before an item move',
-  NO_SHOUT: 'a shout reference used by a command is resolved before its item move',
-  URGENT_VALUE: 'fact urgency input is validated before any item move',
-  NO_POLICY: 'required committed policy is read before the item move can run',
 };
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
@@ -135,12 +132,15 @@ const ENTRY_POINTS = [
   { verbs: ['reopen'], at: ['board.js#reopen'] },
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
+/** Runner refusals reach lifecycle checks through these package and worker entry points. */
+const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/shell/gate-slot.js', '../packages/runners/src/shell/runner-result.js',
+  '../packages/runners/src/shell/runner-dispatch.js', '../apps/runner/src/shell/runner-worker-main.js'];
 const NON_MOVE_ENTRY_POINTS = [
   '../apps/lib/src/core/native-board.js#openBoard', // Physical storage is composed before any item move.
-  'cli.js#refuseRemoteCoordinatorModel',
+  '../apps/cli/src/shell/cli/join.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
-  'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
+  '../packages/person/src/shell/person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
 /**
@@ -150,9 +150,13 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
+  '../apps/cli/src/shell/cli/claim.js#refreshesLanePolicy': ['../apps/cli/src/shell/cli/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
-  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem'],
+  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  // An unknown code map keeps the file collision; every read inside it is caught.
+  '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
@@ -160,8 +164,10 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  // The same catches as reached at the CLI's moved source (#2886).
+  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
@@ -302,7 +308,9 @@ function codeProblems(machine, read = fromDisk) {
     }
   }
   const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
-  const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set(['../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
+    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+  ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -522,14 +530,15 @@ test('every refusal a move raises today is declared on that move, and every decl
   assert.ok(walk.refusalsOf('board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
   assert.ok(walk.refusalsOf('commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
-  assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
-  assert.ok(walk.refusalsOf('cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
+  assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('../apps/cli/src/shell/cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
   for (const code of Object.keys(NOT_MOVES)) {
     const moveRaises = ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code)));
-    const setupRaises = NON_MOVE_ENTRY_POINTS.some((entry) => walk.refusalsOf(entry).has(code));
+    const setupRaises = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))]
+      .some((entry) => walk.refusalsOf(entry).has(code));
     assert.ok(moveRaises || setupRaises, `${code} is listed as not a move because a move or setup code path raises it`);
   }
 });
@@ -593,6 +602,8 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
+    // Submit's pending-correction claim freezes the bar again, so it reaches the reader too (#2886).
+    'MOON_PHASE is raised by submit but not declared there',
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
@@ -610,13 +621,15 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
-  ], 'claim and refreeze let a freeze refusal through; submit and verify catch it');
+    'MOON_PHASE is raised by submit but not declared there',
+  ], 'claim, refreeze and submit\'s pending-correction claim let a freeze refusal through; verify catches it');
 
   const inProof = editedSource('../packages/spec/src/shell/spec-approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inProof).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
+    'MOON_PHASE is raised by submit but not declared there',
   ], 'only caught proof readers are excluded; a new guard inside their caller is still audited');
 
   const inArrow = editedSource('../packages/seats/src/core/route-escalation.js', /^export const canTake = .*$/m, "import { Refused } from '../../../kernel/core.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
@@ -626,8 +639,9 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'NO_ROUTE is raised by reserve but not declared there',
   ], 'reserve reaches the route check through the reviewer checks it shares with a verdict');
 
-  const doubleQuoted = editedSource('cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
+  const doubleQuoted = editedSource('../apps/cli/src/shell/cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, doubleQuoted), [
+    'NO_ROOT is raised by submit but not declared there',
     'NO_ROOT is raised by accept and reject but not declared there',
   ]);
 });
@@ -944,12 +958,15 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     const { board } = lab;
     const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
     const strong = store.register(board, { lane: 'web', path: '/repo-web-strong' });
-    const claimAs = (id, agentId, lane, freezer = retiredFreeze) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer }));
+    // The target expects 45 build minutes: a 60-minute budget admits it, and the board's 30-minute default peels buildScopeFits.
+    const claimAs = (id, agentId, lane, freezer = retiredFreeze, buildBudgetMinutes = 60) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer, buildBudgetMinutes }));
     const done = submittedItem(board);
     const returned = submittedItem(board);
-    store.verify(board, returned, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Page', head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'the check fails', reopenFirstRefusalMinutes: 30 });
+    // A reject reopens to anyone (REJECT_OPEN_ENGINE); a failed landing still waits for its builder first.
+    verdictOn(board, returned, 'web-2', 'ACCEPT');
+    store.reopen(board, returned, { agentId: 'coordinator', reopenFirstRefusalMinutes: 30, note: `test/page.test.js: failed case; merge commit ${SHA_B}` });
     const dependency = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency] });
+    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency], expectedBuildMinutes: 45 });
     const spare = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const raw = lab.raw();
     holdByHand(raw, target, 'web-2');
@@ -965,7 +982,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web', retiredFreeze, 30), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
@@ -982,7 +999,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong, 'Release the spare fixture claim before checking the next guard.', undefined, 'OTHER');
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'ITEM_BUILD_BUDGET', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }
@@ -1155,8 +1172,9 @@ test('a reserved review refuses every other verdict while its lease lives, and o
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
   const dir = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-reserve-')));
   try {
+    // A fixture seat never inherits the running agent's session: it joins with its own declared model.
     const env = {
-      ...process.env,
+      ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:CLAUDE|CODEX)/u.test(key))),
       GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1',
       GIT_AUTHOR_NAME: 'Test Agent',
@@ -1168,7 +1186,10 @@ test('next --verify reserves the review for the reviewLease and says until when;
     };
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
-    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.
+    const sessions = new Map();
+    const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
+    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) }, encoding: 'utf8' });
     const repo = join(dir, 'repo');
     fs.mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');
@@ -1179,7 +1200,8 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const [builder, holder, other] = ['web-1', 'web-2', 'web-3'].map((name) => {
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
-      const joined = run(path, 'join', 'web');
+      // Each seat declares its model; the builder's family differs so its peers may review it.
+      const joined = run(path, 'join', 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });
@@ -1405,7 +1427,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
 });
 
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
-  const inDispatch = editedSource('cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
+  const inDispatch = editedSource('../apps/cli/src/shell/cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
