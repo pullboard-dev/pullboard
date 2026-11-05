@@ -5,6 +5,7 @@ import * as outbox from '../packages/outbox/index.js';
 import { context } from '../apps/cli/index.js';
 import { landAfterAcceptance } from '../apps/cli/index.js';
 import { resumeAutomaticLanding } from '../packages/landing/index.js';
+import { LANDING_BOARD_BUSY_MS } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import { isAbsolute } from 'node:path';
@@ -19,7 +20,9 @@ const FILE = fileURLToPath(import.meta.url);
 export function wakeIo(root) {
   return { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: process.stderr,
     replayConflictRecord: outbox.replay,
-    openBoard: (...args) => nativeBoard.openBoard(...args), nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
+    // The lander waits out a seat's long write instead of ending a landing at the board's default 10 s [C7].
+    openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
+    nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
     outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
     say: console.log, err: console.error };
 }
