@@ -92,7 +92,7 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
   box.git(box.repo, 'commit', '-qm', 'chore: captured worker policy');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const added = box.run(box.repo, 'add', 'web', 'Captured policy change', '--specs', 'G1',
-    '--criterion', 'The captured source check passes.', '--brief', 'Files:\n- web/snapshot.txt\nTest:\n- captured source check\n',
+    '--route', 'strong', '--criterion', 'The captured source check passes.', '--brief', 'Files:\n- web/snapshot.txt\nTest:\n- captured source check\n',
     '--check', `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`, '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
