@@ -22,7 +22,7 @@ function commitAs(box, cwd, session, path, message) {
   } finally { delete box.env.CODEX_SESSION_ID; }
 }
 
-test('clauses 1, 2 and 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
+test('clause 1; clause 2; clause 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
   const box = helpers.project();
   const session = 'hook-no-slot-2505';
   assert.equal(box.run(box.repo, 'add', 'web', 'Hook speed', '--specs', 'G1').code, 0);
