@@ -165,7 +165,9 @@ export function singleItemLanding(state) {
 
 /** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
 export function landingHooks(config) {
-  return landsPerItem(config) ? ['-c', 'core.hooksPath=/dev/null'] : [];
+  // Every landing commit is the board's own: the items' hooks ran when they were built, and a batch merge that ran the
+  // repository's commit-msg hook was refused for lacking a seat's claim (LAND_MERGE on #2721, 44 lander-minutes) [C7].
+  return ['-c', 'core.hooksPath=/dev/null'];
 }
 
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
