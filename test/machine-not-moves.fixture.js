@@ -12,9 +12,8 @@ export const SETUP_REFUSALS = {
   LAND_TIMEOUT_CUSTODY: 'a timed gate worker must prove cleanup; this is machine gate custody, not an item move',
   NO_SHOUT: 'looking up a shout that does not exist is a read, not an item move',
   PIPEFAIL_UNAVAILABLE: 'the gate shell must support pipefail before the gate runs, a machine setup check',
-  SEAL_REVISION: 'seal Git reads are machine test-selection setup, before any move',
-  SEAL_STALE: 'a test plan that skips sealed packages is checked while selecting tests, before any move',
-  SEAL_STORE: 'seals need a Git repository, a machine setup check before test selection',
+  // SEAL_REVISION and SEAL_STALE stay declared on submit, accept and reject; only the seal store lookup is pre-empted.
+  SEAL_STORE: 'selectTestTiers runs snapshotAt first, whose identical common-directory lookup refuses TEST_SELECTION_SOURCE before sealStoreFile',
   SUBMISSION_PROOF: 'the submission size and proof documents are validated when the gate records them, not by a verdict move',
   RUNNER_SETUP: 'a runner that cannot start the gate command is machine setup, not an item move',
   B26_PERSON_APPROVAL: 'person-only command authorization is checked before an item move',

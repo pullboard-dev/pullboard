@@ -20,7 +20,6 @@ export const MOVES = [
       { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },
       { code: 'SEAL_REVISION', rule: 'test selection reads an existing committed seal revision', next: 'restore the named Git revision and objects' },
       { code: 'SEAL_STALE', rule: 'every skipped package retains its current native seal receipt', next: 'run tests of unsealed packages and derive a fresh selection' },
-      { code: 'SEAL_STORE', rule: 'native test seals are read from the repository common directory', next: 'restore the repository Git metadata and seal storage' },
       { code: 'UNKNOWN_SPEC', rule: 'the submitted criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },
