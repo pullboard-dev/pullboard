@@ -102,7 +102,7 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
     others.push(path);
   }
   const added = box.run(box.repo, 'add', 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
-    '--brief', 'Files: test/next-constant-in-claims.test.js\nTest: the available work fixture remains open during the timing check', '--json');
+    '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const itemId = JSON.parse(added.out).item.item_id;
   const diagnosis = box.run(box.repo, 'fact', String(itemId), 'diagnosis',
