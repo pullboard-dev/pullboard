@@ -5,6 +5,12 @@ export const START_BATCH_SIZE = 4;
 export const MIN_BATCH_SIZE = 1;
 export const MAX_BATCH_SIZE = 16;
 
+/**
+ * How long the lander's own board connections wait for a busy board, in milliseconds. Why: seats hold the write lock
+ * for 10-12 s at times, and the board's default 10 s ended two landings in a row with a bare database-is-locked [C7].
+ */
+export const LANDING_BOARD_BUSY_MS = 60_000;
+
 /** Whether a recorded batch ended landed (true), ended held or bisected (false), or says nothing about redness (null). */
 export function batchOutcome(batch) {
   if (batch.dropped || batch.supersededByMain) return null;
