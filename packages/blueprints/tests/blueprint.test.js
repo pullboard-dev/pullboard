@@ -731,7 +731,7 @@ function emptyRepo() {
   return { dir, repo, run, runIn, env };
 }
 
-test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
+test('clause 1: init --blueprint starts a board from a blueprint [I1,S1]', () => {
   const waiting = PUBLISHED.rules.length + PUBLISHED.questions.length;
 
   // A known and a local blueprint are added together: init sets up the board once, and stores
