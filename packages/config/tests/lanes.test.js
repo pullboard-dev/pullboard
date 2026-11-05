@@ -473,7 +473,7 @@ function nativePlanRowFixture({ mainFile } = {}) {
   const indexPath = 'bin/cells-plan.json';
   const shardPath = 'bin/cells-plan/01-x.json';
   const index = { version: 1, stays: [], cells: [{ file: shardPath, name: 'x', order: 1 }] };
-  const shard = { order: 1, name: 'x', root: 'packages/x', paths: [] };
+  const shard = { order: 1, name: 'x', root: 'packages/x', paths: [], cuts: [] };
   mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   if (mainFile) writeFileSync(join(box.repo, mainFile), 'export {};\n');
