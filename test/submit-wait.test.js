@@ -137,7 +137,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
 /** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
 test('a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1',
+  assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
