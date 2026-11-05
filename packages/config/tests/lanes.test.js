@@ -448,7 +448,7 @@ test('a plan row for a file the item created before a reclaim is accepted while 
     mkdirSync(join(root, 'src'));
     writeFileSync(join(root, 'src/new.js'), 'export {};\n');
     planGit(root, 'add', '.');
-    planGit(root, 'commit', '-q', '-m', 'feat(x): new file [C7]', '-m', 'Pullboard-Item: #7');
+    planGit(root, 'commit', '-q', '-m', 'feat(x): new file [G1]', '-m', 'Pullboard-Item: #7');
     const own = planGit(root, 'rev-parse', 'HEAD');
     const row = [['src/new.js', 'packages/x/src/core/new.js', 'rule']];
     const change = (snapshot) => planRowChange('bin/cells-plan/01-x.json', {
@@ -459,7 +459,7 @@ test('a plan row for a file the item created before a reclaim is accepted while 
     mkdirSync(join(root, 'src'));
     writeFileSync(join(root, 'src/new.js'), 'export {};\n');
     planGit(root, 'add', '.');
-    planGit(root, 'commit', '-q', '-m', 'feat(y): same file landed on main [C7]');
+    planGit(root, 'commit', '-q', '-m', 'feat(y): same file landed on main [G1]');
     assert.equal(change(planGit(root, 'rev-parse', 'main')).allowed, false, 'present on main');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
@@ -502,7 +502,7 @@ function commitPlanRow(box, id, shardPath, source) {
   shard.paths.push([source, `packages/x/src/core/${source.slice('src/'.length)}`, 'rule']);
   writeFileSync(join(box.web, shardPath), JSON.stringify(shard, null, 2) + '\n');
   box.git(box.web, 'add', shardPath);
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): place owned new file [C7]', '-m', `Pullboard-Item: #${id}`);
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): place owned new file [G1]', '-m', `Pullboard-Item: #${id}`);
 }
 
 test('native submit accepts a plan row for an item file after reclaim and refreeze while main lacks it [L3,C7,#2108]', () => {
@@ -511,7 +511,7 @@ test('native submit accepts a plan row for an item file after reclaim and refree
   mkdirSync(join(box.web, 'src'), { recursive: true });
   writeFileSync(join(box.web, 'src/new.js'), 'export {};\n');
   box.git(box.web, 'add', 'src/new.js');
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): create planned source [C7]', '-m', `Pullboard-Item: #${id}`);
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): create planned source [G1]', '-m', `Pullboard-Item: #${id}`);
   const ownCommit = box.git(box.web, 'rev-parse', 'HEAD');
   const released = box.run(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'reclaim after the item source commit', '--json');
   assert.equal(released.code, 0, released.err + released.out);
@@ -528,9 +528,14 @@ test('native submit accepts a plan row for an item file after reclaim and refree
 });
 
 test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', () => {
-  const { box, shardPath } = nativePlanRowFixture({ mainFile: 'src/already-main.js' });
+  const { box, shardPath } = nativePlanRowFixture();
   const id = nativePlanRowItem(box, 'Refuse a plan row for a main file');
+  mkdirSync(join(box.web, 'src'), { recursive: true });
+  writeFileSync(join(box.web, 'src/already-main.js'), 'export {};\n');
   commitPlanRow(box, id, shardPath, 'src/already-main.js');
+  box.git(box.repo, 'add', 'src/already-main.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: add the source to main');
+  box.git(box.web, 'merge', '-q', 'main');
   const refused = box.run(box.web, 'submit', String(id), '--json');
   assert.equal(refused.code, 1, refused.err + refused.out);
   const error = JSON.parse(refused.out).error;
