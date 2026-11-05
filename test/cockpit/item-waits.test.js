@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { addItem, closeBoard, completeCheckBaseline } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, press } from './fixture.js';
 import { assertFirstStateDelay } from './stable.js';
 
@@ -30,25 +30,24 @@ test('wait references stay on one line and link to every prerequisite at phone a
     };
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     await assertFirstStateDelay(chrome, t);
+    // Pages open on the Dashboard and draw only the chosen tab, so click Items as a person would.
+    await click('[data-tab="items"]');
+    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .meta .gate')?.getBoundingClientRect().width > 0`);
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain [data-item="3"] .stage-detail')?.getBoundingClientRect().width > 0`);
       await click('#chain [data-item="1"] .t');
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Prerequisite one')");
       const itemIds = await chrome.stable('data.project.items.map(item => item.id + ":" + item.title + ":" + item.blockedBy.join(","))');
       assert.ok(await chrome.stable('!!document.querySelector(\'#chain [data-item="3"]\')'), `${width}: blocked item appears among ${itemIds.join('; ')}`);
+      // The row now names the native Gated stage and its first prerequisite; every prerequisite link lives in the detail below.
       const list = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const gate=document.querySelector('#chain [data-item="3"] .meta .gate');
-        const lineHeight=e=>parseFloat(getComputedStyle(e).lineHeight);
-        const neighbors=[...gate.parentElement.children].filter(e=>e!==gate).map(lineHeight).filter(Number.isFinite);
-        const units=[...gate.querySelectorAll('.wait-unit')];
-        return {height:gate.getBoundingClientRect().height,neighborHeight:Math.max(...neighbors),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),links:[...gate.querySelectorAll('a.ref[data-go]')].map(link=>link.dataset.go)};
+        const row=document.querySelector('#chain [data-item="3"]');
+        const word=row.querySelector('.stage-word'), detail=row.querySelector('.stage-detail');
+        return {stage:word.textContent,detail:detail.textContent};
       })())`));
-      t.diagnostic(`${width}px list wait marker: ${list.height}px tall, neighboring metadata line ${list.neighborHeight}px`);
-      assert.ok(list.height <= list.neighborHeight + 1, `${width}: list reference matches neighboring metadata height: ${JSON.stringify(list)}`);
-      assert.deepEqual(list.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each list prerequisite stays intact`);
-      assert.equal(new Set(list.unitY).size, 1, `${width}: both list prerequisites fit on one line: ${JSON.stringify(list)}`);
-      assert.deepEqual(list.links, ['item:1', 'item:2'], `${width}: every prerequisite is a link`);
+      assert.equal(list.stage, 'Gated', `${width}: the blocked row shows the Gated stage`);
+      assert.equal(list.detail, 'by #1', `${width}: the Gated row names a prerequisite`);
 
       await click('#chain [data-item="3"] .t');
       await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");

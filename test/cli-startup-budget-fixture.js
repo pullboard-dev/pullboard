@@ -8,7 +8,8 @@ import { tmpdir, loadavg, cpus } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
+import { itemProgress } from '../packages/roadmap/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 
@@ -83,7 +84,7 @@ export async function assertStartupBudgets(t) {
       ineligible:authors.map(agent=>({agent,code:'SELF_VERIFY',
         rule:'[SELF_VERIFY] the builder never verifies its own work; another agent must'}))};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
-      thread:store.itemThread(board,4),checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
+      thread:store.itemThread(board,4),progress:itemProgress(board,4),checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples={version:[],show:[],status:[],list:[]};
     const childEnvironment={...process.env,PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
@@ -95,7 +96,8 @@ export async function assertStartupBudgets(t) {
       assert.equal(result.status,0,`${name} round ${round}: ${result.error?.message ?? result.stderr ?? result.stdout}`);
       const data=JSON.parse(result.stdout);
       assert.equal(data.version,1);
-      if(name==='show') assert.deepEqual(data,expectedShow,'the complete item, verdicts and thread survive the startup optimization');
+      // Idle minutes are read from the clock, so only that one field follows the wall time; every other progress field is exact.
+      if(name==='show') assert.deepEqual({...data,progress:{...data.progress,idleMinutes:expectedShow.progress.idleMinutes}},expectedShow,'the complete item, verdicts and thread survive the startup optimization');
       if(name==='status') assert.equal(data.stats.items.submitted,10);
       if(name==='list') {
         assert.equal(data.items.length,1000);

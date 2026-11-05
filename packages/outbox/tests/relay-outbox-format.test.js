@@ -18,7 +18,10 @@ import {
   readOutbox,
   writeOutbox,
 } from '../src/shell/relay-outbox.js';
-import { runFixtureGit } from '../../../test/fixture-child.js';
+import {
+  runFixtureExecFile,
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OLD = '876df36c23a63993b371d4d85b9cf3b54f8ed38d';
@@ -26,12 +29,12 @@ const OLD = '876df36c23a63993b371d4d85b9cf3b54f8ed38d';
 test('legacy numeric outboxes remain readable and an old reader refuses new result bindings [B26,H16,H17]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-outbox-format-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const source = runFixtureGit(['show', `${OLD}:src/relay-outbox.js`], { cwd: ROOT });
-  // Relocate imports only; the complete accepted old module and its read function remain otherwise unchanged.
-  const relocated = source.replace(/from '(\.\/[^']+)'/gu,
-    (_, specifier) => `from '${new URL(specifier, new URL('../../../src/relay-outbox.js', import.meta.url)).href}'`);
-  const oldModule = join(directory, 'old-outbox.mjs');
-  writeFileSync(oldModule, relocated);
+  // The accepted old source tree is unpacked whole, so its own imports resolve inside it and not against the moved cells.
+  const archive = join(directory, 'old-src.tar');
+  runFixtureGit(['archive', '-o', archive, OLD, 'src'], { cwd: ROOT });
+  runFixtureExecFile('tar', ['-xf', archive, '-C', directory]);
+  writeFileSync(join(directory, 'package.json'), '{"type":"module"}');
+  const oldModule = join(directory, 'src', 'relay-outbox.js');
   const old = await import(pathToFileURL(oldModule).href);
   const file = join(directory, 'outbox.sealed');
   const key = randomBytes(32);

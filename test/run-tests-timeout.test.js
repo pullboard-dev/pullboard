@@ -138,7 +138,7 @@ test('busy target [C7,V10]', () => { while (true) {} });
     PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'stalled.test.js': 1500 }) });
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "busy target \[C7,V10\]"/gu) ?? []).length, 1, output);
+  assert.equal((output.match(/TIMEOUT file .*stalled\.test\.js.*slowest running case "busy target \[C7,V10\] \(running/gu) ?? []).length, 1, output);
   assert.match(output, /whole-file wall limit 1500ms/u);
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
 });

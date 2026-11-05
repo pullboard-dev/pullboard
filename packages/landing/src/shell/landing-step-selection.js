@@ -2,7 +2,10 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../items/index.js';
 import { landingChangedFiles } from '../core/land-collisions.js';
+import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
+import { landingBatchSize } from '../core/landing-batch-size.js';
+import { roundFailures } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -50,8 +53,8 @@ export function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts } = {}) {
-  const all = store.listItems(board, { all: true });
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems } = {}) {
+  const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
   const order = new Map();
@@ -59,7 +62,15 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
+  // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
+  // picking take turns and cannot starve the queue (#2911).
+  const failed = roundFailures(batches);
   pending.sort((left, right) => {
+    if (failed.has(left.item_id) || failed.has(right.item_id)) {
+      if (!failed.has(left.item_id)) return -1;
+      if (!failed.has(right.item_id)) return 1;
+      if (failed.get(left.item_id) !== failed.get(right.item_id)) return failed.get(left.item_id) - failed.get(right.item_id);
+    }
     const leftPriority = priorities.get(left.item_id);
     const rightPriority = priorities.get(right.item_id);
     if (leftPriority !== undefined || rightPriority !== undefined) {
@@ -74,6 +85,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const touched = new Map();
   const knownReds = batches.flatMap((batch) => batch.culprits ?? []);
   for (const original of pending) {
+    // A held verified item keeps its accept but joins no batch until the hold is lifted.
+    if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
     const stale = projector.state(item);
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
@@ -83,6 +96,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
       blocked.push({ id: item.item_id, code: 'LAND_KNOWN_RED', tests: known.tests });
       continue;
     }
+    const retried = runnerSourceHold(batches, item, base);
+    if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
     if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
     const stacked = store.unverifiedSubmissions(board).find((other) => other.item_id !== item.item_id
@@ -109,6 +124,44 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   return { ready, blocked };
 }
 
+/**
+ * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
+ * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
+ */
+export function landsPerItem(config) {
+  return config?.landing?.perItem !== false && config?.landing?.parallel !== true;
+}
+
+/** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
+export function perItemMaximum(config, maximum = Infinity) {
+  return landsPerItem(config) ? 1 : maximum ?? Infinity;
+}
+
+/**
+ * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
+ * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
+ * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ */
+export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
+  if (landsPerItem(config)) return 1;
+  const override = store.lineSettings(board).landingBatchSize;
+  if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
+  return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));
+}
+
+/**
+ * Whether this landing batch is one per-item landing: a red, conflict or refusal is then that item's alone, so it goes
+ * back to open with the evidence instead of a bisection, a main comparison or a trunk hold [C7,#2901].
+ */
+export function singleItemLanding(state) {
+  return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
+/** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
+export function landingHooks(config) {
+  return landsPerItem(config) ? ['-c', 'core.hooksPath=/dev/null'] : [];
+}
+
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
 export function idleLanding(board, trunk) {
   const lease = landingLeaseState(board);
@@ -122,6 +175,6 @@ export function idleLanding(board, trunk) {
 export function emptyLanding(selected, say) {
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
-  for (const entry of selected.blocked) say(`${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}`);
+  for (const entry of selected.blocked) say(`${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
   return { batch: null, landed: [], conflicts: [], blocked: selected.blocked, culprits: [], flakes: [] };
 }

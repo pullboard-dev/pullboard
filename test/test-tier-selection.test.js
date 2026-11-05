@@ -40,7 +40,7 @@ function fixture(t) {
   const box = helpers.project('node --test --test-reporter=tap');
   delete box.env.NODE_TEST_CONTEXT; // Each private Node test runner is independent of this parent test.
   const config = { ...helpers.CONFIG, gate: 'node --test --test-reporter=tap', affectedTests: 'node --test --test-reporter=tap',
-    submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { manualOverride: true, publish: 'separate', parallel: false },
+    submitGate: 'landing', submitInvariants: [], registryGuards: [], landing: { perItem: false, manualOverride: true, publish: 'separate', parallel: false },
     lanes: { ...helpers.CONFIG.lanes, web: { owns: ['packages/', 'test/'], specs: ['G1'] } } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -170,6 +170,26 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
 });
 
+
+test('control: a contract that reaches main after submit still runs at landing and blocks a change that breaks it [C7,CS4,V4]', t => {
+  const box = fixture(t), entry = build(box, 'alpha', 2);
+  const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
+  assert.deepEqual(submitted.gate.files, ['test/alpha.test.js'], 'the submit proof predates the contract');
+  accept(box, entry);
+  mkdirSync(join(box.repo, 'packages/alpha/contract'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/alpha/contract/door.test.js'), `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
+import { n } from '../index.js';
+test('alpha keeps its front door value [G1]', () => { appendFileSync(${JSON.stringify(join(box.dir, 'contract.log'))}, 'contract:' + JSON.stringify(n) + '\\n'); assert.equal(n, 1); });
+`);
+  writeTestTiers(box.repo);
+  commit(box, box.repo, 'test: alpha front door keeps its value [G1]');
+  const landed = json(box, box.repo, 'land', '--max', '1');
+  assert.deepEqual(landed.landed, [], JSON.stringify(landed));
+  assert.ok(calls(box, 'contract').includes('contract:2'), 'landing ran the new contract on the merged tree');
+  assert.ok(!json(box, box.repo, 'show', String(entry.id)).item_merged_commit, 'the change that breaks the contract never lands');
+});
 
 test('a runner that ignores selected units cannot report a false green [C7,V4]', t => {
   const box = fixture(t);

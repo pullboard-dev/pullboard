@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-/** @pullboard-test-loads relay/browser-passkeys.js relay/browser-client.js relay/passkeys.js src/person-signing.js test/person-trusted-cli.js */
+/** @pullboard-test-loads apps/relay/src/shell/browser-passkeys.js apps/relay/src/shell/browser-client.js apps/relay/src/shell/passkeys.js src/person-signing.js test/person-trusted-cli.js */
 /** A real browser passkey confirms a person move a terminal started, with the person present, once [E22,H16]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

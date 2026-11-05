@@ -2,6 +2,7 @@
 import { Refused } from '../../../kernel/core.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../../../../src/known-main-failures-engine.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from '../../../../src/known-main-reworks-engine.js';
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../src/known-main-running-file-engine.js';
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -32,7 +33,8 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   const known = value.knownMainFailures;
   if (known !== undefined && (engine < KNOWN_MAIN_FAILURES_ENGINE || !known || !COMMIT.test(known.main ?? '')
     || !Array.isArray(known.failures) || !known.failures.length || known.failures.some(row => !projectFile(row?.file)
-      || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !/^[a-f0-9]{64}$/u.test(row.signature ?? '')))) {
+      || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !/^[a-f0-9]{64}$/u.test(row.signature ?? '')
+      || row.ran !== undefined && (engine < KNOWN_MAIN_RUNNING_FILE_ENGINE || !projectFile(row.ran))))) {
     throw new Refused('SUBMISSION_PROOF', 'known main failures need their exact main commit, project test files, names and failure signatures on a supporting engine');
   }
   if (known && known.failures.some(row => engine >= KNOWN_MAIN_REWORKS_ENGINE
@@ -41,7 +43,7 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
-    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item }) => ({ file, name, signature,
-      ...(item === undefined ? {} : { item }) })) } } : {}) };
+    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran }) => ({ file, name, signature,
+      ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}) };
 }
 

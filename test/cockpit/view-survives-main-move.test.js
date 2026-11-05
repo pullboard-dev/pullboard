@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import { machine, project } from './fixture.js';
 
 /** Wait for this exact native CLI child to publish its private view link. */

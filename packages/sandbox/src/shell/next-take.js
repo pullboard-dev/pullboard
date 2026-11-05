@@ -8,7 +8,7 @@ import {
   mainRedBuildRouting,
 } from '../../../store/index.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   dispatchWork,
 } from '../../../store/index.js';
@@ -31,14 +31,14 @@ function selected(ctx, board, values, services) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
-  const mandatory = store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
+  // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
+  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id);
+  const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
-  if (mandatory?.mandatory && !store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id)) {
-    return { item: mandatory.item, review: true, held: false, reasons: [] };
-  }
+  if (mandatory?.mandatory) return { item: mandatory.item, review: true, held: false, reasons: [] };
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return { item: routing.item, reasons: routing.reasons, review: false, held: false };
     return { ...routing, review: false, held: false };
@@ -46,7 +46,8 @@ function selected(ctx, board, values, services) {
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
-    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board)),
+    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
+    releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
   });
 }
 
@@ -56,7 +57,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     const me = whoAmI(ctx, board);
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
-      workingFiles: claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
+      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   });
 }
 
@@ -64,47 +65,65 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
-  const looked = withBoardRead(ctx, board => selected(ctx, board, values, services));
+  // Select once, on the read snapshot; the write runs only the chosen item's own guards (#2978).
+  const { me, ...looked } = withBoardRead(ctx, board => ({ ...takeSelection.selected(ctx, board, values, services), me: whoAmI(ctx, board) }));
   if (looked.releaseRequest) {
-    const me = withBoardRead(ctx, board => whoAmI(ctx, board));
     if (looked.releaseRequest.seat !== me.id) return looked;
-    await withBoard(ctx, async board => {
-      const fresh = selected(ctx, board, values, services);
-      if (fresh.releaseRequest?.seat !== me.id || fresh.releaseRequest.item !== looked.releaseRequest.item) return;
-      await ordered(ctx, board, 'release', [fresh.releaseRequest.item, me.id,
-        `Waiting claim preempted for urgent #${fresh.item.item_id}; source remains in its worktree`, undefined, 'ROUTED_ELSEWHERE']);
-    });
+    try {
+      await withBoard(ctx, board => ordered(ctx, board, 'release', [looked.releaseRequest.item, me.id,
+        `Waiting claim preempted for urgent #${looked.item.item_id}; source remains in its worktree`, undefined, 'ROUTED_ELSEWHERE']));
+    } catch (error) {
+      // The waiting claim changed since the read; the retry selects again.
+      if (!(error instanceof Refused)) throw error;
+    }
     return { retry: true, retryDetail: { phase: 'urgent preemption', item: looked.item.item_id, code: 'WAITING_CLAIM_RELEASED' } };
   }
   if (!looked.item || looked.buildOffer || looked.held && !looked.review) return looked;
+  if (!looked.review && (looked.item.item_lane !== me.lane || !store.ROUTES.includes(me.route)
+    || !store.ROUTES.includes(looked.item.item_route) || !store.canTake(me.route, looked.item.item_route)))
+    return { reasons: [`#${looked.item.item_id} is available in ${looked.item.item_lane} on the ${looked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
   return await withBoard(ctx, async board => {
-    const picked = selected(ctx, board, values, services);
-    const me = whoAmI(ctx, board);
-    if (picked.buildOffer || picked.releaseRequest || picked.held && !picked.review || !picked.item) return picked;
-    ctx.io.nextPhase?.(picked.review ? 'review reservation' : 'claim', picked.item.item_id);
-    if (picked.review) {
-      const reviewed = await nextReview(ctx, board, me, values, {
-        ordered: (operation, args) => ordered(ctx, board, operation,
-          operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
-        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
-      });
-      // Conflict preflight may have returned the selected review; re-read eligibility before building.
-      return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: picked.item.item_id, code: 'NO_REVIEW_RESERVED' } };
+    ctx.io.nextPhase?.(looked.review ? 'review reservation' : 'claim', looked.item.item_id);
+    if (looked.review) {
+      let reviewed;
+      try {
+        reviewed = await nextReview(ctx, board, me, { ...values, verifyId: looked.item.item_id }, {
+          ordered: (operation, args) => ordered(ctx, board, operation,
+            operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
+          listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+        });
+      } catch (error) {
+        // Another reviewer, a conflict return or a cooldown changed the chosen review; the retry selects again.
+        if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN'].includes(error.code)) return { retry: true, retryDetail: { phase: 'review reservation', item: looked.item.item_id, code: error.code } };
+        throw error;
+      }
+      return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: looked.item.item_id, code: 'NO_REVIEW_RESERVED' } };
     }
     try {
-      await claimOrdered(ctx, board, [picked.item.item_id, {
+      await claimOrdered(ctx, board, [looked.item.item_id, {
         agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
         freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
     } catch (error) {
-      if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: picked.item.item_id, rows: error.rows } };
+      if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
       // A peer taking the selected item is a normal queue race; a held-seat refusal stays actionable.
-      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: picked.item.item_id, code: error.code, message: error.message } };
+      if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: looked.item.item_id, code: error.code, message: error.message } };
       throw error;
     }
-    return { ...picked, item: store.getItem(board, picked.item.item_id), review: false };
+    return { ...looked, item: store.getItem(board, looked.item.item_id), review: false };
   });
 }
+
+/**
+ * The selection seam of next --take: it selects once per loop, and tests count these calls (#2978).
+ * Each entry forwards to the real board selection.
+ */
+export const takeSelection = {
+  /** Resolve this seat's work on one board snapshot. */
+  selected: (ctx, board, values, services) => selected(ctx, board, values, services),
+  /** Offer one review to this seat. */
+  reviewOffer: (board, who) => store.reviewOffer(board, who),
+};
 
 /** Bound active routing retries while yielding so native progress and peer work can run [C7,1811]. */
 export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetries = 16, now = () => performance.now(), monitor = null } = {}) {

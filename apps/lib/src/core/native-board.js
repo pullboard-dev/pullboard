@@ -4,7 +4,7 @@ import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
-} from '../../../../src/gate-submit.js';
+} from '../../../../packages/gate/index.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
@@ -48,7 +48,7 @@ import {
   gateRuns,
   recordGateRun,
   requireBound,
-} from '../../../../src/quarantine.js';
+} from '../../../../packages/flakes/index.js';
 import {
   sealKnownMainAutofile,
   receiptFields,
@@ -94,7 +94,7 @@ import {
 import {
   flakeLedger,
   recordFlakeObservation,
-} from '../../../../src/flakes.js';
+} from '../../../../packages/flakes/index.js';
 import {
   personProposals,
   personSigning,
@@ -267,7 +267,7 @@ import {
 
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
-import * as self from '../../../../src/native-board.js';
+import * as self from './native-board.js';
 import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
@@ -350,9 +350,9 @@ export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(
 }
 
 /** Give native read consumers the same capabilities without migrating or changing the light CLI read path. */
-export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts() } = {}) {
+export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts(), connection = null } = {}) {
   const runtimePorts = freezeRuntimePorts(ports);
-  const board = readBoard(file, clock);
+  const board = readBoard(file, clock, { connection });
   return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
 }
 
@@ -368,8 +368,8 @@ export function recordRowVerification(board, options) { return applyRowVerificat
 /** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
 export { advanceItemSource } from '../../../../packages/sandbox/index.js';
 export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from '../../../../packages/sentinels/index.js';
-export { flakeLedger, recordFlakeObservation } from '../../../../src/flakes.js';
-export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../src/quarantine.js';
+export { flakeLedger, recordFlakeObservation } from '../../../../packages/flakes/index.js';
+export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../packages/flakes/index.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../packages/person/index.js';
 export { recordPublishFinding } from '../../../../packages/github/index.js';
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../../../../packages/landing/index.js';

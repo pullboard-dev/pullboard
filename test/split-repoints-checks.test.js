@@ -9,9 +9,9 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { ENGINE_REGISTRY, ENGINE_VERSION } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 import { prepareTrainLanding, prepareNativeTrainLanding } from '../packages/landing/index.js';
 import { recordTrainLanding } from '../packages/landing/index.js';
@@ -79,7 +79,7 @@ test('a split train landing repoints open and claimed checks and reports submitt
     const configPath = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config,
-      landing: { manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+      landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
     box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/legacy.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();

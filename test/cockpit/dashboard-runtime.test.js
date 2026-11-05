@@ -1,7 +1,7 @@
 /** Runtime contract controls reject incomplete history; the neighboring HTTP/Chrome cases prove real transport [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardRuntime } from '../../src/view/dashboard-runtime.js';
+import { dashboardRuntime } from '../../apps/view/index.js';
 
 /** Drain only the already queued read-promise callbacks, without a timer or absence assertion. */
 async function delivered() { for (let index = 0; index < 6; index++) await Promise.resolve(); }

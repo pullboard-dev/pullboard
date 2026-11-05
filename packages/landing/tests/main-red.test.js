@@ -38,7 +38,7 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     `import { matchingMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-failure-matches.js')).href)};`,
     `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href)};`,
-    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate-run-receipt.js')).href)};`,
+    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
     "const profile = {tests:[{file:'test/inherited.test.js',passed:false}, ...(mode === 'recorded-mixed' ? [{file:'test/new-red.test.js',passed:false}] : [])]};",
     'const environment = executionEnvironment();',
@@ -59,26 +59,29 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   const common = runFixtureGit(['rev-parse', '--path-format=absolute', '--git-common-dir'],
     { cwd: box.root, env: box.env }).trim();
   const cachePath = join(common, 'pullboard/main-red.json');
-  const cacheBefore = readFileSync(cachePath, 'utf8');
+  // Pinned runs share only content records keyed by their executor and runtime; the generic commit entry is never theirs (#3166).
+  const genericAt = () => JSON.stringify(JSON.parse(readFileSync(cachePath, 'utf8')).entries[cached.main]);
+  const cacheBefore = genericAt();
   const callsBefore = runCount(box);
   assert.equal(run('matching').files[0].result, 'red');
   assert.ok(runCount(box) > callsBefore, 'a pinned comparison executes rather than reusing generic evidence');
-  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'pinned evidence does not alter the generic cache');
+  assert.equal(genericAt(), cacheBefore, 'pinned evidence does not alter the generic commit entry');
   const beforeRecorded = runCount(box);
   assert.equal(run('recorded').files[0].result, 'red');
   assert.equal(runCount(box), beforeRecorded + 1, 'a retained native comparison is reused without another main run');
   const beforeAltered = runCount(box);
   assert.equal(run('recorded-altered').files[0].result, 'red');
-  assert.equal(runCount(box), beforeAltered + 2, 'altered event evidence cannot avoid a fresh comparison');
+  // The altered receipt claims green; the red result shows it was refused, and the exact pinned content record served (#3166).
+  assert.equal(runCount(box), beforeAltered, 'altered event evidence is never used; the pinned content record answers without a run');
   const beforeMixed = runCount(box);
   const mixed = run('recorded-mixed');
   assert.equal(mixed.oldMatches, true, 'the inherited case is accounted for');
   assert.equal(mixed.bothMatch, false, 'a new head failure remains blocking');
-  assert.equal(runCount(box), beforeMixed + 2, 'both recorded main files are reused without another run');
+  assert.equal(runCount(box), beforeMixed + 1, 'only the file never measured on this runtime runs; both are then reused without another run');
   const mismatch = run('mismatch');
   assert.deepEqual(mismatch.files, []);
   assert.match(mismatch.unavailable, /exact runtime/u);
-  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'a runtime mismatch cannot publish generic evidence');
+  assert.equal(genericAt(), cacheBefore, 'a runtime mismatch cannot publish generic evidence');
   const beforeUnknown = runCount(box);
   const unknown = run('unknown');
   assert.deepEqual(unknown.files, []);
@@ -110,7 +113,7 @@ function commit(root, env, subject = 'chore: fixture state') {
   return runFixtureGit(['rev-parse', 'HEAD'], { cwd: root, env }).trim();
 }
 
-/** Count real runner calls separately from the bar-baseline calls made while defining items. */
+/** Count gate and main-comparison runner calls; item-check runs, including add's baselines, are not logged. */
 function runCount(box) {
   return existsSync(box.env.MAIN_RED_RUNS) ? readFileSync(box.env.MAIN_RED_RUNS, 'utf8').trim().split('\n').length : 0;
 }
@@ -154,7 +157,8 @@ function fixture(t, { spec, source, affectedTests = 'node test/runner.js', repor
   put(root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",
     "import { spawnSync } from 'node:child_process';",
-    "if (process.env.MAIN_RED_RUNS) appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
+    // The item check marks its own runs; only gate and main-comparison runs are counted (#2349).
+    "if (process.env.MAIN_RED_RUNS && process.env.MAIN_RED_STAGE !== 'check') appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
     "const files = process.argv.slice(2).length ? process.argv.slice(2) : ['test/inherited.test.js'];",
     `const result = spawnSync(process.execPath, ['--test', ...${JSON.stringify(reporter ? [`--test-reporter=${reporter}`] : [])}, ...files], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });`,
     "if (result.stdout) process.stdout.write(result.stdout);",
@@ -171,7 +175,10 @@ function addItems(box, rows) {
     const file = { G1: 'test/inherited.test.js', G2: 'test/unrelated.test.js', G3: 'test/earlier.test.js', G4: 'test/middle.test.js' }[specId];
     const result = cli(box.root, box.env, 'add', 'core', title, '--specs', specId, '--route', route,
       // These recovery cases exercise an unsatisfied item check; the extra failing stage keeps it unaccountable as a known main red (known-main-frozen.test.js covers the accountable case).
-      '--criterion', title, '--check', 'node test/runner.js; exit 1', '--brief', `Files: ${file}\nTest: ${title}`);
+      // The submit gate now runs the proof after a red item check, and add runs each check on main as a baseline. Both invoke
+      // the same runner, so the check marks its runs (MAIN_RED_STAGE=check) and the counts below see only gate and main runs;
+      // --wait still lets each baseline finish before anything is counted (#2349).
+      '--criterion', title, '--check', 'MAIN_RED_STAGE=check node test/runner.js; exit 1', '--brief', `Files: ${file}\nTest: ${title}`, '--wait');
     assert.equal(result.code, 0, result.err || result.out);
     return Number(/^#(\d+)$/mu.exec(result.out)?.[1]);
   });
@@ -198,6 +205,14 @@ function inheritedMessage(result, { row, item, testFile = 'test/inherited.test.j
   } else {
     assert.doesNotMatch(result.err, /approved row|open rework #\d+/u);
   }
+}
+
+/**
+ * Drop the commit-time scope notices ("#4 may be out of scope: #1 names ...") from a refusal. Why: they name other
+ * items by the files their briefs list, which says nothing about which item owns an inherited red.
+ */
+function withoutScopeNotices(text) {
+  return text.split('\n').filter(line => !/^#\d+ may be out of scope: /u.test(line)).join('\n');
 }
 
 const RED_SPEC = [
@@ -237,8 +252,8 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite');
   const driver = join(box.directory, 'cpu-browser-driver.mjs');
   writeFileSync(driver, [
-    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)}`,
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)}`,
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     "import { existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",
@@ -460,7 +475,7 @@ test('a red with unreadable failure files says why main was not checked [V1]', t
   const box = fixture(t, { spec: RED_SPEC, source: FAILING_TEST });
   put(box.root, 'test/runner.js', [
     "import { appendFileSync } from 'node:fs';",
-    "appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
+    "if (process.env.MAIN_RED_STAGE !== 'check') appendFileSync(process.env.MAIN_RED_RUNS, `${process.cwd()}\\n`);",
     "console.error('A runner failed without a failure-file report.');",
     "console.error('test at test/inherited.test.js:3:1');",
     'process.exitCode = 1;',
@@ -590,7 +605,7 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     commit(submitter.root, box.env, 'test(core): select ambiguous inherited red [G3]');
     const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to check ambiguous inherited row ownership');
     inheritedMessage(red);
-    assert.doesNotMatch(red.err, new RegExp(`#${first}|#${second}`, 'u'));
+    assert.doesNotMatch(withoutScopeNotices(red.err), new RegExp(`#${first}|#${second}`, 'u'));
     assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--reason', 'Arrange fixture release', '--items', String(earlier)).code, 0);
     assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--reason', 'Arrange fixture release', '--items', `${first},${second}`).code, 0);
     const next = builder(box).run('next', '--json');
@@ -620,7 +635,7 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     commit(submitter.root, box.env, 'test(core): select multiply-owned inherited red [G2]');
     const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to check multiple inherited rework owners');
     inheritedMessage(red);
-    assert.doesNotMatch(red.err, new RegExp(`#${first}|#${second}`, 'u'));
+    assert.doesNotMatch(withoutScopeNotices(red.err), new RegExp(`#${first}|#${second}`, 'u'));
     const next = builder(box).run('next', '--json');
     assert.equal(next.code, 0, next.err);
     assert.equal(JSON.parse(next.out).item.item_id, earlier, 'several open owners leave next in its original milestone order');

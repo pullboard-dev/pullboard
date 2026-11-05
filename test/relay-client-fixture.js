@@ -34,10 +34,10 @@ import {
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createRelayAuth } from '../relay/auth.js';
-import { createRelayHandler } from '../relay/service.js';
-import { createGitHubClient } from '../relay/github.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
 import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';

@@ -8,6 +8,12 @@ import {
 import {
   scheduleMainAudit,
 } from './main-audit-scheduler.js';
+import { mainCommitJob } from './main-audit-commits.js';
+import {
+  attributeAuditFailures,
+  auditRegressionNote,
+  fileAuditRegressions,
+} from './main-audit-attribution.js';
 /** Finite exact-source main audits, one native admitted run at a time [C7,H16]. */
 import {
   execFileSync,
@@ -112,7 +118,7 @@ function ownerLive(owner) {
       .split('\n').some(value => Number(value.trim()) === owner.pid);
   } catch { return true; }
 }
-/** Build obligations only from genuinely landed receipts whose tip is on actual local main. */
+/** Build obligations from landed batches on local main, then main's own tip however it moved. */
 function snapshot(root, info, activation, openBoardForRead) {
   return readBoard(info, board => {
     const boardId = store.boardId(board);
@@ -133,8 +139,16 @@ function snapshot(root, info, activation, openBoardForRead) {
         items: batch.items.map(entry => ({ id: entry.id, lane: store.getItem(board, entry.id).item_lane })) };
       jobs.set(mainAuditKey(job), job);
     }
+    const tipJob = mainCommitJob({ git, store }, root, board, mainAuditDirectory(info), activation, [...jobs.values()]);
+    if (tipJob) jobs.set(mainAuditKey(tipJob), tipJob);
     return [...jobs.values()];
   }, openBoardForRead);
+}
+/** The audit jobs queued now for an activated main checkout; an unactivated one has none [C7]. */
+export function mainAuditJobs(root, openBoardForRead) {
+  const info = repoInfo(root);
+  const activation = readMainAudit(join(mainAuditDirectory(info), 'activation.json'));
+  return activation ? snapshot(root, info, activation, openBoardForRead) : [];
 }
 /** Publish one ordinary coordinator notice for an incomplete job; failures retain the need to notify. */
 async function notifyIncomplete(file, job, reason, write) {
@@ -146,16 +160,36 @@ async function notifyIncomplete(file, job, reason, write) {
   await write('appendFact', [itemId, { agentId: 'coordinator', kind: 'measurement', text }]);
   saveMainAudit(file, { ...saved, noticeRecorded: true });
 }
-/** Route every file and named assertion using the normal existing defect operation. */
-async function routeFailures(source, job, receipt, config, write, sinceEventId, openBoardForRead) {
+/**
+ * Route every failing file of one audit through the same last-green..tip attribution.
+ *
+ * Why: a test that passed in the last green audit was broken by the items whose `Pullboard-Item` trailers
+ * sit in that range, so its repair goes to their lane, never to the test owner's lane, whether main moved
+ * by a landed batch or by a plain commit. A landed batch keeps the native defect record, which carries its
+ * landing provenance, escape count and dedupe, and gains a note naming both tips and the suspects. A file
+ * with no green audit to attribute from keeps the ownership route; a main-commit job has no batch for it.
+ */
+export async function routeAuditFailures(source, job, receipt, config, write, sinceEventId, openBoardForRead) {
+  const read = action => readBoard(repoInfo(source), action, openBoardForRead);
+  const directory = mainAuditDirectory(repoInfo(source));
   const files = [...new Set(receipt.failures.map(failure => failure.file))];
+  if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
+  if (job.source === 'main-commits') {
+    const filed = await fileAuditRegressions({ git, store, read, write }, source, directory, job, receipt.failures);
+    const unrouted = files.filter(file => !filed.some(row => row.test === file));
+    if (unrouted.length) throw new Error(`main audit failures have no green audit to attribute from: ${unrouted.join(', ')}`);
+    return;
+  }
+  const regressions = read(board => attributeAuditFailures({ git, store }, source, board, directory, job, receipt.failures));
   for (const file of files) {
     const bytes = git(source, ['show', `${job.tip}:${file}`], null);
     const blob = git(source, ['rev-parse', `${job.tip}:${file}`]).trim();
     let trunkBlob = null;
     try { trunkBlob = git(source, ['rev-parse', `${job.base}:${file}`]).trim(); } catch { /* A new file has no parent blob. */ }
-    const owner = laneOf(config, file);
-    const lane = owner === 'coordinator' ? job.items[0]?.lane : owner;
+    const regression = regressions.find(row => row.test === file), owner = laneOf(config, file);
+    // A trailer item names the suspect; a batch with no trailers still names the items it landed.
+    const lane = regression ? (regression.items.length ? regression.lane : job.items[0]?.lane ?? regression.lane)
+      : owner === 'coordinator' ? job.items[0]?.lane : owner;
     if (!lane) throw new Error(`main audit has no legitimate repair lane for ${file}`);
     const names = [...new Set(receipt.failures.filter(failure => failure.file === file).map(failure => failure.name))];
     // Existing native operation's bounded names limit is authoritative; oversized routing remains incomplete.
@@ -167,8 +201,17 @@ async function routeFailures(source, job, receipt, config, write, sinceEventId, 
       || !readBoard(repoInfo(source), board => ['open', 'claimed', 'submitted'].includes(store.getItem(board, defect.item).item_status), openBoardForRead)) {
       throw new Error(`main audit repair route is not open for ${file}`);
     }
+    if (regression) await noteRegression(read, write, defect.item, auditRegressionNote(regression));
   }
-  if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
+}
+/**
+ * Append the attribution note to a repair once.
+ *
+ * Why: an audit resumes after a crash and reruns routing; the board's own facts say whether it is there.
+ */
+async function noteRegression(read, write, item, text) {
+  const present = read(board => board.db.prepare("SELECT 1 FROM event WHERE event_kind='fact' AND item_id=? AND json_extract(event_detail,'$.text')=? LIMIT 1").get(item, text));
+  if (!present) await write('appendFact', [item, { agentId: 'coordinator', kind: 'measurement', text }]);
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
 async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead) {
@@ -236,7 +279,7 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       lane: job.items[0]?.lane ?? Object.keys(config.lanes)[0] }]);
     // Routing can be resumed with the same genuine receipt without another execution.
     // Source is needed only for immutable Git objects; original repo retains the same objects after cleanup.
-    await routeFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
+    await routeAuditFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
     if (receipt.collection?.complete !== true || (saved.plan?.reused.length
       ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
     const { incomplete, error, noticeRecorded, ...completed } = saved;

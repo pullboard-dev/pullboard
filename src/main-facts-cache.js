@@ -13,6 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { git } from './git.js';
 import { mainCheckout } from './git.js';
 import { trunkRef } from '../packages/git/index.js';
+import { machineHome } from '../packages/resources/index.js';
 import { cleanGitEnvironment } from './git.js';
 
 const LIMIT = 64 * 1024 * 1024;
@@ -32,11 +33,12 @@ function commitIdentity(identity) {
   const commit = Array.isArray(identity) ? identity[0] : identity && typeof identity === 'object' ? identity.commit : identity;
   return typeof commit === 'string' && commit ? commit : mainFactDigest(JSON.stringify(identity));
 }
+// Undefined until computed; null once the installation proved it cannot be fingerprinted, so no command walks it again.
 let toolIdentity;
 
 /** Bind facts to the complete shipped tool, including moved parser providers and grammar assets. */
 export function mainFactToolIdentity() {
-  if (!toolIdentity) {
+  if (toolIdentity === undefined) {
     const root = fileURLToPath(new URL('../', import.meta.url));
     const hash = createHash('sha256');
     let size = 0;
@@ -57,7 +59,7 @@ export function mainFactToolIdentity() {
       }
     }
     try { for (const file of ['package.json', 'src', 'bin', 'packages']) visit(file); }
-    catch { return null; }
+    catch { toolIdentity = null; return null; }
     toolIdentity = hash.digest('hex');
   }
   return toolIdentity;
@@ -69,9 +71,9 @@ export function mainFactDigest(value) {
 }
 
 /** Open private local derived data, refusing symlinked or non-private storage. */
-function openCache(root) {
-  const common = resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
-  const directory = join(common, 'pullboard-main-facts');
+function openCache(root, shared) {
+  const common = shared ? null : resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
+  const directory = shared ? join(machineHome(), 'main-facts') : join(common, 'pullboard-main-facts');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const parent = lstatSync(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw new Error('non-private main facts cache');
@@ -103,7 +105,7 @@ function openCache(root) {
 }
 
 /** Derive one validated JSON value under a separate single-flight transaction; damage is only a cache miss. */
-export function cachedMainFact(root, namespace, identity, derive, validate) {
+export function cachedMainFact(root, namespace, identity, derive, validate, { shared = false } = {}) {
   const key = mainFactDigest(JSON.stringify([1, namespace, identity]));
   const commit = commitIdentity(identity);
   let current = null;
@@ -132,7 +134,7 @@ export function cachedMainFact(root, namespace, identity, derive, validate) {
     return JSON.parse(derived);
   }
   try {
-    db = openCache(root);
+    db = openCache(root, shared);
     db.exec('BEGIN IMMEDIATE');
     const saved = db.prepare('SELECT body,digest FROM facts WHERE key=?').get(key);
     if (saved && Buffer.byteLength(saved.body) <= LIMIT && mainFactDigest(saved.body) === saved.digest) {

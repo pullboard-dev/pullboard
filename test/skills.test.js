@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { ROLES, SHIPPED_SKILL_DIGESTS, installSkills } from '../src/skills.js';
+import { ROLES } from '../apps/cli/index.js';
+import { SHIPPED_SKILL_DIGESTS } from '../apps/cli/index.js';
+import { installSkills } from '../apps/cli/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RELEASES = ['0.5.0', '0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.8.4'];

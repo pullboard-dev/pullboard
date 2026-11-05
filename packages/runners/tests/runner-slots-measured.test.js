@@ -18,13 +18,13 @@ import { runnerResourceStatus } from '../../resources/index.js';
 import { recordRunnerGui } from '../../resources/index.js';
 import { recordRunnerMeasurement } from '../../config/index.js';
 import { loadMachineSettings } from '../../config/index.js';
-import { probeRunnerTransport } from '../../../src/runner-transport.js';
-import { refreshRunnerMeasurements } from '../../../src/runner-slots.js';
-import { RESERVED_MEMORY_MB } from '../../../src/runner-slots.js';
-import { PLAIN_SLOT_MB } from '../../../src/runner-slots.js';
-import { BROWSER_SLOT_MB } from '../../../src/runner-slots.js';
-import { computeRunnerSlots } from '../../../src/runner-slots.js';
-import { effectiveRunners } from '../../../src/runner-slots.js';
+import { probeRunnerTransport } from '../src/shell/runner-transport.js';
+import { refreshRunnerMeasurements } from '../src/shell/runner-slots.js';
+import { RESERVED_MEMORY_MB } from '../src/shell/runner-slots.js';
+import { PLAIN_SLOT_MB } from '../src/shell/runner-slots.js';
+import { BROWSER_SLOT_MB } from '../src/shell/runner-slots.js';
+import { computeRunnerSlots } from '../src/shell/runner-slots.js';
+import { effectiveRunners } from '../src/shell/runner-slots.js';
 
 /** A real CLI and real SSH stand-in; only the remote machine's reported size is faked, by a preload. */
 function box(t) {

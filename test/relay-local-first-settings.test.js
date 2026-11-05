@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { relayOutboxSetting } from '../src/cli.js';
+import { relayOutboxSetting } from '../apps/cli/index.js';
 import { settingsInventory } from '../packages/config/index.js';
 import { performanceCores } from '../packages/gate/index.js';
 import {

@@ -57,11 +57,11 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
+    claims: { releaseGone: false, releaseCooldownMinutes: 30 }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: false },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
@@ -278,12 +278,13 @@ export function configProblems(config) {
   }
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout" and "cadence" durations, "parallel": true for concurrent candidate gates, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
+  if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: landing takes one verified item at a time and runs only that item\'s plan; false keeps batch landing');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.requireReceipts !== undefined && typeof config.landing.requireReceipts !== 'boolean') problems.push('"landing.requireReceipts" is a boolean; omit it or use false to preserve legacy landing records');
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
@@ -356,8 +357,9 @@ export function configProblems(config) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
   if (!config.claims || typeof config.claims !== 'object' || Array.isArray(config.claims)
-    || Object.keys(config.claims).some(key => key !== 'releaseGone') || typeof config.claims.releaseGone !== 'boolean') {
-    problems.push('claims.releaseGone is a boolean; false preserves ordinary claim leases');
+    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
+    problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
   if (!config.claim || typeof config.claim !== 'object' || Array.isArray(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0

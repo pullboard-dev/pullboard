@@ -51,7 +51,7 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'relay', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', '-', '-C', box.repo], { input: archive.stdout, env });
@@ -63,7 +63,7 @@ function project(disableRefresh) {
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.gate = 'node --test --test-reporter=tap web/docs.test.js';
-  config.lanes.web.owns.push('src/command-docs/');
+  config.lanes.web.owns.push('apps/cli/src/shell/command-docs/');
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   config.flakes = { rerun: false, quarantine: false };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
@@ -74,8 +74,8 @@ function project(disableRefresh) {
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "import { existsSync } from 'node:fs';",
-    "import { generatedDocDrift } from '../src/generated-docs.js';",
-    "import { openBoard } from '../src/native-board.js';",
+    "import { generatedDocDrift } from '../apps/cli/index.js';",
+    "import { openBoard } from '../apps/lib/index.js';",
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
@@ -93,16 +93,16 @@ function project(disableRefresh) {
 /** A source-only declaration commits cleanly while its generated shared list remains unchanged. */
 function verifiedDeclaration(box) {
   const item = success(box, box.repo, 'add', 'web', 'Document a clean landing declaration', '--specs', 'G1',
-    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./src/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"").item.item_id;
+    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./apps/cli/src/shell/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"").item.item_id;
   success(box, box.web, 'claim', String(item));
-  const file = join(box.web, 'src/command-docs/heartbeat.json');
+  const file = join(box.web, 'apps/cli/src/shell/command-docs/heartbeat.json');
   const declaration = JSON.parse(readFileSync(file, 'utf8'));
   declaration.help += '  Clean landing documentation fixture.\n';
   writeFileSync(file, JSON.stringify(declaration, null, 2) + '\n');
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): document a clean landing declaration [G1]');
   const head = box.git(box.web, 'rev-parse', 'HEAD');
-  assert.deepEqual(box.git(box.web, 'diff', '--name-only', 'main', head).split('\n'), ['src/command-docs/heartbeat.json']);
+  assert.deepEqual(box.git(box.web, 'diff', '--name-only', 'main', head).split('\n'), ['apps/cli/src/shell/command-docs/heartbeat.json']);
   success(box, box.web, 'submit', String(item));
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try { success(box, box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'Synthetic private lifecycle: declaration check only; landing documentation assertion is not yet armed.'); }

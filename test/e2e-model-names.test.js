@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -176,7 +176,7 @@ function tourSteps(stdout) {
 
 /** Create private loader fixtures that vary only the production tour module. */
 function createTourVariantHarness(box) {
-  const moduleUrl = new URL('../src/tour.js', import.meta.url).href;
+  const moduleUrl = new URL('../apps/cli/src/shell/tour.js', import.meta.url).href;
   const loader = join(box.dir, 'tour-variant-loader.mjs');
   const timerGuard = join(box.dir, 'tour-timer-guard.mjs');
   writeFileSync(loader, `

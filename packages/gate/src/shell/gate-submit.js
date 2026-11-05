@@ -1,8 +1,11 @@
 import { submitReusePlanDigest } from '../../../verify/index.js';
+import { countTrialGate } from './refusal-trial.js';
+import { runMachineryGuard } from './refusal-trial.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { selectTestTiers } from './test-tier-selection.js';
 import { testTierProofFiles } from './test-tier-selection.js';
 import { testTierReport } from './test-tier-selection.js';
+import { requireSealedSkips } from './test-tier-selection.js';
 import { startReceipt } from './gate-receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -84,7 +87,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
   const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests });
-  const selection = testTiers ? { full: false, reason: 'T1 units of changed packages; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
+  const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
   const deferred = Boolean(testTiers) || !sourceAdvance && config.submitGate === 'landing';
@@ -142,14 +145,16 @@ function submitTestOutcomes(profiles) {
 
 /**
  * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
- * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason.
+ * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason. A given plan and
+ * admission (a runner's, #3006) skip the local planners; `planners` lets a test prove they are never called.
  *
  * @param {string} root
  * @param {any} config
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [] }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+  planners = { plan: submitGatePlan, admission: submitGateAdmission } }) {
 
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
@@ -158,18 +163,22 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   }
   if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
   // A remote plan is reused only when it covers the required call-adjacent tests.
-  const plan = planned ?? submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
+  const plan = planned ?? planners.plan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
   const reusePlan = submitReusePlanDigest({ check, files: proofFiles, full: selection.full, deferred, proofCommand: plan.proofCommand });
-  if (plan.testTiers) config = { ...config, affectedTests: plan.testRunner };
+  if (plan.testTiers) {
+    await runMachineryGuard(outputRoot, () => requireSealedSkips(root, plan.testTiers, { proofFiles, check }),
+      { kind: 'selection', rule: requireSealedSkips.toString(), say: onMachineryNote });
+    config = { ...config, affectedTests: plan.testRunner };
+  }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const { browser, gui } = admission ?? await submitGateAdmission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
+  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
   return await withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
@@ -207,10 +216,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     lease.tracker?.mark('runAt');
-    /** Run the criterion with its own source context and receipt. */
-    const criterionRun = () => check
-      ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
-      : Promise.resolve({ isGreen: true, output: '', seconds: 0 });
+    /** Retain completed check evidence even when the later proof refuses its runner. */
+    const criterionRun = async () => {
+      const run = check
+        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+        : { isGreen: true, output: '', seconds: 0 };
+      if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
+      return run;
+    };
     // One remote lease holds one controller at a time. Local phases can still overlap; either way,
     // drain both phases even on rejection so their receipts and the admission lease stay accurate.
     const outcomes = lease.runner
@@ -226,7 +239,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const failure = outcomes.find(outcome => outcome.status === 'rejected');
     if (failure) throw failure.reason;
     const [criterion, proof] = outcomes.map(outcome => outcome.value);
-    if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
       ...(criterion.blockingVerdict ? { rawExitCode: criterion.exitCode, blockingVerdict: criterion.blockingVerdict } : {}),
@@ -265,6 +277,13 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
     const result = finish(proof);
+    let trials = [];
+    const observed = result.proofReceiptIds.filter(id => typeof id === 'string');
+    if (countTrials && criterion.isGreen && result.isGreen && observed.length) {
+      try { trials = countTrialGate(outputRoot, { id: JSON.stringify(observed.sort()) }); } catch { /* A ledger failure cannot alter the recorded test proof. */ }
+    }
+    if (trials.length) writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
+    result.refusalTrials = trials;
     return criterion.isGreen ? result : { ...result, isGreen: false, completedProof: proof,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),

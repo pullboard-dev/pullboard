@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { finishTrunk } from '../packages/landing/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { postLandSuite } from '../packages/landing/index.js';
 import { laneOf } from '../packages/seats/index.js';
 import { unownedMainReds } from '../packages/store/index.js';
@@ -162,7 +162,7 @@ test('a real landed batch files a newly red case and a green batch files nothing
         base, tip, root: candidate, branch: 'refs/heads/main', owner: randomUUID(),
         logPath: join(box.dir, `post-land-${number}.log`), items: [{ id, commit: tip, merge: tip }] } });
       const state = { root: box.repo, board, config: { affectedTests: 'node bin/run-tests.js',
-        lanes: { web: { owns: ['web/'], specs: ['G1'] }, coordinator: { owns: ['docs/'], specs: [] } }, landing: { manualOverride: true, requireReceipts: false } },
+        lanes: { web: { owns: ['web/'], specs: ['G1'] }, coordinator: { owns: ['docs/'], specs: [] } }, landing: { perItem: false, manualOverride: true, requireReceipts: false } },
       batch, say: text => said.push(text), checkLease: async () => {},
       write: async (operation, parameters) => {
         if (operation === 'finishLandingBatch') return store.finishLandingBatch(board, parameters[0]);

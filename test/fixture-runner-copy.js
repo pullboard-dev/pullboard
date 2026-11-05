@@ -2,7 +2,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { join, posix } from 'node:path';
-import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../packages/gate/index.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
@@ -22,7 +22,8 @@ export function copyFixtureRunner(source, destination) {
     ...readdirSync(join(source, 'src/command-docs')).filter(file => file.endsWith('.json')).map(file => `src/command-docs/${file}`),
     ...readdirSync(join(source, 'src/commands')).filter(file => file.endsWith('.js')).map(file => `src/commands/${file}`)]);
   let pending = ['bin/run-tests.js',
-    ...readdirSync(join(source, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`),
+    ...['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
     ...readdirSync(join(source, 'src')).filter(file => file.endsWith('-engine.js')).map(file => `src/${file}`)];
   try {
     while (pending.length) {

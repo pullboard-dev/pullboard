@@ -9,7 +9,7 @@ import * as store from '../../../src/board.js';
 import {
   openBoard,
   openBoardForRead,
-} from '../../../src/native-board.js';
+} from '../../../apps/lib/index.js';
 import { agentGrantMinimum } from '../src/core/agent-grant.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';

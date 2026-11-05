@@ -1,5 +1,5 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
-export { criterionSize } from './src/core/criterion-size.js';
+export { criterionSize, defaultItemRoute } from './src/core/criterion-size.js';
 export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
@@ -58,3 +58,7 @@ export { auditFailureItem } from './src/core/audit-failure-item.js';
 export { claimProgress } from './src/core/claims.js';
 export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/core/claim-overlap.js';
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/core/expected-build.js';
+
+export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
+
+export { parseDiagnosis, diagnosisBrief } from './src/core/diagnosis.js';
