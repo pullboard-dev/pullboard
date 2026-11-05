@@ -145,14 +145,16 @@ function submitTestOutcomes(profiles) {
 
 /**
  * Prove the frozen item check and selected imports under one lease. Subsets neither read nor write
- * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason.
+ * the full-gate stamp. An uncertain selection runs the full configured gate and records its reason. A given plan and
+ * admission (a runner's, #3006) skip the local planners; `planners` lets a test prove they are never called.
  *
  * @param {string} root
  * @param {any} config
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n') }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+  planners = { plan: submitGatePlan, admission: submitGateAdmission } }) {
 
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
@@ -161,7 +163,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   }
   if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
   // A remote plan is reused only when it covers the required call-adjacent tests.
-  const plan = planned ?? submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
+  const plan = planned ?? planners.plan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
@@ -176,7 +178,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const { browser, gui } = admission ?? await submitGateAdmission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
+  const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
   return await withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.

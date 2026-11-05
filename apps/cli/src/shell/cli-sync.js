@@ -38,6 +38,17 @@ import {
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
 const QUIET = ['NOT_A_REPO', 'NO_REPO', 'NO_CONFIG', 'CORE_BARE'];
 const KEY_WARNED_COMMANDS = new WeakSet();
+const LOCAL_ONLY_WARNED = new WeakSet();
+
+/**
+ * Warn once per command that a Git opt-in origin never accepted runs local-only [C7]. Why: the old refusal
+ * told agents to run pullboard sync, which retried the refused push and froze every board write.
+ */
+export function warnGitSyncLocalOnly(io) {
+  if (LOCAL_ONLY_WARNED.has(io)) return;
+  LOCAL_ONLY_WARNED.add(io);
+  io.err?.('pullboard: origin has not accepted this board\'s first Git sync push; this command runs local-only');
+}
 
 /** Report a refusal from the work around a command without stopping the command. */
 async function reportQuietly(io, error) {
@@ -92,9 +103,10 @@ export async function retrySync(io) {
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
-      const { gitSyncCompatibility, syncGitBoard } = await import('../../../../packages/sync/index.js');
-      const compatible = withBoardRead(ctx, board => gitSyncCompatibility(io.cwd, board).compatible);
-      if (compatible) await withBoard(ctx, board => syncGitBoard(io.cwd, board, io));
+      const { gitSyncAcknowledged, gitSyncCompatibility, syncGitBoard } = await import('../../../../packages/sync/index.js');
+      const [compatible, acknowledged] = withBoardRead(ctx, board => [gitSyncCompatibility(io.cwd, board).compatible, gitSyncAcknowledged(io.cwd, board)]);
+      if (compatible && !acknowledged) warnGitSyncLocalOnly(io);
+      else if (compatible) await withBoard(ctx, board => syncGitBoard(io.cwd, board, io));
     }
     io.relayOutbox ??= () => relayOutboxSetting(io.cwd);
     await syncRelay(io.cwd, io);
