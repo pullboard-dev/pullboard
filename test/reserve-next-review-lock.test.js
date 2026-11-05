@@ -5,6 +5,10 @@ import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { reviewFamilyRelaxation } from '../packages/store/src/shell/board-review-family.js';
+import { confirmRelaxation } from '../packages/store/src/shell/review-family-relaxation.js';
+import { itemReviewPolicy } from '../packages/verify/index.js';
+import { familiesDiffer } from '../packages/verify/index.js';
+import { seatFamily } from '../packages/verify/index.js';
 
 const SUBMITTED = 30;
 const SEATS = 15;
@@ -130,6 +134,58 @@ test('clause 2: the lock confirms the witness built before it and never rebuilds
   assert.equal(looks, 1, 'the lock confirmed the first look; nothing looked again');
   const event = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(reserved.item.item_id);
   assert.deepEqual(JSON.parse(event.event_detail).familyRelaxation, before, 'the recorded witness is the confirmed one from before the lock, not a rebuild');
+});
+
+/** The witness ports, with every item read inside the confirmation counted. */
+function countingPorts(board) {
+  const read = [];
+  return { read, ports: { reviewerChecks: store.reviewerChecks, reviewHolder: store.reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
+    listItems: store.listItems, seatFamily, familiesDiffer, itemReviewPolicy,
+    getItem: (b, id) => { read.push(id); return store.getItem(b, id); } } };
+}
+
+test('clause 2: the in-lock confirmation reads at most the threshold of witness entries, and the first stale one gives up [C7,V15]', t => {
+  const { board, ids } = backlog(t);
+  const subject = store.getItem(board, ids[0]);
+  const witness = reviewFamilyRelaxation(board, subject, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy);
+  assert.ok(witness, 'the fixture relaxes the frozen family rule');
+  // A long stale list: a thousand reviews that no longer exist come before every live one.
+  const stale = { ...witness, waiting: [...Array.from({ length: 1000 }, (_, index) => 100_000 + index), ...witness.waiting] };
+  const staleRun = countingPorts(board);
+  assert.equal(confirmRelaxation(board, subject, stale, who.agentId, who.familyRelaxAt, who.policy, staleRun.ports), null, 'a stale entry relaxes nothing');
+  assert.ok(staleRun.read.length <= who.familyRelaxAt - 1, `read ${staleRun.read.length} other entries of ${stale.waiting.length}`);
+  // A live witness of thirty is confirmed from its first threshold entries alone.
+  const liveRun = countingPorts(board);
+  assert.deepEqual(confirmRelaxation(board, subject, witness, who.agentId, who.familyRelaxAt, who.policy, liveRun.ports), witness);
+  assert.ok(liveRun.read.length <= who.familyRelaxAt - 1, `read ${liveRun.read.length} other entries of ${witness.waiting.length}`);
+});
+
+test('clause 1: next --take reserving a named same-family review through the writer holds the lock under 500 ms [C7,V15]', t => {
+  const { board, ids } = backlog(t);
+  const holds = writerHolds(board);
+  const reserved = store.writeBoardCommand(board, 'reserveReview', [ids[0], { ...who }], who.agentId);
+  assert.equal(reserved.item_review_by, 'core-2', 'the writer reserved the named review');
+  assert.equal(holds.length, 1, 'one writer transaction: ' + JSON.stringify(holds));
+  assert.ok(holds[0].ms < 500, `the writer held the lock ${Math.round(holds[0].ms)} ms`); // budget: declared by the item bar's 500 ms write-transaction ceiling.
+});
+
+test('clause 2: a named reservation through the writer builds its witness before the lock, never inside it [C7,V15]', t => {
+  const { board, ids } = backlog(t);
+  // The builder is active before the look too, so the arriving submission leaves the free seats unchanged.
+  store.shout(board, { from: 'core-1', to: 'coordinator', text: 'Building', lanes: ['core'] });
+  const before = reviewFamilyRelaxation(board, store.getItem(board, ids[0]), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy);
+  assert.equal(before.queueLength, SUBMITTED);
+  // One more blocked review lands just before the writer's transaction opens: a witness built in the lock would count it.
+  const exec = board.db.exec.bind(board.db);
+  let armed = true;
+  board.db.exec = sql => {
+    if (armed && /^\s*BEGIN\s+IMMEDIATE/iu.test(sql)) { armed = false; board.db.exec = exec; submitWaiting(board, SUBMITTED + 1); }
+    return exec(sql);
+  };
+  const reserved = store.writeBoardCommand(board, 'reserveReview', [ids[0], { ...who }], who.agentId);
+  assert.equal(reserved.item_review_by, 'core-2');
+  const event = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(ids[0]);
+  assert.deepEqual(JSON.parse(event.event_detail).familyRelaxation, before, 'the recorded witness is the one built before the lock');
 });
 
 test('clause 2: an item another reviewer took between the look and the lock is selected again, never reserved twice [C7,V15]', t => {

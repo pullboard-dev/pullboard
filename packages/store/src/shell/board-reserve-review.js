@@ -23,7 +23,40 @@ import { ENGINE_VERSION } from '../../../state/index.js';
  * @returns {any} The item, reserved.
  */
 export function reserveReview(board, id, who) {
-  return atomic(board, () => reserveWithin(board, id, who));
+  const known = PREPARED_RESERVES.get(who);
+  if (known?.board !== board || known.id !== id) return atomic(board, () => reserveWithin(board, id, who));
+  return atomic(board, () => {
+    const found = getItem(board, id);
+    // A witness the board no longer supports is never rebuilt in the lock: the writer prepares again outside it.
+    if (known.witness && found && !confirmFamilyRelaxation(board, found, known.witness, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy)) {
+      throw new Refused('BOARD_BUSY', 'the review queue changed between the look and the write; run next --verify again');
+    }
+    return reserveWithin(board, id, { ...who, prepared: { witness: known.witness } });
+  });
+}
+
+/** Explicit reservations prepared before the writer's transaction, keyed by the frozen options the writer receives. */
+const PREPARED_RESERVES = new WeakMap();
+
+/**
+ * The writer's preparation for reserving one named review (registered in board-command-write.js): build its
+ * family-relaxation witness before the writer's transaction opens. Why: next --take selects on a read snapshot and
+ * then reserves the chosen item by id, and building the queue-wide witness inside the lock held the board for
+ * 10-15 s (#3156). The writer receives a frozen copy of the same options, so the recorded move is unchanged.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string, familyRelaxAt?: number }} who
+ * @returns {any} The options, frozen, carrying the prepared witness.
+ */
+export function prepareReserveReview(board, id, who) {
+  const found = getItem(board, id);
+  const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
+  const fits = found && (who.familyRelaxAt === undefined || who.familyRelaxAt === frozenRelaxAt(found));
+  const witness = enabled && fits ? reviewFamilyRelaxation(board, found, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy ?? 'off') : null;
+  const prepared = Object.freeze({ ...who });
+  PREPARED_RESERVES.set(prepared, { board, id, witness });
+  return prepared;
 }
 
 /**

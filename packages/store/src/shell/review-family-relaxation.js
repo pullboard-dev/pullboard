@@ -56,9 +56,9 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, po
 }
 
 /**
- * Confirm, inside the write lock, a witness built before it: the same free seats are active now, and the subject plus
- * enough of the witness's own waiting reviews to reach the threshold are still unreserved, unchanged in state, and
- * blocked for every one of those seats. Returns the witness, or null when the board no longer supports it. Why: the
+ * Confirm, inside the write lock, a witness built before it: the same free seats are active now, and the subject and
+ * the witness's first threshold - 1 other waiting reviews are still unreserved, submitted, and blocked for every one of
+ * those seats. It touches at most threshold entries and gives up on the first stale one. Returns the witness, or null when the board no longer supports it. Why: the
  * full witness checks every waiting review against every seat (0.5-0.9 s on a 28-submission board) and must never
  * run in the lock; the relaxation only needs the threshold to hold, so the lock checks threshold items, not the
  * whole queue (#3156).
@@ -73,14 +73,20 @@ export function confirmRelaxation(board, subject, witness, agentId, threshold, p
   const seats = freeActiveSeats(board, board.clock.now());
   if (JSON.stringify(seats) !== JSON.stringify(witness.activeSeats)) return null;
   if (!blockedFor(board, subject, seats, policy, ports)) return null;
-  let confirmed = 1;
+  // At most threshold entries in all: the subject and the first threshold - 1 others. The first stale one gives up
+  // relaxing and the look runs again outside the lock, so a long stale list is never walked here.
+  const others = [];
   for (const id of witness.waiting) {
-    if (confirmed >= threshold) break;
-    if (id === subject.item_id) continue;
-    const item = getItem(board, id);
-    if (item?.item_status === 'submitted' && !reviewHolder(board, item) && blockedFor(board, item, seats, policy, ports)) confirmed++;
+    if (others.length >= threshold - 1) break;
+    if (id !== subject.item_id) others.push(id);
   }
-  return confirmed >= threshold ? witness : null;
+  if (others.length < threshold - 1) return null;
+  for (const id of others) {
+    let item;
+    try { item = getItem(board, id); } catch (error) { if (error?.code === 'NO_ITEM') return null; throw error; }
+    if (item?.item_status !== 'submitted' || reviewHolder(board, item) || !blockedFor(board, item, seats, policy, ports)) return null;
+  }
+  return witness;
 }
 
 /** Bind a previously granted witness to the same reviewer, source, and live reservation [V1,H16]. */

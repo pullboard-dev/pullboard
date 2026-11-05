@@ -3,6 +3,7 @@ import { requireExitActive } from "../core/exit-rules-state.js";
 import * as store from "./board.js";
 import { measureBoardWritePhase } from './board-write-lock.js';
 import { prepareReserveNextReview } from "./board-reserve-next-review.js";
+import { prepareReserveReview } from "./board-reserve-review.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 import { requireAgentGrant } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
@@ -11,12 +12,13 @@ import { Refused } from "../../../kernel/index.js";
 const PREPARE_ATTEMPTS = 4;
 
 // Like the writer dispatch, each preparation belongs to its exact native operation, never the wire.
-// Each returns the writer's arguments: item moves prepare their options; next --verify prepares its selection, so its
-// candidate scan runs before the writer's transaction and the lock holds only the per-pair recheck (#3156).
+// Each returns the writer's arguments: item moves prepare their options; next --verify prepares its selection and a
+// named reservation its witness, so no candidate scan or witness build runs in the writer's transaction (#3156).
 const PREPARATIONS = Object.freeze({
   claim: (board, args) => [args[0], store.prepareClaim(board, args[0], args[1])],
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
+  reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
 });
 
 /**
