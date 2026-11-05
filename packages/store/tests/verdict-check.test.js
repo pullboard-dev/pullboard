@@ -419,8 +419,9 @@ test('store moved judgment paths retain Strict without widening adjacent files [
   for (const file of ['packages/store/index.js', 'packages/store/src/shell/board-capture.js', 'packages/store/src/shell/proof-receipts-adjacent.js', 'packages/store/tests/verdict-check-adjacent.test.js']) assert.equal(gateJudgmentPath(file), false, file);
 });
 
+/** A null number is an engine still numbered by its landing merge: its identity is fixed, its number is not yet. */
 const ACCEPTED_ENGINE_VALUES = [
-  ["ACTIVITY_DELIVERY_ENGINE",115], ["ACTIVITY_NEWS_ENGINE",110], ["AGENT_GRANT_ENGINE",127], ["AUTO_ESCALATE_ENGINE",50],
+  ["ACCEPTED_RELAND_ENGINE",229], ["ACTIVITY_DELIVERY_ENGINE",115], ["ACTIVITY_NEWS_ENGINE",110], ["AGENT_GRANT_ENGINE",127], ["AUTO_ESCALATE_ENGINE",50],
   ["AUTO_SUBMIT_QUARANTINE_ENGINE",178], ["AUTOMATIC_DISPATCH_ENGINE",142], ["BAR_CHECK_ENGINE",108], ["BAR_ENGINE",19],
   ["BAR_READY_ENGINE",96], ["BAR_SIGN_GRANT_ENGINE",134], ["BLOCKED_DEPENDENCIES_ENGINE",197], ["BOARD_MEMBERS_ENGINE",121],
   ["BOARD_PROGRESS_ENGINE",190], ["BOARD_SENTINEL_ENGINE",56], ["CAUSE_ENGINE",30], ["CHECK_ACCEPT_ENGINE",24],
@@ -445,7 +446,7 @@ const ACCEPTED_ENGINE_VALUES = [
   ["NEXT_IDLE_ENGINE",169], ["NO_ELIGIBLE_REVIEWER_ENGINE",168], ["OUTSIDE_INTAKE_ENGINE",97], ["PARENT_SESSION_ENGINE",90],
   ["PATCH_AUTHOR_IDENTITY_ENGINE",158], ["PATCH_FOLLOW_ENGINE",165], ["PATCH_REVIEW_CUSTODY_ENGINE",157], ["PEOPLE_ENGINE",73],
   ["PERSON_SIGNING_ENGINE",133], ["PINNED_CLAIM_LAPSE_ENGINE",220], ["PIPELINE_CAUSE_ENGINE",184], ["PLAN_MERGE_ENGINE",187],
-  ["PR_BRIDGE_ENGINE",95], ["PRIVATE_REHOME_ENGINE",135], ["PROOF_RUN_ENGINE",122], ["QUARANTINE_CORE_ENGINE",167],
+  ["PR_BRIDGE_ENGINE",95], ["PRIVATE_REHOME_ENGINE",135], ["PROOF_RUN_ENGINE",122], ["QUARANTINE_BACKFILL_ENGINE",null], ["QUARANTINE_CORE_ENGINE",167],
   ["QUARANTINE_VERDICT_ENGINE",176], ["QUEUE_FAIRNESS_ENGINE",216], ["QUEUE_PREEMPT_ENGINE",210], ["QUEUED_RED_RETURN_ENGINE",217],
   ["QUOTED_LANDING_FAILURE_ENGINE",105], ["RECURRING_JOB_ENGINE",63], ["REFERENCE_ENGINE",131], ["REJECT_CLAUSE_ENGINE",156],
   ["REJECT_OPEN_ENGINE",226], ["REJECTED_WORK_RETURN_ENGINE",147], ["REJECTION_RETURN_ENGINE",191], ["RELEASE_QUALITY_HOLD_ENGINE",218],
@@ -459,7 +460,7 @@ const ACCEPTED_ENGINE_VALUES = [
   ["STALE_STATE_ENGINE",146], ["STRICT_COMPOSITION_ENGINE",174], ["STRICT_RENAME_ENGINE",221], ["STRONG_REJECTION_NOTICE_ENGINE",54],
   ["SUBMISSION_PROOF_ENGINE",38], ["SUBMIT_ADMISSION_ENGINE",136], ["SUBMIT_HANDOFF_ENGINE",182], ["SUBMIT_PROOF_REUSE_ENGINE",202],
   ["SUBMITTED_CONFLICT_ENGINE",60], ["TAKEN_OVER_RELEASE_ENGINE",211], ["TEST_ECONOMICS_ENGINE",141], ["TRAIN_CHECK_REPOINT_ENGINE",181],
-  ["TRAIN_LANDING_ENGINE",164], ["TYPED_REQUESTS_ENGINE",140], ["UNCHANGED_REFREEZE_ENGINE",145], ["UNTOUCHED_CLAIM_ENGINE",204],
+  ["TRAIN_LANDING_ENGINE",164], ["TWO_TIER_DIAGNOSIS_ENGINE",228], ["TYPED_REQUESTS_ENGINE",140], ["UNCHANGED_REFREEZE_ENGINE",145], ["UNTOUCHED_CLAIM_ENGINE",204],
   ["USAGE_BATCH_ENGINE",173], ["VENDOR_FAMILY_ENGINE",192], ["VERDICT_REVIEW_ENGINE",33], ["VERDICT_WITHDRAW_ENGINE",106],
   ["VERIFIED_ITEM_HOLD_ENGINE",223], ["VERIFIER_STANDING_ENGINE",48], ["WITHDRAW_MILESTONE_ENGINE",51], ["WORK_ORDER_ENGINE",114],
 ];
@@ -470,7 +471,10 @@ function engineRows(source){const code=lex(source).code;return [...code.matchAll
 
 test('store extraction preserves the accepted engine identity set and every recorded number [C7,H16]', () => {
   const root = resolve(import.meta.dirname, '../../..');
-  const actual = styleSources(root).flatMap(row => engineRows(row.source)).sort((a, b) => a[0].localeCompare(b[0]) || a[1] - b[1]);
+  const landing = new Set(ACCEPTED_ENGINE_VALUES.filter(row => row[1] === null).map(row => row[0]));
+  const placeholders = readEngineLeaves(join(root, 'src')).filter(row => row.number === undefined || row.number === null).map(row => [row.name, null]);
+  const actual = [...styleSources(root).flatMap(row => engineRows(row.source)), ...placeholders]
+    .map(([name, number]) => [name, landing.has(name) ? null : number]).sort((a, b) => a[0].localeCompare(b[0]) || a[1] - b[1]);
   assert.deepEqual(actual, ACCEPTED_ENGINE_VALUES, 'moving a declaration changes neither its identity nor numeric history');
   const leaf = readEngineLeaves(join(root, 'src')).filter(row => row.name === 'HEALTH_SENTINEL_ENGINE');
   assert.deepEqual(leaf, [{ file: 'health-sentinel-engine.js', name: 'HEALTH_SENTINEL_ENGINE', number: 42 }]);
