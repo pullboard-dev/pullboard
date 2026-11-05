@@ -80,7 +80,7 @@ function submit(box) {
   return box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
 }
 
-for (const companion of [false, true]) test(`two actual ${companion ? 'composed ' : ''}Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]`, t => {
+for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 'composed ' : ''}Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]`, t => {
   const box = fixture(t, false, companion);
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
@@ -170,7 +170,7 @@ for (const companion of [false, true]) test(`two actual ${companion ? 'composed 
   assert.equal(box.cli('show', String(box.id)).document.item_status, 'submitted');
 });
 
-test('a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', t => {
+test('clause 1: a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', t => {
   const box = fixture(t, true);
   const first = submit(box);
   assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
@@ -191,7 +191,7 @@ function synthetic(admission, passed, at, { tree = 'a', diagnostic = passed, ski
     testOutcomes: [{ file: 'test/synthetic.js', name: 'synthetic case', passed, skipped }] };
 }
 
-test('synthetic selector boundaries reject repeated admission, reversed order, changed trees, skips and expired pairs [C7,H16]', () => {
+test('clause 1: synthetic selector boundaries reject repeated admission, reversed order, changed trees, skips and expired pairs [C7,H16]', () => {
   const time = '2026-10-30T10:00:00.000Z';
   const red = synthetic('one', false, '2026-10-30T09:00:00.000Z');
   const green = synthetic('one', true, '2026-10-30T09:01:00.000Z');
