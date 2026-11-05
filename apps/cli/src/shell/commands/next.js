@@ -240,6 +240,11 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
+      if (values.defaultLoop && !found.laneWork) {
+        io.result?.({ item: null, next: 'nothing for this seat: end your turn', reasons: found.reasons ?? [] });
+        io.say('next: nothing for this seat: end your turn');
+        return 0;
+      }
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
