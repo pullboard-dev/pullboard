@@ -117,7 +117,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
     return true;
   }
   const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
-  const result = await actOn(io, async (landing, board) => {
+  const result = await untilBoardFree(() => actOn(io, async (landing, board) => {
     const policy = mainPolicy(root);
     const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'verified' && !item.item_merged_commit)
       .map(item => ({ id: item.item_id, commit: store.checkedLandingCommit(board, item) }));
@@ -130,7 +130,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
       execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
     return { ...(landed && typeof landed === 'object' ? landed : {}), retryMs: policy.config.landing?.cadenceMs ?? LANDING_RETRY_MS,
       waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at) };
-  });
+  }), { say: line => ctx.io.err?.(line) });
   const retryAt = landingRetryAt(result, now());
   if (retryAt) await schedule(root, retryAt, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
   return true;
@@ -139,14 +139,39 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
 export const LANDING_RETRY_MS = 5 * 60_000;
 
+/** How soon the next batch starts after a run that landed or reopened items while others still wait [C7]. */
+export const LANDING_NEXT_BATCH_MS = 1_000;
+
 /**
- * When the board's next landing wake is due: a recorded deferral, or one retry interval from now while verified,
+ * Run one landing attempt, waiting out a busy board lock with doubling backoff instead of ending the attempt.
+ * Why: board write locks are held for seconds (5.3 s at most over 400 writes on 4 Nov), yet a BOARD_BUSY ended the
+ * landing and left accepted work idle until the next cycle; any other refusal still ends the attempt (#3149).
+ */
+export async function untilBoardFree(work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, pauseMs = 1_000, maxPauseMs = 8_000, maxWaitMs = 120_000 } = {}) {
+  for (let waited = 0, pause = pauseMs; ; pause = Math.min(pause * 2, maxPauseMs)) {
+    try { return await work(); }
+    catch (error) {
+      if (error?.code !== 'BOARD_BUSY' || waited + pause > maxWaitMs) throw error;
+      say(`landing met a busy board lock; waiting ${Math.round(pause / 1000)} s and continuing the same landing`);
+      await wait(pause);
+      waited += pause;
+    }
+  }
+}
+
+/**
+ * When the board's next landing wake is due: a recorded deferral; within seconds after a run that moved work; else one retry interval from now while verified,
  * unheld items are still waiting; null when nothing waits [C7,#2898].
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
   if (result?.deferredUntil) return result.deferredUntil;
-  return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
+  if (!result?.waiting) return null;
+  // A run that moved work (landed it, or reopened a conflict) starts the next batch at once: the lander sat idle about
+  // 65% of the time waiting a full interval after every landing (#3149). A run that moved nothing keeps the interval,
+  // so a refusal that stays put never loops hot.
+  const moved = result.landed?.length > 0 || result.conflicts?.length > 0;
+  return new Date(now + (moved ? LANDING_NEXT_BATCH_MS : result.retryMs ?? LANDING_RETRY_MS)).toISOString();
 }
 
 /** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */

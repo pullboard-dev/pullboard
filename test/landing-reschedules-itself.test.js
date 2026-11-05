@@ -4,14 +4,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { LANDING_RETRY_MS, landingRetryAt } from '../apps/cli/src/shell/commands/land.js';
+import { LANDING_NEXT_BATCH_MS } from '../apps/cli/src/shell/commands/land.js';
+import { untilBoardFree } from '../apps/cli/src/shell/commands/land.js';
 
 const NOW = Date.parse('2026-11-04T07:00:00.000Z');
 
 test('a blocked or partly landed batch with verified items waiting wakes again one interval later [C7,#2898]', () => {
   assert.equal(landingRetryAt({ batch: null, landed: [], blocked: [{ id: 7, code: 'LAND_PLAN_MISSING' }], waiting: true }, NOW),
     new Date(NOW + LANDING_RETRY_MS).toISOString());
-  assert.equal(landingRetryAt({ landed: [1, 2], waiting: true, retryMs: 600_000 }, NOW), new Date(NOW + 600_000).toISOString(),
-    'a configured cadence sets the interval');
+  assert.equal(landingRetryAt({ landed: [], blocked: [], waiting: true, retryMs: 600_000 }, NOW), new Date(NOW + 600_000).toISOString(),
+    'a configured cadence sets the interval for a run that moved nothing');
   assert.equal(LANDING_RETRY_MS, 300_000, 'the default retry is five minutes, the shortest landing cadence');
 });
 
@@ -28,4 +30,26 @@ test('releasing a verified item hold wakes landing the way an accept does [C7,#2
   const source = readFileSync(new URL('../apps/cli/src/shell/commands/hold.js', import.meta.url), 'utf8');
   assert.match(source, /item_status === 'verified'\) released = ctx/u);
   assert.match(source, /landAfterAcceptance\(released\)/u);
+});
+
+test('a run that landed or reopened items while others wait starts the next batch within seconds [C7]', () => {
+  for (const result of [{ landed: [1, 2], waiting: true }, { landed: [], conflicts: [{ id: 3 }], waiting: true }, { landed: [4], waiting: true, retryMs: 600_000 }]) {
+    assert.equal(landingRetryAt(result, NOW), new Date(NOW + LANDING_NEXT_BATCH_MS).toISOString(), JSON.stringify(result));
+  }
+  assert.ok(LANDING_NEXT_BATCH_MS <= 5_000);
+  assert.equal(landingRetryAt({ landed: [1], waiting: false }, NOW), null, 'nothing waiting still schedules nothing');
+});
+
+test('a landing attempt waits out a busy board lock with backoff, and any other refusal still ends it [C7]', async () => {
+  const waits = [];
+  let calls = 0;
+  const busy = Object.assign(new Error('board is busy'), { code: 'BOARD_BUSY' });
+  const value = await untilBoardFree(async () => { calls += 1; if (calls < 4) throw busy; return 'landed'; }, { wait: async ms => { waits.push(ms); } });
+  assert.equal(value, 'landed');
+  assert.deepEqual(waits, [1_000, 2_000, 4_000]);
+  const other = Object.assign(new Error('refused'), { code: 'FLAKE_RATCHET' });
+  await assert.rejects(untilBoardFree(async () => { throw other; }, { wait: async () => assert.fail('no wait') }), { code: 'FLAKE_RATCHET' });
+  await assert.rejects(untilBoardFree(async () => { throw busy; }, { wait: async () => {}, maxWaitMs: 10_000 }), { code: 'BOARD_BUSY' }, 'a lock that never frees ends the attempt');
+  const source = readFileSync(new URL('../apps/cli/src/shell/commands/land.js', import.meta.url), 'utf8');
+  assert.match(source, /await untilBoardFree\(\(\) => actOn\(io,/u, 'the automatic landing runs through the busy-lock wait');
 });
