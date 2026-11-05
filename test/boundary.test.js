@@ -46,6 +46,7 @@ test('only explicit relay commands open outbound connections; the view defaults 
     (['apps/view/src/shell/serve.js', 'src/serve.js', 'src/api.js', 'packages/api/src/shell/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
     // The resident board serves commands over a Unix-domain socket in the machine folder, never a network address.
     (file === 'bin/resident-board.js' && line.trim() === "} from 'node:net';") ||
+    (file === 'bin/resident-socket.js' && line.trim() === "* @param {import('node:net').Socket} socket") ||
     (file === 'bin/resident-client.js' && line.trim() === "import { connect } from 'node:net';") ||
     (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (['apps/view/src/shell/serve.js', 'src/serve.js'].includes(file) && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
