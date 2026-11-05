@@ -568,7 +568,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
         if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
         return !used.timing && (waiter.timing !== 1 || used.slots === 0)
-          && used.slots < runner.slots - Number(seatTest) && (waiter.browser !== 1 || used.browsers < runner.browser);
+          && used.slots < runner.slots - Number(seatTest && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
       });
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
@@ -597,7 +597,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     function localSlot() {
       if (memoryHeld || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'ssh') return null;
       if (!holders.some(holder => holder.timing === 1) && (waiter.timing !== 1 || holders.length === 0)
-        && localUsed < capacity - Number(seatTest) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
+        && localUsed < capacity - Number(seatTest && capacity > 1) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
         return { host: '', slots: capacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: false };
       }
       return null;
@@ -615,7 +615,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
     const earlierLanding = waiters.some(other => other.landing === 1 && other.ticket < waiter.ticket);
     if ((!waiter.requiredExecutor || JSON.parse(waiter.requiredExecutor).kind === 'local') && !memoryHeld && waiter.timing !== 1 && !holders.some(holder => holder.timing === 1)
-      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(seatTest)
+      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(seatTest && shortCapacity > 1)
       && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
       return { host: '', slots: shortCapacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: true };
     }
