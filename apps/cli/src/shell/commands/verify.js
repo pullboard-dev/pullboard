@@ -57,6 +57,7 @@ import { twoTierReviews } from '../../../../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../../../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../../../../packages/items/index.js';
 import { outsideVerdict } from '../../../../../packages/items/index.js';
+import { tier1ShadowFact } from '../tier1-shadow-verdict.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { loadSpec } from '../../../../../packages/spec/index.js';
@@ -439,7 +440,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT' && check?.blockingVerdict) {
       sealQuarantineVerdict(board, boundProofReceipt(board, { receiptId: check.proofReceiptId }));
     }
-    return await ordered(ctx, board, 'verify', [id, {
+    const verdict = await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
       decision,
       reason: values.reason,
@@ -459,6 +460,9 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
     }]);
+    const shadow = tier1ShadowFact(store.events(board, { itemId: id }), check, verdict.decision, item.item_commit);
+    if (shadow) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: shadow }]);
+    return verdict;
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
