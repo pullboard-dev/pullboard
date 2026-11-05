@@ -230,6 +230,11 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] })
   return { plan: analysis.plan, admission: analysis.admission };
 }
 
+/** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
+export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
+  return runSubmitGate(root, config, { ...options, ...runnerPlan });
+}
+
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
 export function doctrineExecutionPhases(observations, attempts) {
   const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
