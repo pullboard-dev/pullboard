@@ -1322,11 +1322,10 @@ async function main(args) {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
-    // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
-    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787).
-    const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
-    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
-      const { landingShardCount } = await import('../packages/gate/index.js');
+    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
+    // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
+    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
+      const { landingShardCount, selectionPatternArgs } = await import('../packages/gate/index.js');
       const count = landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
@@ -1339,7 +1338,7 @@ async function main(args) {
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { testsNeedBrowser } = await import('../packages/gate/index.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus, args: selectionPatternArgs(actions.args, optionTakesValue),
           runnerAdmission: { ...runnerAdmission, runnerOnly },
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
         timing.sharded(result, files);

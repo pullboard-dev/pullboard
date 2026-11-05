@@ -47,6 +47,7 @@ import { localRunnerDescriptor } from '../../../runners/index.js';
 import { guiSession } from '../../../gate/index.js';
 import { headTree } from '../../../../src/git.js';
 import { cpuRunnerRequired } from '../../../gate/index.js';
+import { shardSelectionMatched } from '../../../gate/index.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -300,11 +301,11 @@ async function stopShard(child, closed, parseProcessCensus) {
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
-async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
+async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
-  const child = spawn(process.execPath, [runner, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [runner, ...args, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
   child.stdout.setEncoding('utf8').on('data', part => chunks.push(part));
   child.stderr.setEncoding('utf8').on('data', part => chunks.push(part));
@@ -393,7 +394,7 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
+export async function runLandingShards({ root, runner, files, args = [], count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
   const runnerOnly = runnerAdmission.runnerOnly === true;
   const selectionAt = performance.now();
@@ -466,18 +467,16 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Math.round(performance.now() - started) };
       };
       if (drifted()) return sourceChanged('before');
-      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
-      if (run.unverified.length) {
-        // Fail closed: name what may still run, as a runner's unverified cleanup does.
+      const run = await runLocalShard({ root, runner, files: entry.shard.files, args, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
+      if (run.unverified.length) { // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
-      }
-      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) };
+        return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) }; }
       if (!stop.aborted && drifted()) return sourceChanged('while');
       return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...args, ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
@@ -641,7 +640,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
-  const isGreen = shards.every(entry => entry.status === 'green');
+  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),

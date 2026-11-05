@@ -23,12 +23,40 @@ export function testSelectionPatterns(args, takesValue) {
   return patterns;
 }
 
+/** The name-pattern option tokens themselves, so a sharded landing gives every shard the same name filter (#3158). */
+export function selectionPatternArgs(args, takesValue) {
+  const tokens = [];
+  for (let index = 0; index < args.length && args[index] !== '--'; index++) {
+    if (/^--test[-_]name[-_]pattern=/u.test(args[index])) tokens.push(args[index]);
+    else if (/^--test[-_]name[-_]pattern$/u.test(args[index]) && index + 1 < args.length) tokens.push(args[index], args[++index]);
+    else if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
+  }
+  return tokens;
+}
+
+/** The line a name-filtered landing shard prints with its matched case count; its controller sums them. */
+export const SHARD_SELECTED_LINE = '# landing selected cases ';
+
+/**
+ * Whether a name-filtered sharded landing matched any case across all its shards; with no filter, always true. A
+ * shard may match none of its own files, so only the sum can say NO_TESTS_MATCHED, and the controller writes it.
+ */
+export function shardSelectionMatched(args, outputs, write) {
+  if (!args.length) return true;
+  const cases = outputs.reduce((sum, output) => sum + [...String(output).matchAll(/^# landing selected cases (\d+)$/gmu)]
+    .reduce((total, match) => total + Number(match[1]), 0), 0);
+  if (!cases) write(`run-tests: NO_TESTS_MATCHED: the name filter ${JSON.stringify(args)} selected no proven test case in any landing shard\n`);
+  return cases > 0;
+}
+
 /** A successful Node process cannot turn missing native selection evidence into a green check. */
 export function selectedTestResult(result, record, patterns, files) {
   if (result.status !== 0 || !patterns.length) return result;
   let cases = 0;
   try { cases = JSON.parse(readFileSync(record, 'utf8')).cases; }
   catch { /* A missing or malformed internal reporter result fails closed. */ }
+  // A name-filtered landing shard reports its count instead: its controller decides on the sum of every shard (#3158).
+  if (process.env.PULLBOARD_LANDING_SHARD) { process.stdout.write(`${SHARD_SELECTED_LINE}${Number.isSafeInteger(cases) ? cases : 0}\n`); return result; }
   if (Number.isSafeInteger(cases) && cases > 0) return result;
   process.stderr.write(`run-tests: NO_TESTS_MATCHED: patterns ${JSON.stringify(patterns)} selected no proven test case in ${JSON.stringify(files)}\n`);
   return { ...result, status: 1 };
