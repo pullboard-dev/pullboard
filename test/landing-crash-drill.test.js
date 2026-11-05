@@ -40,7 +40,9 @@ function fixture(t) {
   json(box, api, 'join', 'api');
   const entries = [[box.web, 'web', 'G1'], [api, 'api', 'G2']].map(([root, lane, spec]) => {
     const file = `${lane}/crash.txt`;
-    const id = json(box, box.repo, 'add', lane, 'Crash drill ' + lane, '--criterion', file + ' exists', '--specs', spec, '--check', 'test -f ' + file).item.item_id;
+    const id = json(box, box.repo, 'add', lane, 'Crash drill ' + lane, '--route', 'mid',
+      '--criterion', file + ' exists', '--specs', spec, '--check', 'test -f ' + file,
+      '--brief', `Files: ${file}\nChange: create a fixture payload for the interrupted landing.\nTest: the accepted payload lands after the interrupted batch resumes.`).item.item_id;
     json(box, root, 'claim', String(id));
     mkdirSync(join(root, lane), { recursive: true });
     writeFileSync(join(root, file), lane + '\n');
