@@ -445,14 +445,15 @@ export async function withLandingGateSlot(root, action, options = {}) {
  *
  * @param {string} root
  * @param {{ required?: unknown }} [facts]
- * @returns {{ remote?: false, runnerOnly?: false }}
+ * @returns {{ remote?: false, runnerOnly?: false, runnerWaitMs?: undefined, runnerDeadlineAt?: undefined }}
  */
 export function landingControllerPlacement(root, { required } = {}) {
   // Only a gate's own controller calls this; its shards keep their runner placement and read runners-only themselves
   // (runLandingShards' own gateRunnerAdmission), so a runners-only machine still runs no shard here. The controller runs
   // no test file itself, so it stays here even on a runners-only machine; sent to a runner it could never fan out.
   if (required) return {};
-  return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false } : {};
+  // Dropping runners-only drops its captured wait and deadline too, which the slot refuses without it.
+  return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined } : {};
 }
 
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */

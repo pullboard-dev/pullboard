@@ -16,7 +16,13 @@ function project(t, shards) {
 }
 
 test('a landing with landingShards above 1 keeps its controller local so it can shard [C7,#3158]', t => {
-  assert.deepEqual(landingControllerPlacement(project(t, 6)), { remote: false, runnerOnly: false });
+  const placement = landingControllerPlacement(project(t, 6));
+  assert.deepEqual(placement, { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined });
+  // Spread over a runners-only machine's admission, no runner-only deadline survives without runners-only.
+  const options = { runnerOnly: true, remote: true, runnerWaitMs: 1_800_000, runnerDeadlineAt: Date.now() + 1000, ...placement };
+  assert.equal(options.runnerOnly, false);
+  assert.equal(options.runnerDeadlineAt, undefined);
+  assert.equal(options.runnerWaitMs, undefined);
 });
 
 test('an unsharded landing may still run whole on a runner [C7,#3158]', t => {
