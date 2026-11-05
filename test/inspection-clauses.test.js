@@ -33,7 +33,7 @@ function fixture(t, criterion) {
 const problem = ({ board, id }) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id));
 const tick = ({ board, id }, text) => store.appendFact(board, id, { agentId: 'core-1', kind: 'note', text });
 
-test('inspection policy is a board setting that defaults off and validates booleans [V4,B3]', () => {
+test('inspection policy is a board setting that defaults on and validates booleans [V4,B3,C7]', () => {
   assert.equal(configFromSource('{}').verify.inspectClauses, true);
   assert.equal(configFromSource('{"verify":{"inspectClauses":true}}').verify.inspectClauses, true);
   assert.throws(() => configFromSource('{"verify":{"inspectClauses":"on"}}'), /verify\.inspectClauses/u);
