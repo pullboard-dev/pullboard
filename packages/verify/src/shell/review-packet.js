@@ -17,6 +17,7 @@ import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
+import { frozenRowGates } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 import { criterionClauses } from '../../../state/index.js';
 
@@ -104,7 +105,8 @@ function packetClauses(item) {
   const numbered = criterionClauses(item.item_criterion ?? criterion);
   const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text }))
     : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
-  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}` }))]
+  const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
+  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
     .map((clause, index) => ({ n: index + 1, ...clause }));
 }
 
@@ -210,13 +212,15 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
   // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
-  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file)));
+  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
   const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
     .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    // A frozen spec row is proved by a run of the gate test its row names, which submit runs with the proof [V4].
+    if (clause.gate) evidence.push(...runs.filter(run => run.file === clause.gate).map(run => ({ ...run, test: null, why: "the row's gate test" })));
     for (const run of executed) {
       if (clause.text.includes(run.file)) continue;
       const cited = [...run.test.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
