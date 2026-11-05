@@ -11,7 +11,8 @@
   "landingShards": 6,
   "landing": {
     "manualOverride": false,
-    "publish": "separate"
+    "publish": "separate",
+    "perItem": false
   },
   "submit": {
     "requireInfraNote": true,
