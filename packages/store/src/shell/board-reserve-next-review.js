@@ -13,10 +13,12 @@ const SELECTION_ATTEMPTS = 3;
  * Whether the chosen item still has the identity it was selected with, no live reviewer, and the witness inputs it
  * was prepared on. Only cheap reads: a changed item or witness input reserves nothing, and the next look rebuilds.
  */
-function unchanged(board, chosen, prepared) {
+function unchanged(board, chosen, prepared, agentId) {
   const now = getItem(board, chosen.item_id);
+  const holder = now && reviewHolder(board, now);
+  // The caller's own live reservation is a renewal, a cheap write in the lock, never a change.
   return Boolean(now) && now.item_status === 'submitted' && now.item_commit === chosen.item_commit
-    && now.item_frozen_digest === chosen.item_frozen_digest && !reviewHolder(board, now)
+    && now.item_frozen_digest === chosen.item_frozen_digest && (!holder || holder === agentId)
     && (!prepared || prepared.inputs === relaxationInputs(board));
 }
 
@@ -40,8 +42,13 @@ export function reserveNextReview(board, { agentId, lane, leaseMs, policy, famil
     const witness = preparedRelaxation(board, item.item_id, who);
     afterSelection?.(item);
     // Never build a witness inside the lock: a changed choice reserves nothing and the look runs again outside it.
-    const reserved = atomic(board, () => unchanged(board, item, witness)
-      ? { item: reserveWithin(board, item.item_id, { ...who, prepared: witness }) } : null);
+    let reserved = null;
+    try {
+      reserved = atomic(board, () => unchanged(board, item, witness, agentId)
+        ? { item: reserveWithin(board, item.item_id, { ...who, prepared: witness }) } : null);
+    } catch (error) {
+      if (error?.code !== 'REVIEW_QUEUE_CHANGED') throw error;
+    }
     if (reserved) return { item: reserved.item, reasons };
     if (attempt >= SELECTION_ATTEMPTS) return { item: null, reasons: [...reasons, 'the review queue changed during every look; run next again'] };
   }
