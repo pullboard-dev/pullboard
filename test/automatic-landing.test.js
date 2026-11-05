@@ -35,7 +35,7 @@ function fixture(t, manualOverride = false, redStatic = false, cadence) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride, ...(cadence ? { cadence } : {}) } };
+  const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride, ...(cadence ? { cadence } : {}) } };
   if (redStatic) {
     config.staticChecks = 'node static.cjs';
     writeFileSync(join(box.repo, 'static.cjs'), `if (require('node:fs').existsSync(${JSON.stringify(join(box.dir, 'red-static'))})) { console.log('automatic static guard is red'); process.exit(1); }\n`);
