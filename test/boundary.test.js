@@ -36,7 +36,7 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
   assert.deepEqual(found, []);
 });
 
-test('only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
+test('clause 1: only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
   const allowed = (file, line) => file === 'packages/link/src/shell/relay.js' ||
     (file === 'packages/keys/src/shell/relay-pairing-client.js' && line.trim() === 'response = await fetch(new URL(path, url), {') ||
     // A board that signs person moves reads its linked relay's person authority, the relay link it already holds (#408).
