@@ -1,5 +1,6 @@
 import { prepareFlakeLanding } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
+import { selectAffectedTests } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
@@ -9,6 +10,7 @@ import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
+import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -69,6 +71,36 @@ async function quickGuards(state, label = 'local-trunk', options = {}) {
     return { ...gate, failures: own, unaccounted: true };
   }
   if (!gate.isGreen && !waivedProof(state, gate)) requireLocalGuardClassification(state, gate);
+  return gate;
+}
+
+/**
+ * Main moved while the batch gated. When every commit main gained touches no file the batch changes, the batch is
+ * rebuilt on the new tip and gated again on its own plan, focused on the tests those commits reach; a move that
+ * touches the batch's files, or a rebuilt batch that is red, is refused as before. Why: a 7-item batch that went green
+ * after a 51-minute bisection was refused LAND_TRUNK_MOVED for two commits outside its files, and the rebuild re-gated
+ * and re-bisected everything [C7].
+ */
+async function followMovedTrunk(state, gate) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const moved = mainCheckout(state.root)?.commit;
+    if (moved === state.batch.base) return gate;
+    const names = (from, to) => new Set(git(state.root, ['diff', '--no-renames', '--name-only', '-z', from, to]).split('\0').filter(Boolean));
+    const trunkFiles = names(state.batch.base, moved);
+    const batchFiles = names(state.batch.base, state.batch.tip);
+    const shared = [...trunkFiles].filter(file => batchFiles.has(file));
+    if (shared.length) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and changed ${shared.slice(0, 3).join(', ')}; rebuild the batch from its new tip`);
+    state.say(`main moved to ${moved.slice(0, 12)} outside this batch's files; rebuilding the batch on it`);
+    const previous = state.batch.base;
+    await save(state, { base: moved });
+    const rebuilt = await mergeGroup(state, state.batch.items);
+    await save(state, { ...rebuilt });
+    const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
+    const focus = !affected.full && affected.files.length ? { focus: affected.files } : {};
+    gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
+    if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
+  }
+  if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
   return gate;
 }
 
@@ -142,7 +174,7 @@ export async function landOnTrunk(state) {
     requireOutsideOwner(state.board, item);
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
-  if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
+  gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   await prepareFlakeLanding(state);
