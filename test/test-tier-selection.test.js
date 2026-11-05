@@ -78,7 +78,7 @@ function build(box, name, value, { second = false } = {}) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/${name}`, root, 'main');
     json(box, root, 'join', 'web');
   }
-  const id = json(box, box.repo, 'add', 'web', `Change ${name}`, '--specs', 'G1', '--criterion', `The ${name} package remains present and its unit contract holds.`, '--check', `node check.cjs ${name}`).item.item_id;
+  const id = json(box, box.repo, 'add', 'web', `Change ${name}`, '--specs', 'G1', '--criterion', `The ${name} package remains present and its unit contract holds.`, '--check', `node check.cjs ${name}`, '--route', 'strong').item.item_id;
   json(box, root, 'claim', String(id));
   writeFileSync(join(root, `packages/${name}/index.js`), `export const n = ${JSON.stringify(value)};\n`);
   const head = commit(box, root, `feat(web): change ${name} [G1]`);
@@ -112,6 +112,18 @@ test('submit and review run only the changed package units and frozen check [C7,
   assert.deepEqual(calls(box, 'alpha'), ['alpha:2', 'alpha:2'], 'review also executes the package unit');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
+});
+
+test('a journey test the change itself edits runs at submit, not first at landing [C7,CS4,V4]', t => {
+  const box = fixture(t), entry = build(box, 'gamma', 2);
+  const journey = join(entry.root, 'test/journey.test.js');
+  writeFileSync(journey, readFileSync(journey, 'utf8').replace("'journey\\n'", "'journey-edited\\n'"));
+  const head = commit(box, entry.root, 'test(web): the journey records its edit [G1]');
+  assert.notEqual(head, entry.head);
+  const submitted = json(box, entry.root, 'submit', String(entry.id), '--no-next');
+  assert.ok(submitted.gate.files.includes('test/journey.test.js'), submitted.gate.files.join(', '));
+  assert.deepEqual(submitted.gate.testTiers.journeys, []);
+  assert.deepEqual(calls(box, 'journey'), ['journey-edited']);
 });
 
 test('a package with no units runs only its frozen check [C7,CS4,V4]', t => {
