@@ -1,6 +1,6 @@
 import * as store from "./board.js";
-import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
+import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -18,7 +18,8 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId && !pendingSubmitHandoff(board, item));
+  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId
+    && !pendingSubmitHandoff(board, item)); // a queued gate frees the seat for new work [C7,#2882]
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
 
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'

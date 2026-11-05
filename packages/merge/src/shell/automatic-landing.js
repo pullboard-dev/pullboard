@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 /** Acceptance owns mechanical landing; the existing engine retains batching, gates and rework [B35,B3,R3]. */
 import { Refused } from '../../../kernel/index.js';
 import { mechanicalConflictFiles } from './mechanical-merge.js';
@@ -21,13 +20,6 @@ export async function landAcceptedItems({ root, config, trunk, items, reopen, ex
     if (files === null) throw new Refused('LAND_MERGE', 'cannot inspect the accepted head; restore its Git objects so the board can land it');
     if (files.length) await reopen(item.id, { files, trunk });
   }
-  const result = await execute();
-  if (result?.batch?.state === 'blocked') {
-    let output = (result.batch.failures ?? []).map(failure => `${failure.file ?? 'landing guard'}: ${failure.name}`).join('\n');
-    if (!output) {
-      try { output = readFileSync(result.batch.logPath, 'utf8').slice(-6000); } catch { output = result.batch.logPath ?? 'no retained gate output'; }
-    }
-    for (const item of result.batch.items ?? []) await reopen(item.id, null, `automatic landing failed: ${output}`);
-  }
-  return result;
+  // The landing engine returns only independently bisected culprits; a blocked batch is not evidence against its other items.
+  return await execute();
 }

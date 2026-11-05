@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input docs-tree */
-/** @pullboard-test-input src/documentation/*.json */
-/** @pullboard-test-input src/documentation/events/*.json */
+/** @pullboard-test-input apps/cli/src/shell/documentation/*.json */
+/** @pullboard-test-input apps/cli/src/shell/documentation/events/*.json */
 /** @pullboard-test-input src/command-docs/*.json */
 /** @pullboard-test-input bin/update-docs.js */
 /** Generated copies drift visibly and independent additions merge without builder resolutions [C7,V4,A1,A5,M1,H16]. */

@@ -1,15 +1,26 @@
 {
   "name": "pullboard",
   "itemSizeBudget": 150,
-  "maintainers": ["olevicor@icloud.com"],
+  "maintainers": [
+    "olevicor@icloud.com"
+  ],
   "gate": "npm run gate",
   "affectedTests": "node bin/run-tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
-  "landing": { "manualOverride": true, "publish": "separate" },
-  "submit": { "requireInfraNote": true, "handoff": true },
-  "claim": { "reopenFirstRefusalMinutes": 30 },
+  "landing": {
+    "manualOverride": false,
+    "publish": "separate",
+    "perItem": false
+  },
+  "submit": {
+    "requireInfraNote": true,
+    "handoff": true
+  },
+  "claim": {
+    "reopenFirstRefusalMinutes": 30
+  },
   "submitInvariants": [
     "test/refusal-next-steps.test.js",
     "test/machine.test.js"
@@ -79,8 +90,16 @@
     }
   ],
   "spec": "SPEC.md",
-  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true, "family": "require", "familyRelaxAt": 5 },
-  "check": { "timeout": "60m" },
+  "verify": {
+    "policy": "any",
+    "unrelatedTrunkMoves": true,
+    "composeAtAdmission": true,
+    "family": "require",
+    "familyRelaxAt": 5
+  },
+  "check": {
+    "timeout": "60m"
+  },
   "lease": "2h",
   "lanes": {
     "core": {
@@ -98,7 +117,12 @@
         "docs/lifecycle.md",
         "docs/cli-help.txt",
         "docs/formats.md",
-        "docs/formats.test.js", "docs/architecture.md", "docs/architecture.test.js", "docs/img/lifecycle.svg", "docs/img/lifecycle-dark.svg", "docs/img/draw.mjs"
+        "docs/formats.test.js",
+        "docs/architecture.md",
+        "docs/architecture.test.js",
+        "docs/img/lifecycle.svg",
+        "docs/img/lifecycle-dark.svg",
+        "docs/img/draw.mjs"
       ],
       "specs": [
         "B",
@@ -159,7 +183,10 @@
       "starts": "now"
     }
   },
-  "shared": ["test/chrome-fixture.js", "test/cockpit/fixture.js"],
+  "shared": [
+    "test/chrome-fixture.js",
+    "test/cockpit/fixture.js"
+  ],
   "commits": {
     "requireIds": [
       "feat",
@@ -173,7 +200,19 @@
     "rerun": true,
     "quarantine": true
   },
-  "relay": { "board": "924cfd3fae72c15088fc30a8ae0ef1d6", "outbox": true },
-  "cells": { "cache": true },
-  "worktreeMaintenance": { "enabled": true, "every": "1h", "grace": "1d", "exclude": ["/Users/coreyolson/Code/Open Source/pullboard-local-core-24"] }
+  "relay": {
+    "board": "924cfd3fae72c15088fc30a8ae0ef1d6",
+    "outbox": true
+  },
+  "cells": {
+    "cache": true
+  },
+  "worktreeMaintenance": {
+    "enabled": true,
+    "every": "1h",
+    "grace": "1d",
+    "exclude": [
+      "/Users/coreyolson/Code/Open Source/pullboard-local-core-24"
+    ]
+  }
 }

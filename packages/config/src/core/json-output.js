@@ -66,7 +66,7 @@ export const DEFAULT_OUTPUT_BUDGET = 8192;
  * output is what lands in an agent's context, so a list of hundreds of rows belongs behind --detail or --json.
  */
 export const OUTPUT_BUDGETS = Object.freeze({ view: Infinity, watch: Infinity, relay: Infinity, serve: Infinity,
-  next: 2048, mcp: Infinity, hook: Infinity, help: Infinity, tour: Infinity, export: Infinity });
+  mcp: Infinity, hook: Infinity, help: Infinity, tour: Infinity, export: Infinity });
 
 /** The command a CLI argument list runs: its first positional before any `--`. */
 export function commandName(argv) {
@@ -90,7 +90,7 @@ export function successfulNext(command, result) {
   if (command === 'claim') return 'git status';
   if (command === 'tour') return 'pullboard view';
   if (['help', 'version'].includes(command)) return 'pullboard status';
-  return command === 'next' ? 'nothing for this seat: end your turn' : 'pullboard next';
+  return 'pullboard next --take';
 }
 
 /** The longest single default-text line in UTF-8 bytes; one agents: line once ran to 54 KB [#1885]. */

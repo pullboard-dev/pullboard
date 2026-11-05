@@ -1,4 +1,4 @@
-import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../../state/index.js';
+import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../../../src/dead-handoff-retry-engine.js';
 /** Routing for an observational queued-submit move; no gate authority is added [C7,V4,H16]. */
 import { SUBMIT_HANDOFF_ENGINE } from "../../../../../src/submit-handoff-engine.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../../src/queued-red-return-engine.js";
