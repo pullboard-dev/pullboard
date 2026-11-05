@@ -2,6 +2,7 @@ import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
+import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
@@ -90,6 +91,19 @@ function deadWorker(worker, job) {
   return Boolean(worker.started && observed && observed !== worker.started);
 }
 
+/** A queued job past its launch grace with no worker record and no place in line will never start. */
+export const LOST_LAUNCH_GRACE_MS = 2 * 60_000;
+
+/**
+ * Whether a queued job's launch was lost: it is older than the grace, so its submit reserved a place long ago, yet no
+ * place in line remains. Why: the dispatcher writes worker.json before it removes a ticket, so only a lost ticket
+ * (an abandoned reservation or a ticket kept aside) leaves neither, and such a job held its claim for 5 h (#3121).
+ */
+export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
+  const at = Date.parse(job?.at ?? '');
+  return job?.state === 'queued' && Number.isFinite(at) && now - at > LOST_LAUNCH_GRACE_MS && !waiting(job.id);
+}
+
 /**
  * Recover only this authenticated builder's unfinished job, queued or running, outside the native writer. Why running
  * too: a worker that died mid-gate (#2469, ITEM_LEASE_LOST) left its job running forever, refusing every resubmit.
@@ -104,7 +118,11 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
   let worker;
   try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch { return; }
+  catch {
+    if (!lostQueuedLaunch(observed)) return;
+    worker = { version: 1, job: observed.id, pid: null, started: null, relaunches: 0,
+      unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
+  }
   if (!deadWorker(worker, observed)) return;
   let owned = false;
   const current = withBoardRead(ctx, board => {
