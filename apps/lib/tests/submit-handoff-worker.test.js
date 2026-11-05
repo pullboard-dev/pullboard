@@ -42,6 +42,30 @@ test('queued handoff retries an injected busy board write and records the pinned
   assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 5 }]);
 });
 
+test('queued handoff retries each busy storage code on the same pinned write and records every wait [C7]', async () => {
+  const failures = [
+    new Refused('BOARD_BUSY', 'fixture board is busy'),
+    Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' }),
+    new Refused('SLOT_DB_LOCKED', 'fixture slot database is busy'),
+  ];
+  const candidates = [];
+  const waits = [];
+  const out = await retryBusyHandoffWrite(async () => {
+    candidates.push('pinned-candidate');
+    const failure = failures.shift();
+    if (failure) throw failure;
+    return 'written';
+  }, { wait: async ms => waits.push(ms), busyBudgetMs: 30_000 });
+  assert.equal(out.result, 'written');
+  assert.deepEqual(candidates, Array(4).fill('pinned-candidate'));
+  assert.deepEqual(waits, [5_000, 10_000, 20_000]);
+  assert.deepEqual(out.busyWaits, [
+    { code: 'BOARD_BUSY', seconds: 5 },
+    { code: 'DATABASE_LOCKED', seconds: 10 },
+    { code: 'SLOT_DB_LOCKED', seconds: 20 },
+  ]);
+});
+
 test('launched submit worker completes a native queued request without unsettled await [V4,H16,E18]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
