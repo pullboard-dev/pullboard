@@ -310,7 +310,7 @@ export function nextFor(board, options) {
 /**
  * The green, unreserved submission this seat may review now, or null [C7, #2992].
  * Finished work waits only on a reviewer, so a seat takes it before any new build with no
- * starvation wait. Only a green gate at the submitted head with no reservation since that submit
+ * starvation wait. Only a green gate at the submitted head with no live review reservation
  * counts; every other submission is skipped, and nextFor's reviewer checks, the cross-family rule
  * among them, still decide eligibility.
  *
@@ -322,9 +322,8 @@ export function greenReviewFor(board, who) {
   const skip = new Set(who.skipIds ?? []);
   for (const item of listItems(board)) {
     if (item.item_status !== 'submitted') continue;
-    const submit = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item.item_id);
-    const reserved = submit && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='reserve' AND event_id>? LIMIT 1").get(item.item_id, submit.event_id);
-    if (!submit || reserved || !greenAtHead(board, item)) skip.add(item.item_id);
+    // Only a live reservation holds a review: one that expired or was released leaves the work waiting again.
+    if (reviewHolder(board, item) || !greenAtHead(board, item)) skip.add(item.item_id);
   }
   return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
 }

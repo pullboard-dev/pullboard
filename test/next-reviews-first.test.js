@@ -54,3 +54,28 @@ test('plain next also takes a one-minute green review before a build, below the 
   assert.equal(taken.document.item.item_id, review);
   assert.equal(store.getItem(box.board, build).item_status, 'open', 'no build claim before the review');
 });
+
+test('a green submission whose earlier reservation expired or was released is reviewed before a build [C7,#2992]', async t => {
+  const box = await fixture(t);
+  const expired = box.add('Green submission whose review lease expired'); box.submit(expired);
+  const released = box.add('Green submission whose reviewer released it'); box.submit(released);
+  const build = box.add('Open build', { brief: 'Files: web/other.js\nTest: an independent build stays open.' });
+  green(box, expired); green(box, released);
+  store.reserveReview(box.board, expired, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 60_000, policy: 'any' });
+  box.advance(120_000);
+  assert.equal(store.reviewHolder(box.board, store.getItem(box.board, expired)), null, 'the earlier review lease has expired');
+  store.reserveReview(box.board, released, { agentId: box.seats.outside.id, lane: 'review', leaseMs: 3_600_000, policy: 'any' });
+  store.release(box.board, released, box.seats.outside.id, 'Fixture reviewer steps away.', undefined, 'OTHER');
+  assert.equal(store.reviewHolder(box.board, store.getItem(box.board, released)), null, 'the reviewer released its reservation');
+  const offer = store.reviewOffer(box.board, { agentId: box.seats.actor.id, lane: 'web', policy: 'any', mandatoryOnly: true });
+  assert.equal(offer?.urgent, 'green-review', 'the mandatory green-review path offers work whose reservation is no longer live');
+  const reviewed = [];
+  for (const seat of [box.seats.actor, box.seats.sameFamily]) {
+    const taken = await cli(box, seat.path, ['next', '--take']);
+    assert.equal(taken.code, 0, taken.out + taken.err);
+    assert.equal(taken.document.review, true, taken.out + taken.err);
+    reviewed.push(taken.document.item.item_id);
+  }
+  assert.deepEqual(reviewed.sort(), [expired, released].sort(), 'each previously reserved green submission is offered again');
+  assert.equal(store.getItem(box.board, build).item_status, 'open', 'no build claim before the waiting reviews');
+});
