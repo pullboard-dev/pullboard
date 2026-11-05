@@ -183,6 +183,18 @@ test('a local holder is alive while its PID answers with the recorded start, how
   const zombie = holderDb(t, { pid: 4246, started: 'Mon Nov  4 01:00:00 2026', heartbeat: now });
   reclaimHolders(zombie, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 01:00:00 2026', zombie: true }) });
   assert.equal(held(zombie), 0, 'a zombie is gone');
+  const fallback = holderDb(t, { pid: 4247, started: 'Mon Nov  4 01:00:00 2026', heartbeat: ancient });
+  reclaimHolders(fallback, now, { alive: () => true, processIdentity: () => ({ started: 'linux:1730000000:123456', zombie: false }) });
+  assert.equal(held(fallback), 1, 'a ps failure that falls back to another start source never reclaims a live holder');
+  const failed = holderDb(t, { pid: 4248, started: 'Mon Nov  4 01:00:00 2026', heartbeat: ancient });
+  reclaimHolders(failed, now, { alive: () => true, processIdentity: () => null });
+  assert.equal(held(failed), 1, 'an unreadable start keeps a live holder');
+  const own = holderDb(t, { pid: process.pid, started: 'Mon Nov  4 01:00:00 2026', heartbeat: now });
+  reclaimHolders(own, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 03:00:00 2026', zombie: false }) });
+  assert.equal(held(own), 0, 'a row naming our own PID with a different start is a dead holder whose PID we reuse');
+  const self = holderDb(t, { pid: process.pid, started: 'Mon Nov  4 03:00:00 2026', heartbeat: ancient });
+  reclaimHolders(self, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 03:00:00 2026', zombie: false }) });
+  assert.equal(held(self), 1, 'our own live lease is kept');
 });
 
 test('a really blocked holder past the hung window is never reclaimed while its process lives [C7]', async t => {

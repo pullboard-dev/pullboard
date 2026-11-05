@@ -62,11 +62,12 @@ function freeHolder(db, row, relaunches) {
 export function reclaimHolders(db, now, probes) {
   const relaunches = [];
   for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched FROM holder').all()) {
-    if (row.pid === process.pid) continue;
-    if (!probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
-    // An unreadable identity is unknown, not proof of death: the live PID keeps the slot.
+    if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
+    // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
+    // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
     const identity = probes.processIdentity(row.pid);
-    if (identity && (identity.zombie || row.started && identity.started !== row.started)) freeHolder(db, row, relaunches);
+    if (identity && (row.pid !== process.pid && identity.zombie
+      || row.started && startSource(identity.started) === startSource(row.started) && identity.started !== row.started)) freeHolder(db, row, relaunches);
   }
   return relaunches;
 }
@@ -108,6 +109,11 @@ export function capturedRequestOf(value) {
     throw new Refused('BAD_RESOURCE_METADATA', 'capturedRequest needs argv, a non-empty array of strings, and an optional absolute cwd');
   }
   return JSON.stringify({ argv: [...value.argv], cwd: value.cwd ?? '' });
+}
+
+/** Which reader produced a start identity: a platform fallback tags its value, and ps lstart has no tag. */
+function startSource(started) {
+  return /^(linux|win):/u.exec(started)?.[1] ?? 'ps';
 }
 
 /**
