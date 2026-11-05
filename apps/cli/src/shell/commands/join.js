@@ -96,7 +96,9 @@ export async function run(io, { first, values }) {
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
-  io.say(`joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
+  io.say(sameSeat
+    ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
   return 0;
 }
