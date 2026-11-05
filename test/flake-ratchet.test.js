@@ -15,6 +15,11 @@ import { flakeQuarantines } from '../packages/flakes/index.js';
 import { gateRuns } from '../packages/flakes/index.js';
 import { recordSealedGateRun } from '../packages/flakes/index.js';
 import { getItem } from '../packages/store/index.js';
+import { listItems } from '../packages/store/index.js';
+import { QUARANTINE_BACKFILL_ENGINE } from '../src/quarantine-backfill-engine.js';
+import { applyEngineMove } from '../packages/state/index.js';
+import { appliedSequence } from '../packages/state/index.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { QUARANTINE_CORE_ENGINE } from '../src/quarantine-core-engine.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
@@ -304,8 +309,8 @@ test('landing batch recording fences flake events and preserves the published sn
     batch: { ...pushed, flakeRatchet: { ...pushed.flakeRatchet, count: 1, quarantines: [{ file: 'test/x.js', name: 'case', item: 1 }] } } }), { code: 'LAND_BATCH' });
 });
 
-/** A flake proven on a tree that never runs again is filed by the next recorded run, so landing is not stuck on it. */
-test('a recorded gate run backfills quarantines for flakes proven on other trees since the last landing [C7,D1]', t => {
+/** Record proven, red-only, green-only and pre-landing flake evidence; return the next structured land receipt. */
+function backfillFixture(t) {
   const { board } = boardFixture();
   t.after(() => closeBoard(board));
   const outcome = (file, passed) => ({ file, name: 'case', passed, skipped: false });
@@ -316,10 +321,16 @@ test('a recorded gate run backfills quarantines for flakes proven on other trees
   logEvent(board, 'coordinator', 'merged', null, { flakeRatchet: { version: 1, eventId: events(board).at(-1).event_id, count: 0, quarantines: [] } });
   run('proven-red', 'b', [outcome('test/flaky.test.js', false), outcome('test/red.test.js', false), outcome('test/green.test.js', true)]);
   run('proven-green', 'b', [outcome('test/flaky.test.js', true), outcome('test/red.test.js', false), outcome('test/green.test.js', true)]);
-  assert.deepEqual(landingFlakeRatchet(board).unprotected, [{ file: 'test/flaky.test.js', name: 'case' }]);
   const receipt = { version: 1, id: '00000000-0000-4000-8000-0000000000c1', kind: 'land', tree: tree('c'), head: tree('c'), main: tree('c'),
     command: 'd'.repeat(64), green: true, failures: [], load: { average: [0, 0, 0], cpus: 1, freeMB: 100 }, at: new Date().toISOString(),
     testOutcomes: [outcome('test/other.test.js', true)] };
+  return { board, receipt, tree };
+}
+
+/** A flake proven on a tree that never runs again is filed by the next recorded run, so landing is not stuck on it. */
+test('a recorded gate run backfills quarantines for flakes proven on other trees since the last landing [C7,D1]', t => {
+  const { board, receipt, tree } = backfillFixture(t);
+  assert.deepEqual(landingFlakeRatchet(board).unprotected, [{ file: 'test/flaky.test.js', name: 'case' }]);
   const result = recordSealedGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' });
   assert.deepEqual(result.quarantined.map(row => row.file), ['test/flaky.test.js']);
   const [quarantined] = flakeQuarantines(board);
@@ -330,4 +341,18 @@ test('a recorded gate run backfills quarantines for flakes proven on other trees
   assert.deepEqual(ratchet.unprotected, []);
   assert.equal(ratchet.allowed, true);
   assert.deepEqual(recordSealedGateRun(board, { agentId: 'coordinator', receipt: { ...receipt, id: '00000000-0000-4000-8000-0000000000c2' }, lane: 'core' }).quarantined, [], 'an active quarantine is never filed twice');
+});
+
+/** Replay runs a move at its recorded engine: an older structured run must file nothing, so later ids stay as recorded. */
+test('an old-engine recorded gate run replays through the engine without backfill; a current one backfills [C7,H16]', t => {
+  for (const [engine, filed] of [[QUARANTINE_BACKFILL_ENGINE - 1, 0], [ENGINE_VERSION, 1]]) {
+    const { board, receipt } = backfillFixture(t);
+    const items = listItems(board, { all: true }).length, before = events(board).length;
+    const move = { version: 1, engine, id: `backfill-replay-${engine}`, operation: 'recordGateRun', args: [{ agentId: 'coordinator', receipt, lane: 'core' }], actor: 'coordinator' };
+    applyEngineMove(board, move, { sequence: appliedSequence(board) + 1, at: new Date().toISOString() });
+    assert.equal(flakeQuarantines(board).length, filed);
+    assert.equal(listItems(board, { all: true }).length, items + filed, 'only the current engine adds a repair item');
+    assert.deepEqual(events(board).slice(before).map(row => row.event_kind).filter(kind => ['gate-run', 'test-quarantine'].includes(kind)),
+      filed ? ['gate-run', 'test-quarantine'] : ['gate-run'], 'an old move records only the run itself');
+  }
 });

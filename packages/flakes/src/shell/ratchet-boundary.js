@@ -1,4 +1,7 @@
 /** Where the landing flake ratchet starts counting, shared by the ratchet and quarantine backfill [C7,D1]. */
+import { flakePairs } from '../core/flake-ratchet.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import { QUARANTINE_BACKFILL_ENGINE } from '../../../../src/quarantine-backfill-engine.js';
 
 /** The last landed batch or merged ratchet receipt, its recorded snapshot, and the event its pairs count after [C7]. */
 export function ratchetBoundary(board) {
@@ -14,4 +17,17 @@ export function ratchetBoundary(board) {
 export function repairedAt(board, ledger) {
   return new Map(ledger.filter(row => row.status === 'fixed' && row.item != null).map(row => [JSON.stringify([row.file, row.name]),
     board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind='merged' AND item_id=?").get(row.item).id]));
+}
+
+/**
+ * Every same-tree red/green pair the landing ratchet would count, on trees run since its boundary, minus pairs a merged
+ * repair already answers. Only runs after the boundary are scanned. Why the engine check: an older engine's recorded
+ * move replays without the backfill, so it files no extra item and later item and event ids stay as recorded [C7,H16].
+ */
+export function backfillPairs(board, runs, ledger) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < QUARANTINE_BACKFILL_ENGINE) return [];
+  const { afterEvent } = ratchetBoundary(board), repaired = repairedAt(board, ledger);
+  const trees = new Set(runs.filter(run => run.eventId > afterEvent).map(run => run.tree));
+  return flakePairs(runs.filter(run => trees.has(run.tree)), { afterEvent })
+    .filter(pair => !(repaired.get(JSON.stringify([pair.file, pair.name])) > pair.lastEventId));
 }

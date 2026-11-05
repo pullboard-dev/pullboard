@@ -1,9 +1,9 @@
 import { legacyFlakeObservations } from '../core/flake-ratchet.js';
 import { flakeRatchet } from '../core/flake-ratchet.js';
 import { pairedFlakeObservations } from '../core/flake-ratchet.js';
-import { flakePairs } from '../core/flake-ratchet.js';
 import { ratchetBoundary } from './ratchet-boundary.js';
 import { repairedAt } from './ratchet-boundary.js';
+import { backfillPairs } from './ratchet-boundary.js';
 import { quarantinesAt } from '../core/flake-ratchet.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../store/index.js";
@@ -418,13 +418,10 @@ function recordStructuredQuarantines(board, agentId, value, lane, owners) {
       fileStructuredQuarantine(board, agentId, { file: outcome.file, name: outcome.name, tree: value.tree, red: red.id, green: green.id, lane: owners?.[outcome.file] ?? lane }, known, filed);
     }
   }
-  // Backfill: a flake proven red and green on a tree that never runs again would otherwise stay unfiled while the
-  // landing ratchet counts it. File every such pair since the last landing, on the ratchet's own boundary and pairs [C7,D1].
-  const { afterEvent } = ratchetBoundary(board), repaired = repairedAt(board, flakeLedger(board));
-  const trees = new Set(all.filter(run => run.eventId > afterEvent).map(run => run.tree));
-  for (const pair of flakePairs(all.filter(run => trees.has(run.tree)), { afterEvent })) {
+  // Backfill: a flake proven on a tree that never runs again would otherwise stay unfiled while the ratchet counts it.
+  for (const pair of backfillPairs(board, all, flakeLedger(board))) {
     const key = testKey(pair.file, pair.name), prior = known.get(key);
-    if (prior?.status === 'quarantined' || prior?.since >= pair.lastEventId || repaired.get(key) > pair.lastEventId) continue;
+    if (prior?.status === 'quarantined' || prior?.since >= pair.lastEventId) continue;
     fileStructuredQuarantine(board, agentId, { ...pair, red: pair.red.id, green: pair.green.id, lane: owners?.[pair.file] ?? lane }, known, filed);
   }
   return filed;
