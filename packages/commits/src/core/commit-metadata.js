@@ -22,7 +22,7 @@ export function prepareCommitMetadata(raw, { claim = null, claims = null, landin
   const metadata = allMetadata.filter(entry => entry.key !== 'Pullboard-Migration');
   if (migrationRows.length && !validMigration) problems.push('Pullboard-Migration needs the coordinator merge with its actual first parent');
   const held = claims ?? (claim ? [claim] : []);
-  if (held.length > 1) problems.push(`this checkout's seat holds ${held.map(item => `#${item.item_id}`).join(', ')}; commit from the item's own worktree or release one claim; Pullboard generates its trailers`);
+  if (held.length > 1) problems.push(`this checkout's seat holds ${held.map(item => `#${item.item_id}`).join(', ')}; commit from the item's own worktree. If you no longer work on #${held[0].item_id}, clear only that claim: pullboard release ${held[0].item_id} --reason OTHER --note "no longer working this claim" --no-next; Pullboard generates its trailers`);
   const expected = held.length > 1 ? null : held[0] ?? landings.find(item => item.item_id === parsed.item);
   if (supplied.length !== allMetadata.length) problems.push('keep Pullboard trailers together in the final paragraph, with no text after them');
   if (metadata.some(entry => !['Pullboard-Item', 'Pullboard-Rows'].includes(entry.key))) problems.push('the Pullboard- trailer prefix is reserved for Item and Rows');
