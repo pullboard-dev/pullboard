@@ -67,7 +67,7 @@ export function reclaimHolders(db, now, probes) {
     // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
     const identity = probes.processIdentity(row.pid);
     if (identity && (row.pid !== process.pid && identity.zombie
-      || row.started && startSource(identity.started) === startSource(row.started) && identity.started !== row.started)) freeHolder(db, row, relaunches);
+      || differentStart(identity, row.started))) freeHolder(db, row, relaunches);
   }
   return relaunches;
 }
@@ -114,6 +114,14 @@ export function capturedRequestOf(value) {
 /** Which reader produced a start identity: a platform fallback tags its value, and ps lstart has no tag. */
 function startSource(started) {
   return /^(linux|win):/u.exec(started)?.[1] ?? 'ps';
+}
+
+/**
+ * Whether a read identity proves a different process than the recorded start: only a start read by the same source
+ * can differ; an unrecorded start, or one read another way after a ps failure, is unknown, which counts as alive.
+ */
+export function differentStart(identity, started) {
+  return Boolean(started && identity?.started && startSource(identity.started) === startSource(started) && identity.started !== started);
 }
 
 /**

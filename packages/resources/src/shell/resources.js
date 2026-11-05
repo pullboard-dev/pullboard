@@ -56,6 +56,7 @@ import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
 import { platformIdentity } from './holder-liveness.js';
+import { differentStart } from './holder-liveness.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -345,11 +346,11 @@ function sameProcess(pid, started) {
 function custodyProcessMatches(pid, started) {
   if (!alive(pid)) return false;
   let identity = processIdentity(pid);
-  if (identity && (identity.zombie || started && identity.started !== started)) {
+  if (identity && (identity.zombie || differentStart(identity, started))) {
     processIdentities.delete(pid);
     identity = processIdentity(pid);
   }
-  return !identity || !identity.zombie && (!started || identity.started === started);
+  return !identity || !identity.zombie && !differentStart(identity, started);
 }
 
 /** Run a short serialized database update and discard dead or expired leases. */
@@ -1257,8 +1258,7 @@ export async function takeResource(options) {
           }
         }
         const acquiredWaitMs = priorWaitMs + Math.max(0, Date.now() - waitStartedAt);
-        let released = false;
-        let transferred = false;
+        let released = false, transferred = false;
         let lost = false;
         let cancellationDiagnostic = null;
         let heartbeat;

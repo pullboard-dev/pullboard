@@ -228,3 +228,19 @@ test('a runner lease on another host still counts as troubled by its stale heart
   db.prepare('INSERT INTO holder VALUES (?, ?, ?), (?, ?, ?)').run('runner:far', 'far', now - 10 * 60_000, 'runner:near', 'near', now);
   assert.deepEqual([...troubledRunners(db, now, 60_000)], ['far'], 'only the remote lease whose timestamp stopped is troubled');
 });
+
+test('controller custody keeps a live holder whose start was read another way, and both reclaim paths share one comparison [C7]', async t => {
+  const { differentStart } = await import(pathToFileURL(join(REPO, 'packages/resources/src/shell/holder-liveness.js')).href);
+  const recorded = 'Mon Nov  4 01:00:00 2026';
+  assert.equal(differentStart({ started: 'linux:1730000000:123' }, recorded), false, 'a fallback read after a ps failure is unknown, so alive');
+  assert.equal(differentStart({ started: 'win:638000000000000000' }, recorded), false);
+  assert.equal(differentStart(null, recorded), false, 'an unreadable identity is alive');
+  assert.equal(differentStart({ started: recorded }, ''), false, 'an unrecorded start proves nothing');
+  assert.equal(differentStart({ started: 'Mon Nov  4 02:00:00 2026' }, recorded), true, 'the same source with another start is a reused PID');
+  assert.equal(differentStart({ started: 'linux:1:2' }, 'linux:1:3'), true);
+  const { readFileSync: read } = await import('node:fs');
+  const source = read(join(REPO, 'packages/resources/src/shell/resources.js'), 'utf8');
+  const custody = source.slice(source.indexOf('function custodyProcessMatches('), source.indexOf('/** Run a short serialized database update'));
+  assert.equal((custody.match(/differentStart\(identity, started\)/gu) ?? []).length, 2, 'the controller orphan prune uses the source-aware comparison');
+  assert.doesNotMatch(custody, /identity\.started !== started|identity\.started === started/u);
+});
