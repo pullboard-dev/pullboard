@@ -47,4 +47,4 @@ function fixtureAdmissionProof(t) {
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
 }
 
-test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7]', fixtureAdmissionProof);
+test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
