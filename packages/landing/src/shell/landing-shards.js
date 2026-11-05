@@ -163,7 +163,7 @@ export function planLandingShards(files, count, times = {}) {
   const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms));
   const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
   const weight = file => known.length ? (Number.isFinite(times[fileKey(file)]) ? times[fileKey(file)] : average) : 1;
-  const ordered = [...files].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+  const ordered = [...new Map(files.map(file => [fileKey(file), file])).values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b)); // One path once, so no case runs twice (#3158).
   const shards = Array.from({ length: Math.max(1, count) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
     const lightest = shards.reduce((best, shard) => shard.weight < best.weight

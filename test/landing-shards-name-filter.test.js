@@ -36,8 +36,8 @@ function project(t, redFile = null) {
 }
 
 /** Run the landing gate with a name filter over all six files. */
-function gate(box, pattern = '^target') {
-  return runFixtureChild(process.execPath, ['bin/run-tests.js', '--test-name-pattern', pattern, ...NAMES.map(name => `test/${name}.test.js`)],
+function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `test/${name}.test.js`)) {
+  return runFixtureChild(process.execPath, ['bin/run-tests.js', '--test-name-pattern', pattern, ...extra, ...files],
     { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 240_000 });
 }
 
@@ -57,4 +57,16 @@ test('clause 2: a red in any name-filtered shard fails the gate and names the te
   const none = gate(project(t), '^no such case$');
   assert.notEqual(none.status, 0);
   assert.match(none.stdout + none.stderr, /NO_TESTS_MATCHED/u);
+});
+
+test('clause 1: duplicate paths run once, and every selector option reaches every shard [C7]', async t => {
+  const box = project(t);
+  const files = [...NAMES.map(name => `test/${name}.test.js`), 'test/a.test.js', './test/b.test.js'];
+  const run = gate(box, '^target', ['--test-skip-pattern', 'target [ce] '], files);
+  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
+  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
+  assert.equal(cases, 4, 'each target runs once despite duplicate paths, and the skip pattern drops c and e in their shards');
+  const { selectionPatternArgs } = await import('../packages/gate/index.js');
+  assert.deepEqual(selectionPatternArgs(['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only', '--test-concurrency', '2', 'test/a.test.js'], arg => arg === '--test-concurrency'),
+    ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only']);
 });

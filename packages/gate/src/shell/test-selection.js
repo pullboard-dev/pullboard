@@ -23,12 +23,12 @@ export function testSelectionPatterns(args, takesValue) {
   return patterns;
 }
 
-/** The name-pattern option tokens themselves, so a sharded landing gives every shard the same name filter (#3158). */
+/** Every test-selector option token (name and skip patterns, --test-only), so each landing shard selects alike (#3158). */
 export function selectionPatternArgs(args, takesValue) {
   const tokens = [];
   for (let index = 0; index < args.length && args[index] !== '--'; index++) {
-    if (/^--test[-_]name[-_]pattern=/u.test(args[index])) tokens.push(args[index]);
-    else if (/^--test[-_]name[-_]pattern$/u.test(args[index]) && index + 1 < args.length) tokens.push(args[index], args[++index]);
+    if (/^--test[-_](?:name|skip)[-_]pattern=/u.test(args[index]) || /^--test[-_]only$/u.test(args[index])) tokens.push(args[index]);
+    else if (/^--test[-_](?:name|skip)[-_]pattern$/u.test(args[index]) && index + 1 < args.length) tokens.push(args[index], args[++index]);
     else if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
   }
   return tokens;
@@ -42,7 +42,7 @@ export const SHARD_SELECTED_LINE = '# landing selected cases ';
  * shard may match none of its own files, so only the sum can say NO_TESTS_MATCHED, and the controller writes it.
  */
 export function shardSelectionMatched(args, outputs, write) {
-  if (!args.length) return true;
+  if (!args.some(arg => /^--test[-_]name[-_]pattern/u.test(arg))) return true;
   const cases = outputs.reduce((sum, output) => sum + [...String(output).matchAll(/^# landing selected cases (\d+)$/gmu)]
     .reduce((total, match) => total + Number(match[1]), 0), 0);
   if (!cases) write(`run-tests: NO_TESTS_MATCHED: the name filter ${JSON.stringify(args)} selected no proven test case in any landing shard\n`);
