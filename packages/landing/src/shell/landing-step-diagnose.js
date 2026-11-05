@@ -141,7 +141,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   if (!split.own.length) return items;
   failures = split.own;
   if (items.length === 1) {
-    await returnCulprit(state, items[0], failures);
+    await returnCulprit(state, items[0], failures, { isolated: true });
     return [];
   }
   const middle = Math.ceil(items.length / 2);
@@ -187,8 +187,11 @@ export function ownFailures(state, entry, failures) {
  * it neither changed nor names in its check reopens nothing: the batch keeps the failure and the item stays verified.
  * Why shared: a bisection's last item and a per-item landing's only item are the same case [C7,#2901,#2967].
  */
-export async function returnCulprit(state, item, failures) {
-  const own = ownFailures(state, item, failures);
+export async function returnCulprit(state, item, failures, { isolated = false } = {}) {
+  // An item a bisection isolated is the only change in its tree: its named reds that main passes are its own even in
+  // files it never touched. Why: "stays verified" sent such an item round again, a bisection each time [C7].
+  const charged = isolated && failures.length && failures.every(failure => failure.file && !failure.watchdog) ? failures : ownFailures(state, item, failures);
+  const own = charged;
   if (!own.length) {
     await save(state, { failures });
     state.say(`landing red is not #${item.id}'s: ${failures.map((failure) => `${failure.file ?? 'gate'}: ${failure.name}`).join('; ')}; it stays verified`);

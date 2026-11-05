@@ -332,7 +332,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         let proof = gate.isGreen ? null : waivedProof(state, gate);
         if (!gate.isGreen && !proof && singleItemLanding(state)) {
           // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
-          await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+          await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
           await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
           gate = null;
         } else if (!gate.isGreen && !proof) {
