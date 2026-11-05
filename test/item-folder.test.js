@@ -1,6 +1,6 @@
 /** Real claim and release lifecycle for isolated item worktrees [B5,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -77,6 +77,57 @@ test('[B5,C7] claim refuses a dirty reused folder and names files that are not i
   assert.equal(refusal.error.code, 'ITEM_FOLDER_DIRTY');
   assert.match(refusal.error.message, /stray\.txt/u);
   assert.equal(existsSync(join(path, 'stray.txt')), true, 'the refused folder remains intact');
+});
+
+test('[B5,C7] a same-holder claim renewal preserves uncommitted item work', t => {
+  const helpers = createE2eHelpers();
+  t.after(() => helpers.cleanup());
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'renew a dirty item folder', '--criterion', 'A claim renewal preserves item work', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const first = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(first.code, 0, first.err || first.out);
+  const path = JSON.parse(first.out).itemFolder;
+  writeFileSync(join(path, 'README.md'), 'uncommitted item work\n');
+
+  const renewed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(renewed.code, 0, renewed.err || renewed.out);
+  assert.equal(JSON.parse(renewed.out).renewed, true);
+  assert.equal(readFileSync(join(path, 'README.md'), 'utf8'), 'uncommitted item work\n');
+
+  const released = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'preserve dirty item work', '--no-next');
+  assert.equal(released.code, 0, released.err || released.out);
+  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.notEqual(reclaimed.code, 0, reclaimed.out);
+  const refusal = JSON.parse(reclaimed.out);
+  assert.equal(refusal.error.code, 'ITEM_FOLDER_DIRTY');
+  assert.match(refusal.error.message, /README\.md/u);
+  assert.equal(readFileSync(join(path, 'README.md'), 'utf8'), 'uncommitted item work\n');
+});
+
+test('[B5,C7] an ignored cache does not make a reused item folder dirty', t => {
+  const helpers = createE2eHelpers();
+  t.after(() => helpers.cleanup());
+  const box = helpers.project('true');
+  writeFileSync(join(box.repo, '.gitignore'), 'cache/\n');
+  box.git(box.repo, 'add', '.gitignore');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: ignore generated cache');
+  const added = box.run(box.repo, 'add', 'web', 'ignore generated item folder files', '--criterion', 'Ignored cache files do not block reuse', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const first = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(first.code, 0, first.err || first.out);
+  const path = JSON.parse(first.out).itemFolder;
+  mkdirSync(join(path, 'cache'));
+  writeFileSync(join(path, 'cache', 'generated.txt'), 'generated\n');
+  const released = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'reuse ignored generated files', '--no-next');
+  assert.equal(released.code, 0, released.err || released.out);
+
+  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(reclaimed.code, 0, reclaimed.err || reclaimed.out);
+  assert.equal(JSON.parse(reclaimed.out).itemFolder, path);
+  assert.equal(readFileSync(join(path, 'cache', 'generated.txt'), 'utf8'), 'generated\n');
 });
 
 
