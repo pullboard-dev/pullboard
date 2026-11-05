@@ -24,7 +24,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   }
   if (!info.isMain) return;
   const primary = mainCheckout(info.root);
-  if (primary?.branch) (await import('../../../../../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
+  if (primary?.branch) (await import('../../../../../packages/sandbox/src/shell/trusted-policy-read.js')).trunkRef(info.root, primary.branch);
 }
 
 /**
@@ -195,7 +195,7 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
-      if (!sync || !(await import('../../../../../packages/store/index.js')).syncMayAct(io.cwd)) return null;
+      if (!sync || !(await import('../../../../../packages/store/src/shell/sync-may-act.js')).syncMayAct(io.cwd)) return null;
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('../cli-sync.js');
