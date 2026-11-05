@@ -1181,8 +1181,9 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const path = join(box.dir, 'docs-land-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'docs/land-1', path, 'main');
-  assert.equal(box.run(path, 'join', 'docs').code, 0);
+  assert.equal(box.run(path, 'join', 'docs', '--model', 'Test Model').code, 0);
   const added = box.run(box.repo, 'add', 'docs', 'Docs fixture with no rows', '--criterion', 'the docs fixture is valid',
+    '--brief', 'Files: docs/land-1.md\nTest: docs/land-1.test.js\n',
     '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify('docs/land-1.test.js')}`, '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
@@ -1237,7 +1238,7 @@ test('an uncertain affected batch passes its full gate before local adoption [B3
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land on the local trunk first');
   const entries = verifiedFour(box);

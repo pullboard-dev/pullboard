@@ -79,6 +79,7 @@ export async function readSpec(S) {
     process.stdin.resume();
   });
   const value = spec;
+  if (Number.isSafeInteger(value?.version) && value.version >= 0 && value.version !== 1) S.workSpecVersion = value.version;
   const rule = firstBrokenRule(value);
   if (rule) throw new Error(rule);
   if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');

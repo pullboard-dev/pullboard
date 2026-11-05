@@ -85,7 +85,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     const configPath = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config,
-      landing: { manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+      landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
     box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/legacy.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
