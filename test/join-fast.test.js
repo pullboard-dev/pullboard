@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
+import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -53,6 +54,8 @@ function largeBoard(t) {
   for (let n = 0; n < 23_000; n++) shout.run(`core-${1 + n % 800}`, 'all', `Historical activity ${n}`, at);
   db.exec('COMMIT');
   db.close();
+  const warmed = openBoard(file);
+  try { ensureProofCounters(warmed); } finally { store.closeBoard(warmed); }
   return { root, env };
 }
 
