@@ -1,3 +1,4 @@
+import { itemDiagnosis } from './item-diagnosis.js';
 import { RELEASE_QUALITY_HOLD_ENGINE } from '../../../../src/release-quality-hold-engine.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
@@ -78,6 +79,8 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       combinedAfter = [...new Set([...String(item.item_after ?? '').split(',').filter(Boolean), ...blockedOn.map(String)])];
       validateItemDependencies(board, id, combinedAfter.map(value => /^\d+$/u.test(value) ? Number(value) : value));
     }
+    const wrongDiagnosis = reasonCode === 'DIAGNOSIS_WRONG' ? itemDiagnosis(board, item) : null;
+    if (reasonCode === 'DIAGNOSIS_WRONG' && (!wrongDiagnosis || item.item_status !== 'claimed' || item.item_owner !== agentId)) throw new Refused('DIAGNOSIS_WRONG', 'claim a diagnosed item before returning it for a new diagnosis');
     const stale = staleClaimRelease(board, item, agentId, note, observation);
     const gone = stale ? null : goneRelease(board, item, agentId, observation);
     if (item.item_status === 'submitted') {
@@ -105,6 +108,10 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       },
       set: () => ({ item_owner: null, item_lease_until: null, ...(blockedOn ? { item_after: combinedAfter.join(',') } : {}) }),
     });
+    if (wrongDiagnosis) {
+      board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`item_diagnosis:${id}`);
+      setItem(board, id, { item_route: 'mid', item_brief: `Diagnosis rejected: ${note.trim()}\n\nPrevious diagnosis (context):\n${item.item_brief}` });
+    }
     if (blockedOn) {
       const upsert = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value');
       upsert.run(`claim_waiting:${id}`, JSON.stringify(blockedOn));
@@ -125,7 +132,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       const seatRoute = board.db.prepare('SELECT agent_route FROM agent WHERE agent_id=?').get(agentId)?.agent_route;
       if (seatRoute === item.item_route) escalate(board, id, { agentId: 'coordinator', note: `${agentId} released at the ${seatRoute} route: ${reasonCode}${note?.trim() ? ` (${note.trim()})` : ''}` });
     }
-    if (currentEligible && !item.item_hold_reason
+    if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
       const releases = board.db.prepare(`SELECT event_id, event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
         AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)

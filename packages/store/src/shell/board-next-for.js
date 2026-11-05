@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
@@ -114,7 +115,7 @@ export function nextFor(board, options) {
   };
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
-  const allItems = listItems(board).reverse();
+  const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   const items = allItems
     .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
@@ -185,7 +186,7 @@ export function nextFor(board, options) {
     });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
-      && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
+      && (!restrictFocus || focus.ids.has(candidate.entry.item_id) || !focusOnly && greenAtHead(board, candidate.entry)))?.entry;
     if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return reviewResult({ item, reasons: focusReasons(board, item, [], { milestones }) });
     if (focus && !overflow) return reviewResult(focusIdle());
     if (item) return reviewResult(empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] }));
@@ -263,6 +264,8 @@ export function nextFor(board, options) {
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
+    if (diagnosisProblem) { reasons.push(diagnosisProblem.message); continue; }
     const gated = gateAtHead(board, entry);
     if (gated) { reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
@@ -305,6 +308,27 @@ export function nextFor(board, options) {
 }
 
 /**
+ * The green, unreserved submission this seat may review now, or null [C7, #2992].
+ * Finished work waits only on a reviewer, so a seat takes it before any new build with no
+ * starvation wait. Only a green gate at the submitted head with no live review reservation
+ * counts; every other submission is skipped, and nextFor's reviewer checks, the cross-family rule
+ * among them, still decide eligibility.
+ *
+ * @param {any} board
+ * @param {any} who - The nextFor options of the asking seat.
+ * @returns {any | null}
+ */
+export function greenReviewFor(board, who) {
+  const skip = new Set(who.skipIds ?? []);
+  for (const item of listItems(board)) {
+    if (item.item_status !== 'submitted') continue;
+    // Only a live reservation holds a review: one that expired or was released leaves the work waiting again.
+    if (reviewHolder(board, item) || !greenAtHead(board, item)) skip.add(item.item_id);
+  }
+  return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
+}
+
+/**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered.
@@ -318,9 +342,26 @@ export function nextFor(board, options) {
 function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
+  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
+  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
+  if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether a submitted item's gate went green at its submitted head [C7, #2961].
+ * Finished work waits only on a reviewer, so focus never hides it from review: a green submission
+ * outside the focused milestone is still offered, while focused reviews keep sorting first.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+function greenAtHead(board, entry) {
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && entry.item_commit && job.commit === entry.item_commit && job.state === 'green');
 }
 
 /** The unlanded items a claim released for waiting still waits on (#1225); empty when none. */
