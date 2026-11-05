@@ -38,6 +38,9 @@ import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { claimFreezer } from './claim.js';
 import { dirtyFiles } from './submit.js';
+import { commandObservation } from '../../../../../packages/git/index.js';
+import { statusPaths } from '../../../../../packages/git/index.js';
+import { worktreeStatus } from '../../../../../packages/git/index.js';
 
 /** Label the holder at the start of a generated wait reason without rewriting its quoted reason. */
 export function displayedWait(reason, agents, config) {
@@ -61,7 +64,12 @@ function warmFiles(ctx, board, me) {
     .sort((first, second) => second.item_updated_at.localeCompare(first.item_updated_at))
     .slice(0, 3)
     .flatMap((item) => store.itemFiles(item));
-  return [...new Set([...recent, ...dirtyFiles(ctx.info.root)])];
+  // One next reads this seat's edits once, however many of its steps warm from them.
+  // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
+  let dirty;
+  try { const { changed, untracked } = statusPaths(worktreeStatus(ctx.info.root)); dirty = [...changed, ...untracked]; }
+  catch { dirty = commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
+  return [...new Set([...recent, ...dirty])];
 }
 
 /**
@@ -92,7 +100,7 @@ export async function nextOnce(ctx, values) {
       itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
     });
   });
-  const looked = withBoardRead(ctx, (board) => nextPick(ctx, board, values));
+  const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values));
   if (looked.autoReview) {
     try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }), review: true }; }
     catch (error) {
@@ -102,12 +110,15 @@ export async function nextOnce(ctx, values) {
     }
   }
   if (!looked.claim) return looked;
+  // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
+  // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
+  const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  if (Number(values.wait) > 0 && !looked.held) {
+    const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
+    if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
+  }
   return await withBoard(ctx, async (board) => {
-    const picked = nextPick(ctx, board, values);
-    if (picked.autoReview) return { retry: true, retryDetail: { phase: 'first-review reservation', item: picked.autoReview.item_id, code: 'REVIEW_BECAME_MANDATORY' } };
-    if (!picked.claim) return picked;
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
-    const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = picked;
     const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
@@ -137,6 +148,23 @@ function otherLaneWork(me, item, reasons) {
   return { reasons: [...(reasons ?? []), line], idleReason: 'nothing-eligible', otherLane: { item: item.item_id, lane: item.item_lane } };
 }
 
+/** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
+function keepsClaim(me, item, values) {
+  return item.item_lane === me.lane && store.ROUTES.includes(me.route) && store.ROUTES.includes(item.item_route)
+    && store.canTake(me.route, item.item_route) && (values.routes ?? store.ROUTES).includes(item.item_route) && (!values.runnable || Boolean(item.item_check));
+}
+
+/**
+ * The selection seam of one next loop: next selects once per loop, and tests count these calls (#2978).
+ * Each entry forwards to the real board selection.
+ */
+export const nextSelection = {
+  /** Select on one board snapshot. */
+  pick: (ctx, board, values) => nextPick(ctx, board, values),
+  /** Offer one review to this seat. */
+  reviewOffer: (board, who) => store.reviewOffer(board, who),
+};
+
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
@@ -144,6 +172,17 @@ function nextPick(ctx, board, values) {
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
+  const findOffer = () => nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
+  // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
+  const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
+  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item));
+  if (found?.mandatory && !ownClaim) return { autoReview: found.item, item: found.item, reasons: [] };
+  // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
+  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+    return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
@@ -156,23 +195,12 @@ function nextPick(ctx, board, values) {
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
-  const firstReview = () => store.reviewOffer(board, { ...selection, mandatoryOnly: true,
-    priority: [], skipIds: selection.skipIds });
-  const mandatory = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, firstReview) : firstReview();
-  if (mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
-    return { autoReview: mandatory.item, item: mandatory.item, reasons: [] };
-  }
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
-  /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
-  const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   const offer = held && found?.urgent !== 'age' ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
