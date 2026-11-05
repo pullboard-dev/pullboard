@@ -54,7 +54,7 @@ test('progress after the nudge clears the flag, and a submit or gate in the last
   }
 });
 
-test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes and observes the 10-minute release plan [B4,C7,#2856]', () => {
+test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes and observes the 10-minute release plan [B4,C7,#2856,clause 1,clause 2]', () => {
   const history = [{ event_id: 1, event_at: minutes(0), event_by: 'core-1', event_kind: 'claim', event_detail: '{}' }];
   const sent = [];
   const ports = {
@@ -78,7 +78,7 @@ test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes
   assert.deepEqual(runScheduledClaimWatchdog(ctx, {}, snapshot, ports).release, [{ item: 7, owner: 'core-1', idleMs: 40 * 60_000 }]);
 });
 
-test('the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856]', async () => {
+test('the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856,clause 2]', async () => {
   const order = [];
   const snapshot = { claims: [] };
   const ctx = { clock: { now: () => new Date(T0) }, config: { health: {} }, io: {} };
