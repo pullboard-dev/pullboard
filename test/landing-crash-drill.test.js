@@ -14,7 +14,9 @@ import { startFixtureChild } from './fixture-child.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
 import { json } from './land-board-fixture.js';
 import { onBoard } from './land-board-fixture.js';
+import { getItem } from '../packages/store/index.js';
 import { landingBatches } from '../packages/store/index.js';
+import { waitForCondition } from './runner-fixture-state.js';
 
 /** Commit fixture inputs through ordinary hooks. */
 function commit(box, root, subject) {
@@ -102,6 +104,12 @@ for (const stage of ['merging', 'gating', 'pushing', 'recording']) {
     const secondAccept = box.run(reviewer, 'verify', String(entries[1].id), 'accept', '--note', 'Read second independent fixture head and frozen check.', '--json');
     assert.equal(secondAccept.code, 0, `${secondAccept.err}\n${secondAccept.out}`);
     const acceptance = JSON.parse(secondAccept.out);
+    await waitForCondition(() => onBoard(box, board => entries.every(entry => getItem(board, entry.id)?.item_merged_commit)),
+      `the recovered ${stage} landing records both accepted items`, {
+        signal: AbortSignal.timeout(180_000),
+        state: () => onBoard(box, board => entries.map(entry => ({ id: entry.id, status: getItem(board, entry.id)?.item_status,
+          merged: getItem(board, entry.id)?.item_merged_commit }))),
+      });
     for (const entry of entries) {
       const item = json(box, box.repo, 'show', String(entry.id));
       assert.ok(item.item_merged_commit,
