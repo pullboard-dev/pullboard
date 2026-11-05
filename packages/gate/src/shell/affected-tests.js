@@ -420,6 +420,8 @@ function closuresInGraph(graph) {
     for (let at = 0; at < queue.length && !reason; at += 1) {
       const path = queue[at];
       if (graph.unknown.has(path)) { reason = `${graph.unknown.get(path)} in reached file ${path}`; break; }
+      // An imported unreadable test leaves this closure incomplete as well, so it never reuses a green receipt [C7].
+      if (path !== test && graph.undeclared.has(path)) { reason = `${graph.undeclared.get(path)} in reached file ${path}`; break; }
       for (const dependency of forward.get(path) ?? []) {
         if (!reached.has(dependency)) { reached.add(dependency); queue.push(dependency); }
       }
@@ -531,8 +533,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    const [unreadable] = [...before.undeclared, ...after.undeclared];
-    if (unreadable) return { full: true, reason: `${unreadable[0]}: ${unreadable[1]}`, files };
+    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
+    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
     const reached = new Set(changed);
     const queue = [...changed];
     for (const doc of changed.filter(path => DOC.test(path))) {
