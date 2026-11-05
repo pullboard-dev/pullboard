@@ -39,7 +39,7 @@ test('next --take gives a seat with a running handoff a different item and no --
   assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
 });
 
-test('a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
+test('a pending handoff counts as free for the two-minute oldest-review offer (clause 2) [C7,#3077]', async t => {
   const box = await fixture(t);
   submitting(box, 'Submit handoff frees the seat for review');
   const waiting = box.add('Review waiting two minutes');
@@ -63,4 +63,24 @@ test('the commit-msg hook accepts the submitted item trailer while its handoff r
   box.git(cwd, 'commit', '-q', '-m', 'fix(web): follow up [G1]', '-m', `Pullboard-Item: #${id}`);
 
   assert.match(box.git(cwd, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${id}`, 'u'));
+});
+
+
+test('next --take reserves the two-minute review while its only claim is a pending handoff (clauses 1 and 2) [C7,#3077]', async t => {
+  const box = await fixture(t);
+  const held = submitting(box, 'Only claim is gating');
+  const before = store.getItem(box.board, held);
+  const waiting = box.add('Review at the inclusive age boundary');
+  box.submit(waiting);
+  const build = box.add('Unclaimed build', { brief: 'Files: web/other.js\nTest: remains unclaimed.' });
+  box.advance(2 * 60_000);
+  const offered = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, waiting);
+  assert.equal(offered.document.review, true);
+  assert.equal(store.getItem(box.board, waiting).item_review_by, box.seats.actor.id);
+  assert.equal(store.getItem(box.board, build).item_status, 'open');
+  assert.equal(store.getItem(box.board, held).item_owner, before.item_owner);
+  assert.equal(store.getItem(box.board, held).item_lease_until, before.item_lease_until);
+  assert.ok(store.pendingSubmitHandoff(box.board, store.getItem(box.board, held)));
 });

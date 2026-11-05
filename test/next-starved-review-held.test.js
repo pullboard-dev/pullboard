@@ -30,7 +30,7 @@ function holding(box, seat, id) {
     folder: existsSync(`${seat.path}-item-${id}`) };
 }
 
-test('a seat holding one claim and a seat holding two each get the starved review first; the builds stay held [C7,N2,V1]', async t => {
+test('a seat holding one claim and a seat holding two each get the starved review first; the builds stay held (clause 3) [C7,N2,V1]', async t => {
   const box = await board(t);
   const waiting = box.add('Submission waiting past the review limit');
   box.submit(waiting);

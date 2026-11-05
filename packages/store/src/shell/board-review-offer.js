@@ -3,6 +3,7 @@ import { ENGINE_VERSION } from '../../../state/index.js';
 import { lineSettings } from '../../../state/index.js';
 import { reviewOffer as capacityReviewOffer } from "../../../seats/index.js";
 import { nextFor } from "./board-next-for.js";
+import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import {
   listItems,
   reviewHolder,
@@ -27,7 +28,9 @@ function firstAgedReview(board, who) {
 
 /** Offer an eligible review at the queue ratio without claiming or reserving anything [Q1,V15]. */
 export function reviewOffer(board, who) {
-  if (who.mandatoryOnly) {
+  const holding = listItems(board).some(item => item.item_status === 'claimed'
+    && item.item_owner === who.agentId && !pendingSubmitHandoff(board, item));
+  if (!holding) {
     const aged = firstAgedReview(board, who);
     if (aged?.item) return { item: aged.item, queue: reviewQueue(board), mandatory: true, urgent: 'age', starveMinutes: 2 };
   }

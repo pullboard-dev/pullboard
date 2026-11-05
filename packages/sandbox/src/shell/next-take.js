@@ -32,7 +32,8 @@ function selected(ctx, board, values, services) {
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
-  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id);
+  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
+    && !store.pendingSubmitHandoff(board, item));
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
