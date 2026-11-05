@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { legacyFlakeObservations } from '../core/flake-ratchet.js';
 import { flakeRatchet } from '../core/flake-ratchet.js';
 import { pairedFlakeObservations } from '../core/flake-ratchet.js';
@@ -378,7 +379,11 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'shadow') ? SHADOW_TIER1_ENGINE : GATE_RUN_ENGINE);
-    logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+    const itemId = value.proof?.item ?? null;
+    logEvent(board, agentId, 'gate-run', itemId, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+    if (itemId !== null && value.shadow) logEvent(board, agentId, 'fact', itemId, { id: randomUUID(), kind: 'measurement',
+      text: `Tier-1 shadow for gate receipt ${value.id} at ${value.head}: ${value.shadow.verdict}; real gate result: ${value.shadow.real}; differs: ${value.shadow.differs}.`,
+      ref: { kind: 'gate-run', id: value.id }, supersedes: null });
     if (autoSubmit) return { run: value, quarantined: recordSubmitQuarantines(board, agentId, value) };
     if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can

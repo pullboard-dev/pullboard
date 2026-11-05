@@ -21,10 +21,11 @@ test('no Tier 1 fact is emitted without exact green submission and review eviden
   assert.equal(tier1ShadowFact(events, { state: 'pass' }, 'ACCEPT', head), null);
   assert.equal(tier1ShadowFact(events, { state: 'unverified' }, 'REJECT', head), null);
   assert.equal(tier1ShadowFact(events, { state: 'pass' }, 'ACCEPT', 'c'.repeat(40)), null);
+});
+
 /** Every gate receipt carries the verdict tier 1 alone would give, as report-only shadow evidence [V4,H16]. */
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
+import { recordGateRun } from '../packages/flakes/index.js';
 import { receiptFields, tier1Shadow, tier1ShadowFields } from '../packages/verify/index.js';
 import { SHADOW_TIER1_ENGINE } from '../src/shadow-tier1-engine.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -83,4 +84,12 @@ test('a recorded proof keeps the real verdict unchanged when the shadow differs 
   assert.equal(stored.failures.length, 1, 'the real failures are as run');
   const event = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='proof-run' ORDER BY event_id DESC").get();
   assert.equal(JSON.parse(event.event_detail).engine, SHADOW_TIER1_ENGINE);
+  const fact = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' AND item_id=? ORDER BY event_id DESC").get(id);
+  assert.match(JSON.parse(fact.event_detail).text, /Tier-1 shadow .*: green; real gate result: red; differs: true/u);
+  recordGateRun(board, { agentId: seat, receipt: run, lane: 'core' });
+  const gate = board.db.prepare("SELECT item_id, event_detail FROM event WHERE event_kind='gate-run' ORDER BY event_id DESC").get();
+  assert.equal(gate.item_id, id);
+  assert.deepEqual(JSON.parse(gate.event_detail).run.shadow, shadow);
+  const gateFact = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='fact' AND item_id=? ORDER BY event_id DESC").get(id);
+  assert.match(JSON.parse(gateFact.event_detail).text, /Tier-1 shadow for gate receipt .*: green; real gate result: red; differs: true/u);
 });

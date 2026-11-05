@@ -15,6 +15,7 @@ import { Refused } from "../../../kernel/index.js";
 import { agentParent } from "../../../seats/index.js";
 import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
+import { randomUUID } from 'node:crypto';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
 export function boundProofReceipt(board, request) {
@@ -83,6 +84,9 @@ export function recordProofRun(board, request) {
     const { receipt, existing } = proofReceiptFields(board, request, run);
     if (existing) return existing;
     logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'shadow') ? SHADOW_TIER1_ENGINE : Object.hasOwn(receipt, 'failures') && !Object.hasOwn(receipt, 'blockingVerdict') ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
+    if (receipt.shadow) logEvent(board, request.agentId, 'fact', request.itemId, { id: randomUUID(), kind: 'measurement',
+      text: `Tier-1 shadow for gate receipt ${receipt.id} at ${receipt.commit}: ${receipt.shadow.verdict}; real gate result: ${receipt.shadow.real}; differs: ${receipt.shadow.differs}.`,
+      ref: { kind: 'proof-run', id: receipt.id }, supersedes: null });
     return receipt;
   });
 }
