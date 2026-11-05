@@ -28,6 +28,7 @@ import {
 import { GATE_RUN_ENGINE } from "../../../../src/gate-run-engine.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { RUN_TIMING_ENGINE } from "../../../../src/run-timing-engine.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
 import {
   boardReceiptStore,
   receiptBinds,
@@ -301,6 +302,9 @@ function gateRunValue(board, { agentId, receipt }) {
     && (board.executionEngineVersion ?? ENGINE_VERSION) < RUN_TIMING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `run phase timings require engine ${RUN_TIMING_ENGINE}`);
   }
+  if (Object.hasOwn(receipt ?? {}, 'shadow') && (board.executionEngineVersion ?? ENGINE_VERSION) < SHADOW_TIER1_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `tier 1 shadow facts require engine ${SHADOW_TIER1_ENGINE}`);
+  }
   if (Object.hasOwn(receipt ?? {}, 'collection') && (board.executionEngineVersion ?? ENGINE_VERSION) < MAIN_AUDIT_ENGINE) {
     throw new Refused('ENGINE_VERSION', `collection receipts require engine ${MAIN_AUDIT_ENGINE}`);
   }
@@ -372,7 +376,8 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
       value.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
-      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
+      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'shadow') ? SHADOW_TIER1_ENGINE : GATE_RUN_ENGINE);
     logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
     if (autoSubmit) return { run: value, quarantined: recordSubmitQuarantines(board, agentId, value) };
     if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };

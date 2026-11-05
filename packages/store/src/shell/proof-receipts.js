@@ -13,6 +13,7 @@ import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../src/submit-proof-reuse-en
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
 import { Refused } from "../../../kernel/index.js";
 import { agentParent } from "../../../seats/index.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
@@ -55,6 +56,7 @@ function proofReceiptFields(board, request, run) {
     receipt.blockingVerdict = run.blockingVerdict;
     receipt.failures = run.failures;
   } else if (exitFailures) receipt.failures = run.failures;
+  if (Object.hasOwn(run, 'shadow') && (board.executionEngineVersion ?? ENGINE_VERSION) >= SHADOW_TIER1_ENGINE) receipt.shadow = run.shadow;
   if (Object.hasOwn(run.proof, 'submitPhase')) { receipt.submitPhase = run.proof.submitPhase; receipt.command = run.command; }
   if (Object.hasOwn(run.proof, 'submitAdmission')) receipt.submitAdmission = run.proof.submitAdmission;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMIT_PROOF_REUSE_ENGINE && run.proof.submitReuse === true) {
@@ -80,7 +82,7 @@ export function recordProofRun(board, request) {
   return atomic(board, () => {
     const { receipt, existing } = proofReceiptFields(board, request, run);
     if (existing) return existing;
-    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'failures') && !Object.hasOwn(receipt, 'blockingVerdict') ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
+    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'shadow') ? SHADOW_TIER1_ENGINE : Object.hasOwn(receipt, 'failures') && !Object.hasOwn(receipt, 'blockingVerdict') ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
     return receipt;
   });
 }

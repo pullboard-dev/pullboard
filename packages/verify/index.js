@@ -12,6 +12,7 @@ export { recordNativeProof } from './src/core/proof-cli.js';
 export { counterCaught, counterProofStats } from './src/shell/proof-counter-read.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/shell/proof-counters.js';
 export { refreshCapacityOutsideWrite } from './src/shell/proof-counters.js';
+export { tier1Shadow, tier1ShadowFields } from './src/core/tier1-shadow.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/core/proof-provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/core/required-review-family.js';
 export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibility.js';
