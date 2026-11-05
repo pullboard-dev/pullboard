@@ -14,8 +14,7 @@ export async function work(event, { heartbeat, dispatch, inspect }) {
   catch { /* A failed private observation must not suppress the ordinary native context. */ }
   // An ended session frees its build claim at once instead of waiting out the idle clock (#1225).
   if (event === 'SessionEnd') { await dispatch(['release', '--session-end']); return; }
-  // This explicit native heartbeat may claim work; ordinary read commands never do.
-  await dispatch(['heartbeat']);
+  // The heartbeat port above is the hook's whole presence step; no hook selects or claims work [C7,#3001].
   if (event === 'SessionStart') {
     process.exitCode = await dispatch(['resume']);
     return;
