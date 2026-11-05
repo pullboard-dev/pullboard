@@ -50,7 +50,7 @@ function waitForResident(place) {
   });
 }
 
-test('claim, release and next each answer under 500 ms through a warm resident on a real SQLite board [H24]', async t => {
+test('clause 1: claim, release and next each answer under 500 ms through a warm resident on a real SQLite board [H24]', async t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   box.env.PULLBOARD_RESIDENT = '1';
