@@ -21,10 +21,13 @@ async function fixture(t) {
   /** Write one move in its own transaction, as the CLI's direct write does. */
   const write = move => { db.exec('BEGIN IMMEDIATE'); db.prepare('INSERT INTO move (seat, note) VALUES (?, ?)').run(move.seat, move.note); db.exec('COMMIT'); return db.prepare('SELECT COUNT(*) AS n FROM move').get().n; };
   const writer = createBoardWriter({ apply: write });
-  const socket = join(dir, 'writer.sock');
+  // Socket paths must stay short, whatever directory a runner gives the test.
+  const socketDir = mkdtempSync(join('/tmp', 'pbw-'));
+  t.after(() => rmSync(socketDir, { recursive: true, force: true }));
+  const socket = join(socketDir, 'writer.sock');
   const server = await serveBoardWriter(socket, writer);
   t.after(() => server.close());
-  return { dir, file, db, write, writer, socket, rows: () => db.prepare('SELECT seat, note FROM move ORDER BY n').all().map(row => ({ ...row })) };
+  return { dir, socketDir, file, db, write, writer, socket, rows: () => db.prepare('SELECT seat, note FROM move ORDER BY n').all().map(row => ({ ...row })) };
 }
 
 test('clause 1: a writer applies a move at its snapshot version or answers changed, retry, in arrival order [H24]', async t => {
@@ -71,7 +74,7 @@ test('clause 2: while one command computes with no lock held, twenty seats commi
 
 test('clause 3: with no writer running a command writes the board directly, so the board never depends on the writer [H24]', async t => {
   const f = await fixture(t);
-  const absent = join(f.dir, 'nobody-listening.sock');
+  const absent = join(f.socketDir, 'nobody-listening.sock');
   const answer = await commitMove({ socket: absent, request: { snapshot: 0, touches: ['item:1'], move: { seat: 'direct', note: 'no writer' } }, direct: f.write });
   assert.equal(answer.applied, true);
   assert.equal(answer.direct, true);
@@ -79,4 +82,11 @@ test('clause 3: with no writer running a command writes the board directly, so t
   const viaWriter = await commitMove({ socket: f.socket, request: { snapshot: f.writer.snapshot(), touches: ['item:2'], move: { seat: 'writer', note: 'through the writer' } }, direct: () => assert.fail('a running writer takes the move') });
   assert.equal(viaWriter.applied, true);
   assert.equal(viaWriter.direct, undefined);
+});
+
+test('a socket path too long for the system is refused rather than cut into another writer\'s socket [H24]', async t => {
+  const f = await fixture(t);
+  const long = join(f.dir, 'x'.repeat(120), 'writer.sock');
+  assert.throws(() => connectBoardWriter(long), { code: 'BOARD_WRITER_SOCKET' });
+  assert.throws(() => serveBoardWriter(long, f.writer), { code: 'BOARD_WRITER_SOCKET' });
 });

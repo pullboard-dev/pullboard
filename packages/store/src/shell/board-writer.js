@@ -6,6 +6,15 @@ import { Refused } from '../../../kernel/index.js';
 
 /** The answer a writer gives a move computed from a snapshot that has since changed. */
 const CHANGED = 'changed, retry';
+/** Unix socket paths are cut near this many bytes, and a cut path can name another writer's socket. */
+const MOST_SOCKET_BYTES = 100;
+
+/** Refuse a socket path the operating system would truncate, so two long paths can never meet at one socket. */
+function requireShortSocket(socket) {
+  if (Buffer.byteLength(socket) > MOST_SOCKET_BYTES) {
+    throw new Refused('BOARD_WRITER_SOCKET', `the board writer socket path is ${Buffer.byteLength(socket)} bytes and the system cuts paths past ${MOST_SOCKET_BYTES}; use a shorter directory`);
+  }
+}
 
 /**
  * Create the writer's core: a queue that applies each move in arrival order, atomically, or answers `changed, retry`.
@@ -45,6 +54,7 @@ export function createBoardWriter({ apply, version = 0 }) {
  * @returns {Promise<{ close: () => Promise<void> }>}
  */
 export function serveBoardWriter(socket, writer) {
+  requireShortSocket(socket);
   rmSync(socket, { force: true });
   const open = new Set();
   const server = createServer(connection => {
@@ -84,6 +94,7 @@ function reply(connection, writer, line) {
  * @returns {Promise<{ snapshot: () => Promise<number>, commit: (request: { snapshot: number, touches?: string[], move: any }) => Promise<any>, close: () => void }>}
  */
 export function connectBoardWriter(socket) {
+  requireShortSocket(socket);
   return new Promise((resolve, reject) => {
     const connection = createConnection(socket);
     const waiting = new Map();
