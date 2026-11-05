@@ -28,7 +28,7 @@ function backlog(t, submitted = SUBMITTED) {
     ids.push(id);
   }
   now = new Date(now.getTime() + 16 * 60_000);
-  return { board, ids };
+  return { board, ids, advance: ms => { now = new Date(now.getTime() + ms); } };
 }
 
 /** Record how long each top-level write transaction holds the SQLite writer, from BEGIN to its end. */
@@ -96,4 +96,25 @@ test('clause 2: a witness whose queue changed between the look and the lock is r
     store.reserveReview(board, ids.find(id => id !== item.item_id), { ...who, agentId: 'core-3' });
   } }), { code: 'SAME_FAMILY' }, 'the rebuilt witness no longer relaxes the frozen family rule');
   assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale witness');
+});
+
+test('clause 2: a seat leaving its release cooldown between the look and the lock rebuilds the witness [C7,V15]', t => {
+  const { board, ids, advance } = backlog(t, 2);
+  store.register(board, { id: 'core-99', lane: 'core', path: '/fixture/core-99', family: 'anthropic',
+    parentDigest: 'f'.repeat(64), model: 'fixture-model' });
+  // The other-family seat reviews and releases both waiting items, so its hour-long cooldown blocks it on each.
+  for (const id of ids) {
+    store.reserveReview(board, id, { ...who, agentId: 'core-99', familyPolicy: 'require' });
+    store.release(board, id, 'core-99', 'Fixture reviewer steps away.', undefined, 'OTHER');
+  }
+  advance(50 * 60_000);
+  store.shout(board, { from: 'core-99', to: 'coordinator', text: 'Still here', lanes: ['core'] });
+  advance(9 * 60_000 + 59_000);
+  let chosen;
+  assert.throws(() => store.reserveNextReview(board, who, { afterSelection: item => {
+    chosen = item.item_id;
+    // Its cooldown ends while it is still active: it can now review, so the backlog no longer relaxes the rule.
+    advance(2_000);
+  } }), { code: 'SAME_FAMILY' }, 'the witness is rebuilt once the cooldown has ended');
+  assert.equal(store.getItem(board, chosen).item_review_by, null);
 });

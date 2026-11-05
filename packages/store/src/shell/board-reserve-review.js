@@ -46,7 +46,8 @@ export function preparedRelaxation(board, id, { agentId, policy, familyPolicy = 
 
 /**
  * The cheap facts a relaxation witness is derived from: every waiting submission with its head, bar and live
- * reviewer, the seats active in the witness window with their families, and the latest review release. Why: a
+ * reviewer, the seats active in the witness window with their families, the latest review release and every release
+ * cooldown still running. Why: a
  * witness prepared before the lock is reused only while these are unchanged, so another reviewer reserving a waiting
  * item, a seat arriving or a release between the look and the lock rebuilds it instead (#3156).
  *
@@ -61,7 +62,10 @@ export function relaxationInputs(board) {
   const active = board.db.prepare('SELECT DISTINCT event_by AS id FROM event WHERE event_at>=? AND event_at<=? ORDER BY event_by').all(cutoff, at)
     .map(row => [row.id, seatFamily(board, row.id)]);
   const released = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind IN ('release','review-release')").get()?.id ?? null;
-  return JSON.stringify({ waiting, active, released });
+  // A release cooldown ends with time alone, so each live one is part of the inputs, evaluated now (#3156).
+  const cooling = board.db.prepare("SELECT DISTINCT event.item_id AS item, event.event_by AS seat FROM event JOIN item ON item.item_id=event.item_id WHERE item.item_status='submitted' AND event.event_kind='release' ORDER BY event.item_id, event.event_by").all()
+    .filter(row => reviewReleaseCooldown(board, row.item, row.seat)).map(row => [row.item, row.seat]);
+  return JSON.stringify({ waiting, active, released, cooling });
 }
 
 /**
