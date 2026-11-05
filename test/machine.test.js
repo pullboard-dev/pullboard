@@ -99,7 +99,7 @@ const CAUGHT = {
   // The same catches as reached at the CLI's moved source (#2886).
   '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
