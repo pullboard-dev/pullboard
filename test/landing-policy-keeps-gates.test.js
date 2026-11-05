@@ -114,7 +114,7 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
   assert.equal(JSON.parse(submitted.out).queued, true);
   await helpers.waitFor(() => existsSync(entered), 'actual queued worker entered frozen check', 120_000); // budget: owned worker readiness hang ceiling
   assert.equal(queuedState(box, id).job.state, 'running');
-  if (landingOnly) config.landing = { ...config.landing, manualOverride: true };
+  if (landingOnly) config.landing = { ...config.landing, manualOverride: false };
   else config.gate = 'node -e "process.exit(0)"';
   writeFileSync(configFile, JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
