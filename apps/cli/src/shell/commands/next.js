@@ -68,9 +68,27 @@ function inboxReasons(ctx) {
 
 /** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
 function answerFirstReasons(reasons) {
+  return ['no item is free', ...heldCounted(reasons)];
+}
+
+/** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
+function heldCounted(reasons) {
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return ['no item is free', ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+}
+
+/**
+ * Keep the first few reason lines and fold the rest into one counted line naming where to read them [C7,#2895].
+ * Why: a long hold or skip list pushed the claim's action off the first screen, and small models lost it.
+ *
+ * @param {string[]} lines
+ * @param {string} more the command that lists every reason
+ * @param {number} [keep]
+ * @returns {string[]}
+ */
+export function foldedReasons(lines, more, keep = 5) {
+  return lines.length <= keep ? lines : [...lines.slice(0, keep), `+${lines.length - keep} more reasons: ${more}`];
 }
 
 /**
@@ -124,7 +142,7 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
+    const takeMainRed = await progress.run('main-red routing', null, () => !values.take && !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
@@ -135,6 +153,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
         const target = withBoardRead(ctx, board => ({ boardId: store.boardId(board), seat: store.listAgents(board).find(agent => agent.agent_id === route.seat) }));
@@ -170,7 +189,8 @@ async function nextWithProgress(io, values, progress) {
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
-        for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
+        io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
@@ -181,7 +201,7 @@ async function nextWithProgress(io, values, progress) {
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
-        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
+        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
       }
       return 0;
     }
@@ -209,7 +229,7 @@ async function nextWithProgress(io, values, progress) {
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       const reasons = answerFirstReasons(found.reasons);
-      return refuseNextIdle(io, reasons, reasons.map((reason) => displayedWait(reason, agents, ctx.config)), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     if (found.retry) await progress.retry(found);
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));

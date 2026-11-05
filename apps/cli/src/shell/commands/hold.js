@@ -18,8 +18,8 @@ import {
 /** Run `pullboard hold` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (values.off && values.until !== undefined) throw new Refused('USAGE', '--off and --until cannot be combined');
-  const act = (work) => actOn(io, work);
-  return act(async (ctx, board, me) => {
+  let released = null;
+  const code = await actOn(io, async (ctx, board, me) => {
   const itemTarget = /^#?\d+$/u.test(first ?? '');
   if (itemTarget) {
     const id = idArg(first);
@@ -27,6 +27,7 @@ export async function run(io, { first, second, rest, values }) {
     if (values.off) {
       await ordered(ctx, board, 'releaseItemHold', [id, { agentId: me.id }]);
       io.say(`lifted the hold on #${id}`);
+      if (store.getItem(board, id).item_status === 'verified') released = ctx;
     } else {
       await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason, ...(values.until === undefined ? {} : { until: values.until }) }]);
       io.say(`holding #${id}: ${reason}. Lift it with: pullboard hold ${id} --off`);
@@ -53,4 +54,7 @@ export async function run(io, { first, second, rest, values }) {
   io.result?.({ lane: first, held: !values.off, reason: values.off ? null : values.reason });
   return 0;
 });
+  // A released verified item can land now; wake landing the way an accept does, after the board lock is free [C7,#2898].
+  if (released) await (await import('./land.js')).landAfterAcceptance(released);
+  return code;
 }
