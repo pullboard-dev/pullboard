@@ -57,7 +57,7 @@ test('five native claim join and fact writes finish within 1 s while landing rec
   const agents = Array.from({ length: 2 }, (_, index) => store.register(board,
     { lane: 'core', path: join(root, `builder-${index}`), model: 'Fixture Model' }));
   const items = Array.from({ length: 2 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Latency claim ' + index }));
-  const landing = writer(t, file, 'landing', 0, items[0], agent, commit);
+  const landing = writer(t, file, 'landing', 0, items[0], agents[0], commit);
   const writers = ['claim', 'join', 'fact', 'claim', 'join'].map((kind, index) => writer(t, file, kind, index,
     items[index === 3 ? 1 : 0], agents[index === 3 ? 1 : 0], commit));
   await Promise.all([landing, ...writers].map(entry => entry.ready));
