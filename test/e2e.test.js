@@ -3,7 +3,7 @@
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChildAsync } from './fixture-child.js';
 import {
   chmodSync,
   existsSync,
@@ -490,16 +490,18 @@ test('a second tour replaces the first demo and links nothing to the relay [N10]
   assert.deepEqual(state.approvals, [], 'no relay link request or approval was made for either demo');
 });
 
-test('the tour finishes when an agent session runs it [N10]', () => {
+test('the tour finishes when an agent session runs it [N10]', async () => {
   // A caller in Claude Code or Codex runs the tour; the scripted seats must not inherit the caller's session, so the
   // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
-  for (const [name, value] of [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']]) {
+  const runs = [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']].map(([name, value]) => {
     const box = sandbox();
     const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value };
     delete callerEnv.PULLBOARD_MODEL;
     delete callerEnv.NO_COLOR;
     delete callerEnv.FORCE_COLOR;
-    const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv, encoding: 'utf8' });
+    return { name, value, shown: runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv }) };
+  });
+  for (const { name, value, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
     assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
     assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
     assert.match(shown.stdout, /verified #1: CRITERION_MET/);
