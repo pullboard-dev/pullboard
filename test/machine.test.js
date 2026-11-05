@@ -475,7 +475,7 @@ test('every refusal a move raises today is declared on that move, and every decl
   }
 });
 
-test('a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
   for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
