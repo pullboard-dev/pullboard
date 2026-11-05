@@ -19,7 +19,9 @@ import { listItems } from '../../../store/index.js';
  */
 export async function knownMainAccount(state, gate) {
   if (gate.isGreen || !completeGate(gate, { allowCancelled: true }) || gate.requiresGreen) return null;
-  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true });
+  // A by-case match needs only each failure's file and name, so a run whose details cannot all be signed (a timed-out
+  // file) still compares every named case instead of skipping the whole account [C7,#3073].
+  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true }) ?? gate.accounted ?? null;
   if (!failures?.length) return null;
   const known = [], remaining = [];
   let changed = null;
@@ -32,7 +34,7 @@ export async function knownMainAccount(state, gate) {
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         { commit: state.batch.base, detailed: true, allowCancelled: true });
     } catch { /* An unavailable comparison never excuses a red case. */ }
-    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base)
+    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
