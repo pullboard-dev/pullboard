@@ -12,13 +12,13 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureBoard } from './board-fixture.js';
 import { onBoard } from './land-board-fixture.js';
 
-test('an item with no route and no diagnosis defaults to mid, small or large [C7,B13]', () => {
+test('clause 1: an item with no route and no diagnosis defaults to mid, small or large [C7,B13]', () => {
   assert.equal(defaultItemRoute('the handler returns the canonical result [test]'), 'mid');
   assert.equal(defaultItemRoute(''), 'mid');
   assert.equal(defaultItemRoute('1. a [test]. 2. b [test]. 3. c [test].'), 'mid');
 });
 
-test('the post-land Main-red filer files a Main red item on a board with diagnosis enabled [C7,H16]', async t => {
+test('clause 2: the post-land Main-red filer files a Main red item on a board with diagnosis enabled [C7,H16]', async t => {
   const board = fixtureBoard(t);
   store.register(board, { lane: 'coordinator', path: '/default-route/main' });
   const folder = mkdtempSync(join(tmpdir(), 'default-route-mid-'));
@@ -40,7 +40,7 @@ test('the post-land Main-red filer files a Main red item on a board with diagnos
   assert.equal(filed.item_route, 'mid');
 });
 
-test('add --check with no --route succeeds and files mid work [C7,B13]', t => {
+test('clause 3: add --check with no --route succeeds and files mid work [C7,B13]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
