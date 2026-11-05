@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard, getItem, ownershipWaiting, submitHandoff, deferOwnership } from '../packages/store/index.js';
 
@@ -12,7 +12,7 @@ const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 
 /** Require actual native command success before interpreting its document. */
 function document(result) {
-  assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+  assert.equal(result.status, 0, [result.failure, result.stderr, safeFixtureDiagnostic(result.stdout)].filter(Boolean).join('\n'));
   return JSON.parse(result.stdout);
 }
 
@@ -65,7 +65,7 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   document(run(builder, 'join', 'web', '--model', 'Owner wait fixture model', '--json'));
   const added = document(run(repo, 'add', 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The finished web file is present.', '--check', 'test -f web/done.txt',
-    '--brief', 'Files: web/done.txt and coordinator.txt.\nChange: preserve the historical finished source for its owner.\nTest: the real frozen command checks web/done.txt.', '--wait', '--json'));
+    '--brief', 'Files: web/done.txt.\nChange: preserve the historical finished source for its owner.\nTest: the real frozen command checks web/done.txt.', '--wait', '--json'));
   const id = added.item.item_id;
   const claimed = document(run(builder, 'claim', String(id), '--json'));
   box = { repo, builder, root: claimed.itemFolder, env, git, run, id, helpers, file: join(repo, '.git', 'pullboard', 'board.sqlite') };
