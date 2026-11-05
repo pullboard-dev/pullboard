@@ -13,6 +13,8 @@ import { events } from '../packages/store/index.js';
 import { withdraw } from '../packages/store/index.js';
 import { flakeQuarantines } from '../packages/flakes/index.js';
 import { gateRuns } from '../packages/flakes/index.js';
+import { recordSealedGateRun } from '../packages/flakes/index.js';
+import { getItem } from '../packages/store/index.js';
 import { QUARANTINE_CORE_ENGINE } from '../src/quarantine-core-engine.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
@@ -300,4 +302,32 @@ test('landing batch recording fences flake events and preserves the published sn
   const pushed = recordLandingBatch(board, { agentId: 'coordinator', revision: ready.revision, batch: { ...ready, state: 'pushed' } });
   assert.throws(() => recordLandingBatch(board, { agentId: 'coordinator', revision: pushed.revision,
     batch: { ...pushed, flakeRatchet: { ...pushed.flakeRatchet, count: 1, quarantines: [{ file: 'test/x.js', name: 'case', item: 1 }] } } }), { code: 'LAND_BATCH' });
+});
+
+/** A flake proven on a tree that never runs again is filed by the next recorded run, so landing is not stuck on it. */
+test('a recorded gate run backfills quarantines for flakes proven on other trees since the last landing [C7,D1]', t => {
+  const { board } = boardFixture();
+  t.after(() => closeBoard(board));
+  const outcome = (file, passed) => ({ file, name: 'case', passed, skipped: false });
+  const tree = letter => letter.repeat(40);
+  const run = (id, on, rows) => logEvent(board, 'coordinator', 'gate-run', null, { run: { id, version: 1, tree: tree(on), kind: 'land', testOutcomes: rows } });
+  run('before-red', 'a', [outcome('test/old.test.js', false)]);
+  run('before-green', 'a', [outcome('test/old.test.js', true)]);
+  logEvent(board, 'coordinator', 'merged', null, { flakeRatchet: { version: 1, eventId: events(board).at(-1).event_id, count: 0, quarantines: [] } });
+  run('proven-red', 'b', [outcome('test/flaky.test.js', false), outcome('test/red.test.js', false), outcome('test/green.test.js', true)]);
+  run('proven-green', 'b', [outcome('test/flaky.test.js', true), outcome('test/red.test.js', false), outcome('test/green.test.js', true)]);
+  assert.deepEqual(landingFlakeRatchet(board).unprotected, [{ file: 'test/flaky.test.js', name: 'case' }]);
+  const receipt = { version: 1, id: '00000000-0000-4000-8000-0000000000c1', kind: 'land', tree: tree('c'), head: tree('c'), main: tree('c'),
+    command: 'd'.repeat(64), green: true, failures: [], load: { average: [0, 0, 0], cpus: 1, freeMB: 100 }, at: new Date().toISOString(),
+    testOutcomes: [outcome('test/other.test.js', true)] };
+  const result = recordSealedGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' });
+  assert.deepEqual(result.quarantined.map(row => row.file), ['test/flaky.test.js']);
+  const [quarantined] = flakeQuarantines(board);
+  assert.equal(flakeQuarantines(board).length, 1, 'only-red, only-green and pre-landing tests get no quarantine');
+  assert.deepEqual([quarantined.file, quarantined.tree, quarantined.runs, quarantined.status], ['test/flaky.test.js', tree('b'), ['proven-red', 'proven-green'], 'quarantined']);
+  assert.match(getItem(board, quarantined.item).item_title, /Flaky test: test\/flaky\.test\.js :: case/);
+  const ratchet = landingFlakeRatchet(board);
+  assert.deepEqual(ratchet.unprotected, []);
+  assert.equal(ratchet.allowed, true);
+  assert.deepEqual(recordSealedGateRun(board, { agentId: 'coordinator', receipt: { ...receipt, id: '00000000-0000-4000-8000-0000000000c2' }, lane: 'core' }).quarantined, [], 'an active quarantine is never filed twice');
 });
