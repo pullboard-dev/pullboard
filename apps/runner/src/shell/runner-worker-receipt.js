@@ -77,6 +77,7 @@ export function failedWorker(S, error) {
   // Never echo rejected JSON, paths or credentials; this marker is a failure, not an execution receipt.
   process.stderr.write('PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\n');
   process.stderr.write(`PULLBOARD_RUNNER_SPEC_RULE ${specRefusalRule(error)}\n`);
+  if (Number.isSafeInteger(S.workSpecVersion)) process.stderr.write('PULLBOARD_RUNNER_SPEC_VERSION 1\n');
   process.exitCode = 1;
   stopReading();
 }
