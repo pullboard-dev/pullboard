@@ -208,7 +208,7 @@ function seedDoctrine(seed) {
   }
 }
 
-test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offline moves, and off preserves the board (legacy relay)', async (t) => {
+test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offline moves, and off preserves the board (legacy relay)', async (t) => {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-client-')));
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
@@ -1343,7 +1343,7 @@ async function finalReplicaOrder(fixture, timing) {
   }
 }
 
-test('[H3,H16,V1,V17] three cloned linked replicas order competing claims', { timeout: 240_000 }, async (t) => { // 20 paired rounds (60 CLI spawns), six sync/registration spawns and three local API calls took 170s under load; setup fits the remaining ceiling.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims', { timeout: 240_000 }, async (t) => { // 20 paired rounds (60 CLI spawns), six sync/registration spawns and three local API calls took 170s under load; setup fits the remaining ceiling.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
@@ -1352,7 +1352,7 @@ test('[H3,H16,V1,V17] three cloned linked replicas order competing claims', { ti
   });
 });
 
-test('[H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 200_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 200_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
@@ -1439,7 +1439,7 @@ test('relay read recovery stays bounded and preserves refusals, invalid bodies a
 });
 
 
-test('an accepted legacy approval baseline keeps its exact source through resume [H16,S1]', { timeout: 60_000 }, async t => { // budget: one lost setup reply and one real resume, bounded fixture cleanup.
+test('clause 2: an accepted legacy approval baseline keeps its exact source through resume [H16,S1]', { timeout: 60_000 }, async t => { // budget: one lost setup reply and one real resume, bounded fixture cleanup.
   const timing = threeReplicaPhaseCapture(t);
   await timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
