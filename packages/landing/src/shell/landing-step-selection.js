@@ -4,6 +4,8 @@ import { localDependencyIds } from '../../../items/index.js';
 import { landingChangedFiles } from '../core/land-collisions.js';
 import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
+import { landingBatchSize } from '../core/landing-batch-size.js';
+import { roundFailures } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -60,7 +62,15 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
+  // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
+  // picking take turns and cannot starve the queue (#2911).
+  const failed = roundFailures(batches);
   pending.sort((left, right) => {
+    if (failed.has(left.item_id) || failed.has(right.item_id)) {
+      if (!failed.has(left.item_id)) return -1;
+      if (!failed.has(right.item_id)) return 1;
+      if (failed.get(left.item_id) !== failed.get(right.item_id)) return failed.get(left.item_id) - failed.get(right.item_id);
+    }
     const leftPriority = priorities.get(left.item_id);
     const rightPriority = priorities.get(right.item_id);
     if (leftPriority !== undefined || rightPriority !== undefined) {
@@ -112,6 +122,44 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     }
   }
   return { ready, blocked };
+}
+
+/**
+ * Whether landing goes one verified item at a time: on unless landing.perItem is false or parallel landing is chosen [C7,#2901].
+ * Why default on: the batch path never landed an item on the real board, while one merge, one plan and one record per item did.
+ */
+export function landsPerItem(config) {
+  return config?.landing?.perItem !== false && config?.landing?.parallel !== true;
+}
+
+/** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
+export function perItemMaximum(config, maximum = Infinity) {
+  return landsPerItem(config) ? 1 : maximum ?? Infinity;
+}
+
+/**
+ * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
+ * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
+ * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ */
+export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
+  if (landsPerItem(config)) return 1;
+  const override = store.lineSettings(board).landingBatchSize;
+  if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
+  return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));
+}
+
+/**
+ * Whether this landing batch is one per-item landing: a red, conflict or refusal is then that item's alone, so it goes
+ * back to open with the evidence instead of a bisection, a main comparison or a trunk hold [C7,#2901].
+ */
+export function singleItemLanding(state) {
+  return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
+/** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
+export function landingHooks(config) {
+  return landsPerItem(config) ? ['-c', 'core.hooksPath=/dev/null'] : [];
 }
 
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
