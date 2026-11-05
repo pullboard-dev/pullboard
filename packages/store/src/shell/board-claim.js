@@ -1,4 +1,5 @@
 import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
+import { builderFamilyProblem } from './builder-family-required.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
@@ -82,7 +83,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   const how = {
     checks: {
       joined: null, checkProvesSomething: null,
-      barReady: found => barReadyProblem(board, found),
+      barReady: found => builderFamilyProblem(board, found, agentId, familyPolicy) ?? barReadyProblem(board, found),
       [IN_STATE]: (found) => new Refused('NOT_CLAIMABLE', `item #${id} is ${found.item_status}`),
       inLane: (found) => {
         const outside = outsideBuildProblem(board, found);
