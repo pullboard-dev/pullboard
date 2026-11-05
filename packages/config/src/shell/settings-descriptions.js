@@ -136,6 +136,7 @@ const ROWS = [
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.route.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.returnRejectedWork', 'Return rejected work', 'Rejected work goes to its builder first; after 30 minutes another lane seat may claim it.', 'Line', 'on/off'],
+  ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
   ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.order', 'Board-controlled order', 'The board sets queue order itself.', 'Line', 'on/off'],
   ['line.focusMilestone', 'Focus milestone', 'The milestone whose work is offered first.', 'Line', 'text'],
