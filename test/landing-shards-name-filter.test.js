@@ -81,37 +81,31 @@ test('clause 1: equivalent spellings of one test file plan onto one shard once [
   assert.equal(planLandingShards(['test/../test/a.test.js', 'test/a.test.js'], 2).flatMap(shard => shard.files).length, 1, 'no root still folds relative spellings');
 });
 
-test('clause 1: a caller --shard narrows the files before the landing fan-out, so no shard runs an excluded file [C7]', async t => {
-  const { callerShardFiles, optionTakesValue, shardArguments } = await import('../packages/gate/index.js');
-  const files = ['test/a.test.js', 'test/b.test.js', './test/a.test.js', 'test/c.test.js', 'test/d.test.js'];
+test('clause 1: the fan-out expands globs and folds spellings into one file list [C7]', async t => {
+  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
   const box = project(t);
-  assert.deepEqual(callerShardFiles(files, ['--test-shard=1/2'], box.repo, optionTakesValue), ['test/a.test.js', 'test/c.test.js']);
-  assert.deepEqual(callerShardFiles(files, ['--test-shard', '2/2'], box.repo, optionTakesValue), ['test/b.test.js', 'test/d.test.js']);
-  assert.deepEqual(callerShardFiles(files, ['--test-name-pattern', 'x'], box.repo, optionTakesValue), ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'], 'no selector keeps every file once');
-  assert.throws(() => callerShardFiles(files, ['--test-shard=3/2'], box.repo, optionTakesValue), /invalid --test-shard/u);
-  assert.deepEqual(callerShardFiles(['test/*.test.js', 'test/[ab].test.js', `${box.repo}/test/f.test.js`], ['--test-shard=1/2'], box.repo, optionTakesValue),
-    ['test/a.test.js', 'test/c.test.js', 'test/e.test.js'], 'globs expand to files, overlaps and absolute spellings fold, then the shard cuts');
-  const run = gate(box, '^target', ['--shard', '2/3']);
+  assert.deepEqual(landingFanOutFiles(['test/a.test.js', './test/a.test.js', 'test/b.test.js'], ['--test-name-pattern', 'x'], box.repo, optionTakesValue),
+    ['test/a.test.js', 'test/b.test.js'], 'each file once');
+  assert.deepEqual(landingFanOutFiles(['test/[a-c].test.js', 'test/*.test.js', `${box.repo}/test/f.test.js`], [], box.repo, optionTakesValue),
+    NAMES.map(name => `test/${name}.test.js`), 'globs expand to files, overlaps and absolute spellings fold');
+  assert.deepEqual(landingFanOutFiles(['test/a.test.js'], ['--test-name-pattern', '--test-shard=2/2'], box.repo, optionTakesValue), ['test/a.test.js'],
+    'a pattern value that looks like a shard flag is a pattern');
+  const run = gate(box, '^target', [], ['test/*.test.js', 'test/[a-c].test.js']);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
   const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(cases, 2, 'shard 2/3 of six files keeps b and e, and only their target cases run');
-  assert.doesNotMatch(run.stdout, /target [acdf] /u, 'no landing shard runs a file the caller sharded out');
+  assert.equal(cases, 6, 'overlapping globs run each of the six target cases once');
 });
 
-test('clause 1: a glob selector with --shard runs only the expanded files of its shard, each once [C7]', t => {
+test('clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
+  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
   const box = project(t);
-  const run = gate(box, '^target', ['--shard', '1/2'], ['test/*.test.js', 'test/[a-c].test.js']);
-  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
-  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(cases, 3, 'six expanded files, overlapping globs folded, shard 1/2 keeps a, c and e once each');
-});
-
-test('clause 1: an option value that looks like a shard flag is never read as the shard [C7]', async t => {
-  const { callerShardFiles, optionTakesValue, shardArguments } = await import('../packages/gate/index.js');
-  const box = project(t);
-  const files = ['test/a.test.js', 'test/b.test.js'];
-  assert.deepEqual(callerShardFiles(files, ['--test-name-pattern', '--test-shard=2/2'], box.repo, optionTakesValue), files, 'the pattern value is a pattern');
-  assert.deepEqual(callerShardFiles(files, ['--test-skip-pattern', '--test-shard', '--test-shard=2/2'], box.repo, optionTakesValue), ['test/b.test.js'], 'a consumed value is skipped and the real shard still applies');
-  assert.deepEqual(shardArguments(['--test-name-pattern', '--shard=2/2', 'test/a.test.js'], optionTakesValue), { args: ['--test-name-pattern', '--shard=2/2', 'test/a.test.js'] }, 'the runner keeps a pattern that looks like its own --shard');
-  assert.deepEqual(shardArguments(['--test-name-pattern', '--shard', '--shard', '1/2'], optionTakesValue), { args: ['--test-shard=1/2', '--test-name-pattern', '--shard'] });
+  for (const args of [['--test-shard=1/2'], ['--test-shard', '2/2'], ['--test-shard'], ['--test-name-pattern', 'x', '--test-shard'], ['--shard=1/2']]) {
+    assert.throws(() => landingFanOutFiles(['test/a.test.js'], args, box.repo, optionTakesValue), error => error.code === 'USAGE', JSON.stringify(args));
+  }
+  for (const extra of [['--shard', '1/2'], ['--test-shard']]) {
+    const run = gate(box, '^target', extra);
+    assert.notEqual(run.status, 0, JSON.stringify(extra));
+    assert.match(run.stdout + run.stderr, /USAGE/u);
+    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
+  }
 });

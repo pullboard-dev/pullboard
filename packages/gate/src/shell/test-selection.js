@@ -1,5 +1,6 @@
 /** Count selected native cases independently of the caller's public reporter [C7,S13]. */
 import { isDefaultTestFile } from '../../../codemap/index.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   gitExecFileSync,
   gitSpawnSync,
@@ -43,29 +44,25 @@ export function selectionPatternArgs(args, takesValue) {
 /**
  * The landing fan-out's one file list: every selector expanded to real files the way the unsharded gate expands them
  * (test-file-dispatch: a glob matches sorted, a plain path stands for itself), each file once by resolved path, as a
- * repository-relative path, then cut to the caller's `--test-shard=<i>/<n>` (or a translated `--shard`) by every n-th
- * from i. The selector is not forwarded to the runner shards, so it must apply here, after expansion: a glob counted as
- * one entry would keep or drop all its files at once, and overlapping globs would run a file twice (#3158).
+ * repository-relative path. A caller shard flag (`--shard`, `--test-shard`, with or without a value) is refused, never
+ * parsed: the lander never passes one, and the fan-out cannot honor it, so a run carrying one would run files the caller
+ * excluded (#3158). Option values are skipped by the runner's own arity, so a pattern that looks like a flag is a pattern.
  */
-export function callerShardFiles(files, args, root, takesValue) {
-  if (typeof takesValue !== 'function') throw new TypeError('callerShardFiles needs the runner option-arity reader');
-  let value;
+export function landingFanOutFiles(files, args, root, takesValue) {
+  if (typeof takesValue !== 'function') throw new TypeError('landingFanOutFiles needs the runner option-arity reader');
   for (let index = 0; index < args.length && args[index] !== '--'; index++) {
-    if (args[index].startsWith('--test-shard=')) value = args[index].slice('--test-shard='.length);
-    else if (args[index] === '--test-shard') value = args[++index];
-    // Skip every other option's value with the runner's own arity, so a value that looks like a flag is never a shard.
-    else if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
+    if (/^--(?:test[-_])?shard(?:=|$)/u.test(args[index])) {
+      throw new Refused('USAGE', `a sharded landing gate cannot also take ${args[index]}: the landing splits the files itself; drop the shard option, or set landingShards to 1`);
+    }
+    if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
   }
-  const match = value === undefined ? null : String(value).match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
-  if (value !== undefined && (!match || Number(match[1]) > Number(match[2]))) throw new Error(`invalid --test-shard value "${value}"; expected <i>/<n> with 1 <= i <= n`);
   const distinct = new Map();
   for (const selector of files) {
     const matches = /[?*[{]/u.test(selector) ? globSync(selector, { cwd: root }).sort() : [selector];
     if (!matches.length) throw new Error(`test file pattern matched no files: ${selector}`);
     for (const file of matches) if (!distinct.has(resolve(root, file))) distinct.set(resolve(root, file), relative(root, resolve(root, file)).split(sep).join('/'));
   }
-  const expanded = [...distinct.values()];
-  return match ? expanded.filter((_, position) => position % Number(match[2]) === Number(match[1]) - 1) : expanded;
+  return [...distinct.values()];
 }
 
 /** The line a name-filtered landing shard prints with its matched case count; its controller sums them. */

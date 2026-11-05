@@ -56,7 +56,7 @@ export { refreshTestPlacement } from "./src/shell/test-placement-report.js";
 export { testWord, paidTests, placementSubmitSelection, valueGateCommand, placementLandingGate, placementLandingPlan, VALUE_GATE } from "./src/shell/test-placement.js";
 export { testResultDigest, validTestTap, validTestResult, storeTestResult, selectedTestResults, packTestResults, importTestResults, completedTestResult, retainTestResultCompletion, TEST_RESULT_VERSION, TEST_RESULT_STORE_ENV, TEST_RESULT_ORIGIN_ENV, TEST_RESULT_REQUEST_ENV } from "./src/shell/test-result-store.js";
 export { runFullSuite, testFiles, runTestFiles } from "./src/shell/test-run.js";
-export { testSelectionPatterns, selectionPatternArgs, callerShardFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/shell/test-selection.js";
+export { testSelectionPatterns, selectionPatternArgs, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/shell/test-selection.js";
 export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/shell/test-value-timing.js";
 export { testValueReport } from "./src/shell/test-value.js";
 export { runTimedShell } from "./src/shell/timed-shell-worker.js";
