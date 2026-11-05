@@ -168,6 +168,7 @@ export async function untilBoardFree(work, { wait = ms => new Promise(resolve =>
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
+  if (!result?.waiting) return null;
   // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
