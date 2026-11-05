@@ -4,6 +4,7 @@ import { isSeatTest } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -1084,7 +1085,7 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
-    const result = await options.onWait?.(state);
+    const result = await renewWithBeat(file, token, table === 'waiter', () => options.onWait?.(state));
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
         throw new Refused('BAD_RESOURCE_METADATA', 'the waiting item renewal must return a valid leaseUntil timestamp');
