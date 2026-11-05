@@ -25,12 +25,15 @@ const NO_RUNNER_PAUSE_MS = 30_000;
 export const INFRA_RETRIES = 3;
 /** A busy board or locked slot database is contention, not a failed gate: it waits and retries before anything counts [C7]. */
 export const BUSY_CODES = Object.freeze(new Set(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED']));
-const BUSY_FIRST_MS = 5_000;
-const BUSY_CAP_MS = 60_000;
-/** The patience for one run of busy answers: one claim lease. */
-const BUSY_BUDGET_MS = 2 * 60 * 60 * 1000;
 /** Health waits before an attempt counts as exhausted: about 10 minutes with the default pause. */
 const HEALTH_WAITS = 20;
+/**
+ * Lock stops: the board or a slot database was busy for a moment. They wait with backoff and never spend a retry.
+ * Why: on 4 Nov 51 of 80 gates ended GATE_INFRA_EXHAUSTED after four lock stops alone (#3087); a lock always frees.
+ */
+export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED']));
+const LOCK_PAUSE_MS = 1_000;
+const LOCK_MAX_PAUSE_MS = 30_000;
 
 /**
  * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule).
@@ -75,36 +78,42 @@ function pause(ms) {
  * which the board records as an infrastructure stop for the coordinator, not a red for the builder. A real result,
  * green or red, and any other refusal return or throw on the attempt that produced it.
  *
+ * A lock stop (LOCK_CODES) is no attempt: the same candidate waits with doubling backoff, capped at 30 s, until the
+ * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
+ *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number }} [options]
- * @returns {Promise<{ result: any, busyWaits: Array<{ code: string, seconds: number }>, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
+ * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], busyWaits: Array<{ code: string, seconds: number }>, lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, busyBudgetMs = BUSY_BUDGET_MS, busyFirstMs = BUSY_FIRST_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
   const attempts = [];
   const busyWaits = [];
-  let busyMs = 0;
-  let busyStreak = 0;
+  const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
   for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
-      return { result, attempts, avoided: [...avoided], busyWaits };
+      return { result, attempts, avoided: [...avoided], busyWaits, lockWaits };
     } catch (error) {
+      if (lockWaits.count && error && typeof error === 'object' && Object.isExtensible(error)) {
+        error.lockWaits = lockWaits;
+        error.busyWaits = busyWaits;
+      }
       const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
-      if (BUSY_CODES.has(code) && busyMs < busyBudgetMs) {
-        // Contention says nothing about the runner or the candidate: wait with backoff, then run the same candidate again.
-        const ms = Math.min(busyFirstMs * 2 ** busyStreak, BUSY_CAP_MS, busyBudgetMs - busyMs);
-        busyStreak += 1; busyMs += ms; attempt -= 1;
+      if (LOCK_CODES.has(code)) {
+        const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs);
+        lockWaits.count += 1;
+        lockWaits.totalMs += ms;
+        lockWaits.codes[code] = (lockWaits.codes[code] ?? 0) + 1;
         busyWaits.push({ code, seconds: Math.round(ms / 100) / 10 });
         say(`queued gate hit ${code}: the board is busy, not a gate failure; waiting ${Math.round(ms / 1000)} s and running the same candidate again (no attempt counted)`);
         await wait(ms);
         continue;
       }
-      busyMs = 0; busyStreak = 0;
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
-      if (attempt > retries) throw exhausted(attempts, error);
+      if (attempts.length > retries) throw exhausted(attempts, error);
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
@@ -115,7 +124,7 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
         say(`no healthy runner or local gate slot yet; the candidate waits in the queue and retries in ${Math.round(noRunnerPauseMs / 1000)} s`);
         await wait(noRunnerPauseMs);
       }
-      await wait(Math.min(pauseMs * attempt, 6 * pauseMs));
+      await wait(Math.min(pauseMs * attempts.length, 6 * pauseMs));
     }
   }
 }
@@ -124,5 +133,5 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
 function exhausted(attempts, cause) {
   const last = attempts.at(-1);
   return Object.assign(new Refused('GATE_INFRA_EXHAUSTED', `the gate stopped on infrastructure ${attempts.length} times (last ${last.code}${last.hosts.length ? ` on ${last.hosts.join(', ')}` : ''}); nothing is wrong with the candidate`,
-    'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'), { attempts, cause });
+    'nothing to do as the builder: the coordinator restores the named runner and requeues this gate'), { attempts, cause, ...(cause?.lockWaits ? { lockWaits: cause.lockWaits } : {}) });
 }

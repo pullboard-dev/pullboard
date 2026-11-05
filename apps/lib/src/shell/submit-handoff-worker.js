@@ -38,8 +38,7 @@ import { infrastructureFailure } from './submit-infra-requeue.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 
 /** Retry one native handoff write when board or slot storage is contended, retaining each wait for its receipt. */
-export async function retryBusyHandoffWrite(write, { wait = ms => new Promise(done => setTimeout(done, ms)), busyBudgetMs = 2 * 60 * 60 * 1000, busyFirstMs = 5_000 } = {}) {
-  const busyWaits = [];
+export async function retryBusyHandoffWrite(write, { wait = ms => new Promise(done => setTimeout(done, ms)), busyBudgetMs = 2 * 60 * 60 * 1000, busyFirstMs = 5_000, busyWaits = [] } = {}) {
   let spent = 0;
   let streak = 0;
   while (true) {
@@ -95,7 +94,7 @@ async function recordWorkerFailure(ctx, request, directory, failure) {
       const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
         await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-          { agentId: job.agentId, job: job.id, result: { ...failure, busyWaits }, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+          { agentId: job.agentId, job: job.id, result: { ...failure, busyWaits }, ...(failure.lockWaits ? { lockWaits: failure.lockWaits } : {}), reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
   }
@@ -133,17 +132,20 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), busyBudgetMs: job.leaseMs });
+    const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n') });
     busyWaits.push(...settled.busyWaits);
+    const lockWaits = settled.lockWaits;
     const completed = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, busyWaits } }])), { busyBudgetMs: job.leaseMs });
-    busyWaits.push(...completed.busyWaits);
+      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, busyWaits,
+        ...(lockWaits.count ? { lockWaits } : {}) } }])), { busyBudgetMs: job.leaseMs, busyWaits });
     // The receipt records each busy code and wait beside the submission it delayed.
     writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });
   } catch (error) {
     // Preserve contention evidence even when the handoff ultimately returns a refusal.
+    if (Array.isArray(error?.busyWaits)) busyWaits.push(...error.busyWaits);
     writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });
-    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }) });
+    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }),
+      ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}), ...(error?.busyWaits ? { busyWaits: error.busyWaits } : {}) });
     throw error;
   } finally {
     // This process created the disposable checkout and its child has closed; generated files must not strand it.

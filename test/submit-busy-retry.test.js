@@ -37,14 +37,11 @@ test('only a runner or gate failure counts toward GATE_INFRA_EXHAUSTED, even aft
   assert.deepEqual(out.attempts.map(row => row.code), Array(4).fill('RUNNER_UNAVAILABLE'), 'busy answers are not among the counted attempts');
 });
 
-test('busy waits back off, are recorded with code and seconds, and past one lease period they count [C7]', async () => {
+test('busy waits back off and are recorded with each code and duration [C7]', async () => {
   let calls = 0;
   const out = await settle(async () => { calls += 1; if (calls <= 3) throw new Refused(calls === 2 ? 'SLOT_DB_LOCKED' : 'BOARD_BUSY', 'busy'); return 'GREEN'; });
-  assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 5 }, { code: 'SLOT_DB_LOCKED', seconds: 10 }, { code: 'BOARD_BUSY', seconds: 20 }]);
-  assert.deepEqual(out.waits, [5000, 10000, 20000]);
-  // A board busy for longer than the budget is finally counted, and then ends as an infrastructure stop.
-  const spent = await settle(async () => { throw new Refused('BOARD_BUSY', 'still busy'); }, { busyBudgetMs: 30_000 });
-  assert.equal(spent.code, 'GATE_INFRA_EXHAUSTED');
-  assert.ok(spent.attempts.length >= 1);
-  assert.equal(spent.waits[0], 5000);
+  assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 1 }, { code: 'SLOT_DB_LOCKED', seconds: 2 }, { code: 'BOARD_BUSY', seconds: 4 }]);
+  assert.deepEqual(out.waits, [1000, 2000, 4000]);
+  assert.deepEqual(out.lockWaits, { count: 3, totalMs: 7000, codes: { BOARD_BUSY: 2, SLOT_DB_LOCKED: 1 } });
+  assert.deepEqual(out.attempts, [], 'busy answers do not become infrastructure attempts');
 });
