@@ -37,7 +37,7 @@ function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand =
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--check', 'node check.cjs', '--json'));
+  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--brief', 'Files: web/page.txt\nTest: the check passes once the page file exists', '--route', 'mid', '--check', 'node check.cjs', '--json'));
   ok(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
@@ -67,7 +67,7 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  ok(box.run(review, 'join', 'api', '--json'));
+  ok(box.run(review, 'join', 'api', '--model', 'Fixture reviewer', '--json'));
   const checked = box.run(review, 'check', '1', '--yes');
   assert.equal(checked.code, 0, checked.out + checked.err);
   assert.equal(runs(logs.static), 1, 'review on the same tree runs no static check');
