@@ -46,9 +46,9 @@ function run(box, root, ...args) {
 test('an agent grant narrows at claim and expires identically on independent replicas [E21]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
-    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--check', 'test -f web/grant-proof');
+    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof');
   }
-  run(box, box.repo, 'add', 'api', 'Other lane', '--specs', 'G2', '--check', 'test -f api/grant-proof');
+  run(box, box.repo, 'add', 'api', 'Other lane', '--specs', 'G2', '--route', 'strong', '--check', 'test -f api/grant-proof');
   const fresh = join(box.dir, 'fresh-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
   run(box, fresh, 'join', 'web');
@@ -153,7 +153,7 @@ test('an agent grant narrows at claim without changing old receipts or permittin
 test('an agent grant narrows at claim without trapping its own handoff facts [E21,B3]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Unrelated work']) {
-    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--check', 'test -f web/grant-proof', '--wait');
+    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof', '--wait');
   }
   run(box, box.web, 'claim', '1');
   const actor = withBoard(box.repo, board => store.listAgents(board).find(agent => agent.agent_path === box.web).agent_id);
@@ -196,7 +196,7 @@ test('an agent grant narrows at claim without trapping its own handoff facts [E2
 test('an agent grant narrows at claim for accepted numeric-text item ids [E21,H16]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
-    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--check', 'test -f web/grant-proof', '--wait');
+    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof', '--wait');
   }
   run(box, box.web, 'claim', '1');
   const actor = withBoard(box.repo, board => store.listAgents(board).find(agent => agent.agent_path === box.web).agent_id);
@@ -306,9 +306,9 @@ test('an agent grant narrows at claim without trapping its own verdict withdrawa
 test('an agent grant narrows at claim but any joined seat can append attributed findings on every replica [E21,H16]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
-    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--check', 'test -f web/grant-proof');
+    run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof');
   }
-  run(box, box.repo, 'add', 'api', 'Different lane', '--specs', 'G2', '--check', 'test -f api/grant-proof');
+  run(box, box.repo, 'add', 'api', 'Different lane', '--specs', 'G2', '--route', 'strong', '--check', 'test -f api/grant-proof');
   const fresh = join(box.dir, 'finding-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
   run(box, fresh, 'join', 'web');
