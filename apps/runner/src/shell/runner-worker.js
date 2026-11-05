@@ -12,4 +12,4 @@ export const workerState = createWorkerState(new URL('../../../../src/runner-wor
 
 if (process.argv[2] === '--health') serveHealth(process.argv[3]);
 else if (process.argv[2] === '--restart') serveRestart(process.argv[3]);
-else main(workerState).catch(() => failedWorker(workerState));
+else main(workerState).catch(error => failedWorker(workerState, error));

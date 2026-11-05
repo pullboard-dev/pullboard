@@ -24,6 +24,18 @@ export function readBoardSnapshot(db, clock = systemClock) {
   return { db, clock, enginePorts: Object.freeze({ submitHandoffEngines }) };
 }
 
+let heldReadConnection = null;
+
+/**
+ * Let a long-lived process supply the read-only connection every read open uses, or null to open one as usual.
+ * Why: the resident board process keeps the board open across commands; a fresh process never installs one.
+ *
+ * @param {((file: string) => DatabaseSync | null) | null} provider
+ */
+export function holdReadConnections(provider) {
+  heldReadConnection = provider;
+}
+
 /**
  * The clock the board reads, real unless a test passes its own.
  */
@@ -34,9 +46,10 @@ export const systemClock = { now: () => new Date() };
  * migration, so a writer holding the lock never stalls it (#1047). `current` says whether this
  * code's migration has run on it; only a write open migrates. Null when there is no board yet.
  */
-export function openBoardForRead(file, clock = systemClock) {
+export function openBoardForRead(file, clock = systemClock, { connection = null } = {}) {
   if (file === ':memory:' || !existsSync(file)) return null;
-  const db = openBoardReadOnly(file);
+  // A long-lived process, the resident board process, hands out read-only connections it already holds.
+  const db = connection ?? heldReadConnection?.(file) ?? openBoardReadOnly(file);
   try { readEventLogVersion(db); return { ...readBoardSnapshot(db, clock), readOnly: true, current: boardIsCurrent(db, SCHEMA_DIGEST, SCHEMA_VERSION) }; }
   catch (error) { db.close(); throw error; }
 }

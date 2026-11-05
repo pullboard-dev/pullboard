@@ -18,6 +18,7 @@ import { CLAIM_RECENT_COMMIT_MS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
+import { claimFolderActive } from './claim-folder-activity.js';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
@@ -82,8 +83,23 @@ function recentCommit(row, now) {
  * `lapsedOnly` is the write path's share (#2427): only claims whose lease has already lapsed, which read board rows and
  * seat presence and never run Git. Live claims, and returns that pin a handoff, wait for background maintenance.
  */
+/** The latest event this seat wrote, or null; the board's own record that the seat is still running commands. */
+function seatActivityAt(board, seat) {
+  try { return board.db.prepare('SELECT max(event_at) AS at FROM event WHERE event_by=?').get(seat)?.at ?? null; }
+  catch { return null; }
+}
+
+/** The later of two ISO instants, either of which may be missing. */
+function latestInstant(first, second) {
+  const a = Date.parse(first ?? ''), b = Date.parse(second ?? '');
+  if (!Number.isFinite(b)) return first;
+  if (!Number.isFinite(a)) return second;
+  return b > a ? second : first;
+}
+
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
+  const seatQuietLimit = 2 * 60_000;
   const limit = staleStateLimits(ctx.config).claim;
   const cutoff = new Date(at.getTime() - limit).toISOString();
   const previous = Number(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lapsed_claim_scan_cursor'").get()?.meta_value ?? 0);
@@ -91,7 +107,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  if (!lapsedOnly) items.push(...liveClaims(board, actor).filter(item => !lapsed.has(item.item_id)));
+  const otherClaims = liveClaims(board, actor).filter(item => !lapsed.has(item.item_id));
+  items.push(...otherClaims);
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
   const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
@@ -108,6 +125,18 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
+    const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
+    const worktreeMissing = !path || !existsSync(path);
+    // Any event the seat itself wrote is a sign of life: a seat without hooks runs reads, tests and other board
+    // commands between heartbeats, and a busy presence file can miss a beat. On 4 Nov 412 of 415 seat-gone
+    // releases took claims from seats that had written an event within the previous two minutes.
+    const lastHeartbeat = latestInstant(row.heartbeatAt ?? row.claimAt, seatActivityAt(board, row.actor));
+    const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
+      && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
+    // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
+    if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
+    if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
+      worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
     if (!lapsedOnly && dependencyCandidate) {
       const item = byId.get(row.id);
       const work = observeDependencyWork(board, item);

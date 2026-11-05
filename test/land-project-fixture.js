@@ -23,24 +23,25 @@ function gateFixture(box) {
     "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
     "console.log('TAP version 13'); let failed = 0;",
     "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = process.env.LAND_SUPPRESS_RED !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
-    "console.log('1..' + files.length); console.log('# tests ' + files.length); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); process.exitCode = failed ? 1 : 0;",
+    "const cancelled = process.env.LAND_CANCEL === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
+    "console.log('1..' + (files.length + cancelled)); console.log('# tests ' + (files.length + cancelled)); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); console.log('# cancelled ' + cancelled); process.exitCode = failed || cancelled ? 1 : 0;",
   ].join('\n'));
   writeFileSync(checks, "const fs = require('node:fs'); const file = process.argv[2]; if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').trim()) process.exit(1);\n");
   return { gate: `node ${JSON.stringify(gate)}`, affected: `node ${JSON.stringify(gate)} --alone`, checks, calls: callPath, hold, entered, release, trace };
 }
 
 /** Create a private initialized project with a real bare origin and active hooks. */
-function landProject() {
+function landProject({ withWorktree = true } = {}) {
   const box = sandbox();
   const commands = gateFixture(box);
-  const fixture = project(commands.gate, box);
+  const fixture = project(commands.gate, box, { withWorktree });
   const path = join(fixture.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   config.affectedTests = commands.affected;
   writeFileSync(path, JSON.stringify(config, null, 2));
   fixture.git(fixture.repo, 'add', 'pullboard.json');
   fixture.git(fixture.repo, 'commit', '-q', '-m', 'chore: configure landing');
-  fixture.git(fixture.web, 'merge', '-q', '--ff-only', 'main');
+  if (withWorktree) fixture.git(fixture.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
   fixture.git(box.dir, 'init', '-q', '--bare', remote);
   fixture.git(fixture.repo, 'remote', 'add', 'origin', remote);
@@ -53,9 +54,9 @@ function landProject() {
 function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
+  assert.equal(box.run(path, 'join', 'web', '--model', 'Fixture Model').code, 0);
   const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
-    '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
+    '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, '--route', 'strong', ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(path, 'claim', String(item)).code, 0);

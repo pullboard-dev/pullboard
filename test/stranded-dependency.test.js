@@ -61,10 +61,16 @@ function fixture(t, health = {}) {
   git(repo, 'worktree', 'add', '-q', '-b', `core/item-${dependency}`, itemRoot, base);
   writeItemMarker(itemRoot, builder.id, dependency);
   const ctx = { clock: { now: () => new Date(at) }, config: { health } };
-  const capture = () => captureLapsedClaims(ctx, board, helper.id);
+  /** The builder remains present; presence is not a commit, test or item fact. */
+  const capture = () => {
+    store.heartbeatSeat(board, builder.id);
+    return captureLapsedClaims(ctx, board, helper.id);
+  };
   /** Apply only the actual captured native observation, preserving its board-prefix validation. */
   const apply = snapshot => snapshot && store.maintainStaleState(board, { agentId: helper.id, snapshot, health, claimsOnly: true });
-  return { board, repo, git, builder, helper, dependency, dependent, itemRoot, capture, apply,
+  return { board, repo, git, builder, helper, dependency, dependent, itemRoot, capture, apply, base,
+    tree: git(repo, 'rev-parse', 'HEAD^{tree}'),
+    now: () => new Date(at).toISOString(),
     advance: minutes => { at += minutes * 60_000; },
     renew: () => store.claim(board, dependency, claimOptions),
     maintain: () => apply(capture()),
@@ -136,4 +142,36 @@ test('a foreign item-folder marker is unknown evidence and cannot release the cl
   f.advance(180);
   f.maintain();
   assert.equal(store.getItem(f.board, f.dependency).item_owner, f.builder.id);
+});
+
+for (const kind of ['check', 'submit']) {
+  test(`a recorded owner-bound ${kind} gate-run resets inactivity at execution time [B4,B5,C7]`, t => {
+    const f = fixture(t);
+    f.advance(119);
+    // Synthetic replay-event data exercises the projection, not a fabricated native test receipt or proof.
+    store.logEvent(f.board, f.builder.id, 'gate-run', null, { run: { version: 2, head: f.base, tree: f.tree, kind, at: f.now(),
+      proof: { item: f.dependency, seat: f.builder.id } } });
+    f.advance(119);
+    f.maintain();
+    assert.equal(store.getItem(f.board, f.dependency).item_status, 'claimed');
+    f.advance(1);
+    f.maintain();
+    assert.equal(store.getItem(f.board, f.dependency).item_status, 'open');
+  });
+}
+
+test('foreign comparisons, unbound runs and late records of pre-claim tests do not manufacture progress [B4,B5,C7]', t => {
+  const f = fixture(t);
+  const beforeClaim = new Date(Date.parse(f.now()) - 1).toISOString();
+  f.advance(119);
+  // Explicit invalid/irrelevant replay controls never enter the production receipt writer.
+  for (const [actor, run] of [
+    [f.helper.id, { kind: 'check', at: f.now(), proof: { item: f.dependency, seat: f.helper.id } }],
+    [f.builder.id, { kind: 'main-red', at: f.now(), proof: { item: f.dependency, seat: f.builder.id } }],
+    [f.builder.id, { kind: 'check', at: f.now(), proof: { seat: f.builder.id } }],
+    [f.builder.id, { kind: 'check', at: beforeClaim, proof: { item: f.dependency, seat: f.builder.id } }],
+  ]) store.logEvent(f.board, actor, 'gate-run', null, { run: { version: 2, head: f.base, tree: f.tree, ...run } });
+  f.advance(1);
+  f.maintain();
+  assert.equal(store.getItem(f.board, f.dependency).item_status, 'open');
 });
