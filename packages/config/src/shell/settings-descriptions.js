@@ -146,7 +146,7 @@ const ROWS = [
   ['line.bar.sharpenToPerson', 'Send vague criteria to the person', 'A rejected criterion that is unclear goes to the person to sharpen.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
   ['line.collisionFreeBatch', 'Collision-free landing batches', 'Items that change the same files are kept out of the same landing batch.', 'Line', 'on/off'],
-  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds when replaying board flow.', 'Line', 'count'],
+  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds, in real landing and when replaying board flow; unset, automatic landing sizes batches from recorded redness.', 'Line', 'count'],
   ['line.landingCadenceMinutes', 'Landing interval', 'The time between landing batches when replaying board flow.', 'Line', 'minutes'],
 ];
 
