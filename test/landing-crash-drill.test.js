@@ -99,7 +99,7 @@ for (const stage of ['merging', 'gating', 'pushing', 'recording']) {
     const batch = await crash(t, box, reviewer, entries[0].id, stage);
     assert.equal(json(box, box.repo, 'show', String(entries[0].id)).item_merged_commit, null);
     box.git(reviewer, 'checkout', '-q', '--detach', entries[1].head);
-    const secondAccept = box.run(reviewer, 'verify', String(entries[1].id), 'accept', '--note', 'Read second independent fixture head and frozen check.');
+    const secondAccept = box.run(reviewer, 'verify', String(entries[1].id), 'accept', '--note', 'Read second independent fixture head and frozen check.', '--json');
     assert.equal(secondAccept.code, 0, `${secondAccept.err}\n${secondAccept.out}`);
     const acceptance = JSON.parse(secondAccept.out);
     for (const entry of entries) {
