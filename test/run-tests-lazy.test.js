@@ -171,3 +171,18 @@ test('a board change selects its real importers in the actual committed reposito
   assert.deepEqual(selection.files, expected, 'exact selection retains actual board importers, declared readers and disclosed conservative unknown roots');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
 });
+
+test('clause 1: importing the runners package spawns nothing and pins no tooling [C7]', () => {
+  const script = [
+    "import cp from 'node:child_process';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    'let spawned = 0;',
+    "for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) { const original = cp[name]; cp[name] = (...args) => { spawned += 1; return original(...args); }; }",
+    'syncBuiltinESMExports();',
+    `const runners = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)});`,
+    'console.log(JSON.stringify({ spawned, pinned: runners.runnerToolingPinned() }));',
+  ].join('\n');
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout.trim().split('\n').at(-1)), { spawned: 0, pinned: false });
+});

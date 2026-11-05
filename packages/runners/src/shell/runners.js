@@ -15,27 +15,30 @@ import { runnerExecutionServices as runnerExecutionServicesStep } from './runner
 export { validateRunner, runnerSource, RunnerDropped };
 export { runOnRunner };
 
-// This instance's controller generation, pinned at load as the single file pinned it.
-const GENERATION = pinRunnerTooling();
+// This instance's controller generation, pinned by its first operation. Importing the package pins nothing, so a command
+// that never reaches a runner does not pay for the tooling capture; every operation still runs under one fixed generation.
+let pinned = null;
+/** The generation this instance pinned, captured on first use. */
+function generation() { return pinned ??= pinRunnerTooling(); }
 
 /** Isolate asynchronous execution in a fresh controller, refusing tooling changed since this instance loaded. */
 export async function runOnRunnerAsync(root, command, options) {
-  return inRunnerGeneration(GENERATION, () => runOnRunnerAsyncStep(root, command, options));
+  return inRunnerGeneration(generation(), () => runOnRunnerAsyncStep(root, command, options));
 }
 
 /** Serve only a directly launched controller, under the generation this entry loaded. */
 export async function serveRunnerController(ports) {
-  return inRunnerGeneration(GENERATION, () => serveRunnerControllerStep(ports));
+  return inRunnerGeneration(generation(), () => serveRunnerControllerStep(ports));
 }
 
 /** Ask this instance's pinned worker for exact cleanup or an explicit idle and writable proof. */
 export async function probeRunnerHealth(runner, previous, options) {
-  return inRunnerGeneration(GENERATION, () => probeRunnerHealthStep(runner, previous, options));
+  return inRunnerGeneration(generation(), () => probeRunnerHealthStep(runner, previous, options));
 }
 
 /** Observe an exact job through this instance's pinned worker generation, never request-selected code. */
 export async function probeRunnerJob(runner, identity, options) {
-  return inRunnerGeneration(GENERATION, () => probeRunnerJobStep(runner, identity, options));
+  return inRunnerGeneration(generation(), () => probeRunnerJobStep(runner, identity, options));
 }
 
 /** Supply the canonical late-bound runner operations, bound to this instance's generation. */
