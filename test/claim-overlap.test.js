@@ -60,6 +60,10 @@ test('two claimed Git worktrees name shared edits and protect an open item until
     assert.match(lines.join('\n'), new RegExp(`#${id} overlaps #${peer} \\(${owner}\\) on shared\\.js`));
   }
 
+  const bounded = [];
+  heartbeatCommand({ err: line => bounded.push(line) }, { ctx: { info: { root: first } }, board, overlaps: false });
+  assert.deepEqual(bounded, [], 'the flag-free next loop leaves overlap text out of its bounded output');
+
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
