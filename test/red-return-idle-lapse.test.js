@@ -14,6 +14,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { saveAgentSession } from '../packages/seats/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
+import { submitFixture } from './board-submit-fixture.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
@@ -89,6 +90,19 @@ function redReturned(f, pinned) {
   return a;
 }
 
+/** Record a native rejection after a synthetic submission and return the claim to its original builder. */
+function rejectedReturned(f, pinned) {
+  const id = f.add();
+  if (pinned) pin(f.board, [id]);
+  f.claim(id, f.first);
+  const commit = '9'.repeat(40);
+  submitFixture(f.board, id, { agentId: f.first, commit, tree: '8'.repeat(40) });
+  store.verify(f.board, id, { agentId: f.second, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof',
+    note: 'the rejected work returns to its original builder', head: commit, digest: 'bar', policy: 'agents' });
+  f.claim(id, f.first);
+  return id;
+}
+
 test('a pinned claim whose gate went red lapses at 30 minutes after the return with nothing since [B4,C7]', t => {
   const f = fixture(t);
   const a = redReturned(f, true);
@@ -109,4 +123,26 @@ test('an unpinned claim whose gate went red lapses at 40 minutes after the retur
   f.advance(6);
   f.maintain();
   assert.equal(store.getItem(f.board, a).item_status, 'open', '41 minutes after the red return the claim lapses to open');
+});
+
+test('a pinned claim rejected back to its builder lapses at 30 minutes after the return [B4,C7]', t => {
+  const f = fixture(t);
+  const a = rejectedReturned(f, true);
+  f.advance(29);
+  f.maintain();
+  assert.equal(store.getItem(f.board, a).item_status, 'claimed', 'under 30 minutes after the rejection the builder keeps the claim');
+  f.advance(2);
+  f.maintain();
+  assert.equal(store.getItem(f.board, a).item_status, 'open', '31 minutes after the rejection the pinned item lapses to open');
+});
+
+test('an unpinned claim rejected back to its builder lapses at 40 minutes after the return [B4,C7]', t => {
+  const f = fixture(t);
+  const a = rejectedReturned(f, false);
+  f.advance(35);
+  f.maintain();
+  assert.equal(store.getItem(f.board, a).item_status, 'claimed', 'under 40 minutes after the rejection the builder keeps the claim');
+  f.advance(6);
+  f.maintain();
+  assert.equal(store.getItem(f.board, a).item_status, 'open', '41 minutes after the rejection the claim lapses to open');
 });
