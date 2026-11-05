@@ -135,7 +135,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   /** Add one independent item through the real CLI and return its public id. */
   const add = (title, route = 'mid') => {
     const result = box.run(box.repo, 'add', 'web', title, '--route', route, '--criterion', title,
-      '--brief', 'Files: web/dependencies.js\nTest: records dependency edits', '--check', 'true', '--json');
+      '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
   };
