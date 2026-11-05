@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -35,7 +36,7 @@ function plannedProject(t, { companionLanes = false } = {}) {
   t.after(helpers.cleanup);
   const box = helpers.project('node check.cjs');
   const marker = join(box.dir, 'check-ran');
-  writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
+  writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, (process.argv[2] ?? 'proof') + '\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   // This is a tiny real project, not a claim that all production source exists in it.
   const plan = readPlan(SOURCE);
@@ -64,10 +65,19 @@ function success(box, cwd, ...args) {
   return JSON.parse(run.out);
 }
 
+/** Check the completed CLI child's drained phases without requiring either concurrent phase to beat refusal. */
+function refusedPhaseCounts(marker) {
+  const phases = existsSync(marker) ? readFileSync(marker, 'utf8').trim().split('\n').filter(Boolean) : [];
+  assert.ok(phases.every(phase => phase === 'criterion' || phase === 'proof'), `unexpected check phase: ${phases}`);
+  for (const phase of ['criterion', 'proof']) {
+    assert.ok(phases.filter(value => value === phase).length <= 1, `${phase} executes at most once before the refused command finishes`);
+  }
+}
+
 test('native submit refuses an unplanned source while independent checks run, then the placed source submits [C7]', t => {
   const box = plannedProject(t);
   const id = success(box, box.repo, 'add', 'web', 'Cells move 1/1: place the new source', '--specs', 'G1',
-    '--criterion', 'the added source is planned', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'the added source is planned', '--check', 'node check.cjs criterion', '--wait').item.item_id;
   assert.equal(existsSync(box.marker), true, 'the real add baseline completed its check');
   success(box, box.web, 'claim', String(id));
   mkdirSync(join(box.web, 'src'), { recursive: true });
@@ -81,7 +91,7 @@ test('native submit refuses an unplanned source while independent checks run, th
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/plan-gate-added\.js/);
   assert.match(refused.out, /node bin\/cells-plan\.js --place/);
-  assert.equal(existsSync(box.marker), true, 'the independent check can finish while preflight refuses the unplaced source');
+  refusedPhaseCounts(box.marker);
   assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
     'placement refusal records no accepted submission');
   const before = readPlan(box.web);
@@ -120,7 +130,7 @@ test('native view submit validates its core companion placement on the composed 
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
-    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
+    '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs criterion', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';
   mkdirSync(join(view, 'src/view'), { recursive: true });
@@ -135,7 +145,7 @@ test('native view submit validates its core companion placement on the composed 
   const refused = box.run(view, 'submit', String(id), '--no-next', '--json');
   assert.equal(JSON.parse(refused.out).error.code, 'CELLS_PLAN_UNPLACED', refused.out + refused.err);
   assert.match(refused.out, /src\/view\/plan-companion-added\.js/);
-  assert.equal(existsSync(box.marker), true, 'the independent check can finish while companion placement is refused');
+  refusedPhaseCounts(box.marker);
   assert.equal(JSON.parse(box.run(view, 'show', String(id), '--json').out).item_status, 'claimed',
     'companion placement refusal records no accepted submission');
   placePath(view, file, { cell: 'app:view' });
