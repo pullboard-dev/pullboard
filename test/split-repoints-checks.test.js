@@ -89,6 +89,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
     box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/legacy.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+    const baseTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
     const check = 'node bin/run-tests.js web/legacy.test.js';
     const freeze = criterion => {
       const text = JSON.stringify({ criterion, rows: [], policy: { version: 1, commit: base,
@@ -115,7 +116,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
         freeze: () => freeze('Claimed check') });
       store.claim(board, submittedId, { agentId: submittedBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Submitted check') });
-      submitFixture(board, submittedId, { agentId: submittedBuilder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+      submitFixture(board, submittedId, { agentId: submittedBuilder, commit: base, tree: baseTree });
       store.claim(board, malformedId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Malformed check') });
       store.release(board, malformedId, openBuilder, '', undefined, 'BLOCKED');
