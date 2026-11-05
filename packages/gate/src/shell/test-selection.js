@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  isAbsolute,
   relative,
   resolve,
   sep,
@@ -54,8 +55,9 @@ export function landingShardOptions(args, takesValue) {
 
 /**
  * The landing fan-out's one file list: every selector expanded to real files the way the unsharded gate expands them
- * (test-file-dispatch: a glob matches sorted, a plain path stands for itself), each file once by resolved path, as a
- * repository-relative path. A caller shard flag (`--shard`, `--test-shard`, with or without a value) is refused, never
+ * (test-file-dispatch: a glob matches sorted, a plain path stands for itself), each file once by resolved path, under
+ * the caller's first spelling (an absolute one made repository-relative for remote runners), and each shard passes its
+ * files after `--`, so a file named like an option stays a file (#3158). A caller shard flag (`--shard`, `--test-shard`, with or without a value) is refused, never
  * parsed: the lander never passes one, and the fan-out cannot honor it, so a run carrying one would run files the caller
  * excluded (#3158). Option values are skipped by the runner's own arity, so a pattern that looks like a flag is a pattern.
  */
@@ -71,7 +73,7 @@ export function landingFanOutFiles(files, args, root, takesValue) {
   for (const selector of files) {
     const matches = /[?*[{]/u.test(selector) ? globSync(selector, { cwd: root }).sort() : [selector];
     if (!matches.length) throw new Error(`test file pattern matched no files: ${selector}`);
-    for (const file of matches) if (!distinct.has(resolve(root, file))) distinct.set(resolve(root, file), relative(root, resolve(root, file)).split(sep).join('/'));
+    for (const file of matches) if (!distinct.has(resolve(root, file))) distinct.set(resolve(root, file), isAbsolute(file) ? relative(root, file).split(sep).join('/') : file);
   }
   return [...distinct.values()];
 }

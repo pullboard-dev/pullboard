@@ -317,7 +317,7 @@ async function runLocalShard({ root, runner, files, args = [], label, lease, sto
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
-  const child = spawn(process.execPath, [runner, ...args, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [runner, ...args, '--', ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
   child.stdout.setEncoding('utf8').on('data', part => chunks.push(part));
   child.stderr.setEncoding('utf8').on('data', part => chunks.push(part));
@@ -488,7 +488,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...args, ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });

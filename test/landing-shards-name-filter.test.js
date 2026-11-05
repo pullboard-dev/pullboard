@@ -146,3 +146,18 @@ test('clause 1: a name filter with no file arguments fans out, and its collectio
   assert.ok(suite, 'the suite collection frame printed');
   assert.equal(suite.full, false, 'a filtered run is never a full-suite collection');
 });
+
+test('clause 1: files after -- stay files in every shard, under the caller spelling, even one named like an option [C7]', async t => {
+  const box = project(t);
+  writeFileSync(join(box.repo, '-case.test.js'), "import { test } from 'node:test';\ntest('target dash [C7]', () => {});\n");
+  execFileSync('git', ['add', '--', '-case.test.js'], { cwd: box.repo, env: box.env });
+  execFileSync('git', ['commit', '-q', '-m', 'test: a file named like an option'], { cwd: box.repo, env: box.env });
+  const run = gate(box, '^target', [], ['./test/a.test.js', 'test/b.test.js', '--', '-case.test.js']);
+  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
+  assert.match(run.stdout, /# landing shards: 3 /u, 'three files, three shards');
+  assert.equal([...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0), 3,
+    'the dash-named file ran as a test file, not an option');
+  const { landingFanOutFiles, optionTakesValue } = await import('../packages/gate/index.js');
+  assert.deepEqual(landingFanOutFiles(['./test/a.test.js', 'test/a.test.js', '-case.test.js', `${box.repo}/test/b.test.js`], [], box.repo, optionTakesValue),
+    ['./test/a.test.js', '-case.test.js', 'test/b.test.js'], 'the first spelling is kept; only an absolute one becomes repository-relative');
+});
