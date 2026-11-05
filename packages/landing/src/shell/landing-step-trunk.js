@@ -42,9 +42,9 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
-async function quickGuards(state, label = 'local-trunk') {
+async function quickGuards(state, label = 'local-trunk', options = {}) {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
-  const gate = await gateGroup(state, label, { localTrunk: true });
+  const gate = await gateGroup(state, label, { localTrunk: true, ...options });
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
