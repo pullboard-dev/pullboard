@@ -463,3 +463,79 @@ test('a plan row for a file the item created before a reclaim is accepted while 
     assert.equal(change(planGit(root, 'rev-parse', 'main')).allowed, false, 'present on main');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+/** Set up a real board and cells plan so submission exercises the frozen lane policy. */
+function nativePlanRowFixture({ mainFile } = {}) {
+  const box = policyFixtures.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.lanes.web.owns.push('src/');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
+  const indexPath = 'bin/cells-plan.json';
+  const shardPath = 'bin/cells-plan/01-x.json';
+  const index = { version: 1, stays: [], cells: [{ file: shardPath, name: 'x', order: 1 }] };
+  const shard = { order: 1, name: 'x', root: 'packages/x', paths: [] };
+  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
+  mkdirSync(join(box.repo, 'src'), { recursive: true });
+  if (mainFile) writeFileSync(join(box.repo, mainFile), 'export {};\n');
+  writeFileSync(join(box.repo, indexPath), JSON.stringify(index, null, 2) + '\n');
+  writeFileSync(join(box.repo, shardPath), JSON.stringify(shard, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json', indexPath, shardPath, ...(mainFile ? [mainFile] : []));
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed native plan-row fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return { box, shardPath };
+}
+
+/** Add and claim a real web item for native plan-row submission coverage. */
+function nativePlanRowItem(box, title) {
+  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
+    '--check', 'true', '--route', 'strong', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
+  return id;
+}
+
+/** Commit the candidate's canonical plan row and retain item authorship in Git history. */
+function commitPlanRow(box, id, shardPath, source) {
+  const shard = JSON.parse(readFileSync(join(box.web, shardPath), 'utf8'));
+  shard.paths.push([source, `packages/x/src/core/${source.slice('src/'.length)}`, 'rule']);
+  writeFileSync(join(box.web, shardPath), JSON.stringify(shard, null, 2) + '\n');
+  box.git(box.web, 'add', shardPath);
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): place owned new file [C7]', '-m', `Pullboard-Item: #${id}`);
+}
+
+test('native submit accepts a plan row for an item file after reclaim and refreeze while main lacks it [L3,C7,#2108]', () => {
+  const { box, shardPath } = nativePlanRowFixture();
+  const id = nativePlanRowItem(box, 'Place an item-created source file');
+  mkdirSync(join(box.web, 'src'), { recursive: true });
+  writeFileSync(join(box.web, 'src/new.js'), 'export {};\n');
+  box.git(box.web, 'add', 'src/new.js');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): create planned source [C7]', '-m', `Pullboard-Item: #${id}`);
+  const ownCommit = box.git(box.web, 'rev-parse', 'HEAD');
+  const released = box.run(box.web, 'release', String(id), '--reason', 'BLOCKED', '--note', 'reclaim after the item source commit', '--json');
+  assert.equal(released.code, 0, released.err + released.out);
+  const refrozen = box.run(box.repo, 'refreeze', String(id), '--json');
+  assert.equal(refrozen.code, 0, refrozen.err + refrozen.out);
+  const reclaimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_claim_head, ownCommit,
+    'the reclaim uses the item commit as its new base');
+  commitPlanRow(box, id, shardPath, 'src/new.js');
+  const submitted = box.run(box.web, 'submit', String(id), '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_status, 'submitted');
+});
+
+test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', () => {
+  const { box, shardPath } = nativePlanRowFixture({ mainFile: 'src/already-main.js' });
+  const id = nativePlanRowItem(box, 'Refuse a plan row for a main file');
+  commitPlanRow(box, id, shardPath, 'src/already-main.js');
+  const refused = box.run(box.web, 'submit', String(id), '--json');
+  assert.equal(refused.code, 1, refused.err + refused.out);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'OUTSIDE_LANE');
+  assert.match(error.message, /bin\/cells-plan\/01-x\.json/u);
+  assert.equal(JSON.parse(box.run(box.web, 'show', String(id), '--json').out).item_status, 'claimed',
+    'the refused submission records no status change');
+});
