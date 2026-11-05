@@ -337,7 +337,7 @@ function appears(file, ms) {
   });
 }
 
-test('clause 1 and clause 2: a command blocked for 60 s in the resident process never stalls a show from another seat [C7]', async () => {
+test('clause 1: a command blocked for 60 s in the resident process never stalls a show from another seat [C7]', async (t) => {
   fx.awaitResident();
   const busy = residentBusyFile(residentSocket(fx.repo, join(fx.code, 'bin', 'pullboard.js')).pid);
   const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
@@ -355,14 +355,16 @@ test('clause 1 and clause 2: a command blocked for 60 s in the resident process 
     // The resident process writes its busy file as the shout starts; the shout then waits on the lock.
     assert.ok(await appears(busy, 20_000), 'the slow shout started in the resident process');
     assert.equal(exited, false, 'the slow shout is waiting on the board lock');
-    // Clause 2: a command that started just now does not yet send others to the board, so this show queues behind it
-    // and must give up waiting and read the board itself.
-    writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now()}\n`);
-    const queued = fx.runIn(fx.repo, ['show', '2', '--json'], { modules: true });
-    assert.equal(queued.status, 0, queued.stderr);
-    assert.ok(queued.ms < 5_000, `the queued show answered in ${Math.round(queued.ms)} ms`); // budget: ceiling of bar clause 2, a direct read within 5 s
-    assert.ok(queued.loaded.length > 100, `the queued show read the board in-process (${queued.loaded.length} modules)`);
-    assert.deepEqual(JSON.parse(queued.stdout), JSON.parse(alone.stdout));
+    await t.test('clause 2: a show queued behind it falls back to its own direct board read within 5 s [C7]', () => {
+      // Clause 2: a command that started just now does not yet send others to the board, so this show queues behind it
+      // and must give up waiting and read the board itself.
+      writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now()}\n`);
+      const queued = fx.runIn(fx.repo, ['show', '2', '--json'], { modules: true });
+      assert.equal(queued.status, 0, queued.stderr);
+      assert.ok(queued.ms < 5_000, `the queued show answered in ${Math.round(queued.ms)} ms`); // budget: ceiling of bar clause 2, a direct read within 5 s
+      assert.ok(queued.loaded.length > 100, `the queued show read the board in-process (${queued.loaded.length} modules)`);
+      assert.deepEqual(JSON.parse(queued.stdout), JSON.parse(alone.stdout));
+    });
     // Clause 1: once the command has run a while (its busy file says a second ago), another seat's show reads the
     // board directly at once.
     writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now() - 1_000}\n`);
