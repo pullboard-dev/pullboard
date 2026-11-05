@@ -90,3 +90,16 @@ test('a named blocker must land before its blocked scope is offered again (claus
   assert.equal(selected.code, 0, selected.out + selected.err);
   assert.equal(selected.document.item.item_id, id);
 });
+
+test('scope health bounds long release text while retaining its complete detail (clause 2) [C7]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Long scope explanation');
+  box.claim(id, box.seats.actor);
+  const note = 'Specific blocker context '.repeat(600);
+  store.release(box.board, id, box.seats.actor.id, note, 'BLOCKED');
+  const report = healthReport({ db: box.board.db, root: box.root, config: box.config,
+    now: box.clock.now(), dispatchHealth });
+  const finding = report.stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
+  assert.equal(finding.why.length, 8192, 'the new finding fits the native health receipt field limit');
+  assert.ok(finding.detail.reasons[0].includes(note), 'the full explanation remains available for re-scoping');
+});
