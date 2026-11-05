@@ -79,7 +79,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
   ].join('\n') + '\n');
   box.main = commit(box, root);
   result = cli(box, root, 'add', 'core', 'Unrelated change', '--specs', 'G1', '--route', 'mid',
-    '--criterion', 'The unrelated change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: inherited failure accounting');
+    '--criterion', 'The unrelated change works [test].', '--check', check, '--brief', 'Files: change.txt, test/\nTest: inherited failure accounting');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   box.item = JSON.parse(result.stdout).item.item_id;
   result = cli(box, root, 'worktree', 'core', '--route', 'mid', '--model', 'Fixture Model');
@@ -97,7 +97,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
 /** File a still-open repair with the exact failing test in its declared check. */
 export function fileMainRed(box) {
   const result = cli(box, box.root, 'add', 'core', 'Main red: inherited assertion needs repair', '--specs', 'G1',
-    '--criterion', 'The inherited assertion passes on main.', '--check', 'node test/runner.js test/inherited.test.js',
+    '--criterion', 'The inherited assertion passes on main [test].', '--check', 'node test/runner.js test/inherited.test.js',
     '--brief', 'Files: test/inherited.test.js\nTest: inherited assertion');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;

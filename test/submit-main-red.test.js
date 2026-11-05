@@ -26,7 +26,7 @@ import { cli } from './submit-main-red-fixture.js';
 import { submittedProof } from './submit-main-red-fixture.js';
 import { source } from './submit-main-red-fixture.js';
 
-test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3]', t => {
+test('submit accepts a test that fails the same way on main and refuses one red only with the item [V4,B3,C7] clause 1', t => {
   const known = fixture(t);
   const cache = join(known.root, '.git/pullboard/main-red.json');
   writeFileSync(cache, JSON.stringify({ version: 1, entries: { [known.main]: { 'test/inherited.test.js': { result: 'red' } } } }), { mode: 0o600 });
