@@ -13,7 +13,8 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -46,8 +47,17 @@ const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors:
 
 const CI_ROOT = join(tmpdir(), 'pullboard-ci-runner', 'repo');
 
+/** Load the source worker from a fresh main clone, so the case never depends on the checkout type: the worker refuses to run from a linked worktree's code. */
+async function mainSourceWorker(t) {
+  const clone = mkdtempSync(join(tmpdir(), 'pullboard-main-code-'));
+  t.after(() => rmSync(clone, { recursive: true, force: true }));
+  runFixtureGit(['clone', '-q', '--no-hardlinks', join(import.meta.dirname, '..'), clone], { cwd: tmpdir() });
+  return (await import(pathToFileURL(join(clone, 'packages/sandbox/index.js')).href)).runSourceAdvances;
+}
+
 test('empty automatic wakes leave no advisory state in a private repository [C7,H16]', async t => {
   const box = flakyProject(t);
+  const runSourceAdvances = await mainSourceWorker(t);
   const pullboard = join(repoInfo(box.root).commonDir, 'pullboard');
   assert.equal(await nudgeSourceAdvances(box.root, { workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible: false }), null,
     'the foreground skips spawning a source worker when its exact native snapshot has no work');
@@ -99,8 +109,8 @@ function assertReceipts(box, observation) {
 
 /** Join through the actual CLI, using a separate session-bound worktree for a candidate. */
 function privateBuilder(box) {
-  const made = box.cli('worktree', box.lane);
-  assert.equal(made.code, 0);
+  const made = box.cli('worktree', box.lane, '--model', 'Flake fixture model');
+  assert.equal(made.code, 0, JSON.stringify(made.document));
   const root = made.document.path;
   /** Run a candidate command without taking the coordinator's seat. */
   const cli = (...args) => box.cliAt(root, ...args);
@@ -121,8 +131,9 @@ function commitCandidate(builder, message) {
 function checkedItem(box) {
   writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
   const check = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate;
+  // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
   const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
-    '--route', 'light', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
+    '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
