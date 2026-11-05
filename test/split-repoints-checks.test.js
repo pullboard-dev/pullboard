@@ -72,7 +72,7 @@ test('clause 1: a future client replays move floors while refusal guidance loads
 test('clause 2: a split train landing repoints open and claimed checks and reports submitted checks unchanged [C7,H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
     const helpers = createE2eHelpers();
-    const box = helpers.project('node bin/run-tests.js web/legacy.test.js', undefined, { withWorktree: false });
+    const box = helpers.project('node bin/run-tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
     t.after(async () => helpers.cleanup());
     delete box.env.NODE_TEST_CONTEXT;
     const fixtureHooks = join(box.dir, 'fixture-hooks');
