@@ -13,7 +13,7 @@ async function waitForFile(path, directory) {
   const watcher = watch(directory);
   try {
     while (!existsSync(path)) {
-      const changed = once(watcher, 'change');
+      const changed = Promise.race([once(watcher, 'change'), once(watcher, 'rename')]);
       if (existsSync(path)) break;
       await changed;
     }
