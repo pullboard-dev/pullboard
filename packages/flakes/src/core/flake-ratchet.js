@@ -20,15 +20,19 @@ export function flakeRatchet({ previous = null, observations, quarantines, event
   const increases = previous && active.length > previous.quarantines.length
     ? active.filter(row => !previousKeys.has(key(row))).filter(row => {
       const observed = known.get(key(row));
-      return !observed || !(observed.lastEventId > previous.eventId) || !(row.eventId > previous.eventId);
+      // A ledger-backed quarantine cites its own red-and-green proof, however old, so it needs no newer sighting.
+      return !observed || !row.ledger && !(observed.lastEventId > previous.eventId) || !(row.eventId > previous.eventId);
     }).map(row => ({ file: row.file, name: row.name })) : [];
   const snapshot = { version: 1, eventId, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
   return { snapshot, unprotected, malformed: malformed.map(({ file, name }) => ({ file, name })), unjustified: increases,
     allowed: !unprotected.length && !malformed.length && !increases.length };
 }
 
-/** Recognize contradictory per-test verdicts only on the same immutable tree and distinct native runs. */
-export function pairedFlakeObservations(runs, { afterEvent = 0 } = {}) {
+/**
+ * The latest contradictory same-tree pair per test whose later run is after `afterEvent`, naming its tree and run ids.
+ * Why one function: the landing ratchet counts these pairs and quarantine backfill files them, so both see one set [C7].
+ */
+export function flakePairs(runs, { afterEvent = 0 } = {}) {
   const pairs = new Map(), seen = new Set();
   for (const run of runs) {
     if (typeof run.id !== 'string' || !run.id || seen.has(run.id) || !Number.isSafeInteger(run.eventId) || typeof run.tree !== 'string'
@@ -38,21 +42,26 @@ export function pairedFlakeObservations(runs, { afterEvent = 0 } = {}) {
     for (const outcome of run.testOutcomes) {
       if (outcome.skipped || typeof outcome.file !== 'string' || typeof outcome.name !== 'string' || typeof outcome.passed !== 'boolean') continue;
       const id = JSON.stringify([run.tree, outcome.file, outcome.name]);
-      const pair = pairs.get(id) ?? { file: outcome.file, name: outcome.name, red: null, green: null };
+      const pair = pairs.get(id) ?? { file: outcome.file, name: outcome.name, tree: run.tree, red: null, green: null };
       const side = outcome.passed ? 'green' : 'red';
       if (!pair[side] || pair[side].eventId < run.eventId) pair[side] = { id: run.id, eventId: run.eventId };
       pairs.set(id, pair);
     }
   }
-  const observations = new Map();
+  const latest = new Map();
   for (const pair of pairs.values()) {
     if (!pair.red || !pair.green || pair.red.id === pair.green.id) continue;
     const lastEventId = Math.max(pair.red.eventId, pair.green.eventId);
     if (lastEventId <= afterEvent) continue;
-    const id = key(pair), prior = observations.get(id);
-    if (!prior || prior.lastEventId < lastEventId) observations.set(id, { file: pair.file, name: pair.name, status: 'active', count: 1, lastEventId });
+    const id = key(pair), prior = latest.get(id);
+    if (!prior || prior.lastEventId < lastEventId) latest.set(id, { ...pair, lastEventId });
   }
-  return [...observations.values()];
+  return [...latest.values()];
+}
+
+/** Recognize contradictory per-test verdicts only on the same immutable tree and distinct native runs. */
+export function pairedFlakeObservations(runs, { afterEvent = 0 } = {}) {
+  return flakePairs(runs, { afterEvent }).map(({ file, name, lastEventId }) => ({ file, name, status: 'active', count: 1, lastEventId }));
 }
 
 /** Reconstruct quarantines at a landing boundary from the ordered native event history. */
