@@ -213,15 +213,19 @@ export function copyCommittedPackageFiles(box, source, { directory = '' } = {}) 
   return files;
 }
 
-/** Commit a fixture's explicit changed paths in bounded groups while retaining ordinary hooks. */
+/**
+ * Commit a fixture's explicit changed paths in bounded groups, with repository hooks off for the copied source.
+ * Why: every file of a fresh copy is new, so the pre-commit shim-import ratchet read main's own accepted imports as
+ * added and refused the commit; the scheduler test then waited on a timer that never started and hung every landing.
+ */
 export function commitFixtureFiles(box, files) {
   let batch = [];
   let bytes = 0;
-  /** Commit only this batch, retaining hook checks and all copied paths in the final source tree. */
+  /** Commit only this batch of copied source, retaining all copied paths in the final source tree. */
   function commitBatch() {
     if (!batch.length) return;
     box.git(box.repo, 'add', '--', ...batch);
-    box.git(box.repo, 'commit', '-q', '-m', 'test: commit shipped fixture source');
+    box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: commit shipped fixture source');
     batch = [];
     bytes = 0;
   }

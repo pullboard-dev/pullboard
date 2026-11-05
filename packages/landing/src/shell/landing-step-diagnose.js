@@ -57,18 +57,24 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   const present = failures.filter(failure => onBase(failure.file));
   if (!present.length) return { known: [], own: absent };
   const files = [...new Set(present.map(failure => failure.file))];
-  let result;
-  try {
-    result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
-      { commit: state.batch.base, detailed: true, allowCancelled: true });
-  } catch { return null; }
-  if (result?.main !== state.batch.base || result.unavailable || !files.every(file => result.files?.some(row => row.file === file))) return null;
+  // Each file is compared on its own: a file main cannot be compared on stays the batch's own red and never discards the
+  // completed results of every other file, as one combined comparison did [C7,#3073]. Results are cached per file.
+  const rows = new Map();
+  for (const file of files) {
+    let result;
+    try {
+      result = await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+        { commit: state.batch.base, detailed: true, allowCancelled: true });
+    } catch { continue; }
+    const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+    if (row) rows.set(file, row);
+  }
+  if (!rows.size) return null;
   const known = [], own = [...absent];
   for (const failure of present) {
-    const row = result.files.find(entry => entry.file === failure.file);
-    // Red on base with no named cases cannot be told apart from the batch's own red, so the batch holds [C7,#2945].
-    if (row.result === 'red' && !(row.failures ?? []).length) return null;
-    (row.result === 'red' && row.failures.some(main => main.name === failure.name) ? known : own).push(failure);
+    const row = rows.get(failure.file);
+    // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
   return { known, own };
 }
@@ -210,6 +216,17 @@ export function namedFailures(gate) {
  * (board busy, runners, git, timeouts, diagnostics) and reopens nothing [C7,#2901,#2967].
  */
 const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
+
+/**
+ * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
+ * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
+ */
+export const LANDING_FAULTS = new Set(['BOARD_BUSY']);
+
+/** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
+export function landingFault(error) {
+  return error instanceof Refused && LANDING_FAULTS.has(error.code);
+}
 
 /** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
 export function itemRefusal(error) {
