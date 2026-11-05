@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** A landing batch never fails on a case already red on its main base, and still fails on a case red only in the batch [B3,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -45,12 +46,12 @@ test('known-main cancellation accounting excludes only fully accounted cancellat
 });
 
 /** A separate-publish landing project whose main already carries one red case, committed and pushed through real hooks. */
-function redMainProject() {
+function redMainProject({ perItem = false } = {}) {
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem, manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   box.env.LAND_SUPPRESS_RED = '1';
@@ -152,4 +153,29 @@ test('an observer error without observations isolates each failing file once; re
     error: 'observer failed', observations: [{ file: MAIN_RED, recorded: true, classification: 'flake' }],
   } }), { code: 'LAND_DIAGNOSTIC' });
   assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').length, callsBefore + 1, 'recorded evidence triggers no extra isolation');
+});
+
+test('a per-item landing red only in a case red on main reruns it at base main and lands, charging nothing to the item [C7,#3073]', () => {
+  const box = redMainProject({ perItem: true });
+  const entry = acceptedItem(box, 1, '// PASS\n');
+  box.env.LAND_CANCEL = '1';
+  const result = landBatch(box, entry.item);
+  assert.equal(result.error, null, JSON.stringify(result.lines));
+  assert.ok(result.merged, `the item lands: ${JSON.stringify(result.lines)}`);
+  assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
+  assert.ok(!(result.batch.culprits ?? []).length, 'no culprit is recorded');
+});
+
+test('a per-item landing red in a case green at main still blocks and names its item as the culprit [C7,#3073]', () => {
+  const box = redMainProject({ perItem: true });
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    assert.equal(commitFile(box, box.repo, 'web/land-1.test.js', '// PASS\n', 'test(web): establish passing base case [G1]').status, 0);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
+  const entry = acceptedItem(box, 1, '// RED NAME:batch-red-case\n');
+  box.env.LAND_CANCEL = '1';
+  const result = landBatch(box, entry.item);
+  assert.equal(result.merged, null);
+  assert.ok(result.batch.culprits.some(culprit => culprit.id === entry.item), JSON.stringify(result.batch));
+  assert.ok(!result.batch.culprits.some(culprit => JSON.stringify(culprit).includes(MAIN_RED)), 'the main red is never a reason');
 });
