@@ -12,6 +12,7 @@ import { localDependencyIds } from '../../../../../packages/items/index.js';
 import {
   keepViewRunning,
 } from '../../../../view/index.js';
+import { withBoardRead } from '../cli-board-read.js';
 import {
   staleFrozenItems,
   staleItemFinding,
@@ -107,7 +108,6 @@ import {
   viewSetupComplete,
   whoAmI,
   withBoard,
-  withBoardRead,
   worktreeLocation,
 } from '../cli.js';
 
