@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js src/cli-help.js src/cli-main.js src/commands/*.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js apps/cli/src/shell/cli-help.js apps/cli/src/shell/cli-main.js src/cli-main/*.js src/commands/*.js */
 /** The layered CLI help stays short, command-specific, and in parity with its declaration [N37,I1]. */
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,8 +8,9 @@ import { join, resolve } from 'node:path';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 import { after, test } from 'node:test';
-import { HELP, resultCommands } from '../src/cli.js';
-import * as helpDeclaration from '../src/help.js';
+import { HELP } from '../apps/cli/index.js';
+import { resultCommands } from '../apps/cli/index.js';
+import * as helpDeclaration from '../apps/cli/index.js';
 import { importStyleViolations } from './import-style-helpers.js';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../packages/config/index.js';
@@ -149,7 +150,7 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   const undocumented = (await run('help', 'milestone', 'bogus'));
   assert.equal(undocumented.status, 2, 'a name the CLI does not dispatch stays refused');
   assert.equal(undocumented.stdout, '');
-  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone items". Run pullboard help --all for the full list.\n');
+  assert.equal(undocumented.stderr, 'pullboard: no command "milestone bogus"; closest match is "milestone focus". Run pullboard help --all for the full list.\n');
   t.diagnostic('help overview bytes ' + JSON.stringify(overview.stdout));
 
   const directory = resolve(import.meta.dirname, '../src');
@@ -185,15 +186,16 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   assert.equal(generated.all, HELP.all, 'a new declaration preserves the full-help bytes');
 
   // Help and the result-command list are built in cli-help.js, from the same registry dispatch reads.
-  const original = readFileSync(join(directory, 'cli-help.js'), 'utf8');
+  const shell = resolve(import.meta.dirname, '../apps/cli/src/shell');
+  const original = readFileSync(join(shell, 'cli-help.js'), 'utf8');
   const registryUrl = 'data:text/javascript;base64,' + Buffer.from([
-    `import { COMMANDS as actual, UNLISTED_COMMANDS } from ${JSON.stringify(pathToFileURL(join(directory, 'commands/index.js')).href)};`,
+    `import { COMMANDS as actual, UNLISTED_COMMANDS } from ${JSON.stringify(pathToFileURL(join(shell, 'commands/index.js')).href)};`,
     "/** A private new command proves help follows actual dispatch declarations. */",
     "export const COMMANDS = { ...actual, 'future-command': () => ({ run: () => 0 }) };",
     'export { UNLISTED_COMMANDS };',
   ].join('\n')).toString('base64');
   const extended = original.replace(/\bfrom (['"])\.\/commands\/index\.js\1/u, 'from ' + JSON.stringify(registryUrl))
-    .replace(/\bfrom (['"])(\.[^'"]+)\1/gu, (_match, _quote, path) => 'from ' + JSON.stringify(pathToFileURL(resolve(directory, path)).href));
+    .replace(/\bfrom (['"])(\.[^'"]+)\1/gu, (_match, _quote, path) => 'from ' + JSON.stringify(pathToFileURL(resolve(shell, path)).href));
   const privateCli = await import('data:text/javascript;base64,' + Buffer.from(extended).toString('base64'));
   assert.ok(privateCli.resultCommands().includes('future-command'));
   assert.deepEqual(privateCli.HELP.commands['future-command']?.usages, ['pullboard future-command'],
@@ -278,7 +280,7 @@ test('the settings forms the CLI dispatches have help and reach their own refusa
 });
 
 test('every command comes from its own module [C7,V4]', async () => {
-  const source = resolve(import.meta.dirname, '../src');
+  const source = resolve(import.meta.dirname, '../apps/cli/src/shell');
   const registry = await import(pathToFileURL(join(source, 'commands/index.js')).href).catch(() => null);
   assert.ok(registry?.COMMANDS, 'src/commands/index.js registers the commands');
   const names = Object.keys(registry.COMMANDS);
@@ -292,8 +294,8 @@ test('every command comes from its own module [C7,V4]', async () => {
   for (const name of [...resultCommands(), 'mcp']) assert.ok(names.includes(name), `${name} comes from its own module`);
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
   assert.doesNotMatch(cli, /function (?:setup|read|work)Commands\(/u, 'src/cli.js holds no command table');
-  // Dispatch lives in cli-main.js, the entry that loads only the command in hand.
-  const entry = readFileSync(join(source, 'cli-main.js'), 'utf8');
+  // Dispatch lives in cli-main/run-command.js, the entry that loads only the command in hand.
+  const entry = readFileSync(join(source, 'cli-main', 'run-command.js'), 'utf8');
   const dispatch = entry.slice(entry.indexOf('async function runCommand('), entry.indexOf('\n}\n', entry.indexOf('async function runCommand(')));
   assert.ok(dispatch.includes('COMMANDS[command]'), 'runCommand looks the command up in the registry');
   assert.doesNotMatch(dispatch, /if \(command === '[a-z-]+'(?: && [^)]*)?\) /u, 'runCommand holds no command of its own');
@@ -304,7 +306,7 @@ test('every command comes from its own module [C7,V4]', async () => {
 });
 
 test('each command body lives in its own module, not in src/cli.js [C7,V4]', async () => {
-  const source = resolve(import.meta.dirname, '../src');
+  const source = resolve(import.meta.dirname, '../apps/cli/src/shell');
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
   const bodies = {
     hook: 'hookCommand', mcp: 'mcpHere', next: 'nextHere', resume: 'resumeHere', runner: 'runnerCommand', serve: 'serveHere',

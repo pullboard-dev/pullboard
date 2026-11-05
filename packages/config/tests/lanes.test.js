@@ -136,7 +136,7 @@ test('a config with a bad lane refuses and names the field [L1]', () => {
   assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify.policy"')));
 });
 
-test('config merges nested groups over the defaults, and leases read as durations [O2,B4]', () => {
+test('config merges nested groups over the defaults, and leases read as durations [O2,B4,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-config-'));
   try {
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', commits: { maxHeader: 60 }, lease: '90m' }));
@@ -144,11 +144,11 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.equal(config.commits.maxHeader, 60);
     assert.deepEqual(config.commits.requireIds, ['feat', 'fix']);
     assert.equal(config.leaseMs, 90 * 60_000);
-    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3 });
+    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true });
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: 'coordinator' }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3 }, 'legacy verify strings remain valid');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3, inspectClauses: true }, 'legacy verify strings remain valid');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'require' } }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3 }, 'nested verify options merge over defaults');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3, inspectClauses: true }, 'nested verify options merge over defaults');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
     assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
     for (const familyRelaxAt of [null, 'off', 2]) {

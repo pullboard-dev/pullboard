@@ -5,7 +5,7 @@
  * the tools that run models, however useful they are. Agent tools are another matter: helping
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';
@@ -36,18 +36,22 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
   assert.deepEqual(found, []);
 });
 
-test('only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
+test('clause 1: only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
   const allowed = (file, line) => file === 'packages/link/src/shell/relay.js' ||
     (file === 'packages/keys/src/shell/relay-pairing-client.js' && line.trim() === 'response = await fetch(new URL(path, url), {') ||
     // A board that signs person moves reads its linked relay's person authority, the relay link it already holds (#408).
     (file === 'src/person-signing-cli.js' && line.trim() === "const response = await fetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });") ||
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
     (file === 'packages/link/src/shell/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
-    (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    (['apps/view/src/shell/serve.js', 'src/serve.js', 'src/api.js', 'packages/api/src/shell/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
+    // The resident board serves commands over a Unix-domain socket in the machine folder, never a network address.
+    (file === 'bin/resident-board.js' && line.trim() === "} from 'node:net';") ||
+    (file === 'bin/resident-socket.js' && line.trim() === "* @param {import('node:net').Socket} socket") ||
+    (file === 'bin/resident-client.js' && line.trim() === "import { connect } from 'node:net';") ||
     (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
-    (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
-    (file === 'src/view-session.js' && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
-    (file === 'src/view/cockpit-live.js' && /^\s*const res = await fetch\(path, /.test(line)) ||
+    (['apps/view/src/shell/serve.js', 'src/serve.js'].includes(file) && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
+    (['apps/view/src/shell/view-session.js'].includes(file) && line.trim() === "const response = await fetch(`http://${LOOPBACK}:${view.port}/api/v1/boards?k=${encodeURIComponent(view.secret)}`, {") ||
+    (['apps/view/src/core/view/cockpit-live.js', 'src/view/cockpit-live.js'].includes(file) && /^\s*const res = await fetch\(path, /.test(line)) ||
     (file === 'src/cockpit.js' && line.trim() === "try { reply = await fetch(base + '/local/protocol', { signal: AbortSignal.timeout(3000), credentials: 'omit', redirect: 'error' }); }");
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (NETWORK.test(line) && !allowed(file, line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
@@ -131,12 +135,12 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   });
   assert.equal(proof.error, undefined, `the isolated loopback proof completed: ${proof.error?.message ?? ''}`);
   assert.equal(proof.status, 0, `the isolated loopback proof passed:\n${proof.stderr}\n${proof.stdout}`);
-  const serve = readFileSync(join(ROOT, 'src', 'serve.js'), 'utf8');
+  const serve = readFileSync(join(ROOT, 'apps/view/src/shell/serve.js'), 'utf8');
   assert.match(serve, /export const LOOPBACK = '127\.0\.0\.1';/);
   assert.match(serve, /serveView\(\{[^}]*\blan = false\s*\} = \{\}\)/u, 'LAN listening requires an explicit opt-in');
   assert.match(serve, /const address = lan \? viewLanAddress\(\) : LOOPBACK;/u, 'ordinary view selects only loopback');
   assert.match(serve, /server\.listen\(port, address, /u, 'the listener uses only the explicitly selected address');
-  const viewSession = readFileSync(join(ROOT, 'src', 'view-session.js'), 'utf8');
+  const viewSession = readFileSync(join(ROOT, 'apps/view/src/shell/view-session.js'), 'utf8');
   assert.match(viewSession, /import\s*\{\s*LOOPBACK\s*,\s*lastPort\s*,?\s*\}\s*from '\.\/serve\.js';/);
   assert.match(viewSession, /redirect: 'manual'/, 'the local reuse probe cannot follow a remote redirect');
   const api = readFileSync(join(ROOT, "packages/api/src/shell/api.js"), 'utf8');

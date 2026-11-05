@@ -7,7 +7,7 @@ import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.j
  */
 import { landingPorts } from './landing-ports-fixture.js';
 import { executionServices } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild as spawn } from './fixture-child.js';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main as cli } from './native-cli-fixture.js';
 import { digestOf, testConcurrency } from '../packages/gate/index.js';
 import { runGate } from '../packages/gate/index.js';
@@ -791,7 +791,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // Landing diagnostics require TAP completion evidence on both Node 22 and Node 24.
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, submitGate: 'landing', affectedTests: 'node --test --test-reporter=tap',
-    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
+    submitInvariants: ['web/guard.test.js'], ...(inline ? { gate: 'node --test --test-reporter=tap web/gate-check.test.js' } : { landing: { perItem: false, manualOverride: true, publish: 'separate' } }), ...(deferAbove ? { submitDeferAbove: deferAbove } : {}) }, null, 2));
   if (inline) {
     // An inline landing pushes its gated tip, so it needs a remote; its gate only checks for a red marker file.
     box.git(box.dir, 'init', '-q', '--bare', join(box.dir, 'origin.git'));

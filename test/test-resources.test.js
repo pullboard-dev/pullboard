@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/browser-admission.js */
 /** Browser admission follows current test dependencies without executing them [C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -50,7 +50,7 @@ test("the repo's own static checks never take a browser slot [C7]", async t => {
   ];
   for (const command of commands) assert.equal(await checkNeedsBrowser(root, command, { env }), false, command);
   assert.equal(await checkNeedsBrowser(root, configured, { env: { ...env, NODE_OPTIONS: '--import=unknown.mjs' } }), true);
-  const guard = `--import=${new URL('../src/browser-slot-guard.js', import.meta.url).href}`;
+  const guard = `--import=${new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href}`;
   assert.equal(await checkNeedsBrowser(root, configured, { env: { ...env, NODE_OPTIONS: `${guard} --require=unknown.cjs` } }), true);
   for (const command of [
     'node bin/unknown.js', 'node bin/pullboard.js view', 'node bin/pullboard.js doctrine check extra',
@@ -180,18 +180,18 @@ test('module launchers and dynamic builtins keep browser admission conservative 
 
   // The reviewed parser has real local dependencies; preserve its actual source closure.
   copyPackageFiles(resolve(import.meta.dirname, '..'), root);
-  writeFileSync(join(root, 'test/parser.test.js'), "import '../src/module-imports.js';\n");
+  writeFileSync(join(root, 'test/parser.test.js'), "import '../packages/gate/src/shell/module-imports.js';\n");
   const parserFallbacks = [];
   const parserBrowser = await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => parserFallbacks.push(decision) });
   t.diagnostic('reviewed parser fallback: ' + JSON.stringify(parserFallbacks));
   assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
   assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
-  rmSync(join(root, 'src/module-import-cache-state.js'));
+  rmSync(join(root, 'packages/gate/src/shell/module-import-cache-state.js'));
   const missingFallbacks = [];
   assert.equal(await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => missingFallbacks.push(decision) }), true,
     'a missing real parser helper remains conservative, rather than receiving the compile-only exception');
-  assert.ok(missingFallbacks.some(decision => decision.file === 'src/module-imports.js'
+  assert.ok(missingFallbacks.some(decision => decision.file === 'packages/gate/src/shell/module-imports.js'
     && decision.reason === 'import ./module-import-cache-state.js is missing or ambiguous'));
 });
 
@@ -238,10 +238,10 @@ test('frozen checks classify only explicit source-backed test commands [C7]', as
     env: { ...classifyEnv, NODE_OPTIONS: '--import=unclassified-loader.mjs' },
   }), true, 'an unknown Node preload still fails closed to browser admission');
   assert.equal(await checkNeedsBrowser(root, command, {
-    env: { ...classifyEnv, NODE_OPTIONS: `--import=${new URL('../src/browser-slot-guard.js', import.meta.url).href}` },
+    env: { ...classifyEnv, NODE_OPTIONS: `--import=${new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href}` },
   }), false, "the runner's own launch guard preload, inherited from a browser-free test file, is not an unknown preload [C7,O5]");
   assert.equal(await checkNeedsBrowser(root, command, {
-    env: { ...classifyEnv, NODE_OPTIONS: `--import=${new URL('../src/browser-slot-guard.js', import.meta.url).href} --import=x.mjs` },
+    env: { ...classifyEnv, NODE_OPTIONS: `--import=${new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href} --import=x.mjs` },
   }), true, 'the guard preload does not excuse another preload beside it');
 
   const runnerPath = join(root, 'bin/run-tests.js');
@@ -544,7 +544,7 @@ test('later executable assignments retain every possible browser launch value [C
 test('reviewed executor imports stay browser-free only at their exact call sites [C7,O5]', async t => {
   const repository = resolve(import.meta.dirname, '..');
   const entries = [
-    ['src/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
+    ['apps/cli/src/shell/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
     ['packages/sentinels/src/shell/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
     ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],

@@ -3,12 +3,17 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from '../../../resources/index.js';
+import { userInfo } from 'node:os';
+import { gateMachineHome } from '../core/preload-policy.js';
 
 const MAX_ROWS = 400_000;
 
 /** The directory every checkout and runner job on this machine shares; tests isolate it with their account home. */
-function storeDirectory() { return join(machineHome(), 'parse-cache'); }
+function storeDirectory() {
+  const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
+  const home = gateMachineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
+  return join(home, 'parse-cache');
+}
 
 /** Digest of one source under one parser epoch; the epoch pins runtime, flags and parser program. */
 function keyOf(epoch, source) {
@@ -49,26 +54,30 @@ export function storedCompilations(epoch, sources, compile) {
     const keys = sources.map(source => keyOf(epoch, source));
     const found = new Map();
     const read = db.prepare('SELECT body FROM results WHERE key=?');
-    for (const key of new Set(keys)) {
-      const saved = read.get(key);
-      if (!saved) continue;
-      try { const row = JSON.parse(saved.body); if (validRow(row)) found.set(key, row); } catch { /* Rebuilt below. */ }
-    }
+    try {
+      for (const key of new Set(keys)) {
+        const saved = read.get(key);
+        if (!saved) continue;
+        try { const row = JSON.parse(saved.body); if (validRow(row)) found.set(key, row); } catch { /* Rebuilt below. */ }
+      }
+    } catch { found.clear(); }
     const missing = [...new Map(sources.map((source, index) => [keys[index], source])).entries()].filter(([key]) => !found.has(key));
+    const compiled = missing.length ? compile(missing.map(([, source]) => source)) : [];
     if (missing.length) {
-      const compiled = compile(missing.map(([, source]) => source));
-      db.exec('BEGIN IMMEDIATE');
+      missing.forEach(([key], index) => found.set(key, compiled[index]));
       try {
+        db.exec('BEGIN IMMEDIATE');
+        try {
         if (db.prepare('SELECT COUNT(*) AS n FROM results').get().n > MAX_ROWS) db.exec('DELETE FROM results');
         const write = db.prepare('INSERT OR REPLACE INTO results(key, body) VALUES (?, ?)');
-        missing.forEach(([key], index) => {
-          found.set(key, compiled[index]);
-          if (validRow(compiled[index])) write.run(key, JSON.stringify(compiled[index]));
-        });
-        db.exec('COMMIT');
-      } catch { try { db.exec('ROLLBACK'); } catch { /* No transaction. */ } }
+          missing.forEach(([key], index) => {
+            if (validRow(compiled[index])) write.run(key, JSON.stringify(compiled[index]));
+          });
+          db.exec('COMMIT');
+        } catch { try { db.exec('ROLLBACK'); } catch { /* No transaction. */ } }
+      } catch { /* A storage failure must not replace the real compiler result. */ }
     }
     return keys.map(key => found.get(key));
-  } catch { return compile(sources); }
+  }
   finally { try { db.close(); } catch { /* Closing cannot change a result. */ } }
 }

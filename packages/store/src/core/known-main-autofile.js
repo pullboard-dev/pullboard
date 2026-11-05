@@ -4,7 +4,7 @@ import { blockingFailures } from "../../../verify/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../src/known-main-autofile-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { laneOf } from "../../../../src/lanes.js";
+import { laneOf } from "../../../seats/core.js";
 import { unownedMainReds } from "./known-main-reworks.js";
 import { linkKnownMainReworks } from "./known-main-reworks.js";
 import { validateItemAddition } from "../shell/board-add-item.js";
@@ -60,9 +60,9 @@ export function validateKnownMainAutofile(board, id, options, value = options.au
 }
 
 /** Recheck ownership and create only missing file-derived repairs, atomically with the authentic submit. */
-export function fileKnownMainAutofile(board, id, options, items) {
+export function fileKnownMainAutofile(board, id, options, items, runningFile = false) {
   const known = validateKnownMainAutofile(board, id, options);
-  const missing = unownedMainReds(known, items, id);
+  const missing = unownedMainReds(known, items, id, runningFile);
   if (missing === null) throw refused();
   const repairs = [];
   for (const { file, names } of missing) {
@@ -79,7 +79,7 @@ export function fileKnownMainAutofile(board, id, options, items) {
     items.push(board.db.prepare('SELECT * FROM item WHERE item_id=?').get(repair));
     repairs.push({ file, name: null, item: repair });
   }
-  const linked = linkKnownMainReworks(known, items, id);
+  const linked = linkKnownMainReworks(known, items, id, true, runningFile);
   if (!linked) throw refused();
   return { known: linked, repairs };
 }

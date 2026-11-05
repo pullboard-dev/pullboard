@@ -73,18 +73,8 @@ export function projectItemThreads(board, state) {
   return { ...state, items: state.items.map((item) => ({ ...item, thread: itemThread(board, item.id) })) };
 }
 
-/** Read named milestones from board metadata; older boards simply have none. */
-export function milestones(board) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('milestones');
-  if (!row) return [];
-  try {
-    const value = JSON.parse(row.meta_value);
-    if (!Array.isArray(value)) throw new Error('not an array');
-    return value;
-  } catch {
-    throw new Refused('MILESTONES_CORRUPT', 'the stored roadmap is unreadable; restore board metadata from a known-good board export');
-  }
-}
+import { milestones } from "../core/board-milestones-read.js";
+export { milestones };
 
 /** Return all recorded submitted heads of items still awaiting verification [V1,V17].
  * Historical heads remain unreviewed after a rejection or resubmission; current pointers also

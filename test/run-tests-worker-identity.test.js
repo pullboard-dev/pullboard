@@ -1,7 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Prove a landing worker obtains a bounded identity receipt before its body [C7,V4]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,7 +32,7 @@ test('a landing worker gets its identity without the oversized process census [C
   writeFileSync(fixture.workerTest, `import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-test('worker identity is recorded before the file body', () => {
+test('worker identity is recorded before the file body [C7,V4]', () => {
   const receipts = readFileSync(process.env.PULLBOARD_LANDING_WORKER_STARTS, 'utf8').trim().split(/\\r?\\n/u).map(line => JSON.parse(line));
   const receipt = receipts.find(row => row.type === 'worker' && row.pid === process.pid);
   assert.ok(receipt?.pgid && receipt.started, 'the compact PID query produced a usable worker identity');
@@ -44,6 +45,9 @@ test('worker identity is recorded before the file body', () => {
 });
 `);
   stageFixtureTests(fixture.root, ['test/worker-start.test.js']);
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: fixture.root, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=Pullboard fixture', '-c', 'user.email=fixture@example.invalid',
+    'commit', '-q', '-m', 'test: commit worker identity fixture'], { cwd: fixture.root, stdio: 'ignore' });
   writeFileSync(preload, `import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { appendFileSync } from 'node:fs';
@@ -94,7 +98,7 @@ if (process.argv[1] !== ${JSON.stringify(fixture.runner)}) {
   });
   assert.equal(result.status, 0, `${result.context}\n${result.stdout ?? ''}\n${result.stderr ?? ''}`);
   assert.match(result.stdout, /# fail 0/u);
-  assert.match(result.stdout, /^ok \d+ - worker identity is recorded before the file body$/mu,
+  assert.match(result.stdout, /^ok \d+ - worker identity is recorded before the file body \[C7,V4\]$/mu,
     'the nested worker test ran and recorded identity before its body');
   const queries = readFileSync(calls, 'utf8').trim().split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
   const compactQueries = queries.filter(row => row.type === 'pid-query');

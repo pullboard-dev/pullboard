@@ -1,9 +1,15 @@
+import { boardWriteSnapshot } from './board-write-preparation.js';
+import { requireBoardWriteSnapshot } from './board-write-preparation.js';
+import { git } from '../../../git/index.js';
+import { gateJudgmentPath } from '../../../verify/index.js';
+import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../src/known-main-running-file-engine.js";
 
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
@@ -38,45 +44,48 @@ import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.j
 import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
-import { isDeepStrictEqual } from 'node:util';
-import { contains } from '../../../git/index.js';
+import { sealClauseInspection } from './board-repository.js';
+export { sealClauseInspection };
 
-/** Name changed policy leaves without treating object key order as policy. */
-function changedPolicyKeys(before, after, prefix) {
-  if (isDeepStrictEqual(before, after)) return [];
-  if (before && after && typeof before === 'object' && typeof after === 'object'
-    && !Array.isArray(before) && !Array.isArray(after)) {
-    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
-      .flatMap(key => changedPolicyKeys(before[key], after[key], `${prefix}.${key}`));
+/** Seal rename evidence from exact Git objects and accepted sensitive-path policy before replication [V4,H16]. */
+export function sealStrictRenames(board, id, options) {
+  if (!board.gitRoot) return options;
+  const base = getItem(board, id)?.item_claim_head;
+  if (!base || !options.commit) return options;
+  const fields = git(board.gitRoot, ['diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, options.commit]).split('\0');
+  const policy = options.clausePolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, options.clausePolicyCommit)
+    : board.enginePorts.sandboxPolicyReads.mainPolicy(board.gitRoot);
+  const configured = policy.config.intake?.sensitivePaths ?? [];
+  if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path))
+    throw new Refused('BAD_CONFIG', 'intake.sensitivePaths must name relative sensitive files or directory prefixes');
+  const strictRenames = [];
+  for (let i = 0; i < fields.length && fields[i];) {
+    const status = fields[i++], oldPath = fields[i++];
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const newPath = fields[i++];
+      const sensitive = configured.some(path => oldPath === path || path.endsWith('/') && oldPath.startsWith(path));
+      if (status.startsWith('R') && (gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
+    }
   }
-  return [prefix];
+  return { ...options, strictRenames };
 }
 
-/**
- * Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments.
- *
- * The proof's policy commit may trail current main: landings move main during every long check, so a
- * forward move whose pullboard.json policy is unchanged keeps the sealed policy; any changed field refuses [V4].
- */
-export function sealClauseInspection(board, id, options) {
-  const root = board.gitRoot;
-  if (!root) {
-    const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
-    if (file) throw new Refused('NO_POLICY', 'the native board must know its repository before submitting');
-    return options; // Isolated in-memory fixtures have no board policy.
+const PREPARED_SUBMITS = new WeakMap();
+
+/** Seal repository reads before taking the write lock, bound to this native connection and snapshot. */
+export function prepareSubmit(board, id, options) {
+  const known = PREPARED_SUBMITS.get(options);
+  if (known?.board === board && known.id === id) return options;
+  const snapshot = boardWriteSnapshot(board);
+  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) {
+    options = sealClauseInspection(board, id, options);
+    options = sealStrictRenames(board, id, options);
   }
-  const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
-  const moved = Boolean(options.policyCommit && options.policyCommit !== policy.commit);
-  // Main moving forward during a long proof is routine; only a rewind or a policy change voids the sealed policy (#2375).
-  if (moved && !contains(root, options.policyCommit, policy.commit)) {
-    throw new Refused('NO_POLICY', 'accepted main no longer contains the submit policy commit; refresh the submit policy and retry');
-  }
-  const sealed = moved ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
-  // Every pullboard.json field is policy (lanes, shared paths, static checks...), not only submit, verify and gate.
-  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].sort()
-    .flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
-  if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
-  return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
+  requireBoardWriteSnapshot(board, snapshot, 'submit');
+  const prepared = Object.freeze({ ...options });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot });
+  return prepared;
 }
 
 /**
@@ -92,8 +101,9 @@ export function sealClauseInspection(board, id, options) {
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
-  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) options = sealClauseInspection(board, id, options);
-  const { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  options = prepareSubmit(board, id, options);
+  requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -115,7 +125,13 @@ export function submit(board, id, options) {
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
-  atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+  atomic(board, () => {
+    requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
+      if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
+      if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
+    }
+    reviewRouting.requireStrictBuilderFamily(board, id, agentId);
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
@@ -160,13 +176,14 @@ export function submit(board, id, options) {
         } : {}),
         submissionProofValid: () => {
           if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt);
-          const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true })) : null;
+          const runningFile = (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_RUNNING_FILE_ENGINE;
+          const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true }), runningFile) : null;
           const autoKnown = autoResult?.known;
           if (autoResult) mainRedRepairs = autoResult.repairs;
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(autoKnown ? { ...proof, knownMainFailures: autoKnown } : proof, board.executionEngineVersion ?? ENGINE_VERSION);
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
             requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id,
-              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE);
+              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE, runningFile);
           }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;

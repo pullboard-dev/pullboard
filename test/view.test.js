@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /**
  * The spec view (S7): one offline page with the spec, open questions, sign-offs and practice, where
  * no text from the files can inject markup.
@@ -15,14 +15,14 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { after, test } from 'node:test';
 import { main } from './native-cli-fixture.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { forgetProject, listApiProjects } from '../packages/seats/index.js';
-import { runningView, rememberView, forgetView } from '../src/view-session.js';
+import { runningView, rememberView, forgetView } from '../apps/view/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
-import { esc, renderSpecView } from '../src/view.js';
-import { assertPublicExportSupported } from '../src/public-export-guard.js';
+import { esc, renderSpecView } from '../apps/view/index.js';
+import { assertPublicExportSupported } from '../apps/cli/index.js';
 
 const SPEC = `# Bakery spec
 
@@ -216,7 +216,7 @@ test('sign-offs show as signed, stale or not signed [S5, S7]', () => {
   assert.ok(html.includes('<b>1/2</b><span>approved must-rows signed</span>'));
 });
 
-test('row text is escaped, so a row cannot inject markup', () => {
+test('row text is escaped, so a row cannot inject markup [S7]', () => {
   const html = page();
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));

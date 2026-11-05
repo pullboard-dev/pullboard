@@ -7,7 +7,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
@@ -33,8 +33,8 @@ function fixture(t, criterion) {
 const problem = ({ board, id }) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id));
 const tick = ({ board, id }, text) => store.appendFact(board, id, { agentId: 'core-1', kind: 'note', text });
 
-test('inspection policy is a board setting that defaults off and validates booleans [V4,B3]', () => {
-  assert.equal(configFromSource('{}').verify.inspectClauses, false);
+test('inspection policy is a board setting that defaults on and validates booleans [V4,B3,C7]', () => {
+  assert.equal(configFromSource('{}').verify.inspectClauses, true);
   assert.equal(configFromSource('{"verify":{"inspectClauses":true}}').verify.inspectClauses, true);
   assert.throws(() => configFromSource('{"verify":{"inspectClauses":"on"}}'), /verify\.inspectClauses/u);
 });
@@ -43,7 +43,7 @@ test('a three-clause criterion refuses submit with one unticked and names it, th
   const f = fixture(t, THREE);
   assert.equal(criterionClauses(THREE).length, 3);
   assert.match(problem(f).message, /clause 1 .*no evidence.*clause 2 .*no evidence.*clause 3 .*no evidence/u);
-  tick(f, 'clause 1 [test]: test/list.test.js "renders" passes');
+  tick(f, 'clause 1 [test]: test/list.test.js "clause 1: renders" passes');
   tick(f, 'clause 3 [screenshot]: shots/375.png shows no overflow');
   const refusal = problem(f);
   assert.equal(refusal.code, 'CLAUSE_UNTICKED');
@@ -56,17 +56,35 @@ test('a three-clause criterion refuses submit with one unticked and names it, th
   assert.match(summary, /3\. .*screenshot: shots\/375\.png/u);
 });
 
+test('single and inline numbered clauses retain their shared checklist numbers [V4,B3]', () => {
+  assert.deepEqual(criterionClauses('1) One measurable outcome [test]'), [
+    { number: 1, text: 'One measurable outcome [test]', kind: 'test' },
+  ]);
+  assert.deepEqual(criterionClauses('Complete when: 1) the list renders [test]; 2) the count is 3 [command]'), [
+    { number: 1, text: 'the list renders [test]', kind: 'test' },
+    { number: 2, text: 'the count is 3 [command]', kind: 'command' },
+  ]);
+});
+
+test('test evidence must name the clause its case covers [V4,B3]', t => {
+  const f = fixture(t, '1. The outcome is verified [test]');
+  tick(f, 'clause 1 [test]: test/page.test.js the page renders');
+  assert.match(problem(f).message, /needs a named test case citing clause 1/u);
+  tick(f, 'clause 1 [test]: test/page.test.js "clause 1: page renders" passes');
+  assert.equal(problem(f), null);
+});
+
 test('reasoning is flagged weakest and cannot stand in for a declared test or command [V4,B3]', t => {
   const f = fixture(t, THREE);
   tick(f, 'clause 1 [reasoning]: it obviously renders');
   tick(f, 'clause 2 [command]: prints 3');
   tick(f, 'clause 3 [reasoning]: looks fine');
   assert.match(problem(f).message, /clause 1 .*needs test evidence.*weakest/u);
-  tick(f, 'clause 1 [test]: the case passes');
+  tick(f, 'clause 1 [test]: case named clause 1 passes');
   assert.match(problem(f).message, /clause 3 .*needs screenshot evidence/u);
   tick(f, 'clause 3 [screenshot]: shots/375.png');
   assert.equal(problem(f), null, 'the latest matching tick for each clause stands');
-  const loose = fixture(t, '1. Explain design\n2. Explain result');
+  const loose = fixture(t, '1. Explain design [reasoning]\n2. Explain result [reasoning]');
   tick(loose, 'clause 1 [reasoning]: source argument');
   tick(loose, 'clause 2 [reasoning]: observed outcome');
   assert.match(clauseInspectionSummary(store.getItem(loose.board, loose.id), store.itemThread(loose.board, loose.id)), /2\. .*reasoning \(weakest evidence\)/u);
@@ -80,7 +98,7 @@ test('a tick by anyone but the holder does not count [V4,B3]', t => {
 });
 
 test('a free-text criterion is unaffected [V4,B3]', t => {
-  for (const text of ['the page works and the count is right', 'one numbered line only:\n1. just this', 'out of order\n2. b\n1. a']) {
+  for (const text of ['the page works and the count is right', 'out of order\n2. b\n1. a']) {
     const f = fixture(t, text);
     assert.deepEqual(criterionClauses(text), []);
     assert.equal(problem(f), null);
@@ -94,13 +112,6 @@ test('a real CLI submit refuses an unticked clause and accepts once every clause
   const added = box.run(box.repo, 'add', 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.verify = { policy: 'any', inspectClauses: true };
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore(web): enable clause inspection [G1]');
-  box.git(box.web, 'merge', '--no-edit', 'main');
-  assert.equal(box.run(box.repo, 'settings', 'inspection.clauses', 'off').code, 0, 'machine setting cannot disable board policy');
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>\n', 'feat(web): add page [G1]').status, 0);
   const tick = (n, kind, evidence) => box.run(box.web, 'fact', '1', 'note', `clause ${n} [${kind}]: ${evidence}`);
@@ -109,7 +120,7 @@ test('a real CLI submit refuses an unticked clause and accepts once every clause
   assert.notEqual(none.code, 0, 'no clause is ticked');
   assert.match(none.err, /CLAUSE_UNTICKED/u);
   assert.match(none.err, /clause 1 \(the heading renders/u);
-  assert.equal(tick(1, 'test', 'test/page.test.js heading case passes').code, 0);
+  assert.equal(tick(1, 'test', 'test/page.test.js "clause 1: heading renders" passes').code, 0);
   assert.equal(tick(3, 'screenshot', 'shots/375.png').code, 0);
   const partial = box.run(box.web, 'submit', '1');
   assert.notEqual(partial.code, 0, 'one clause is still unticked');
@@ -148,13 +159,13 @@ test('each declared evidence kind rejects every other kind and accepts a correct
   const kinds = ['test', 'command', 'screenshot', 'measurement', 'reasoning'];
   for (const declared of kinds) for (const supplied of kinds) {
     const f = fixture(t, `1. Observe result [${declared}]\n2. Confirm control [test]`);
-    tick(f, `clause 1 [${supplied}]: observed evidence`);
-    tick(f, 'clause 2 [test]: control passes');
+    tick(f, `clause 1 [${supplied}]: ${supplied === 'test' ? 'case named clause 1 passes' : 'observed evidence'}`);
+    tick(f, 'clause 2 [test]: case named clause 2 passes');
     if (declared === supplied) assert.equal(problem(f), null);
     else {
       assert.equal(problem(f).code, 'CLAUSE_UNTICKED', `${declared} cannot use ${supplied}`);
       assert.match(problem(f).message, new RegExp(`clause 1 .*needs ${declared} evidence`));
-      tick(f, `clause 1 [${declared}]: corrected evidence`);
+      tick(f, `clause 1 [${declared}]: ${declared === 'test' ? 'case named clause 1 passes' : 'corrected evidence'}`);
       assert.equal(problem(f), null);
     }
   }
@@ -170,7 +181,7 @@ test('versioned native submit enforces declared kinds while older engines retain
   tick(current, 'clause 2 [command]: prints 3');
   tick(current, 'clause 3 [screenshot]: shots/375.png');
   assert.throws(() => store.submit(current.board, current.id, submission), /needs test evidence/u);
-  tick(current, 'clause 1 [test]: actual case passes');
+  tick(current, 'clause 1 [test]: case named clause 1 passes');
   store.submit(current.board, current.id, submission);
   assert.equal(store.getItem(current.board, current.id).item_status, 'submitted');
   const older = fixture(t, THREE);

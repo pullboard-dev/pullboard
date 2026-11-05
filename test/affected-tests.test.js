@@ -13,8 +13,8 @@ import { browserBoundFiles } from '../packages/gate/index.js';
 import { testsNeedGui } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { lex } from '../packages/kernel/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
-import { packageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { packageFiles } from '../packages/runners/index.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
@@ -255,15 +255,23 @@ test('a change to one test file selects only what reads it [V4,C7]', (t) => {
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.deepEqual(selection.files, ['test/api.test.js', 'test/loader.test.js'], 'the literal reader is left out of an unrelated change');
 
-  // A computed import that declares nothing cannot be read, so the whole suite runs and says why.
+  // A computed import that declares nothing cannot be read, so that file always runs and says why; the rest stay focused.
   box.put('test/guess.test.js', 'await import(process.env.GUESS);\n');
   commit = box.commit();
   selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
-  assert.equal(selection.full, true, 'an undeclared computed import falls back to the whole suite');
-  assert.match(selection.reason, /test\/guess\.test\.js/u, 'the fallback names the file that cannot be read');
+  assert.equal(selection.full, false, 'one unreadable test never forces the whole suite');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js'], 'the unreadable test runs beside the selection, nothing else');
+  assert.match(selection.reason, /test\/guess\.test\.js/u, 'the selection names the file that cannot be read');
+
+  // A test importing the unreadable test reaches what it reads, so it runs too.
+  box.put('test/uses-guess.test.js', "import './guess.test.js';\n");
+  commit = box.commit();
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
+  assert.equal(selection.full, false);
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js', 'test/uses-guess.test.js'], 'an importer of the unreadable test runs with it');
 });
 
-test('an undeclared non-literal specifier, through a helper or a path builder, selects the whole suite [V4,C7]', (t) => {
+test('an undeclared non-literal specifier, through a helper or a path builder, always runs its own file [V4,C7]', (t) => {
   for (const loader of [
     "function pick(fallback) { return process.env.CASE_MODULE || fallback; }\nawait import(new URL(pick('../src/api.js'), import.meta.url).href);\n",
     "const helpers = { pick: (fallback) => process.env.CASE_MODULE || fallback };\nawait import(new URL(helpers.pick('../src/api.js'), import.meta.url).href);\n",
@@ -278,7 +286,8 @@ test('an undeclared non-literal specifier, through a helper or a path builder, s
     box.put('src/b.js', 'export const value = 2;\n');
     const commit = box.commit();
     const selection = selectAffectedTests(box.root, { base, commit, changed: ['src/b.js'] });
-    assert.equal(selection.full, true, `a helper call's result is unresolved, so the selection falls back to the whole suite: ${loader}`);
+    assert.equal(selection.full, false, `a helper call's result is unresolved, so its own file runs, not the whole suite: ${loader}`);
+    assert.ok(selection.files.includes('test/loader.test.js'), 'the unreadable loader always runs');
     assert.match(selection.reason, /test\/loader\.test\.js/u);
   }
 });
@@ -292,8 +301,9 @@ test('a computed import with an environment fallback reads every candidate, not 
   box.put('src/b.js', 'export const value = 2;\n');
   const commit = box.commit();
   const selection = selectAffectedTests(box.root, { base, commit, changed: ['src/b.js'] });
-  assert.equal(selection.full, true, 'an unresolved branch falls back to the whole suite instead of a partial read set');
-  assert.match(selection.reason, /test\/loader\.test\.js/u, 'the fallback names the loader it cannot read');
+  assert.equal(selection.full, false, 'an unresolved branch runs its own loader, never the whole suite');
+  assert.ok(selection.files.includes('test/loader.test.js'), 'the loader it cannot read always runs instead of a partial read set');
+  assert.match(selection.reason, /test\/loader\.test\.js/u, 'the selection names the loader it cannot read');
 });
 
 test('a declaration counts only in the header, globs expand, and literal URLs resolve as the runtime does [V4,C7]', (t) => {
@@ -306,8 +316,8 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
   box.put('src/actual.js', 'export const value = 2;\n');
   const commit = box.commit();
   const hidden = selectAffectedTests(box.root, { base, commit, changed: ['src/actual.js'] });
-  assert.equal(hidden.full, true, 'a declaration inside a template string never stops the fallback');
-  assert.match(hidden.reason, /test\/template\.test\.js/u, 'the fallback names the undeclared file');
+  assert.ok(hidden.files.includes('test/template.test.js'), 'a declaration inside a template string never stops the undeclared file running');
+  assert.match(hidden.reason, /test\/template\.test\.js/u, 'the selection names the undeclared file');
 
   // A declared glob reads every committed module it matches.
   box.put('test/template.test.js', "/** @pullboard-test-loads src/*.js */\nawait import(process.env.TARGET ?? '../src/actual.js');\n");
@@ -324,15 +334,15 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
   // Glob syntax the selector cannot expand is not a usable declaration.
   box.put('test/template.test.js', "/** @pullboard-test-loads src/{a,b}.js */\nawait import(process.env.TARGET ?? '../src/actual.js');\n");
   const braces = box.commit();
-  assert.equal(selectAffectedTests(box.root, { base: after, commit: braces, changed: ['src/actual.js'] }).full, true, 'an unexpandable glob falls back');
+  assert.ok(selectAffectedTests(box.root, { base: after, commit: braces, changed: ['src/actual.js'] }).files.includes('test/template.test.js'), 'an unexpandable glob runs its own file');
 });
 
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import './commands/index.js';\nimport './machine.js';\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('src/commands/alpha.js', 'export function run() { return 0; }\n');
+  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport './machine.js';\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('src/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
@@ -341,7 +351,7 @@ test('a discovered command module or engine leaf selects what reads its registry
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
-  box.put('src/commands/alpha.js', 'export function run() { return 1; }\n');
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 1; }\n');
   const commandCommit = box.commit();
   const command = selectAffectedTests(box.root, { base, commit: commandCommit });
   assert.equal(command.full, false, command.reason);
@@ -359,13 +369,13 @@ test('a discovered command module or engine leaf selects what reads its registry
 test('runtime discovery and the selector agree on which files are engines and commands [C7,V4]', (t) => {
   const box = graph(t);
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('test/reader.test.js', "import '../src/machine.js';\n");
-  box.put('test/commands.test.js', "import '../src/commands/index.js';\n");
+  box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
   for (const [file, reader] of [['src/check-alpha-engine.js', 'test/reader.test.js'], ['src/check.alpha-engine.js', 'test/reader.test.js'],
-    ['src/commands/beta.js', 'test/commands.test.js'], ['src/commands/gamma.delta.js', 'test/commands.test.js']]) {
+    ['apps/cli/src/shell/commands/beta.js', 'test/commands.test.js'], ['apps/cli/src/shell/commands/gamma.delta.js', 'test/commands.test.js']]) {
     box.put(file, 'export const ENGINE = 1;\n');
     const commit = box.commit();
     const selected = selectAffectedTests(box.root, { base, commit });
@@ -477,7 +487,7 @@ test('the repository test-tree guards list only source scanners and launch no br
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
-  const forbiddenImports = new Set(['../src/board.js', '../src/serve.js', '../src/gate.js', './board-fixture.js',
+  const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
     './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
   const scanFiles = [
     'packages/gate/tests/gui-marker-guard.test.js',

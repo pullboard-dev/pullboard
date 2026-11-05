@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { testOutcomeFields } from '../packages/gate/index.js';
 import { testOutcomeCollector } from '../packages/gate/index.js';
 import { formatTestOutcomes } from '../packages/gate/index.js';
@@ -28,7 +28,7 @@ function quarantineProject(t, { legacy = false } = {}) {
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const copied = copyPackageFiles(join(import.meta.dirname, '..'), box.repo);
   // The complete installed runtime is real; its own shipped tests are outside this synthetic test universe.
-  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
+  for (const file of copied) if (file !== 'package.json' && !/^(?:src|bin|apps|packages)\//u.test(file)) rmSync(join(box.repo, file), { force: true });
   for (const file of copied) if (/\.test\.[cm]?js$/u.test(file)) rmSync(join(box.repo, file), { force: true });
   mkdirSync(join(box.repo, 'test'), { recursive: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, flakes: { rerun: false, quarantine: true },
@@ -61,10 +61,10 @@ import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 import {prepareEngineMove,applyEngineMove,appliedSequence} from './src/engine.js';
 import {QUARANTINE_CORE_ENGINE} from './src/quarantine-core-engine.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
-import {proofCounts} from './src/proof-provenance.js';
+import {proofCounts} from './packages/verify/index.js';
 import * as store from './src/board.js';
-import * as nativeBoard from './src/native-board.js';
-import {gateRuns,flakeQuarantines} from './src/native-board.js';
+import * as nativeBoard from './apps/lib/index.js';
+import {gateRuns,flakeQuarantines} from './apps/lib/index.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8')),reports=[];
 const ctx=context({cwd:root,nativeBoard,say:text=>reports.push(text),err:text=>reports.push(text)});
 const agentId=resourceAgent(ctx);

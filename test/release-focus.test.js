@@ -5,7 +5,7 @@ import { addMilestone } from '../src/board-milestones.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -83,7 +83,7 @@ test('real project state feeds focused draft rows into one Needs-you batch [B26,
   box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
-  const { projectState } = await import('../src/serve.js');
+  const { projectState } = await import('../apps/view/index.js');
   const { personNeeds } = await import('../packages/spec/index.js');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {

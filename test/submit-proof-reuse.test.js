@@ -3,7 +3,7 @@ import { submitReusePlanDigest } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { reusableSubmitProof } from '../src/submit-proof-reuse.js';
+import { reusableSubmitProof } from '../packages/verify/index.js';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const commit = 'a'.repeat(40), tree = 'b'.repeat(40), main = 'c'.repeat(40), frozen = 'd'.repeat(64);
@@ -86,7 +86,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const store = await import('../src/board.js');
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const { boardReceiptStore, receiptBody } = await import('../packages/gate/index.js');
   const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
   const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../src/submit-proof-reuse-engine.js');
@@ -115,4 +115,22 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   assert.deepEqual(replayed, recorded);
   assert.equal(replayed.submitReusePlan, 'e'.repeat(64));
   assert.equal(replayed.main, main);
+});
+
+
+test('a complete tiered unit proof is reusable while journeys stay deferred [C7,H16]', () => {
+  const rows = fixture();
+  const detail = JSON.parse(rows.at(-1).event_detail);
+  detail.submissionProof.deferred = true;
+  rows.at(-1).event_detail = JSON.stringify(detail);
+  const expectedPlan = { check: opts.check, files: ['test/a.test.js'], full: false, deferred: true, proofCommand: opts.supplement, tiered: true };
+  for (const row of rows.filter(row => row.event_kind === 'proof-run')) {
+    const value = JSON.parse(row.event_detail);
+    value.receipt.submitReusePlan = submitReusePlanDigest({ check: opts.check, files: expectedPlan.files, full: false, deferred: true, proofCommand: opts.supplement });
+    row.event_detail = JSON.stringify(value);
+  }
+  assert.deepEqual(reusableSubmitProof(rows, { ...opts, expectedPlan }), { ids: ['criterion-id', 'proof-id'] });
+  assert.ok(reusableSubmitProof(rows, { ...opts, expectedPlan: { ...expectedPlan, tiered: false } }).reason, 'ordinary deferred proof still cannot be cited');
+  const missing = rows.filter(row => row.event_id !== 3);
+  assert.ok(reusableSubmitProof(missing, { ...opts, expectedPlan }).reason, 'a missing unit proof receipt is never deferred away');
 });

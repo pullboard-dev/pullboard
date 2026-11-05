@@ -12,12 +12,12 @@ import { test } from 'node:test';
 import { fetchLocal } from '../../packages/sync/index.js';
 import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
-import { openBoardForRead } from '../../src/board-read-open.js';
+import { openBoardForRead } from '../../packages/store/index.js';
 import { proofStats } from '../../packages/stats/index.js';
 import { compareFlowWindows } from '../../packages/stats/index.js';
-import { portableSnapshot } from '../../src/serve.js';
+import { portableSnapshot } from '../../apps/view/index.js';
 import { viewProofSummary } from '../../src/view-state-summary.js';
-import { exportView } from '../../src/commands/view.js';
+import { exportView } from '../../apps/cli/src/shell/commands/view.js';
 import { machine, project, build, sendBack, fetchLive, startView, accept, boardId, boardOf, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome, press, travel, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, serveFolder, proofShot } from './fixture.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
@@ -685,7 +685,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   build(box, alpha, 1, 'one.txt');
   accept(box, alpha, 1);
   box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1');
+  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships with the snapshot.', '--items', '1,2,beacon#1', '--reason', 'the fixture places its own items');
   box.run(alpha.repo, 'milestone', 'add', 'Later');
   const folder = join(box.dir, 'roadmap-export');
   box.run(alpha.repo, 'view', '--export', folder);
@@ -703,9 +703,9 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#2', label: 'Ready', tone: 'unclaimed', button: true },
+      { id: '#2', label: 'Ready', tone: 'ready', button: true },
       { id: '#1', label: 'Verified', tone: 'verified', button: true },
-      { id: 'beacon#1', label: 'Ready', tone: 'unclaimed', button: true },
+      { id: 'beacon#1', label: 'Ready', tone: 'ready', button: true },
     ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
@@ -819,17 +819,17 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
         const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
         return {
           title: detail.querySelector('h2').innerText,
-          criterion: part('Criterion')?.querySelector('.text').innerText ?? null,
-          verdicts: [...(part('Verdicts')?.querySelectorAll('.verdict') ?? [])].map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText]),
-          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)),
-          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent),
+          criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
+          verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
+          moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].flatMap((move) => move.dataset.eventIds.split(' ').map(() => move.dataset.timelineKind)).reverse(),
+          facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !text.startsWith('Review comparison:')),
         };
       })()`);
       assert.ok(opened.title.includes('Offline greeting'), `the address opens item #1: ${opened.title}`);
       assert.equal(opened.criterion, criterion, 'the exported item shows its criterion');
       assert.deepEqual(opened.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it']],
         'the exported item shows both verdicts with their notes');
-      assert.deepEqual(opened.moves, ['add', 'claim', 'proof-run', 'submit', 'reject', 'claim', 'proof-run', 'submit', 'accept'], 'the exported thread shows every move including native proof receipts');
+      assert.deepEqual(opened.moves, ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'submit', 'accept'], 'the exported thread shows every move including native proof receipts');
       assert.deepEqual(opened.facts, ['The corrected greeting renders offline.'], 'the exported thread shows its fact');
       assert.ok(host.requests.some((request) => request.path.endsWith('/state.json')), 'the page reads the exported state file');
       assert.deepEqual(host.requests.filter((request) => !request.path.startsWith('/demo/') || request.status !== 200), [],

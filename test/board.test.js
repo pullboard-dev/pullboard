@@ -12,11 +12,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../packages/seats/index.js';
-import { projectState } from '../src/cli/view-state.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
@@ -131,7 +131,7 @@ test('[B14] notes in parentheses are not paths, and a foreign path still refuses
   assert.deepEqual(briefFiles(unclosed), ['src/a.js', 'api/x.js']);
 });
 
-test('agents are numbered per lane; one coordinator; a worktree joins once', () => {
+test('agents are numbered per lane; one coordinator; a worktree joins once [B3]', () => {
   assert.deepEqual(store.listAgents(board).map((agent) => agent.agent_id), ['coordinator', 'web-1', 'web-2', 'api-1']);
   assert.equal(store.register(board, { lane: 'web', path: '/repo-web-1' }), 'web-1');
   assert.throws(() => store.register(board, { lane: 'api', path: '/repo-web-1' }), /ALREADY_JOINED/);
@@ -160,7 +160,7 @@ test('[O8] model labels follow stable agent ids into moves and configured displa
   assert.equal(JSON.parse(legacyClaim.event_detail).model, 'unknown', 'moves by older agents record their missing model explicitly');
 });
 
-test('the coordinator follows the main checkout when the repo moves', () => {
+test('the coordinator follows the main checkout when the repo moves [B3,B34]', () => {
   assert.equal(store.ensureCoordinator(board, '/moved/repo'), 'coordinator');
   assert.equal(store.agentAt(board, '/moved/repo').agent_id, 'coordinator');
 });
@@ -265,7 +265,7 @@ test('the first claim freezes the criterion; later claims keep it [V2]', () => {
   assert.equal(store.getItem(board, id).item_frozen_digest, 'digest:Page');
 });
 
-test('submit needs your claim and finished children', () => {
+test('submit needs your claim and finished children [V4]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: id });
   assert.throws(() => submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' }), /NOT_YOURS/);
@@ -345,7 +345,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
   }
 });
 
-test('under verify: coordinator, lane work is the coordinator\'s to verify', () => {
+test('under verify: coordinator, lane work is the coordinator\'s to verify [V9]', () => {
   const id = submitted();
   assert.throws(
     () => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', policy: 'coordinator' }),
@@ -525,7 +525,7 @@ test('every verdict binds the submitted commit and the frozen digest [V8]', () =
   assert.throws(() => verdict(id, { agentId: 'api-1', decision: 'ACCEPT' }), /NOT_SUBMITTED/);
 });
 
-test('merged and withdraw are the coordinator\'s, and only for the right states', () => {
+test('merged and withdraw are the coordinator\'s, and only for the right states [R3]', () => {
   const id = submitted();
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: SHA_B }), /NOT_VERIFIED/);
   verdict(id, { agentId: 'web-2', decision: 'ACCEPT' });

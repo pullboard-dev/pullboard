@@ -33,6 +33,7 @@ import {
 import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { submitUntilSettled } from './submit-infra-requeue.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
@@ -104,14 +105,13 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
-    for (let attempt = 1; ; attempt++) {
-      try { await submitHere(ctx, request.item, request.infra); break; }
-      catch (error) { if (error?.retryable !== true || attempt >= 3) throw error; }
-    }
+    // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
+    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n') });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit } }]));
+      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
   } catch (error) {
-    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }) });
+    // Lock waits ride on the refusal too, so the job shows how long the gate waited on a busy lock (#3087).
+    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) });
     throw error;
   } finally {
     // This process created the disposable checkout and its child has closed; generated files must not strand it.

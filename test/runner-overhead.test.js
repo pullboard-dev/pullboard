@@ -13,17 +13,17 @@ import {
 } from 'node:test';
 import {
   validateCacheTips,
-} from '../src/runner-overhead.js';
+} from '../packages/runners/index.js';
 import { startRunnerPhases } from '../packages/gate/index.js';
 import { runnerPhaseFields } from '../packages/gate/index.js';
 import { runnerPhaseLine } from '../packages/gate/index.js';
-import { doctrineExecutionPhases } from '../src/commands/submit.js';
-import { runnerUtilization } from '../src/runner-utilization.js';
+import { doctrineExecutionPhases } from '../apps/cli/index.js';
+import { runnerUtilization } from '../packages/runners/index.js';
 import {
   receiptLine,
   recordReceipt,
 } from '../packages/gate/index.js';
-import { localRunnerDescriptor } from '../src/runner-load.js';
+import { localRunnerDescriptor } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import {

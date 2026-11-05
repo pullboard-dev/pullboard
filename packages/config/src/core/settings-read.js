@@ -74,6 +74,9 @@ export function loadMachineSettings() {
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
   }
+  if (value.gate?.diskFloorMB !== undefined && (!Number.isSafeInteger(value.gate.diskFloorMB) || value.gate.diskFloorMB < 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.diskFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
+  }
   const runners = value.runners ?? [];
   if (!Array.isArray(runners)) throw new Refused('BAD_MACHINE_SETTINGS', 'runners must be an array; use pullboard runner add <ssh-host> --slots <n> --browser <n>');
   const seen = new Set();

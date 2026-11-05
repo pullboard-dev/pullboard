@@ -11,6 +11,7 @@ export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
 export { counterCaught, counterProofStats } from './src/shell/proof-counter-read.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/shell/proof-counters.js';
+export { refreshCapacityOutsideWrite } from './src/shell/proof-counters.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/core/proof-provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/core/required-review-family.js';
 export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibility.js';
@@ -39,7 +40,7 @@ export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarant
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
 
 export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
-export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung } from './src/core/file-watchdog-policy.js';
+export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung, wallLoadFactor } from './src/core/file-watchdog-policy.js';
 export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
@@ -47,4 +48,6 @@ export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
-export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, showReviewPacket } from './src/shell/review-packet.js';
+export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/shell/review-packet.js';
+
+export { reusableSubmitProof } from './src/shell/submit-proof-reuse.js';

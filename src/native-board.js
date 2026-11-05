@@ -1,2 +1,0 @@
-/** Preserve this module's public names through the apps/lib front door [C7]. */
-export { advanceItemSource, beginSentinelRun, board, closeBoard, decideSentinel, decideSpecRevisions, draftSpecRow, finishSentinelRun, flakeLedger, flakeQuarantines, gateRuns, landingWaiverFor, landingWaivers, nativeBoardPorts, openBoard, openBoardForRead, personProposals, personSigning, proposePersonMove, proposeSentinel, recordFlakeObservation, recordGateRun, recordPublishFinding, recordRowVerification, recordTrainLanding, setPersonSigning, waivedLandingProof } from '../apps/lib/index.js';

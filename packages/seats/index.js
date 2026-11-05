@@ -1,4 +1,8 @@
 /** Seat identity, local sessions and lane policy behind their canonical front door [C7,CD60,CD64]. */
+export { seatWakeCommand } from './src/shell/seat-wake.js';
+export { registerSeatWake } from './src/shell/seat-wake.js';
+export { wakeRoutedSeat } from './src/shell/seat-wake.js';
+export { hasSeatWake } from './src/shell/seat-wake.js';
 export {
   laneLeads,
   routeLaneMessage,
@@ -165,3 +169,8 @@ export {
 export {
   originRepository,
 } from './src/core/github-origin.js';
+export {
+  WATCHDOG_GRACE_MS,
+  planClaimWatchdog,
+  runClaimWatchdog,
+} from './src/shell/claim-watchdog.js';

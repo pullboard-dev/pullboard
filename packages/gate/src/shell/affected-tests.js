@@ -30,7 +30,7 @@ const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
 // A computed-import test may declare the repository modules it can load, in its leading comment header only.
 const LOADS = /^\/\*\* @pullboard-test-loads (.+?) \*\/$/u;
 const SOURCE_LOADS = /^\/\*\* @pullboard-module-loads (.+?) \*\/$/u;
-const COMMAND_REGISTRY = 'src/commands/index.js';
+const COMMAND_REGISTRY = 'apps/cli/src/shell/commands/index.js';
 const GLOBAL = new Set(['bin/run-tests.js', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']);
 
 /**
@@ -354,10 +354,10 @@ function buildGraph(root, commit, prior, probe) {
       sourceTreeReaders: new Set(), docInputs: new Map(), imports: new Map(), commonJs: new Map(), utilities: new Set() };
     addModules(g, g.paths, probe);
   }
-  // Discovery is not an import: the command registry loads each src/commands module, and machine.js reads each
+  // Discovery is not an import: the command registry loads each apps/cli/src/shell/commands module, and machine.js reads each
   // src/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
   for (const module of g.paths) {
-    const reader = module.startsWith('src/commands/') && COMMAND_CANDIDATE.test(module.slice('src/commands/'.length)) ? COMMAND_REGISTRY
+    const reader = module.startsWith('apps/cli/src/shell/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/shell/commands/'.length)) ? COMMAND_REGISTRY
       : module.startsWith('src/') && ENGINE_CANDIDATE.test(module.slice('src/'.length)) ? 'src/machine.js' : null;
     if (!reader) continue;
     if (!g.reverse.has(module)) g.reverse.set(module, new Set());
@@ -420,6 +420,8 @@ function closuresInGraph(graph) {
     for (let at = 0; at < queue.length && !reason; at += 1) {
       const path = queue[at];
       if (graph.unknown.has(path)) { reason = `${graph.unknown.get(path)} in reached file ${path}`; break; }
+      // An imported unreadable test leaves this closure incomplete as well, so it never reuses a green receipt [C7].
+      if (path !== test && graph.undeclared.has(path)) { reason = `${graph.undeclared.get(path)} in reached file ${path}`; break; }
       for (const dependency of forward.get(path) ?? []) {
         if (!reached.has(dependency)) { reached.add(dependency); queue.push(dependency); }
       }
@@ -531,8 +533,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    const [unreadable] = [...before.undeclared, ...after.undeclared];
-    if (unreadable) return { full: true, reason: `${unreadable[0]}: ${unreadable[1]}`, files };
+    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
+    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
     const reached = new Set(changed);
     const queue = [...changed];
     for (const doc of changed.filter(path => DOC.test(path))) {

@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { processCensus } from './runner-custody.js';
 import { cleanupTimeoutDetails } from '../../../../packages/runners/src/core/cleanup-diagnostics.js';
 
 const CLEANUP_BUDGET_MS = 30_000;
@@ -40,7 +41,7 @@ export function clearPhaseCleanup(S) {
 export function reportCleanupTimeout(S) {
   if (S.cleanupTimedOut || Date.now() < Math.min(S.cleanupDeadline, S.phaseCleanupDeadline)) return;
   S.cleanupTimedOut = true;
-  const details = cleanupTimeoutDetails(S);
+  const details = cleanupTimeoutDetails(S, (S.cleanupCensus ?? processCensus)({ includeCommand: true }));
   // A timeout may arrive after ordinary job deletion while output is still flushing.
   // Retain every waited-on process, naming executables without their arguments or environment.
   if (S.cleanupDirectory) {
@@ -60,7 +61,7 @@ export function reportCleanupTimeout(S) {
 export async function releaseDrainedLease(S, lease) {
   let reported = false;
   for (;;) {
-    try { lease.release(); return; }
+    try { lease.release({ retryMs: 0 }); return; }
     catch {
       reportCleanupTimeout(S);
       if (!reported) {

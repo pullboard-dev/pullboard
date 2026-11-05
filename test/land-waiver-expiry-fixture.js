@@ -10,7 +10,7 @@ export function assertLocalWaiverExpiry({ landProject, itemWorktree, submitItem,
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: exercise local waiver expiry');
   box.env.LAND_SUPPRESS_RED = '1';
@@ -22,7 +22,7 @@ export function assertLocalWaiverExpiry({ landProject, itemWorktree, submitItem,
   const remote = box.git(box.remote, 'rev-parse', 'main');
   const source = [
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/native-board.js')).href)};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,

@@ -1,6 +1,6 @@
-/** @pullboard-test-loads src/runner-dispatch.js */
-/** @pullboard-test-loads src/runner-health.js */
-/** @pullboard-test-loads src/runner-transport.js */
+/** @pullboard-test-loads packages/runners/src/shell/runner-dispatch.js */
+/** @pullboard-test-loads packages/runners/src/shell/runner-health.js */
+/** @pullboard-test-loads packages/runners/index.js */
 /** @pullboard-test-loads src/runner-worker.js */
 /** @pullboard-test-loads bin/runner-controller.js */
 /** @pullboard-test-loads packages/gate/src/shell/gate.js */
@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runnerJobReply } from '../src/runner-transport.js';
+import { runnerJobReply } from '../packages/runners/index.js';
 import { processCensus } from '../apps/runner/index.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -54,7 +54,7 @@ function transport(t, mode) {
   const probeReplies = join(box.dir, 'job-probe-replies.jsonl');
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   renameSync(ssh, join(bin, 'ssh-delegate'));
-  const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('src/runner-transport.js'))};
+  const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('packages/runners/index.js'))};
 import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const [root,encoded]=process.argv.slice(1), recovery=JSON.parse(encoded);
 if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery,processCensus))process.exit(2);

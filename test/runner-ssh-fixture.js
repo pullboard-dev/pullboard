@@ -74,21 +74,30 @@ let cancelDropWait = () => {};
 if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`)} && host !== ${JSON.stringify(`${HOST}-setup`)}) {
   record({ refused: true, stdinBytes }); process.exit(255);
 }
-if (${JSON.stringify(healthDown)} && !remoteCommand.startsWith(configuredNode)) {
+// Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
+const workerCommand = remoteCommand.includes(' --input-type=module -e ');
+if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
 if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {
-    let frame = Buffer.alloc(0);
+    // stdin carries the tooling capsule record, then the work frame record; keep each for an exact replay.
+    let frame = Buffer.alloc(0), capsule = null;
     process.stdin.on('data', part => {
       frame = Buffer.concat([frame, part]);
-      const newline = frame.indexOf(10);
-      if (newline < 0) return;
-      const size = Number(frame.subarray(0,newline).toString('ascii'));
-      if (!Number.isSafeInteger(size) || size < 1 || size > 1048576) process.exit(255);
-      if (frame.length >= newline+1+size) { writeFileSync(${JSON.stringify(deferredFrame)},frame.subarray(0,newline+1+size)); resolve(); }
+      for (;;) {
+        const newline = frame.indexOf(10);
+        if (newline < 0) return;
+        const size = Number(frame.subarray(0,newline).toString('ascii'));
+        if (!Number.isSafeInteger(size) || size < 1 || size > (capsule ? 1048576 : 4194304)) process.exit(255);
+        if (frame.length < newline+1+size) return;
+        const record = frame.subarray(0,newline+1+size);
+        frame = frame.subarray(newline+1+size);
+        if (!capsule) { capsule = record; writeFileSync(${JSON.stringify(deferFirstWorker)} + '.capsule', capsule); continue; }
+        writeFileSync(${JSON.stringify(deferredFrame)},record); resolve(); return;
+      }
     });
     process.stdin.resume();
   });
@@ -115,11 +124,35 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
-  child.stderr.pipe(process.stderr);
+  // READY and ordinary results stream; only a held-return fault withholds its receipt.
+  let pendingStderr = '', receipt = '';
+  child.stderr.on('data', part => {
+    pendingStderr += part.toString();
+    for (;;) {
+      const newline = pendingStderr.indexOf('\\n');
+      if (newline < 0) break;
+      const line = pendingStderr.slice(0, newline + 1);
+      pendingStderr = pendingStderr.slice(newline + 1);
+      if (hold === 'return' && line.startsWith('PULLBOARD_RUNNER_RESULT ')) receipt += line;
+      else process.stderr.write(line);
+    }
+  });
 ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
-    child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    // Forward the tooling capsule record unchanged, then replace the work frame with an invalid one.
+    let buffered = Buffer.alloc(0), forwarded = false;
+    process.stdin.on('data', part => {
+      if (forwarded) return;
+      buffered = Buffer.concat([buffered, part]);
+      const newline = buffered.indexOf(10);
+      if (newline < 0) return;
+      const size = Number(buffered.subarray(0, newline).toString('ascii'));
+      if (buffered.length < newline + 1 + size) return;
+      forwarded = true;
+      child.stdin.write(buffered.subarray(0, newline + 1 + size));
+      child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    });
     process.stdin.resume();
-  } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
+  } else process.stdin.pipe(child.stdin); // Health and registration probes carry their capsule on stdin too.` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);
@@ -143,6 +176,8 @@ ${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
       localHeldMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_HELD'),
       localTokenMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_TOKEN'),
       localMachineHomeInSshEnv: Object.hasOwn(process.env, 'PULLBOARD_MACHINE_HOME') });
+    if (pendingStderr) process.stderr.write(pendingStderr);
+    if (hold !== 'return' && receipt) process.stderr.write(receipt);
     process.exitCode = signal ? 128 : (code ?? 255);
   });
 }

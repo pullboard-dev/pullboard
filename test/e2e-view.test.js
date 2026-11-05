@@ -1,4 +1,4 @@
-import { cockpitPage as cockpitSource } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitSource } from '../apps/cli/index.js';
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
@@ -26,7 +26,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../packages/spec/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';

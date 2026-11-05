@@ -12,6 +12,7 @@ import { hostname } from 'node:os';
 import { createHash } from 'node:crypto';
 import * as store from '../../../../src/board.js';
 import { git } from '../../../../src/git.js';
+import { tryGit } from '../../../git/index.js';
 import { isClean } from '../../../../src/git.js';
 import { invalidateGitFacts } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
@@ -23,11 +24,16 @@ import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
+import { heldBatchEntries } from '../core/runner-source-hold.js';
+import { refusalRecord } from '../core/runner-source-hold.js';
 import { landingContext } from '../core/landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
+import { relandAcceptedItems } from './accepted-reland.js';
+import { landingMaximum } from './landing-step-selection.js';
+import { singleItemLanding } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
 import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -43,6 +49,10 @@ import { waivedProof } from './landing-step-failures.js';
 import { bisect } from './landing-step-diagnose.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { returnMergeConflicts } from './landing-step-diagnose.js';
+import { returnCulprit } from './landing-step-diagnose.js';
+import { namedFailures } from './landing-step-diagnose.js';
+import { returnRefusedItem } from './landing-step-diagnose.js';
+import { landingFault } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { requirePushTarget } from './landing-step-publish.js';
@@ -74,13 +84,14 @@ export function landingProcessLive(batch, { host = landingHost(), probe = pid =>
 /**
  * Automatic landing adopts a batch whose landing process is gone, so a crash never deadlocks landing [B35,B3].
  * Why the lease is enough: this command holds the board's exclusive landing lease, so no live process can own the batch
- * unless its recorded pid still runs here. A batch whose worktree or gate log is gone cannot resume and is blocked.
+ * unless its recorded pid still runs here. A batch whose worktree is gone cannot resume and is blocked.
  */
 function adoptInterrupted(unfinished, { automatic, fence, say }) {
   if (!automatic || !fence || !unfinished || ['flaky', 'test-defect'].includes(unfinished.state)) return null;
   if (landingProcessLive(unfinished)) throw new Refused('LAND_ADOPT', `batch ${unfinished.id} is ${unfinished.state} under live process ${unfinished.pid ?? unfinished.owner}; automatic landing leaves it alone until it ends`);
   const kept = ['pushed', 'ready', 'trunk'].includes(unfinished.state);
-  const lost = !kept && (!existsSync(unfinished.root) || unfinished.state !== 'merging' && !existsSync(unfinished.logPath));
+  // Only a missing worktree is lost. A gate saves 'gating' before its log exists, and resuming re-merges and re-gates (#3013).
+  const lost = !kept && !existsSync(unfinished.root);
   say(`landing adopts interrupted batch ${unfinished.id} (${unfinished.state})${lost ? '; its worktree or log is gone, so it is blocked and a fresh batch starts' : ''}`);
   return { lost };
 }
@@ -98,6 +109,7 @@ export async function land(options) {
     requireParallelGateAdmission(options.root, policy);
     requirePublishGreen(options.root, options.board, policy, options.landingPorts);
   }
+  if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
     if (!options.due || idleLanding(options.board, trunk.commit)) {
@@ -110,7 +122,7 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, options.maximum ?? Infinity, { firstReady: true, landingPorts: options.landingPorts });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
@@ -159,13 +171,67 @@ export async function land(options) {
   }
 }
 
+/**
+ * Drop an unpublished batch whose every item already has a merged commit from another path, removing its worktree.
+ * Why: nothing could drop such a batch, so automatic landing kept adopting and retrying work already on main (#2624).
+ */
+async function dropLandedElsewhere(root, board, write, say, batch) {
+  const entries = batch.candidates ?? batch.items ?? [];
+  if (['pushed', 'trunk'].includes(batch.state) || !entries.length || !entries.every(entry => store.getItem(board, entry.id)?.item_merged_commit)) return false;
+  await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', dropped: 'every item already landed another way' }, revision: batch.revision }]);
+  if (existsSync(batch.root)) tryGit(root, ['worktree', 'remove', '--force', '--', batch.root]);
+  say(`landing dropped batch ${batch.id}: ${entries.map(entry => `#${entry.id}`).join(', ')} already landed`);
+  return true;
+}
+
+/**
+ * Whether a batch already reached its trunk: pushed, or a 'trunk' batch whose items carry merged receipts or whose
+ * tip main already names. Why: 'trunk' is saved before its receipts and the trunk move, so a crash there leaves the
+ * items verified and unmerged, and treating it as published let a held item land on adoption (#2648).
+ */
+function batchPublished(root, board, batch) {
+  if (batch.state === 'pushed') return true;
+  if (batch.state !== 'trunk') return false;
+  const entries = batch.items ?? batch.candidates ?? [];
+  return mainCheckout(root)?.commit === batch.tip || (entries.length > 0 && entries.every(entry => store.getItem(board, entry.id)?.item_merged_commit));
+}
+
+/**
+ * Retire an unpublished batch that carries a held item or one whose RUNNER_SOURCE retries are used up, keeping why.
+ * Why: adopting resumes the batch's recorded items without selection, so a hold or the retry limit never applied to
+ * it, and every wake retried the same refused batch (#2648).
+ */
+async function retireHeldBatch(root, board, write, say, batch) {
+  if (batchPublished(root, board, batch)) return false;
+  const held = heldBatchEntries(store.landingBatches(board), batch, id => store.getItem(board, id));
+  if (!held.length) return false;
+  await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', blocked: [...(batch.blocked ?? []), ...held] }, revision: batch.revision }]);
+  for (const entry of held) say(`landing retires batch ${batch.id}: ${entry.code} #${entry.id}: ${entry.message}`);
+  return true;
+}
+
+/**
+ * Record a refusal on the batch and keep every earlier one; a batch whose items used up their RUNNER_SOURCE retries
+ * stops blocked with them held, so nothing adopts it again.
+ */
+async function recordRefusal(state, error) {
+  const record = refusalRecord(state.batch, error, state.board.clock.now().toISOString());
+  const next = { ...state.batch, ...record };
+  const batches = store.landingBatches(state.board).map(batch => (batch.id === next.id ? next : batch));
+  const held = record.refusal.code === 'RUNNER_SOURCE' ? heldBatchEntries(batches, next, id => store.getItem(state.board, id)) : [];
+  await save(state, { ...record, ...(held.length ? { state: 'blocked', blocked: [...(state.batch.blocked ?? []), ...held] } : {}) });
+  for (const entry of held) state.say(`${entry.code} #${entry.id}: ${entry.message}`);
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
-  const unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  let unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  // A dropped batch leaves nothing to adopt; the run continues as an ordinary landing.
+  if (!dryRun && unfinished && await dropLandedElsewhere(root, board, write, say, unfinished)) { unfinished = null; adopt = false; }
   if (fence && unfinished && unfinished.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the interrupted batch belongs to another trunk branch; restore that branch and start a fresh land --adopt');
   if (!dryRun && unfinished) for (const entry of unfinished.items ?? []) requireOutsideOwner(board, store.getItem(board, entry.id));
   const recorded = store.landingBatches(board).findLast((batch) => batch.state === 'landed' && batch.base === trunk?.commit);
@@ -187,7 +253,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
-  const selected = candidates(board, root, trunk.commit, maximum, { landingPorts });
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
@@ -219,9 +285,10 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', supersededByMain: trunk.commit }, revision: batch.revision }]);
     batch = null;
   } else if (batch && interrupted?.lost) {
-    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
+    await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', message: 'the recorded landing worktree is missing or unfinished', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
     batch = null;
   }
+  if (batch && await retireHeldBatch(root, board, write, say, batch)) batch = null;
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
@@ -256,14 +323,19 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       await save(state, { ...build, conflicts: [...state.batch.conflicts, ...build.conflicts] });
       for (const entry of state.batch.blocked ?? []) say(entry.code === 'LAND_FILE_OVERLAP'
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
-        : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}`);
+        : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
       if (!build.items.length) await save(state, { state: 'blocked' });
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
         let gate = await gateGroup(state, 'batch');
         let proof = gate.isGreen ? null : waivedProof(state, gate);
-        if (!gate.isGreen && !proof) {
+        if (!gate.isGreen && !proof && singleItemLanding(state)) {
+          // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
+          await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+          await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
+          gate = null;
+        } else if (!gate.isGreen && !proof) {
           const flakyFiles = await diagnose(state, gate.failures, gate);
           if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; }
           else {
@@ -297,10 +369,17 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     }
   } catch (error) {
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
-      try { await save(state, { refusal: { code: error.code ?? 'LAND_BATCH_REFUSED', at: board.clock.now().toISOString() } }); }
+      try { await recordRefusal(state, error); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
-    if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;
+    // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
+    // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
+    const single = state.batch.state !== 'landed' && singleItemLanding(state);
+    const returned = single && await returnRefusedItem(state, error);
+    // A landing fault (BOARD_BUSY) keeps the batch merging or gating with its worktree and log, so adoption resumes it.
+    if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error)
+      && ['merging', 'gating'].includes(state.batch.state))) await save(state, { state: 'blocked' });
+    if (!returned && (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT')) throw error;
     say(error.message);
   }
   await returnMergeConflicts(state);

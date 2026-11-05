@@ -66,7 +66,7 @@ export const MACHINE_CALLBACKS = {
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
     normalizedDispatch: '../packages/sentinels/src/shell/dispatch-health.js#normalizedDispatch',
-    rejectedWorkReturns: '../packages/sentinels/src/core/rejected-work-return.js#rejectedWorkReturns',
+    rejectedWorkReturns: '../packages/sentinels/src/shell/rejected-work-return.js#rejectedWorkReturns',
   },
   'outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
   'item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
@@ -140,10 +140,10 @@ export function sourceReader(rows) {
 export function assertSyncFacadeAudit(codeWalk, fromDisk, editedSource) {
   assert.throws(() => fromDisk('../../outside.js'), /outside the closed inventory/u);
   assert.throws(() => fromDisk('unknown-source-file.js'), /outside the closed inventory/u);
-  assert.ok(codeWalk(fromDisk).refusalsOf('commands/sync.js#run').has('GIT_REPLACE_REFS'));
+  assert.ok(codeWalk(fromDisk).refusalsOf('../apps/cli/src/shell/commands/sync.js#run').has('GIT_REPLACE_REFS'));
   const planted = editedSource('../packages/sync/src/shell/sync.js', /^export async function syncGitBoard\(root, board, io, \{ settlePending = false \} = \{\}\) \{$/m,
     "$&\n  throw new Refused('SYNC_PACKAGE_PROBE', 'planted sync body refusal');");
-  assert.ok(codeWalk(planted).refusalsOf('commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
+  assert.ok(codeWalk(planted).refusalsOf('../apps/cli/src/shell/commands/sync.js#run').has('SYNC_PACKAGE_PROBE'));
 }
 
 /** Enumerate actual shipped runtime source directories, including public cell fronts and nested command providers. */
@@ -180,7 +180,7 @@ export function declaredBoardOrder(machineRules, prechecked, verb) {
 export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
   const entry = 'git.js#repoInfo';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('NOT_A_REPO'));
-  const planted = editedSource('../packages/git/src/shell/git.js', /^export function repoInfo\(cwd, \{ env \} = \{\}\) \{$/m,
+  const planted = editedSource('../packages/git/src/shell/git.js', /^export function repoInfo\(cwd, options = \{\}\) \{$/m,
     "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
   assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
     'a Git compatibility shim cannot hide a new refusal in its actual implementation');
@@ -188,10 +188,10 @@ export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
 
 /** Prove that only the exact caught landing effect is excluded from verification's refusal audit [B35,M1,M4]. */
 export function assertPostVerdictLandingAudit(editedSource, codeProblems, machine) {
-  const caught = editedSource('commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
+  const caught = editedSource('../apps/cli/src/shell/commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, caught), [], 'only the exact call after the committed verdict is caught');
-  const uncaught = editedSource('commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
+  const uncaught = editedSource('../apps/cli/src/shell/commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
 }

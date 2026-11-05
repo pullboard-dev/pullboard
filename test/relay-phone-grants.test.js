@@ -4,8 +4,8 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ACCESS_WINDOW_MS, createRelayAuth } from '../relay/auth.js';
-import { createGitHubClient } from '../relay/github.js';
+import { ACCESS_WINDOW_MS, createRelayAuth } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 /** Exercise real OAuth and SQLite without persisting a plaintext phone session. */

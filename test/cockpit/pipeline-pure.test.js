@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lifecycleMove } from '../../packages/items/src/core/lifecycle-move.js';
-import { replayItem } from '../../src/view/pipeline-model.js';
-import { pipelineStage } from '../../src/view/pipeline-model.js';
-import { pipelineSince } from '../../src/view/pipeline-model.js';
-import { itemListFields } from '../../src/view/pipeline-model.js';
-import { withdrawnFromStatus } from '../../src/view/pipeline-model.js';
-import { itemStagePresentation } from '../../src/view/pipeline-model.js';
-import { itemStageKey } from '../../src/view/pipeline-model.js';
+import { replayItem } from '../../apps/view/src/core/view/pipeline-model.js';
+import { pipelineStage } from '../../apps/view/src/core/view/pipeline-model.js';
+import { pipelineSince } from '../../apps/view/src/core/view/pipeline-model.js';
+import { itemListFields } from '../../apps/view/src/core/view/pipeline-model.js';
+import { withdrawnFromStatus } from '../../apps/view/src/core/view/pipeline-model.js';
+import { itemStagePresentation } from '../../apps/view/src/core/view/pipeline-model.js';
+import { itemStageKey } from '../../apps/view/src/core/view/pipeline-model.js';
 
 // Explicit lifecycle data, rather than importing engine discovery and its filesystem adapter.
 const FLOW = { initial: 'open', moves: [

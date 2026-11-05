@@ -1,5 +1,5 @@
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 /** Exact collision-model numbers from committed Git paths and a private SQLite event journal [R1,R2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

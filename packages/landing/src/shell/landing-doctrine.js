@@ -1,5 +1,5 @@
 /** Tighten held doctrine counts on the exact composed landing tree, before its gate [D1,D3,B3,R3]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import {
   readFileSync,
@@ -35,7 +35,7 @@ export async function tightenLandingDoctrine(root, config, { onWait } = {}) {
   // Counts describe this exact merged checkout. A remote immutable checkout cannot carry its derived edits.
   const reports = await withGateSlot(root, lease => rules.map(rule => ({ rule,
     ...runRuleCheck(root, rule.command, config.check?.timeoutMs, gateSlotEnvironment(lease)) })),
-  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, remote: false, agent: 'coordinator', kind: 'doctrine', itemCheck: true, onWait });
+  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, remote: false, agent: 'coordinator', kind: 'doctrine', onWait });
   if (headCommit(root) !== head || (!isClean(root) || untracked(root).length)) throw new Refused('LAND_DIRTY', 'a doctrine check changed the merged landing tree; inspect it before adopting');
   const uncounted = reports.filter(report => report.broken);
   if (uncounted.length) throw new Refused('RATCHET_UNCOUNTED', uncounted.map(report => `${report.rule.id} cannot count: ${report.broken}`).join('\n'));

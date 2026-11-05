@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/native-board.js packages/gate/src/shell/main-audit-state.js packages/gate/src/shell/gate-run-receipt.js */
+/** @pullboard-module-loads apps/lib/index.js packages/gate/src/shell/main-audit-state.js packages/gate/src/shell/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -36,7 +36,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
-  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||/^(?:src|bin|packages)\//u.test(file)&&!/(?:^|\/)tests?\//u.test(file));
+  const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='test/wall-clock-budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/(?:^|\/)tests?\//u.test(file));
   for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
   assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
@@ -47,8 +47,8 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(join(repo,'test',name+'.test.js'),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
-  const { board: store }=await import(pathToFileURL(join(installed,'src/native-board.js')));
-  const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
+  const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));
+  const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');

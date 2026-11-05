@@ -24,7 +24,7 @@ import {
   claimRunnerLaunch,
   recordRunnerCompletion,
   runnerHealthReply,
-} from '../src/runner-transport.js';
+} from '../packages/runners/index.js';
 import { recoverUnavailableRunners } from '../packages/resources/index.js';
 
 /** Open only a private queue; it has no configured machine hosts or leases. */
@@ -165,7 +165,8 @@ const runner=${JSON.stringify(runner)};let failure;
 try{await runOnRunnerAsync(process.cwd(),'true',{runner});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
 const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
 const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
-const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remoteEnv,input:'',encoding:'utf8',timeout:10000});return {code:value.status,stderr:value.stderr};};
+const capsule=readFileSync(${JSON.stringify(deferred)}+'.capsule');
+const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remoteEnv,input:capsule,encoding:'utf8',timeout:10000});return {code:value.status,stderr:value.stderr};};
 const first=${workerFirst}?runDeferred():null;
 const health=await probeRunnerHealth(runner,[failure.recovery]);
 const delayed=runDeferred();

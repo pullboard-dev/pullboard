@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-module-loads src/native-board.js */
+/** @pullboard-module-loads apps/lib/index.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { runFixtureChild } from './fixture-child.js';
 import { exportBoard } from '../packages/store/index.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 const SOURCE = new URL('../', import.meta.url);
 
@@ -69,11 +69,11 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   git(candidate,'add','web/feature.js',...(generated?['docs/lifecycle.md']:[]));git(candidate,'commit','-q','-m','feat(web): submitted native source [C7,V4]');
   const accepted = git(candidate,'rev-parse','HEAD'), tree = git(candidate,'rev-parse','HEAD^{tree}');
   git(repo,'worktree','remove',candidate);
-  const { board: store } = await import(pathToFileURL(join(installed,'src/native-board.js')));
-  const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
+  const { board: store } = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
+  const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const boardFile = join(repo,'.git','pullboard','board.sqlite');
   /** @pullboard-board-file journey: real native worker writes and private-file lifetime; close before every admitted child. */
-  function board(action) { const db=native.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);} }
+  function board(action) { const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);} }
   const actors = board(db => { db.executionEngineVersion=1;try{return [store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'web',path:join(scratch,'builder')}),store.register(db,{lane:'review',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;} });
   const frozen = JSON.stringify({check,policy:{version:1,commit:base,verify:{policy:'any',family:'off'}}});
   const digest = createHash('sha256').update(frozen).digest('hex');

@@ -1,11 +1,11 @@
 /** Generated browser adapters over real writer receipts; this control does not claim Chrome execution [N2,N26]. */
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 import { lifecycleEvent, lifecycleMove } from '../../packages/items/index.js';
-import { replayItem } from '../../src/view/pipeline-model.js';
-import { timelineHtml } from '../../src/view/timeline-render.js';
-import { activityModel } from '../../src/view/activity-model.js';
+import { replayItem } from '../../apps/view/index.js';
+import { timelineHtml } from '../../apps/view/index.js';
+import { activityModel } from '../../apps/view/index.js';
 
 /** Exercise the actual served functions with native accounting receipts supplied by the writer journey. */
 export function assertUsagePresentation(events, itemId, board) {
@@ -82,6 +82,7 @@ export function assertUsagePresentation(events, itemId, board) {
   const timeline = vm.runInNewContext('(' + emitted('timeline') + ')', {
     data, view, FLOW, lifecycleEvent, replay: row => replayItem(row, FLOW, lifecycleMove), renderTimelineHtml: timelineHtml,
     when: value => value, age: () => '', agentName: value => value,
+    privateCost: false,
     ...words,
   });
   for (const row of [item, { ...item, thread: [] }]) {

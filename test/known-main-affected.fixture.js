@@ -1,5 +1,5 @@
 /** An affected (mandatory) test case that fails identically on main at the base submits as a known main red [V4,B3]. */
-import '../src/cli.js'; // This test invokes the real CLI through its public executable.
+import '../apps/cli/index.js'; // This test invokes the real CLI through its public executable.
 import assert from 'node:assert/strict';
 import {
   chmodSync,
@@ -59,7 +59,8 @@ function source(expected) {
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
 export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  // A background board writer can outlive its command by a moment; retry the ENOTEMPTY it races rather than fail the case [C7].
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };

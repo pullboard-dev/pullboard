@@ -9,6 +9,7 @@ import { treeCpuDelta } from './file-watchdog-tree.js';
 import { statSync } from 'node:fs';
 
 const tests = new Map();
+const startedAt = new Map();
 let quietAt = performance.now();
 let tree = processTreeCpu(process.pid);
 let treeMicros = 0;
@@ -16,10 +17,18 @@ let outputStamp = 0;
 let killed = false;
 
 /** Signal only this worker's own process; the existing runner custody drains its descendants. */
-function hung(reason) {
+function hung(reason, wall = false) {
   if (killed) return;
   killed = true;
   const name = tests.size ? [...tests.values()].join('; ') : '<file setup or cleanup>';
+  if (wall) {
+    // Past even the load-scaled wall: a TIMEOUT that names the slowest case still running, not a plain failure.
+    const [slowest] = [...startedAt].sort((a, b) => a[1] - b[1]);
+    const running = slowest ? `${tests.get(slowest[0])} (running ${Math.round(performance.now() - slowest[1])}ms)` : name;
+    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case ${JSON.stringify(running)}: ${reason}\n`);
+    process.kill(process.pid, 'SIGKILL');
+    return;
+  }
   writeSync(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}\n`);
   process.kill(process.pid, 'SIGKILL');
 }
@@ -33,11 +42,11 @@ function activity() {
 parentPort.on('message', message => {
   if (message.type === 'output') activity();
   if (message.type === 'test') {
-    if (message.name === null) tests.delete(message.id);
-    else tests.set(message.id, message.name);
+    if (message.name === null) { tests.delete(message.id); startedAt.delete(message.id); }
+    else { tests.set(message.id, message.name); startedAt.set(message.id, performance.now()); }
   }
 });
-setTimeout(() => hung(`whole-file wall limit ${workerData.wallMs}ms`), workerData.wallMs);
+setTimeout(() => hung(`whole-file wall limit ${workerData.wallMs}ms`, true), workerData.wallMs);
 setInterval(() => {
   const beforeSample = process.cpuUsage();
   const current = processTreeCpu(process.pid);

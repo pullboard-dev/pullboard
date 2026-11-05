@@ -5,6 +5,7 @@ import {
   after,
   assert,
   cli,
+  committedToolingSnapshot,
   existsSync,
   fixtureResultContext,
   gateResult,
@@ -46,7 +47,7 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   const remoteStderr = join(dir, 'remote-stderr.log');
   const ran = join(dir, 'command-ran');
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -62,9 +63,15 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests, stderrLog: remoteStderr });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   assert.equal(added.status, 0, added.context);
+  // Prepare the immutable fixture tooling before measuring the controller's actual refused run.
+  committedToolingSnapshot(resolve(import.meta.dirname, '..'), env);
   // The runner's own pool is busy at more slots than its registration, so the worker's request is refused.
   let remoteHolder = await onMachine(remoteMachineHome, () => takeResource({ name: 'gate', capacity: 2, scope: 'machine', root: repo,
     agent: 'fixture-remote-holder', item: 'remote-holder', kind: 'force-busy-runner' }));
+
+  // Safe decreases now allow one held slot; occupy both to prove an unsafe shrink is refused.
+  let secondRemoteHolder = await onMachine(remoteMachineHome, () => takeResource({ name: 'gate', capacity: 2, scope: 'machine', root: repo,
+    agent: 'fixture-second-remote-holder', item: 'second-remote-holder', kind: 'force-busy-runner' }));
 
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -98,6 +105,8 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
     assert.equal(ended[0].workerStarted, true);
     assert.equal(ended[0].code, 0, 'the worker exits after its receipt');
 
+    secondRemoteHolder.release();
+    secondRemoteHolder = null;
     remoteHolder.release();
     remoteHolder = null;
     const remote = onMachine(remoteMachineHome, () => listResources({ scope: 'machine', root: repo }));
@@ -110,6 +119,7 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   } finally {
     held?.release();
     remoteHolder?.release();
+    secondRemoteHolder?.release();
     if (run) {
       const ceiling = new Promise(resolve => { const timer = setTimeout(resolve, 20_000); timer.unref(); }); // budget: a hung controller must not hold the test file open.
       if (!(await Promise.race([run.closed.then(() => true), ceiling]))) run.child.kill('SIGTERM');
@@ -132,7 +142,7 @@ test('a remote file denial is classified on the runner [I1,C7]', { skip: process
   const realpaths = join(dir, 'controller-realpaths.log');
   const preload = join(dir, 'realpath-witness.mjs');
   for (const folder of [repo, worker, bin, machineHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
   // The controller logs every path it realpaths that lies on the runner, so resolving one is caught.
   writeFileSync(preload, `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
 const real = fs.realpathSync; const native = real.native;
