@@ -197,6 +197,7 @@ import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
+import { proofMainFailures } from '../submit-neighbour-reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { unownedMainReds } from '../../../../../packages/store/index.js';
@@ -617,7 +618,7 @@ export async function submitHere(ctx, id, infra) {
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
-      const matched = matchingMainFailures(failures, comparison, mainFailureBase);
+      const matched = proofMainFailures(failures, comparison, mainFailureBase, { criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? held.item_criterion ?? '', check: frozenCheck(held) });
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
       const split = matched ? splitAmbiguousMainReds(matched, rows(), id) : null;
