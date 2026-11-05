@@ -101,7 +101,8 @@ function succeeds(box, cwd, ...args) {
 
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
 function submitted(box, repo, web, title, check) {
-  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.'];
+  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.',
+    '--brief', 'Files: web/item.js\nTest: the frozen verdict check runs'];
   if (check) args.push('--check', check);
   const added = succeeds(box, repo, ...args);
   const id = Number(/#(\d+)/.exec(added)?.[1]);
