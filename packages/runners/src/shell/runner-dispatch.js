@@ -195,7 +195,14 @@ export async function serveRunnerController(ports) {
   const stopWatching = controllerWake(request, { roots, itemFiles, needsBoard: Boolean(item), abort, observe });
   observe();
   try {
-    const result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
+    let result;
+    try { result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody }); }
+    catch (error) {
+      if (error.code !== 'RUNNER_WORK_SPEC' || !error.workSpecVersions) throw error;
+      // A new request rebuilds and sends the pinned capsule, whose installer checks every runtime byte.
+      // Only an explicit pre-execution version mismatch gets this one refresh; malformed specs never retry [C7,#2855].
+      result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
+    }
     if (cancellation) throw new Error('source cancellation completed without a transport failure');
     process.stdout.write(JSON.stringify({ result }));
   }
