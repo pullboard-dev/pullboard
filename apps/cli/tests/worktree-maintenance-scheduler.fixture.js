@@ -35,7 +35,7 @@ function project(t, enabled) {
 }
 
 export function registerMaintenanceSchedulerTests() {
-  test('a private shipped CLI timer wakes once, preserves one owner and obeys canonical opt-out [B3,C7,N26]', { timeout: 120_000 }, async t => {
+  test('a private shipped CLI timer wakes once, preserves one owner and obeys canonical opt-out [B3,C7,N26, clause 1]', { timeout: 120_000 }, async t => {
     const helpers = createE2eHelpers(), sandbox = helpers.sandbox();
     sandbox.env.PULLBOARD_MODEL = 'Test Model';
     isolateTestMachine(sandbox.env, sandbox.dir);
