@@ -36,7 +36,7 @@ const failure = { file: 'test/near.test.js', name: 'near case [V4]' };
 /** A native version-two receipt for one item, optionally carrying a shadow fact. */
 function receipt(item, digest, seat, { green, failures = [], shadow } = {}) {
   return { version: 2, id: crypto.randomUUID(), kind: 'check', tree: SHA, head: SHA, main: SHA, command: 'b'.repeat(64),
-    green, failures, load: null, at: new Date().toISOString(), ...(shadow ? { shadow } : {}),
+    green, failures, testOutcomes: [], load: null, at: new Date().toISOString(), ...(shadow ? { shadow } : {}),
     proof: { item, frozenDigest: digest, seat, environment: null, runner: null, exitCode: green ? 0 : 1,
       counts: { passed: 0, failed: green ? 0 : 1, skipped: 0 }, durationMs: 5, sourceClean: true } };
 }
