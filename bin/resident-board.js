@@ -11,6 +11,9 @@
  * milliseconds, and following interleaved commands' directories cost every async callback a hook. Each command owns
  * the connection it takes until it closes the board. The process retires, closing every connection, when its code is
  * no longer the entry's code, after an hour, and when idle.
+ *
+ * One slow command never stalls the rest: while one runs, a busy file beside the pid file tells clients to read the
+ * board directly, and a queued command not started within RESIDENT_START_CUTOFF_MS of its send is handed back [C7].
  */
 import {
   appendFileSync,
@@ -223,7 +226,11 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit } = await import('./resident-client.js');
+const { gitLocation, headCommit, residentBusyFile, RESIDENT_START_CUTOFF_MS } = await import('./resident-client.js');
+const busyFile = residentBusyFile(pidFile);
+
+/** Whether a queued command's client has stopped waiting for it to start, and so runs it in-process itself. */
+const abandoned = request => Number.isFinite(request.sentAt) && Date.now() - request.sentAt > RESIDENT_START_CUTOFF_MS;
 /** Boards found to run this entry rather than a pinned build, by board, main commit and published selection. */
 const unpinned = new Map();
 const UNPINNED_MS = 60_000;
@@ -275,11 +282,14 @@ async function serve(socket, request) {
     try {
       // A command still queued when the process retired never starts here: its client runs it in-process instead, so
       // only the command already running holds a retired process open.
-      if (retired) return null;
+      if (retired || abandoned(request)) return null;
       if (!enterDirectory(store.cwd)) return null;
       // A pinned tool build runs its own entry, which the in-process path starts.
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
+      if (abandoned(request)) return null;
       send({ t: 'start' });
+      // Written synchronously, so it holds even while this command blocks the event loop.
+      try { writeFileSync(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
       try {
         return await main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, gateWaitReporter, stdin: process.stdin,
           stdout: clientStream(store, 'out', request.tty?.stdout === true, request.tty?.columns),
@@ -288,7 +298,10 @@ async function serve(socket, request) {
         store.send('err', `${error?.stack ?? String(error)}\n`);
         return 1;
       }
-    } finally { running = null; }
+    } finally {
+      try { unlinkSync(busyFile); } catch { /* Never written or already gone. */ }
+      running = null;
+    }
   };
   let status;
   const turn = queue.then(run);

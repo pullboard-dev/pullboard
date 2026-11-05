@@ -15,6 +15,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  watch,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -38,7 +39,7 @@ import {
   runFixtureGit,
 } from './fixture-child.js';
 import { codeVersion } from '../bin/resident-client.js';
-import { residentSocket } from '../bin/resident-client.js';
+import { residentBusyFile, residentSocket } from '../bin/resident-client.js';
 
 const REPO = resolve(import.meta.dirname, '..');
 const BUDGET_MS = 200;
@@ -317,4 +318,56 @@ test('an idle resident process closes its board connections and exits [H24]', as
   assert.ok(own.some(line => line.event === 'retire:idle'), JSON.stringify(own));
   assert.ok(own.some(line => line.event === 'close' && line.file.endsWith(join('.git', 'pullboard', 'board.sqlite'))), 'it closed the board connection it held');
   assert.notEqual(fx.residentPid(), daemon.pid, 'it removed its pid file on the way out');
+});
+
+
+/** Resolve true once `file` exists, watching its folder, or false after `ms`. */
+function appears(file, ms) {
+  return new Promise((resolve) => {
+    const watcher = watch(dirname(file), () => { if (existsSync(file)) end(true); });
+    const timer = setTimeout(() => end(false), ms);
+    /** Settle once and stop watching. */
+    function end(found) { watcher.close(); clearTimeout(timer); resolve(found); }
+    if (existsSync(file)) end(true);
+  });
+}
+
+test('clause 1 and clause 2: a command blocked for 60 s in the resident process never stalls a show from another seat [C7]', async () => {
+  fx.awaitResident();
+  const busy = residentBusyFile(residentSocket(fx.repo, join(fx.code, 'bin', 'pullboard.js')).pid);
+  const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
+  assert.equal(alone.status, 0, alone.stderr);
+  // Hold the board's write lock, so a shout through the resident process waits up to 60 s for it inside SQLite's busy
+  // handler: a synchronous wait that blocks the process's event loop, as the 6-minute status did.
+  const lock = new DatabaseSync(fx.board);
+  lock.exec('PRAGMA busy_timeout = 5000; BEGIN IMMEDIATE');
+  let slow;
+  try {
+    slow = runFixtureChildAsync(process.execPath, [join(fx.code, 'bin', 'pullboard.js'), 'shout', 'all', 'a slow write'],
+      { cwd: fx.worktree, env: { ...fx.env, PULLBOARD_BOARD_QUEUE_MS: '60000' } });
+    let exited = false;
+    slow.then(() => { exited = true; }, () => { exited = true; });
+    // The resident process writes its busy file as the shout starts; the shout then waits on the lock.
+    assert.ok(await appears(busy, 20_000), 'the slow shout started in the resident process');
+    assert.equal(exited, false, 'the slow shout is waiting on the board lock');
+    // Clause 2: a command that started just now does not yet send others to the board, so this show queues behind it
+    // and must give up waiting and read the board itself.
+    writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now()}\n`);
+    const queued = fx.runIn(fx.repo, ['show', '2', '--json'], { modules: true });
+    assert.equal(queued.status, 0, queued.stderr);
+    assert.ok(queued.ms < 5_000, `the queued show answered in ${Math.round(queued.ms)} ms`); // budget: ceiling of bar clause 2, a direct read within 5 s
+    assert.ok(queued.loaded.length > 100, `the queued show read the board in-process (${queued.loaded.length} modules)`);
+    assert.deepEqual(JSON.parse(queued.stdout), JSON.parse(alone.stdout));
+    // Clause 1: once the command has run a while (its busy file says a second ago), another seat's show reads the
+    // board directly at once.
+    writeFileSync(busy, `${readFileSync(busy, 'utf8').split(' ')[0]} ${Date.now() - 1_000}\n`);
+    const direct = fx.runIn(fx.repo, ['show', '2', '--json']);
+    assert.equal(direct.status, 0, direct.stderr);
+    assert.ok(direct.ms < 2_000, `show answered in ${Math.round(direct.ms)} ms while the slow command ran`); // budget: ceiling of bar clause 1, an answer under 2 s
+    assert.deepEqual(JSON.parse(direct.stdout), JSON.parse(alone.stdout));
+    assert.equal(exited, false, 'the slow shout was still running throughout');
+  } finally { lock.exec('ROLLBACK'); lock.close(); }
+  const done = await slow;
+  assert.equal(done.status, 0, done.stderr);
+  assert.ok(!existsSync(busy), 'the resident process removed its busy file when the command ended');
 });
