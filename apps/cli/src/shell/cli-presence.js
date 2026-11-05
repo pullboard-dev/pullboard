@@ -13,8 +13,8 @@ import { heartbeatSeat } from '../../../../packages/store/index.js';
 
 const recorded = new WeakSet();
 
-/** Observe only the registered local checkout after normal session binding; unknown callers gain no identity. */
-export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoard } = {}) {
+/** Observe only the registered local checkout after normal session binding; unknown callers gain no identity. The default next loop omits overlap text to honor its output bound. */
+export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoard, overlaps = true } = {}) {
   if (recorded.has(io)) return;
   let board;
   try {
@@ -27,7 +27,7 @@ export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoar
       recorded.add(io);
       // Overlap reads the recorded worktree files; it never runs Git in another seat's worktree (#2427).
       const items = listItems(board), agents = listAgents(board);
-      for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      if (overlaps) for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
     }
   } catch (error) {
     if (!['NO_CONFIG', 'NOT_A_REPO'].includes(error.code)) io.err(`presence heartbeat unavailable: ${error.message}`);

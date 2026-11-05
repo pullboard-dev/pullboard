@@ -85,10 +85,17 @@ export async function nextHere(io, values) {
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
   const monitor = await startNextProgressMonitor(io);
+  const previousDefaultLoop = io.defaultLoop;
+  // A successful default next can claim through the shared native move pipeline; keep presence diagnostics inside its 2 KB output contract.
+  if (defaultLoop) io.defaultLoop = true;
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try { return await nextWithProgress(io, values, progress); }
-  finally { progress.stop(); await monitor?.close(); if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous; }
+  finally {
+    progress.stop(); await monitor?.close();
+    if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
+    if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
+  }
 }
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
