@@ -63,7 +63,7 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   assert.equal(initialized.status, 0, initialized.failure || initialized.stderr);
   git(repo, 'add', '-A'); git(repo, 'commit', '-q', '--allow-empty', '-m', 'chore: initialize owner fixture [G1]');
   document(run(builder, 'join', 'web', '--model', 'Owner wait fixture model', '--json'));
-  const added = document(run(repo, 'add', 'web', 'Historical owner candidate', '--specs', 'G1',
+  const added = document(run(repo, 'add', 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/done.txt and coordinator.txt.\nChange: preserve the historical finished source for its owner.\nTest: the real frozen command checks web/done.txt.', '--wait', '--json'));
   const id = added.item.item_id;
@@ -103,7 +103,7 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   const notices = inbox.shouts.filter(shout => shout.shout_text.includes(wait.sourceRef));
   assert.equal(notices.length, 1, 'the owner receives one source-bound notification');
   assert.ok(notices[0].shout_text.includes(wait.diff), 'the notice includes the exact diff');
-  const peer = document(box.run(box.repo, 'add', 'web', 'Next ordinary build', '--specs', 'G1',
+  const peer = document(box.run(box.repo, 'add', 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The next finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/next.txt.\nChange: the freed builder can take ordinary work.\nTest: the next fixture check.', '--wait', '--json'));
   const next = document(box.run(box.builder, 'next', '--build', '--json'));
