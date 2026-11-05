@@ -63,7 +63,7 @@ for (const reset of ['refreeze', 'reroute']) {
     giveBack(box, id, box.seats.actor, 'ROUTED_ELSEWHERE');
     assert.equal(store.itemsNeedingRescope(box.board, 'web', 'strong').length, 1);
     if (reset === 'refreeze') store.refreeze(box.board, id, { agentId: 'coordinator',
-      freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'new-scope' }) });
+      freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: item.item_check, rows: [] }), digest: 'new-scope' }) });
     else store.editItem(box.board, id, { agentId: 'coordinator', route: 'mid' });
     assert.deepEqual(store.allItemsNeedingRescope(box.board), []);
     box.advance(31 * 60_000);
@@ -75,12 +75,16 @@ for (const reset of ['refreeze', 'reroute']) {
 
 test('a named blocker must land before its blocked scope is offered again (clause 1) [C7]', async t => {
   const box = await fixture(t);
-  const blocker = box.add('Named blocker', { lane: 'docs' });
+  const blocker = box.add('Named blocker');
   const id = box.add('Waits for the blocker');
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'Needs the named blocker', { blockedOn: [blocker] }, 'BLOCKED');
-  // Controlled fixture state represents accepted work; it is not a test or production proof receipt.
-  store.setItem(box.board, blocker, { item_status: 'verified' });
+  // Real native fixture lifecycle; submitFixture explicitly claims no gate execution.
+  box.submit(blocker);
+  const submitted = store.getItem(box.board, blocker);
+  store.verify(box.board, blocker, { agentId: box.seats.outside.id, decision: 'ACCEPT',
+    reason: 'CRITERION_MET', note: 'Synthetic board-state lifecycle; no gate proof claimed.',
+    head: submitted.item_commit, digest: submitted.item_frozen_digest, policy: 'any', familyPolicy: 'off' });
   assert.equal(store.itemsNeedingRescope(box.board, 'web', 'strong').some(row => row.id === id), true,
     'acceptance alone does not mean the blocker landed');
   store.merged(box.board, blocker, { agentId: 'coordinator', commit: box.git(box.root, 'rev-parse', 'HEAD') });
@@ -95,7 +99,7 @@ test('scope health bounds long release text while retaining its complete detail 
   const box = await fixture(t);
   const id = box.add('Long scope explanation');
   box.claim(id, box.seats.actor);
-  const note = 'Specific blocker context '.repeat(600);
+  const note = 'Specific blocker context '.repeat(600).trim();
   store.release(box.board, id, box.seats.actor.id, note, 'BLOCKED');
   const report = healthReport({ db: box.board.db, root: box.root, config: box.config,
     now: box.clock.now(), dispatchHealth });
