@@ -81,6 +81,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
   const inFlight = new Set();
   let result;
   let failure;
+  let guardianStopped;
   let stderr = '';
   let member;
   const unwatch = watchDeadline(until => { if (child.connected) child.send({ type: 'deadline', until }, () => {}); });
@@ -131,7 +132,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       child.once('error', error => { failure = error; });
       child.once('exit', (code, terminatedBy) => {
         if (code !== 0 || terminatedBy || result === undefined) {
-          failure ??= new Refused('LAND_WORKER', 'the landing guardian stopped unexpectedly; inspect pullboard resume before adopting');
+          if (!failure) failure = guardianStopped = new Refused('LAND_WORKER', 'the landing guardian stopped unexpectedly; inspect pullboard resume before adopting');
           stop(child, member, { read });
         }
       });
@@ -142,6 +143,8 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
     if (signal.aborted) abort();
     else child.send({ type: 'start', options });
     const status = await terminal;
+    // The worker's own crash text reaches only this pipe; a bare refusal hid a liveness SIGTERM for hours (#3130).
+    if (guardianStopped && failure === guardianStopped && stderr.trim()) throw new Refused('LAND_WORKER', `the landing guardian stopped unexpectedly; inspect pullboard resume before adopting: ${stderr.trim().slice(-2048)}`);
     if (failure) throw failure;
     if (status.code !== 0 || result === undefined) throw new Refused('LAND_WORKER', `the landing worker stopped without a completed batch (${status.signal ?? status.code}); inspect pullboard resume before adopting${stderr ? `: ${stderr.trim()}` : ''}`);
     return result;
