@@ -33,7 +33,8 @@ test('releasing a verified item hold wakes landing the way an accept does [C7,#2
 });
 
 test('a run that landed or reopened items while others wait starts the next batch within seconds [C7]', () => {
-  for (const result of [{ landed: [1, 2], waiting: true }, { landed: [], conflicts: [{ id: 3 }], waiting: true }, { landed: [4], waiting: true, retryMs: 600_000 }]) {
+  for (const result of [{ landed: [1, 2], waiting: true }, { landed: [], conflicts: [{ id: 3 }], waiting: true }, { landed: [4], waiting: true, retryMs: 600_000 },
+    { landed: [], culprits: [{ id: 5 }], waiting: true }, { batch: null, landed: [], reopened: 1, waiting: true }]) {
     assert.equal(landingRetryAt(result, NOW), new Date(NOW + LANDING_NEXT_BATCH_MS).toISOString(), JSON.stringify(result));
   }
   assert.ok(LANDING_NEXT_BATCH_MS <= 5_000);
@@ -50,6 +51,25 @@ test('a landing attempt waits out a busy board lock with backoff, and any other 
   const other = Object.assign(new Error('refused'), { code: 'FLAKE_RATCHET' });
   await assert.rejects(untilBoardFree(async () => { throw other; }, { wait: async () => assert.fail('no wait') }), { code: 'FLAKE_RATCHET' });
   await assert.rejects(untilBoardFree(async () => { throw busy; }, { wait: async () => {}, maxWaitMs: 10_000 }), { code: 'BOARD_BUSY' }, 'a lock that never frees ends the attempt');
+});
+
+test('a BOARD_BUSY on one write mid-batch retries only that write and never redoes the batch [C7]', async () => {
+  let gates = 0, attempts = 0;
+  const recorded = [];
+  const busy = Object.assign(new Error('board is busy'), { code: 'BOARD_BUSY' });
+  const write = (operation, value) => untilBoardFree(async () => {
+    attempts += 1;
+    if (attempts <= 2) throw busy;
+    recorded.push([operation, value]);
+  }, { wait: async () => {} });
+  // One batch: its gate runs once, then its record write meets the busy lock twice before it lands.
+  const batch = async () => { gates += 1; await write('recordLandingBatch', 'landed'); return 'landed'; };
+  assert.equal(await batch(), 'landed');
+  assert.equal(gates, 1, 'the batch gate ran once');
+  assert.equal(attempts, 3, 'only the refused write repeated');
+  assert.deepEqual(recorded, [['recordLandingBatch', 'landed']]);
   const source = readFileSync(new URL('../apps/cli/src/shell/commands/land.js', import.meta.url), 'utf8');
-  assert.match(source, /await untilBoardFree\(\(\) => actOn\(io,/u, 'the automatic landing runs through the busy-lock wait');
+  assert.match(source, /write: \(operation, parameters\) => untilBoardFree\(\(\) => ordered\(ctx, board, operation, parameters\)/u,
+    'the landing engine\'s single write port waits out a busy lock');
+  assert.doesNotMatch(source, /untilBoardFree\(\(\) => actOn/u, 'the whole landing is never retried');
 });

@@ -52,6 +52,7 @@ import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
+import { keepHeartbeatWhileBlocked } from './blocked-heartbeat.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -1255,23 +1256,22 @@ export async function takeResource(options) {
           }
         }
         const acquiredWaitMs = priorWaitMs + Math.max(0, Date.now() - waitStartedAt);
-        let released = false;
-        let transferred = false;
+        let released = false, transferred = false;
         let lost = false;
         let cancellationDiagnostic = null;
-        let heartbeat;
-        /** Keep the active holder lease alive while its executor is running. */
+        let heartbeat; // Keep the active holder lease alive while its executor is running.
         const startHeartbeat = () => {
           heartbeat = setInterval(() => {
             if (released || transferred || lost) return;
             try {
               const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
-              if (!changed) { lost = true; clearInterval(heartbeat); }
+              if (!changed) { lost = true; clearInterval(heartbeat); stopBlockedHeartbeat(); }
             } catch { /* Lease expiry remains the crash fallback. */ }
           }, HEARTBEAT_MS);
           heartbeat.unref();
         };
-        startHeartbeat();
+        // Sync child work blocks that timer; an out-of-loop helper refreshes the holder while a child runs, bounded (#3149).
+        startHeartbeat(); const stopBlockedHeartbeat = keepHeartbeatWhileBlocked({ token, pool }, { whileChild: true });
         /** Commit deletion before closing; an owner with its own retry loop can request an immediate lock failure. */
         const release = ({ retryMs } = {}) => {
           if (released || transferred) return;
@@ -1281,7 +1281,7 @@ export async function takeResource(options) {
             removeEmptyViewPortResource(db, name);
           }), { retryMs });
           released = true;
-          clearInterval(heartbeat);
+          clearInterval(heartbeat); stopBlockedHeartbeat();
           db.close();
         };
         /** Stop this exact remote attempt without readmission, retaining unknown remote cleanup atomically. */
@@ -1296,7 +1296,7 @@ export async function takeResource(options) {
           const changed = update(db, () => db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ?').run(Date.now(), token).changes);
           if (!changed) {
             lost = true;
-            clearInterval(heartbeat);
+            clearInterval(heartbeat); stopBlockedHeartbeat();
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
         };
@@ -1306,7 +1306,7 @@ export async function takeResource(options) {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
           if (released || transferred) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
-          clearInterval(heartbeat);
+          clearInterval(heartbeat); stopBlockedHeartbeat();
           let requeueTicket = acquired.ticket;
           let requeueOpportunity = acquired.queueTicket;
           // A failed host's pin describes the old attempt, not the replacement executor.
