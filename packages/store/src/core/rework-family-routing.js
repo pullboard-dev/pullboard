@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
 import { lineSettings } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { REJECTION_RETURN_ENGINE } from "../../../state/index.js";
@@ -50,9 +51,10 @@ function returnedEpisode(board, item) {
 export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, seatFamily, canonicalFamily, policy, now = board.clock.now().getTime() } = {}) {
   const episode = returnedEpisode(board, item);
   if (!episode) return { applies: false, allowed: null };
-  if (rejectionReturnEnabled(board) && episode.event_kind === 'reject') {
+  const openRejections = (board.executionEngineVersion ?? ENGINE_VERSION) >= REJECT_OPEN_ENGINE;
+  if ((openRejections || rejectionReturnEnabled(board)) && episode.event_kind === 'reject') {
     const builder = item.item_built_by;
-    const beforeDeadline = now < Date.parse(episode.event_at) + 30 * 60_000;
+    const beforeDeadline = !openRejections && now < Date.parse(episode.event_at) + 30 * 60_000;
     const verdict = board.db.prepare("SELECT verdict_note FROM verdict WHERE item_id=? ORDER BY verdict_id DESC LIMIT 1").get(item.item_id);
     const detail = JSON.parse(episode.event_detail);
     return { applies: true, mode: beforeDeadline ? 'builder' : 'rejected-open', builder, episode: episode.event_id,
