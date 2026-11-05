@@ -20,7 +20,8 @@ export function flakeRatchet({ previous = null, observations, quarantines, event
   const increases = previous && active.length > previous.quarantines.length
     ? active.filter(row => !previousKeys.has(key(row))).filter(row => {
       const observed = known.get(key(row));
-      return !observed || !(observed.lastEventId > previous.eventId) || !(row.eventId > previous.eventId);
+      // A ledger-backed quarantine cites its own red-and-green proof, however old, so it needs no newer sighting.
+      return !observed || !row.ledger && !(observed.lastEventId > previous.eventId) || !(row.eventId > previous.eventId);
     }).map(row => ({ file: row.file, name: row.name })) : [];
   const snapshot = { version: 1, eventId, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
   return { snapshot, unprotected, malformed: malformed.map(({ file, name }) => ({ file, name })), unjustified: increases,

@@ -66,7 +66,7 @@ export function flakeQuarantines(board) {
   for (const row of board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all()) {
     const detail = JSON.parse(row.event_detail);
     latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id,
-      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}),
+      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}), ...(detail.ledger === true ? { ledger: true } : {}),
       ...(detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true ? { autoSubmit: true } : {}) });
   }
   const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
@@ -74,7 +74,7 @@ export function flakeQuarantines(board) {
     const state = getItem(board, entry.item).item_status;
     const clean = entry.nativeCore && !entry.autoSubmit ? cleanRunRelease(nativeRuns, entry) : null;
     const item = getItem(board, entry.item);
-    const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || !entry.nativeCore && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
+    const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || (!entry.nativeCore || entry.ledger) && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
     const closing = lifted ? (entry.autoSubmit
       ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind='merged'")
       : board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind IN ('accept','withdraw')")).get(entry.item).id : null;
@@ -129,7 +129,10 @@ function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLe
     return !(repaired.get(testKey(row.file, row.name)) > row.lastEventId)
       && (quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId));
   });
-  const observations = [...ledger, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  // A ledger row released after its last sighting is protected like a released pair; a new sighting reopens it.
+  const released = row => latest.get(testKey(row.file, row.name))?.status === 'lifted' && latest.get(testKey(row.file, row.name)).since >= row.lastEventId;
+  const current = ledger.filter(row => !released(row));
+  const observations = [...current, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
   return flakeRatchet({ previous, eventId, observations, quarantines });
 }
 
