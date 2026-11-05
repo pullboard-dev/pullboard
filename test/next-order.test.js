@@ -31,6 +31,11 @@ import { spawnSync } from 'node:child_process';
 import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
 
+/** Remove only the CLI's trailing next-step hint; its flags change independently of the queue answer under test. */
+function queueAnswer(output) {
+  return output.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
+}
+
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
@@ -434,7 +439,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
   const text = box.run(box.repo, 'queue');
-  text.out = text.out.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
+  text.out = queueAnswer(text.out);
   assert.match(text.out.trim().split('\n').at(-1), new RegExp(`^next now: strong → #${strongWork}, mid → #${midWork}, light → #${lightWork}$`, 'u'));
   // The queue's answer is what next actually serves each route.
   for (const [route, lane, id] of [['light', 'api', lightWork], ['mid', 'api', midWork], ['strong', 'web', strongWork]]) {
@@ -442,7 +447,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
     const next = box.json(box.runAs(`queue-${route}-session`, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id, `a ${route} agent's next is the queue's ${route} item`);
   }
-  const queueWithoutHint = box.run(box.repo, 'queue').out.replace(/\nnext: pullboard next[^\n]*\s*$/u, '');
+  const queueWithoutHint = queueAnswer(box.run(box.repo, 'queue').out);
   assert.match(queueWithoutHint.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
 });
 
