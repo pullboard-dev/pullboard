@@ -429,8 +429,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const lightWork = box.add('api', 'Light release work', 'mid');
   box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
     'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json'));
-  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--brief',
-    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest: a light seat selects this item from the release queue', '--json'));
+  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--json'));
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
