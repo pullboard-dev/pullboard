@@ -139,7 +139,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
 }
 
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
-export const LANDING_RETRY_MS = 5 * 60_000;
+export const LANDING_RETRY_MS = 30_000; // 5 min idled the lander after every blocked batch while 60 items waited [C7].
 
 /** How soon the next batch starts after a run that landed or reopened items while others still wait [C7]. */
 export const LANDING_NEXT_BATCH_MS = 1_000;
