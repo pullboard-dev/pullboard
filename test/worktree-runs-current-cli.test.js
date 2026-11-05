@@ -118,7 +118,7 @@ test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; ho
   assert.equal(current.stderr.split(MAIN_MARK).length - 1, 1, 'its entry carries main\'s marker once, from its own copy');
 });
 
-test('[B17,#3164] the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
+test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
   const fromMain = box.run(box.root, process.execPath, [join(box.root, 'bin', 'pullboard.js'), 'whoami']);
