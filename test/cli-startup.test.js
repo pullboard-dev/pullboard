@@ -129,7 +129,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   return { run, runIn, worktree, repo, gitAt, facts };
 }
 
-test('a read command loads only its own modules [C7]', async (t) => {
+test('show reads only its read store and list reads only its read store [C7]', async (t) => {
   const box = fixture(t);
   const version = box.run('--version');
   assert.match(version.stdout, /^\d+\.\d+\.\d+/u);
