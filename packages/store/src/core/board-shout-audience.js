@@ -30,19 +30,23 @@ export function shoutMatchesAudience(db, to, audience) {
 }
 
 /**
- * The unread selection. Its item branch is a non-correlated IN list: SQLite evaluates the reader's item set once per
- * query, instead of running an event subquery for every item-addressed shout. A seat with a long backlog of such
- * shouts paid that subquery on every row, about a second on a 40,000-shout board (#1490). Positional bindings work on
- * the supported minimum Node SQLite API as well as newer releases.
+ * The unread selection splits direct, coordination and item targets into indexed branches. Why: combining these
+ * audiences in one OR made SQLite scan every shout in a 40,000-message backlog; the item branch still evaluates the
+ * active item set once per query. Positional bindings work on the supported minimum Node SQLite API as well as newer releases.
  */
-export const UNREAD_SHOUT_SQL = `FROM shout WHERE shout_id > ? AND shout_from != ? AND
-  (shout_to IN ('all', ?, ?) OR (shout_to = '${COORDINATION_SHOUT}' AND ? IN ('coordinator', 'person')) OR shout_to IN (SELECT 'item:' || item_id FROM item WHERE
+export const UNREAD_SHOUT_SQL = `FROM (
+  SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to IN ('all', ?, ?)
+  UNION ALL
+  SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to = '${COORDINATION_SHOUT}' AND ? IN ('coordinator', 'person')
+  UNION ALL
+  SELECT * FROM shout WHERE shout_id > ? AND shout_from != ? AND shout_to IN (SELECT 'item:' || item_id FROM item WHERE
     (? = 'coordinator' OR COALESCE(item_owner, item_built_by) = ? OR COALESCE(item_review_by, item_verified_by) = ? OR EXISTS
-      (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event_kind IN ('handoff-open','handoff-take') AND event_by=?))))`;
+      (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event_kind IN ('handoff-open','handoff-take') AND event_by=?)))
+) AS unread`;
 
 /** Bind every positional identity occurrence explicitly, including item-role checks. */
 export function unreadShoutBindings(cursor, seat, lane) {
-  return [cursor, seat, lane, seat, seat, seat, seat, seat, seat];
+  return [cursor, seat, lane, cursor, seat, seat, cursor, seat, seat, seat, seat, seat];
 }
 
 /** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
