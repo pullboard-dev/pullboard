@@ -423,26 +423,26 @@ export async function submitHere(ctx, id, infra) {
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
   // Each trusted analysis part gets its own runner lease and a main-pinned private check.
-  const runRemotePart = (part) => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
+  const runRemotePart = (part, signal) => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
       config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part], collectMachinery: true }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: `analysis-${part}`, ...gateAdmission,
-      onWait: queuedItemLease(ctx, held, me.id, 'build') })),
+      onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
   const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
-  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const runGate = (check, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   /** Judge the test result, including exact-main comparison, while other independent stages run. */
   const judgeTests = async (signal) => {
-  let gate = await runGate(frozenCheck(held));
+  let gate = await runGate(frozenCheck(held), signal);
   if (signal.aborted) throw signal.reason;
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
@@ -603,16 +603,16 @@ export async function submitHere(ctx, id, infra) {
   // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
   const stages = await runGateStages([
-    { name: 'preflight', run: async () => {
-      if (remoteMode) return runRemotePart('preflight');
+    { name: 'preflight', run: async signal => {
+      if (remoteMode) return runRemotePart('preflight', signal);
       return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
         code: [fileURLToPath(new URL('../../../../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
       () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
     } },
-    ...(remoteMode ? [{ name: 'selection', run: () => runRemotePart('selection') }] : []),
-    { name: 'cells', run: async () => {
+    ...(remoteMode ? [{ name: 'selection', run: signal => runRemotePart('selection', signal) }] : []),
+    { name: 'cells', run: async signal => {
       const cellsStart = performance.now();
-      try { const result = await (remoteMode ? (await runRemotePart('cells')).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
+      try { const result = await (remoteMode ? (await runRemotePart('cells', signal)).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
         ? await withGateSlot(root, async lease => {
           try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput, { collectMachinery: true }); }
           finally {
@@ -622,7 +622,7 @@ export async function submitHere(ctx, id, infra) {
         },
           { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
             agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
-            onWait: queuedItemLease(ctx, held, me.id, 'build') })
+            onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })
         : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { collectMachinery: true, withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
         readCutItems,
         onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
@@ -631,7 +631,7 @@ export async function submitHere(ctx, id, infra) {
         return result; }
       finally { reportSubmitStage(ctx, 'cells', cellsStart); }
     } },
-    { name: 'doctrine', run: async () => {
+    { name: 'doctrine', run: async signal => {
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
       try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
@@ -643,14 +643,14 @@ export async function submitHere(ctx, id, infra) {
             practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
           finally { remoteDoctrine?.finish(); }
         },
-          { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
+          { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`), signal }))
         : []), { kind: 'doctrine', fallback: [], say: line => ctx.io.say(line),
           rule: null }); }
       finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
     } },
-    { name: 'static', run: async () => {
+    { name: 'static', run: async signal => {
       try {
-        if (remoteMode) return await runRemotePart('static');
+        if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
           if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
@@ -670,7 +670,7 @@ export async function submitHere(ctx, id, infra) {
         const staticStart = performance.now();
         try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
           onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-          executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
+          executionServices, artifactDirectory: ctx.submitHandoffOutput, signal })); }
         finally { reportSubmitStage(ctx, 'static', staticStart); }
       } catch (error) {
         if (error && typeof error === 'object') error.submitFailureStage = 'fast';

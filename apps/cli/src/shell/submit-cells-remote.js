@@ -33,7 +33,7 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, {
     runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline,
     browser: lease.browser, checkedSource, privateCheck: policy,
-    metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'),
+    metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal,
   });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
