@@ -51,8 +51,11 @@ export default async function* report(events) {
 `);
 }
 
-/** Submit an item citing G1, whose row gate is a committed test the item does not touch, and read its packet. */
-function submittedItem() {
+/**
+ * Submit an item citing G1, whose row gate is a committed test the item does not touch, and read its packet.
+ * `gateCases` are the gate file's test lines: a passing case by default.
+ */
+function submittedItem(gateCases = ["test('the row gate holds', () => {});"]) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   box.env.PULLBOARD_MODEL = 'fixture-model';
@@ -71,7 +74,7 @@ function submittedItem() {
     "import { appendFileSync } from 'node:fs';",
     "import { test } from 'node:test';",
     `appendFileSync(${JSON.stringify(marker)}, 'ran\\n');`,
-    "test('the row gate holds', () => {});",
+    ...gateCases,
     '',
   ].join('\n'));
   outcomeReporter(box);
@@ -109,7 +112,19 @@ test('clause 1: a submit for an item citing a spec row runs that row\'s gate tes
 
   await t.test('clause 2: the review packet cites the row\'s gate run for the spec-row clause, so no clause is left without a run [V4,C7]', () => {
     assert.equal(row.gap, undefined, 'the G1 clause has no evidence gap');
-    assert.ok(row.runs.some(run => run.why === "the row's gate test"), 'the run is cited as the row\'s gate test');
+    assert.ok(row.runs.some(run => run.why === "the row's gate test" && run.test === 'the row gate holds'), 'the run is the gate file\'s named, executed case');
     assert.deepEqual(packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n), [], 'every clause cites a recorded run');
   });
+});
+
+test('clause 2: a row gate run with only skipped cases, or none, leaves the spec-row clause unproved [V4,C7]', { timeout: 300_000 }, async (t) => {
+  for (const [kind, cases] of [['all skipped', ["test('the row gate holds', { skip: true }, () => {});"]], ['zero cases', []]]) {
+    await t.test(`clause 2: ${kind}`, () => {
+      const { packet, ranRowGate } = submittedItem(cases);
+      assert.equal(ranRowGate, true, `submit still ran ${ROW_GATE}`);
+      const row = packet.clauses.find(clause => clause.id === 'G1');
+      assert.deepEqual(row.runs, [], `a ${kind} gate run proves nothing: ${JSON.stringify(row)}`);
+      assert.equal(row.gap, 'no recorded run');
+    });
+  }
 });

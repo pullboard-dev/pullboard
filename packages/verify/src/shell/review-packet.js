@@ -219,10 +219,13 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
-    // A frozen spec row is proved by a run of the gate test its row names, which submit runs with the proof [V4].
-    if (clause.gate) evidence.push(...runs.filter(run => run.file === clause.gate).map(run => ({ ...run, test: null, why: "the row's gate test" })));
+    // A frozen spec row is proved by the named, executed cases of the gate test its row names, which submit runs with
+    // the proof [V4]. A file-level run proves nothing here: a skipped run has no executed cases, and a zero-case file
+    // reports only a pseudo-case named for the file itself.
+    if (clause.gate) evidence.push(...executed.filter(run => run.file === clause.gate && run.test.replace(/^\.\//u, '') !== clause.gate)
+      .map(run => ({ ...run, why: "the row's gate test" })));
     for (const run of executed) {
-      if (clause.text.includes(run.file)) continue;
+      if (clause.text.includes(run.file) || run.file === clause.gate) continue;
       const cited = [...run.test.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
         || (clause.id && [...run.test.matchAll(/\[([^\]]+)\]/gu)].some(match => match[1].split(',').map(part => part.trim()).includes(clause.id)));
       const testWords = words(run.test);
