@@ -1,14 +1,18 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { testClosures } from '../../../gate/index.js';
+import { testActionKeys } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
+import { checkoutCommonDir } from '../../../git/index.js';
+import { commandFact } from '../../../git/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -62,6 +66,8 @@ import { loadMachineSettings } from '../../../config/index.js';
 import { recentReceipts } from '../../../gate/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
+// Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
+const CACHE_VERSION = 2;
 
 /** Resolve one test filename from runner output to a safe repository-relative path. */
 function testPath(root, value) {
@@ -104,20 +110,19 @@ function failingFiles(root, profile, output) {
 
 /** The common Git directory holds local machine evidence shared by this repo's worktrees. */
 function cacheFile(root) {
-  const result = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
-    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
-  });
-  if (result.status !== 0) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
-  return join(result.stdout.trim(), CACHE_RELATIVE);
+  // One command locates the common directory once, however many main-red reads it makes.
+  const common = commandFact(JSON.stringify(['main-red-common-dir', root]), () => checkoutCommonDir(root, { env: cleanGitEnvironment() }));
+  if (common === null) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
+  return join(common, CACHE_RELATIVE);
 }
 
 /** Read only well-formed, machine-local cached outcomes; malformed data is treated as a miss. */
 function readCache(file) {
   try {
     const stat = lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: 1, entries: {} };
+    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: CACHE_VERSION, entries: {} };
     const value = JSON.parse(readFileSync(file, 'utf8'));
-    if (value.version !== 1 || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: 1, entries: {} };
+    if (value.version !== CACHE_VERSION || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: CACHE_VERSION, entries: {} };
     const entries = {};
     for (const [commit, files] of Object.entries(value.entries)) {
       if (!/^[0-9a-f]{40,64}$/u.test(commit) || !files || typeof files !== 'object' || Array.isArray(files)) continue;
@@ -130,10 +135,10 @@ function readCache(file) {
         }
       }
     }
-    return { version: 1, entries };
+    return { version: CACHE_VERSION, entries };
   } catch (error) {
-    if (error?.code === 'ENOENT') return { version: 1, entries: {} };
-    return { version: 1, entries: {} };
+    if (error?.code === 'ENOENT') return { version: CACHE_VERSION, entries: {} };
+    return { version: CACHE_VERSION, entries: {} };
   }
 }
 
@@ -157,16 +162,24 @@ function gitCall(cwd, args, env) {
   });
 }
 
-/** Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it. */
-export async function withMainCheckout(root, commit, run) {
-  const directory = join(tmpdir(), `pullboard-main-red-${randomUUID()}`);
+/**
+ * Build one clean temporary checkout at an exact commit (main's, or a pullboard test snapshot) and always remove it.
+ * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
+ * accepted main, so bin/run-tests.js refused a main comparison before any test and it came back a red that proved
+ * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
+ */
+export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
+  // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
+  const directory = join(realpathSync(tmpdir()), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
   try {
     const cloned = gitCall(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], env);
     if (cloned.status !== 0) return { unavailable: 'temporary main checkout could not be prepared' };
-    const selected = gitCall(checkout, ['checkout', '--quiet', '--force', '--detach', commit], env);
+    // A main comparison sits on main's own branch name, so tools that look up accepted main (test budgets) find it (#2950).
+    const branch = onMainBranch ? (mainCheckout(root)?.branch ?? 'refs/heads/main').replace(/^refs\/heads\//u, '') : null;
+    const selected = gitCall(checkout, branch ? ['checkout', '--quiet', '--force', '-B', branch, commit] : ['checkout', '--quiet', '--force', '--detach', commit], env);
     if (selected.status !== 0) return { unavailable: 'the exact main commit could not be checked out temporarily' };
     const clean = gitCall(checkout, ['status', '--porcelain', '--untracked-files=all'], env);
     const head = gitCall(checkout, ['rev-parse', '--verify', 'HEAD^{commit}'], env);
@@ -270,6 +283,48 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
   } catch { return false; } // Unavailable graph or Git evidence never grants known-main acceptance.
 }
 
+/** The most cache generations kept, oldest first out, so the file stays under readCache's size bound. */
+const CACHE_KEYS_KEPT = 512;
+
+/**
+ * Each test file's content key at main: its action key, which hashes the file, its import closure (the packages it
+ * covers) and its declared inputs. Why: main moves on every landing, and a key by commit threw away every known red
+ * whose test and code did not change, so each landing reran main [C7,#3166]. A file with no complete closure has none.
+ */
+async function contentKeys(root, commit, files) {
+  try {
+    const keys = await testActionKeys(root, { commit, files });
+    return new Map(files.map(path => [path, /^[0-9a-f]{64}$/u.test(keys.get(path)?.inputKey ?? '') ? keys.get(path).inputKey : null]));
+  } catch { return new Map(); }
+}
+
+/**
+ * Whether a test's inputs are the same at two commits: the same action inputKey, so the file, its import closure and
+ * declared inputs did not change. Why: a main red recorded by content excuses a batch's case only when the batch left
+ * that test's inputs alone; a batch that changed them is compared with a fresh exact-main run [C7,#3166].
+ */
+export async function sameTestInputs(root, base, head, file) {
+  const [before, after] = await Promise.all([contentKeys(root, base, [file]), contentKeys(root, head, [file])]);
+  return Boolean(before.get(file)) && before.get(file) === after.get(file);
+}
+
+/** The content key a pinned comparison uses: the test's inputs plus the exact executor and runtime it must run on. */
+function pinnedContentKey(inputKey, execution) {
+  return inputKey ? createHash('sha256').update(JSON.stringify([inputKey, execution.executor ?? null, execution.environment ?? null])).digest('hex') : null;
+}
+
+/** Store one outcome under main's commit and its content key, and drop the oldest generations past the bound. */
+function storeOutcome(cache, keys, path, outcome) {
+  for (const key of keys) {
+    if (!key) continue;
+    const files = cache.entries[key] ?? {};
+    delete cache.entries[key];
+    cache.entries[key] = { ...files, [path]: outcome };
+  }
+  const all = Object.keys(cache.entries);
+  for (const key of all.slice(0, Math.max(0, all.length - CACHE_KEYS_KEPT))) delete cache.entries[key];
+}
+
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -282,7 +337,7 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [], contentCache = true } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -300,7 +355,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
-  const file = pinned ? null : cacheFile(root);
+  const file = cacheFile(root);
   const pinnedEntries = Object.create(null);
   // Board events carry native receipt bytes; bind them to the retained receipt, exact
   // main, focused command and runtime before using them as comparison evidence.
@@ -323,12 +378,20 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures));
   /** Read a consistent cache generation in a short metadata-only critical section. */
-  // Executor-pinned evidence never reads or populates the generic commit/file cache.
-  const snapshot = () => pinned
-    ? Promise.resolve({ version: 1, entries: { [main.commit]: { ...pinnedEntries } } })
-    : withComparisonCache(root, onWait, () => readCache(file));
+  // Executor-pinned evidence never reads or populates the generic commit entries: under main's commit it sees only its
+  // recorded runs, and it shares content-keyed records only under a key that also names its executor and runtime.
+  const snapshot = () => withComparisonCache(root, onWait, () => readCache(file))
+    .then(cache => pinned ? { ...cache, entries: { ...cache.entries, [main.commit]: { ...pinnedEntries } } } : cache);
+  const inputs = contentCache ? await contentKeys(root, main.commit, files) : new Map();
+  const content = pinned ? new Map(files.map(path => [path, pinnedContentKey(inputs.get(path), execution)])) : inputs;
+  /** A file's outcome at main: the exact commit's, else the one recorded for the same content key [C7,#3166]. */
+  const outcomeOf = (entries, path) => usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
+    : content.get(path) && usable(entries[content.get(path)]?.[path]) ? entries[content.get(path)][path] : undefined;
+  // A content-keyed outcome is already fresh: the same test and covered code at main were measured, so fresh reruns
+  // only a file with no content key, and each main red runs at most once per content hash.
+  const rerun = path => fresh && !pinned && !content.get(path);
   let cache = await snapshot();
-  const missing = files.filter(path => !usable(cache.entries[main.commit]?.[path]) || fresh && !pinned);
+  const missing = files.filter(path => !outcomeOf(cache.entries, path) || rerun(path));
   if (pinned && missing.length) {
     try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
     catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
@@ -337,7 +400,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   for (const path of missing) {
     try {
       // Another submit may have completed this file after the initial snapshot.
-      if (!fresh && usable((await snapshot()).entries[main.commit]?.[path])) continue;
+      if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) continue;
       // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
       const measured = await withMainCheckout(root, main.commit, async checkout => {
         // Use the same exact-file capability checks as ordinary named tests, on main's source.
@@ -360,6 +423,9 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
               if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
+          // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
+          // Named failing cases in the raw output count as well as the profile's rows: either proves main's file ran [C7,#3073].
+          if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length && !failureSignatures(run, checkout, { raw: true, allowCancelled })?.length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
           coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
           const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout, { allowCancelled }) : null;
           // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).
@@ -374,34 +440,39 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
           return measure(false);
         }
-      });
+      }, { onMainBranch: true });
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (pinned) pinnedEntries[path] = measured;
-      else await withComparisonCache(root, onWait, () => {
+      await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
         // Preserve a completed exact-main result published while this measurement ran.
-        if (!fresh && usable(current.entries[main.commit]?.[path])) return;
-        current.entries[main.commit] ??= {};
-        current.entries[main.commit][path] = measured;
+        if (!pinned && !rerun(path) && outcomeOf(current.entries, path)) return;
+        // A pinned run is also a real main run: it fills the generic content record a landing reads, never the commit entry.
+        storeOutcome(current, pinned ? [content.get(path), inputs.get(path)] : [main.commit, content.get(path)], path, measured);
         writeCache(file, current);
       });
     }
     catch (error) {
       // A concurrent completed comparison can satisfy the request even if our own runner failed.
-      if (fresh || !usable((await snapshot()).entries[main.commit]?.[path])) failed ??= error;
+      if (rerun(path) || !outcomeOf((await snapshot()).entries, path)) failed ??= error;
     }
   }
   cache = await snapshot();
-  const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
+  // A pinned comparison served by its content record names that record's retained receipt, as a fresh run would.
+  if (pinned && onMeasuredReceipt) for (const path of files.filter(entry => !missing.includes(entry) && !pinnedEntries[entry])) {
+    const receiptId = outcomeOf(cache.entries, path)?.receiptId;
+    if (receiptId) try { await onMeasuredReceipt(receiptId); } catch { /* Timing retention never changes the verdict. */ }
+  }
+  const incomplete = files.some(path => !outcomeOf(cache.entries, path));
   // A timeout still has a real file verdict; it never supplies the missing case signatures.
   const coarseFiles = files.flatMap(path => {
-    const row = coarse[path] ?? cache.entries[main.commit]?.[path];
+    const row = coarse[path] ?? outcomeOf(cache.entries, path);
     return row ? [{ file: path, result: row.result, ...(row.receiptId ? { receiptId: row.receiptId } : {}) }] : [];
   });
   if (failed && (fresh || incomplete)) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
   if (incomplete) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
-    ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
+    ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
 /** Map one or more main-red file results only when the row and its open owner are unambiguous. */
@@ -526,7 +597,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
     // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
     if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
       !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
-    const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
+    const owner = matched && linkKnownMainReworks(matched, items, exclude, true, true)?.failures[0].item;
     const status = matched ? 'also-main' : mainCases.length ? 'different-on-main' : 'candidate-only';
     const message = matched
       ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
