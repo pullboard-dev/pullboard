@@ -147,6 +147,26 @@ async function startWorker(launch, relaunches, startOf) {
 }
 
 /**
+ * A worker that cannot start, most often because temp cleanup removed its captured tools, leaves an unstarted record
+ * where its worker record would be, so the health sweep ends its job as infrastructure, never a builder red; the
+ * dispatcher then carries on with the next ticket. Why: on 4 Nov one missing tools folder stopped the dispatcher, and
+ * 100 of 142 queued gates sat behind it. A ticket whose record cannot be written is kept aside, hidden, as evidence.
+ */
+function endUnstarted(file, name, launch, error) {
+  const reason = { code: error.code ?? 'HANDOFF_WORKER_START', message: error.message };
+  try {
+    writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: null, started: null,
+      relaunches: launch.relaunches ?? 0, unstarted: reason }) + '\n', { mode: 0o600 });
+    rmSync(file, { force: true });
+    process.stderr.write(`[HANDOFF_WORKER_START] queued worker ${launch.job} could not start (${error.message}); its gate ends as infrastructure\n`);
+  } catch (record) {
+    try { renameSync(file, join(handoffQueueDirectory(), `.${name}.unstarted`)); }
+    catch { rmSync(file, { force: true }); /* a ticket that can be neither kept nor recorded still never blocks the queue */ }
+    process.stderr.write(`[HANDOFF_WORKER_START] queued worker ${launch.job} could not start (${error.message}) or be recorded (${record.message}); its ticket is kept aside\n`);
+  }
+}
+
+/**
  * Start queued workers oldest first, never more than the cap at once, until the queue is empty and all have exited.
  * Each running worker holds one slot of the machine resource pool, so the count is the pool's own.
  * Returns at once when another dispatcher already holds the machine.
@@ -196,7 +216,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf) {
       catch (error) { slot.release(); throw new Refused('HANDOFF_QUEUE_SOURCE', `cannot read queued worker ${name}: ${error.message}; restore its ticket before dispatch`); }
       let worker;
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
-      catch (error) { slot.release(); throw new Refused('HANDOFF_WORKER_START', `cannot start queued worker ${launch.job}: ${error.message}; restore its captured tools and retry dispatch`); }
+      catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
       started.push(launch.job);
       running.add(worker);
