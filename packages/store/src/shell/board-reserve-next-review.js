@@ -2,25 +2,30 @@ import { atomic } from "./board-event-log.js";
 import { nextFor } from "./board-next-for.js";
 import { reserveWithin } from "./board-reserve-review.js";
 import { preparedRelaxation } from "./board-reserve-review.js";
+import { relaxationInputs } from "./board-reserve-review.js";
 import { getItem } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 
 /** How many times a selection whose item changed before the lock is made again. */
 const SELECTION_ATTEMPTS = 3;
 
-/** Whether the chosen item still has the identity it was selected with and no live reviewer. */
-function unchanged(board, chosen) {
+/**
+ * Whether the chosen item still has the identity it was selected with, no live reviewer, and the witness inputs it
+ * was prepared on. Only cheap reads: a changed item or witness input reserves nothing, and the next look rebuilds.
+ */
+function unchanged(board, chosen, prepared) {
   const now = getItem(board, chosen.item_id);
   return Boolean(now) && now.item_status === 'submitted' && now.item_commit === chosen.item_commit
-    && now.item_frozen_digest === chosen.item_frozen_digest && !reviewHolder(board, now);
+    && now.item_frozen_digest === chosen.item_frozen_digest && !reviewHolder(board, now)
+    && (!prepared || prepared.inputs === relaxationInputs(board));
 }
 
 /**
  * `next --verify` (V15): find the next review the agent may take and reserve it, so no other verifier can take it
  * between the look and the reservation. Why the look runs outside the write transaction: the scan evaluates every
  * candidate for every seat and took 15-25 s inside the lock on a 28-submission board, so every other writer hit
- * BOARD_BUSY (#3156). Inside the lock only the chosen item is checked again; one that changed meanwhile is selected
- * again, and the reserve move's own guards still refuse anything no longer eligible.
+ * BOARD_BUSY (#3156). Inside the lock only the chosen item and its witness inputs are checked again; a change
+ * meanwhile reserves nothing and the look runs again, and the reserve move's own guards still refuse the ineligible.
  *
  * @param {any} board
  * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[], skipIds?: number[] }} who - skipIds: items the caller's own session built, never offered (verify refuses them too)
@@ -34,8 +39,10 @@ export function reserveNextReview(board, { agentId, lane, leaseMs, policy, famil
     if (!item) return { item: null, reasons, ...(observeIdle ? { idleReason } : {}) };
     const witness = preparedRelaxation(board, item.item_id, who);
     afterSelection?.(item);
-    const reserved = atomic(board, () => unchanged(board, item) || attempt >= SELECTION_ATTEMPTS
+    // Never build a witness inside the lock: a changed choice reserves nothing and the look runs again outside it.
+    const reserved = atomic(board, () => unchanged(board, item, witness)
       ? { item: reserveWithin(board, item.item_id, { ...who, prepared: witness }) } : null);
     if (reserved) return { item: reserved.item, reasons };
+    if (attempt >= SELECTION_ATTEMPTS) return { item: null, reasons: [...reasons, 'the review queue changed during every look; run next again'] };
   }
 }

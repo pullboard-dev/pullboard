@@ -5,6 +5,7 @@ import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { reviewFamilyRelaxation } from '../packages/store/src/shell/board-review-family.js';
+import { relaxationInputs, preparedRelaxation } from '../packages/store/src/shell/board-reserve-review.js';
 
 const SUBMITTED = 30;
 const SEATS = 15;
@@ -89,13 +90,21 @@ test('clause 3: the reserved item and its family-relaxation witness match the in
 
 test('clause 2: a witness whose queue changed between the look and the lock is rebuilt, never reused stale [C7,V15]', t => {
   const { board, ids } = backlog(t, 2);
-  let chosen;
-  assert.throws(() => store.reserveNextReview(board, who, { afterSelection: item => {
+  let chosen, mark = 0;
+  const holds = writerHolds(board);
+  preparedRelaxation(board, ids[0], who);
+  const witnessCost = holds.prepared;
+  const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
+    if (chosen) return;
     chosen = item.item_id;
     // Another same-family reviewer takes the other waiting item, so only one review waits: under the threshold of 2.
     store.reserveReview(board, ids.find(id => id !== item.item_id), { ...who, agentId: 'core-3' });
-  } }), { code: 'SAME_FAMILY' }, 'the rebuilt witness no longer relaxes the frozen family rule');
+    mark = holds.length;
+  } });
+  assert.equal(reserved.item, null, 'the fresh look outside the lock no longer relaxes the frozen family rule');
   assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale witness');
+  const own = holds.slice(mark);
+  assert.ok(own.length >= 1 && own.every(hold => hold.statements < witnessCost), `no transaction of this look rebuilt the ${witnessCost}-statement witness: ` + JSON.stringify(own));
 });
 
 test('clause 2: a seat leaving its release cooldown between the look and the lock rebuilds the witness [C7,V15]', t => {
@@ -111,10 +120,20 @@ test('clause 2: a seat leaving its release cooldown between the look and the loc
   store.shout(board, { from: 'core-99', to: 'coordinator', text: 'Still here', lanes: ['core'] });
   advance(9 * 60_000 + 59_000);
   let chosen;
-  assert.throws(() => store.reserveNextReview(board, who, { afterSelection: item => {
+  const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
+    if (chosen) return;
     chosen = item.item_id;
     // Its cooldown ends while it is still active: it can now review, so the backlog no longer relaxes the rule.
     advance(2_000);
-  } }), { code: 'SAME_FAMILY' }, 'the witness is rebuilt once the cooldown has ended');
-  assert.equal(store.getItem(board, chosen).item_review_by, null);
+  } });
+  assert.equal(reserved.item, null, 'the look after the cooldown ended no longer relaxes the frozen family rule');
+  assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale witness');
+});
+
+test('clause 2: a seat route change is a witness input, so a rejoined seat never reuses a stale witness [C7,V15]', t => {
+  const { board } = backlog(t, 2);
+  store.shout(board, { from: 'core-5', to: 'coordinator', text: 'Active seat', lanes: ['core'] });
+  const before = relaxationInputs(board);
+  board.db.prepare("UPDATE agent SET agent_route='light' WHERE agent_id='core-5'").run();
+  assert.notEqual(relaxationInputs(board), before, 'the active seat route is part of the inputs');
 });

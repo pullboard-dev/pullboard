@@ -46,7 +46,7 @@ export function preparedRelaxation(board, id, { agentId, policy, familyPolicy = 
 
 /**
  * The cheap facts a relaxation witness is derived from: every waiting submission with its head, bar and live
- * reviewer, the seats active in the witness window with their families, the latest review release and every release
+ * reviewer, the seats active in the witness window with their families, lanes and routes, the latest review release and every release
  * cooldown still running. Why: a
  * witness prepared before the lock is reused only while these are unchanged, so another reviewer reserving a waiting
  * item, a seat arriving or a release between the look and the lock rebuilds it instead (#3156).
@@ -59,8 +59,9 @@ export function relaxationInputs(board) {
   const at = now.toISOString(), cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
   const waiting = board.db.prepare("SELECT item_id,item_commit,item_frozen_digest,item_review_by,item_review_until FROM item WHERE item_status='submitted' ORDER BY item_id").all()
     .map(row => [row.item_id, row.item_commit, row.item_frozen_digest, row.item_review_by && (row.item_review_until ?? '') > at ? row.item_review_by : null]);
+  const route = board.db.prepare('SELECT agent_lane AS lane, agent_route AS route FROM agent WHERE agent_id=?');
   const active = board.db.prepare('SELECT DISTINCT event_by AS id FROM event WHERE event_at>=? AND event_at<=? ORDER BY event_by').all(cutoff, at)
-    .map(row => [row.id, seatFamily(board, row.id)]);
+    .map(row => { const seat = route.get(row.id); return [row.id, seatFamily(board, row.id), seat?.lane ?? null, seat?.route ?? null]; });
   const released = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind IN ('release','review-release')").get()?.id ?? null;
   // A release cooldown ends with time alone, so each live one is part of the inputs, evaluated now (#3156).
   const cooling = board.db.prepare("SELECT DISTINCT event.item_id AS item, event.event_by AS seat FROM event JOIN item ON item.item_id=event.item_id WHERE item.item_status='submitted' AND event.event_kind='release' ORDER BY event.item_id, event.event_by").all()
