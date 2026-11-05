@@ -48,7 +48,7 @@ test('an automatic landing amends through the real hook while an ordinary worktr
   const result = box.run(box.repo, 'land', '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const landed = JSON.parse(result.out);
-  assert.deepEqual(landed.landed, [entry.item]);
+  assert.deepEqual(landed.landed, [entry.item], landed.batch?.refusal?.message ?? JSON.stringify(landed));
   const shown = box.run(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);
   const item = JSON.parse(shown.out);
