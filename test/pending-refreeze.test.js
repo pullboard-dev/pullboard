@@ -133,8 +133,8 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
-  const add = (title) => {
-    const result = box.run(box.repo, 'add', 'web', title, '--route', 'mid', '--criterion', title,
+  const add = (title, route = 'mid') => {
+    const result = box.run(box.repo, 'add', 'web', title, '--route', route, '--criterion', title,
       '--brief', 'Files: web/dependencies.js\nTest: records dependency edits', '--check', 'true', '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
@@ -166,7 +166,10 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   refusal(cycle, 'DEPENDENCY_CYCLE');
   assert.equal(store.getItem(board, second).item_after, '', 'a refused cycle leaves the edge unchanged');
 
-  const claimed = add('Claimed dependency target');
+  const claimed = add('Claimed dependency target', 'light');
+  const diagnosis = box.run(box.repo, 'fact', String(claimed), 'diagnosis',
+    'Files: web/dependencies.js Change: correct dependency edges without changing the frozen bar Test case: edit adds and clears an item\'s dependencies');
+  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
   const claim = box.run(box.web, 'claim', String(claimed), '--json');
   assert.equal(claim.code, 0, claim.err || claim.out);
   const beforeCorrection = store.getItem(board, claimed);
