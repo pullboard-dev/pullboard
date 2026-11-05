@@ -102,7 +102,7 @@ const RUNNER_TROUBLE_MS = 15 * 60_000;
 export function troubledRunners(db, now, leaseMs) {
   const since = new Date(now - RUNNER_TROUBLE_MS).toISOString();
   const failed = db.prepare("SELECT DISTINCT host FROM runner_recovery_event WHERE kind = 'unavailable' AND at >= ?").all(since).map(row => row.host);
-  const stale = db.prepare("SELECT DISTINCT runner FROM holder WHERE name LIKE 'runner:%' AND runner <> '' AND heartbeat < ?").all(now - leaseMs).map(row => row.runner);
+  const stale = db.prepare("SELECT DISTINCT runner FROM holder WHERE name LIKE 'runner:%' AND runner <> '' AND beat < ?").all(now - leaseMs).map(row => row.runner);
   return new Set([...failed, ...stale]);
 }
 
