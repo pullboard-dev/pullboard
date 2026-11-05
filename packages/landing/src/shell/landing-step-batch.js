@@ -52,6 +52,7 @@ import { returnMergeConflicts } from './landing-step-diagnose.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
+import { landingFault } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { requirePushTarget } from './landing-step-publish.js';
@@ -374,7 +375,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
     const single = state.batch.state !== 'landed' && singleItemLanding(state);
     const returned = single && await returnRefusedItem(state, error);
-    if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST'
+    // A landing fault (BOARD_BUSY) keeps the batch merging or gating with its worktree and log, so adoption resumes it.
+    if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error)
       && ['merging', 'gating'].includes(state.batch.state))) await save(state, { state: 'blocked' });
     if (!returned && (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT')) throw error;
     say(error.message);
