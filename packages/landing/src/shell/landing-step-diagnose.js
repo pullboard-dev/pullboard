@@ -147,7 +147,8 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   for (const [index, part] of [items.slice(0, middle), items.slice(middle)].entries()) {
     const build = await mergeGroup(state, part);
     await save(state, { ...build, state: 'bisecting' });
-    const gate = await evaluate(state, `${label}-${index}`);
+    // Each half runs only the files the batch failed; the final green set runs its whole plan before landing [C7].
+    const gate = await evaluate(state, `${label}-${index}`, { focus: [...new Set(failures.map(failure => failure.file).filter(Boolean))] });
     // Only unwaived reds split a group further; a group red only on waived files is green for bisection [C7,#2900].
     const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
     if (gate.isGreen || waivedProof(state, gate) || !own.length) green.push(...build.items);
@@ -221,7 +222,8 @@ const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE
  * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
  * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
  */
-export const LANDING_FAULTS = new Set(['BOARD_BUSY']);
+// A locked board or slot database means the run never started, not that the batch or an item failed.
+export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
 
 /** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
 export function landingFault(error) {
