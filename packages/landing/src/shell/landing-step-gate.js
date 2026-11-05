@@ -151,6 +151,9 @@ function criterionTestFiles(root, entry, item, runner, detail) {
     || Object.hasOwn(detail, 'criterionDigest') && detail.criterionDigest !== item.item_frozen_digest) return null;
   let frozen;
   try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
+  // No frozen check names no files: the submit proof alone is the plan. Why: null here voided the whole batch's plan
+  // and sent every batch holding such an item to the full configured gate, 25 minutes that never completed [C7].
+  if (typeof frozen?.check !== 'string' || !frozen.check.trim()) return [];
   let check;
   try { check = mappedCheck(root, frozen.check, { commit: entry.commit }); } catch { return null; }
   const words = literalShellWords(check);

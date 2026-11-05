@@ -14,6 +14,7 @@ import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
+import { watchdogProof } from './landing-step-failures.js';
 import { unwaivedFailures } from './landing-step-failures.js';
 import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
@@ -43,6 +44,12 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
 async function quickGuards(state, label = 'local-trunk') {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
   const gate = await gateGroup(state, label, { localTrunk: true });
+  // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
+  const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
+  if (stopped) {
+    state.say(`watchdog-stopped only (${stopped.watchdogStopped.map(entry => entry.file).join(', ')}); no test is red, the batch lands`);
+    return { ...gate, knownMainProof: stopped };
+  }
   // A per-item landing never compares main: its one item's red is its own [C7,#2901].
   if (!gate.isGreen && !waivedProof(state, gate) && !singleItemLanding(state)) {
     // Red only in cases base main fails the same way: the batch made main no worse, so it lands [C7,#2941].
