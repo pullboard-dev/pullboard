@@ -46,7 +46,7 @@ test('clause 2: native next omits pre-join unread counts and reports genuine pos
   const before = await nextAnswer(box, path);
   assert.equal(before.code, 0, before.text);
   assert.doesNotMatch(before.text, /\d+ unread messages?|history before the fresh seat joined/u);
-  store.shout(box.board, { from: 'coordinator', to: seat, text: 'new message after the join' });
+  store.shout(box.board, { from: 'coordinator', to: seat, text: 'new message after the join', lanes: Object.keys(box.config.lanes) });
   const after = await nextAnswer(box, path);
   assert.equal(after.code, 0, after.text);
   assert.match(after.text, /1 unread message/u);
