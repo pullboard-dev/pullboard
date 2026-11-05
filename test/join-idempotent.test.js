@@ -22,14 +22,14 @@ test('same lane and model rejoin exits 0; a different lane or model still refuse
   assert.equal(family.code, 0, family.err);
   assert.equal(JSON.parse(family.out).family, 'OpenAI');
   const route = box.run(worktree, 'join', 'web', '--model', 'Fixture', '--route', 'light', '--json');
-  assert.equal(route.code, 0, route.err);
-  assert.equal(JSON.parse(route.out).route, 'light');
+  assert.notEqual(route.code, 0, 'an incompatible explicit route must reach native registration and refuse');
+  assert.match(route.err, /ALREADY_JOINED/u);
   const updated = JSON.parse(box.run(worktree, 'whoami', '--json').out);
   assert.equal(updated.family, 'OpenAI', 'explicit family reaches the board');
-  assert.equal(updated.route, 'light', 'explicit route reaches the board');
+  assert.equal(updated.route, 'strong', 'a refused explicit route preserves the registration');
   const familyAgain = box.run(worktree, 'join', 'web', '--model', 'Fixture', '--family', 'OpenAI', '--json');
   assert.equal(familyAgain.code, 0, familyAgain.err);
-  assert.equal(JSON.parse(familyAgain.out).route, 'light', 'a family-only update preserves the route');
+  assert.equal(JSON.parse(familyAgain.out).route, 'strong', 'a family-only update preserves the route');
 
   const otherLane = box.run(worktree, 'join', 'api', '--model', 'Fixture');
   assert.notEqual(otherLane.code, 0);
