@@ -370,8 +370,8 @@ export function runProfiledShell(root, command, options) {
   try {
     const { value: plan } = execution.next();
     const { gateLease } = plan;
-    // The blocked event loop cannot fire the lease's own heartbeat timer; without this, liveness kills it at 120 s.
-    const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease);
+    // The blocked loop cannot fire the lease's heartbeat timer; a helper keeps it until the run's own timeout (#3130).
+    const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease, { timeoutMs: plan.localOptions?.timeoutMs });
     let run;
     try {
       run = gateLease?.runner

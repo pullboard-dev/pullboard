@@ -154,3 +154,29 @@ test('the out-of-loop heartbeat stops once the run returns and once its holder d
   process.kill(killed.holder.pid, 'SIGKILL');
   await waitForCondition(() => !helperRunning(killed.token), 'the helper stops within 5 s of its holder dying', { signal: AbortSignal.timeout(5_000) });
 });
+
+test('a holder whose blocking call outlives the helper deadline goes stale and is reclaimed [C7]', async t => {
+  const { dir, home } = fixture(t);
+  shortWindows(t, home);
+  // An untimed call gets only this refresh window; a call that never returns must still go stale.
+  process.env.PULLBOARD_BLOCKED_UNTIMED_LIMIT_MS = '1000';
+  t.after(() => { delete process.env.PULLBOARD_BLOCKED_UNTIMED_LIMIT_MS; });
+  const { takeResource } = await import(pathToFileURL(join(REPO, 'packages/resources/index.js')).href);
+  const { holder, token } = await blockedHolder(t, dir, 60);
+  let exited = false;
+  holder.on('exit', () => { exited = true; });
+  const db = new DatabaseSync(join(home, 'resources.sqlite'));
+  t.after(() => db.close());
+  const terminated = () => db.prepare("SELECT COUNT(*) AS n FROM liveness_event WHERE kind = 'terminate'").get().n > 0;
+  // Each take runs the reclaimer; the next one waits for the holder's heartbeat to change or its row to go.
+  const signal = AbortSignal.timeout(15_000);
+  while (!terminated() && !signal.aborted) {
+    const probe = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', agent: 'probe' });
+    probe.release();
+    const seen = db.prepare('SELECT heartbeat FROM holder WHERE token = ?').get(token)?.heartbeat;
+    await waitForCondition(() => terminated() || db.prepare('SELECT heartbeat FROM holder WHERE token = ?').get(token)?.heartbeat !== seen
+      || helperRunning(token) === false, 'the helper deadline passes', { signal });
+  }
+  assert.equal(terminated(), true, 'the hung holder is signalled once the helper deadline has passed');
+  await waitForCondition(() => exited, 'the hung holder exits', { signal: AbortSignal.timeout(15_000) });
+});
