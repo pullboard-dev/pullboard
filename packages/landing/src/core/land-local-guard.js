@@ -5,7 +5,6 @@ import { runProfiledShell } from '../../../gate/index.js';
 import { pinRunMain } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { landingControllerPlacement } from '../../../gate/index.js';
-import { gateRunnerAdmission } from '../../../config/index.js';
 import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
@@ -27,7 +26,7 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
     return { ...run, log: run.logPath };
   }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser, gui: testsNeedGui(root, files), agent: 'coordinator', kind: 'land-guards', onWait,
     // The guard's controller stays here when landing shards, so run-tests fans its files out to the runners [C7,#3158].
-    ...landingControllerPlacement(root, { runnerOnly: gateRunnerAdmission().runnerOnly === true }) });
+    ...landingControllerPlacement(root) });
 }
 
 /** An observed baseline red or missing comparison is not evidence against any item in a local batch. */
