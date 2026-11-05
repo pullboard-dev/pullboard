@@ -126,6 +126,23 @@ export async function inlineDeferredGuards(state) {
  * Tier 1 (#801): after a clean merge and its quick guards, the batch lands on the local trunk in seconds, with each
  * item's merged receipt; nothing is pushed. pullboard publish runs the whole suite on the trunk head and pushes it.
  */
+/**
+ * Bind the flake ratchet to the batch, or record its refusal as a blocked batch; true when the landing may go on.
+ * Why: an unrecorded ratchet refusal ended the worker with the batch still gating, so each restart adopted it and ran
+ * its gate again (5 Nov: one item gated three times in 20 minutes behind one unquarantined flake) [C7].
+ */
+export async function flakeRatchetOrBlock(state) {
+  try {
+    await prepareFlakeLanding(state);
+    return true;
+  } catch (error) {
+    if (error?.code !== 'FLAKE_RATCHET') throw error;
+    await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    state.say(`nothing landed: ${error.message}`);
+    return false;
+  }
+}
+
 export async function landOnTrunk(state) {
   await save(state, { state: 'gating', tip: headCommit(state.batch.root) });
   let gate;
@@ -178,7 +195,7 @@ export async function landOnTrunk(state) {
   gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
-  await prepareFlakeLanding(state);
+  if (!await flakeRatchetOrBlock(state)) return;
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
