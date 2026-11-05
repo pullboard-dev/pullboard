@@ -20,6 +20,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { leaseTokenDigest } from './controller-disposition.js';
 import { openPoolReadOnly } from './pool-lock.js';
 import { recoveryIdentity } from './resource-recovery.js';
+import { cleanupCharges } from './resource-recovery.js';
 
 /** Retain only this controller's declared deadline or unresolved lifecycle observation. */
 export function createControllerCustody(owner, parentPid, { processStarted, machineHome, registerController, releaseController, observeUnavailable, rebindController }, sourceRoot) {
@@ -213,9 +214,14 @@ export function controllerRegistrationPorts({ pool, open, update, processStarted
         const holder = db.prepare('SELECT pid,started,runner,controller_identity FROM holder WHERE token=?').get(owner.token);
         if (!holder || holder.pid !== parentPid || holder.started !== identity.holderStarted
           || holder.controller_identity !== JSON.stringify(identity)) return null;
-        // Another job's unverified cleanup costs that job's slot only; it never stops this one (#2513).
-        const row = db.prepare("SELECT since,detail FROM runner_unavailable WHERE host=? AND detail <> 'CLEANUP_UNVERIFIED'").get(holder.runner);
-        return row ? { host: holder.runner, since: row.since, reason: row.detail } : null;
+        // One unverified cleanup costs one slot; when all are charged, waiting controllers may fail over together.
+        const row = db.prepare('SELECT since,detail FROM runner_unavailable WHERE host=?').get(holder.runner);
+        if (!row) return null;
+        if (row.detail === 'CLEANUP_UNVERIFIED') {
+          const capacity = db.prepare('SELECT capacity FROM resource WHERE name=?').get(`runner:${holder.runner}`)?.capacity;
+          if (!Number.isSafeInteger(capacity) || capacity < 1 || (cleanupCharges(db).get(holder.runner) ?? 0) < capacity) return null;
+        }
+        return { host: holder.runner, since: row.since, reason: row.detail };
       } finally { db.close(); }
     },
     /** Register this actual controller under its parent's unbound native lease. */
