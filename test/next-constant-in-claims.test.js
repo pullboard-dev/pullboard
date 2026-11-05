@@ -102,7 +102,7 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
     others.push(path);
   }
   const added = box.run(box.repo, 'add', 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
-    '--json');
+    '--brief', 'Files: web/next-work.js\nTest: the native fixture item has a named web path and a test description.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const itemId = JSON.parse(added.out).item.item_id;
   const diagnosis = box.run(box.repo, 'fact', String(itemId), 'diagnosis',
