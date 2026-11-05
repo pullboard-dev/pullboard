@@ -56,7 +56,8 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   config.gate = `node --test --test-reporter=${reporter} test/alternating.test.mjs`;
   config.flakes = rerun === null ? undefined : { rerun };
   // These fixtures test coupled gate-before-push, independently of init's no-remote default.
-  delete config.landing;
+  // Automatic landing is the default, so the fixture's manual landing steps need the accepted-policy override.
+  config.landing = { manualOverride: true };
   // These synthetic checks intentionally match the already-configured gate; a private warning policy permits the controlled failure to be armed after submission.
   config.checks = { ...config.checks, provesNothing: 'warn' };
   config.lanes = { build: { owns: ['src/', 'test/'], specs: [] } };

@@ -109,6 +109,14 @@ function privateBuilder(box) {
   return { root, cli, git };
 }
 
+/** Commit one real file change in a private candidate, because submit refuses a head with no change against main. */
+function commitCandidate(builder, message) {
+  mkdirSync(join(builder.root, 'test'), { recursive: true });
+  writeFileSync(join(builder.root, 'test', 'candidate-note.txt'), message + '\n');
+  builder.git('add', '-A');
+  builder.git('commit', '-q', '-m', message);
+}
+
 /** Await the real baseline, then start each later controlled assertion with a fresh execution counter. */
 function checkedItem(box) {
   writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
@@ -302,7 +310,7 @@ test('a red submit records diagnostics without submitting the item [C7,V4,H16]',
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: controlled submission candidate');
+  commitCandidate(builder, 'chore: controlled submission candidate');
   const result = builder.cli('submit', String(id));
   assert.equal(result.code, 1);
   assert.equal(box.cli('show', String(id)).document.item_status, 'claimed');
@@ -327,7 +335,7 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: controlled review candidate');
+  commitCandidate(builder, 'chore: controlled review candidate');
   const submitted = builder.cli('submit', String(id));
   assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
   const head = box.cli('show', String(id)).document.item_commit;
@@ -385,7 +393,7 @@ function readyLanding(t, rerun) {
   const builder = privateBuilder(box);
   const claimed = builder.cli('claim', String(id));
   assert.equal(claimed.code, 0, JSON.stringify(claimed.document));
-  builder.git('commit', '--allow-empty', '-q', '-m', 'chore: prepare controlled landing candidate');
+  commitCandidate(builder, 'chore: prepare controlled landing candidate');
   const submitted = builder.cli('submit', String(id));
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
   const head = box.cli('show', String(id)).document.item_commit;
