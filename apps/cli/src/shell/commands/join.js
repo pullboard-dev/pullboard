@@ -68,17 +68,19 @@ export async function run(io, { first, values }) {
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
-  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? 'strong';
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
   const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
-  if (existing?.agent_lane === first && existing.agent_model === model) {
+  const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
+  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? 'strong';
+  // Explicit registration updates must reach the board even when the seat identity is unchanged.
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
     io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
       model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
     io.say(`already joined as ${displayName}${existing.agent_family ? ` (family ${existing.agent_family})` : ''}; run pullboard next`);
     return 0;
   }
-  if (existing) {
+  if (existing && !sameSeat) {
     throw new Refused('ALREADY_JOINED',
       `this worktree is already joined as ${existing.agent_id}; retry with lane ${existing.agent_lane} and model ${JSON.stringify(existing.agent_model)}`);
   }

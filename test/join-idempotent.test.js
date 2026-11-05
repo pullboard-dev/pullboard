@@ -18,6 +18,19 @@ test('same lane and model rejoin exits 0; a different lane or model still refuse
   assert.match(again.out, /already joined as web-1 \(Fixture\); run pullboard next/u);
   assert.equal(JSON.parse(box.run(worktree, 'join', 'web', '--model', 'Fixture', '--json').out).agent, 'web-1');
 
+  const family = box.run(worktree, 'join', 'web', '--model', 'Fixture', '--family', 'OpenAI', '--json');
+  assert.equal(family.code, 0, family.err);
+  assert.equal(JSON.parse(family.out).family, 'OpenAI');
+  const route = box.run(worktree, 'join', 'web', '--model', 'Fixture', '--route', 'light', '--json');
+  assert.equal(route.code, 0, route.err);
+  assert.equal(JSON.parse(route.out).route, 'light');
+  const updated = JSON.parse(box.run(worktree, 'whoami', '--json').out);
+  assert.equal(updated.family, 'OpenAI', 'explicit family reaches the board');
+  assert.equal(updated.route, 'light', 'explicit route reaches the board');
+  const familyAgain = box.run(worktree, 'join', 'web', '--model', 'Fixture', '--family', 'OpenAI', '--json');
+  assert.equal(familyAgain.code, 0, familyAgain.err);
+  assert.equal(JSON.parse(familyAgain.out).route, 'light', 'a family-only update preserves the route');
+
   const otherLane = box.run(worktree, 'join', 'api', '--model', 'Fixture');
   assert.notEqual(otherLane.code, 0);
   assert.match(otherLane.err, /ALREADY_JOINED/u);
