@@ -75,3 +75,21 @@ test('clause 1: a repeated selection folds only new batches and matches a full f
   assert.equal(landingBatchSize([...history, { id: 'new', state: 'landed' }]), Math.min(16, full * 2), 'a new landed batch folds onto the cached size');
   assert.equal(landingBatchSize([{ id: 'other', state: 'blocked' }]), 2, 'a different history folds afresh');
 });
+
+test('clause 1: a revised earlier batch refolds the size and the failure turns, never a stale cached result [C7]', () => {
+  const history = Array.from({ length: 10 }, (_, index) => ({ id: `b${index}`, state: index === 2 ? 'blocked' : 'landed', items: [{ id: index + 1 }] }));
+  assert.equal(landingBatchSize(history), 16);
+  assert.deepEqual([...roundFailures(history)], [[3, 1]]);
+  // The earlier blocked batch is rewritten under its id: every item already landed another way, so it says nothing.
+  const dropped = history.map(batch => batch.id === 'b2' ? { ...batch, dropped: 'every item already landed another way' } : batch);
+  assert.equal(landingBatchSize(dropped), 16, 'still 16, and from a refold');
+  assert.deepEqual([...roundFailures(dropped)], [], 'a dropped batch no longer stamps a failure');
+  // An earlier landed batch is revised to blocked with a culprit while the last batch keeps its id and state.
+  const revised = history.map(batch => batch.id === 'b0' ? { ...batch, state: 'blocked', culprits: [{ id: 1 }] } : batch);
+  const short = [{ id: 's0', state: 'landed' }, { id: 's1', state: 'blocked' }, { id: 's2', state: 'gating' }];
+  assert.equal(landingBatchSize(short), 4, 'green then red: 8 then 4');
+  assert.equal(landingBatchSize([{ ...short[0], state: 'blocked' }, ...short.slice(1)]), 1, 'the earlier batch turned red under the same last batch: 2 then 1');
+  assert.deepEqual([...roundFailures(revised)].sort((a, b) => a[0] - b[0]), [[1, 1], [3, 2]], 'the revised batch stamps its item first');
+  const items = history.map(batch => batch.id === 'b2' ? { ...batch, items: [{ id: 30 }] } : batch);
+  assert.deepEqual([...roundFailures(items)], [[30, 1]], 'a changed item list moves the failure to the new item');
+});

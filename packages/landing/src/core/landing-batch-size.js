@@ -30,31 +30,57 @@ export function landingBatchSize(batches, override) {
 }
 
 /** The last fold over a settled prefix, so each selection folds only the batches recorded since it. */
-let settled = { length: 0, last: null, size: START_BATCH_SIZE };
+let settled = { revisions: [], size: START_BATCH_SIZE };
 
 /** Whether a batch can no longer change its outcome: it landed or ended blocked. */
 function final(batch) { return batch.state === 'landed' || batch.state === 'blocked'; }
 
 /**
- * Fold outcomes into the size, resuming from the cached fold of the leading settled batches when its last batch still
- * sits at the same place; a check of one entry, so a selection never re-folds the whole history.
+ * A batch's revision: every field either fold reads. A blocked batch stays revisable (a later drop, culprit or item
+ * change rewrites it under the same id), so a cache keyed on one id and state would keep a stale result (#2911).
+ */
+function revision(batch) {
+  const ids = list => (Array.isArray(list) ? list : []).map(entry => entry?.id ?? entry).join(',');
+  return JSON.stringify([batch.id, batch.state, batch.dropped ?? null, batch.supersededByMain ?? null, ids(batch.culprits), ids(batch.items)]);
+}
+
+/**
+ * How many leading batches still match a cache's recorded revisions: all of them, or zero when any cached batch
+ * changed or went missing, so an earlier revised batch refolds the whole history instead of resuming from it.
+ */
+function resumable(batches, revisions) {
+  if (revisions.length > batches.length) return 0;
+  for (let index = 0; index < revisions.length; index += 1) if (revision(batches[index]) !== revisions[index]) return 0;
+  return revisions.length;
+}
+
+/** The revisions of the leading settled batches from `from`, appended to the kept ones, and where the prefix ends. */
+function settle(batches, kept, from, step) {
+  const revisions = kept.slice(0, from);
+  let index = from;
+  for (; index < batches.length && final(batches[index]); index += 1) { step(batches[index]); revisions.push(revision(batches[index])); }
+  return { revisions, index };
+}
+
+/**
+ * Fold outcomes into the size, resuming from the cached fold of the leading settled batches only while every one of
+ * them still has its cached revision, so a revised earlier batch never leaves a stale size.
  */
 function foldBatchSize(batches) {
-  const anchor = settled.length ? batches[settled.length - 1] : null;
-  const resume = settled.length <= batches.length && (!settled.length || anchor?.id === settled.last.id && anchor?.state === settled.last.state);
-  let size = resume ? settled.size : START_BATCH_SIZE, index = resume ? settled.length : 0;
+  const from = resumable(batches, settled.revisions);
+  let size = from ? settled.size : START_BATCH_SIZE;
   const step = batch => {
     const result = batchOutcome(batch);
     if (result !== null) size = result ? Math.min(MAX_BATCH_SIZE, size * 2) : Math.max(MIN_BATCH_SIZE, Math.floor(size / 2));
   };
-  for (; index < batches.length && final(batches[index]); index += 1) step(batches[index]);
-  settled = { length: index, last: index ? { id: batches[index - 1].id, state: batches[index - 1].state } : null, size };
-  for (; index < batches.length; index += 1) step(batches[index]);
+  const { revisions, index } = settle(batches, settled.revisions, from, step);
+  settled = { revisions, size };
+  for (let rest = index; rest < batches.length; rest += 1) step(batches[rest]);
   return size;
 }
 
 /** The failure fold over the settled prefix, so a selection folds only batches recorded since it. */
-let failureCache = { length: 0, last: null, tried: new Map(), clock: 0 };
+let failureCache = { revisions: [], tried: new Map(), clock: 0 };
 
 /**
  * When each item last failed: every red batch stamps its items with a rising clock. Selection puts failed items behind
@@ -66,14 +92,12 @@ let failureCache = { length: 0, last: null, tried: new Map(), clock: 0 };
  * @returns {Map<number, number>} item id to the clock of its latest failure
  */
 export function roundFailures(batches) {
-  const anchor = failureCache.length ? batches[failureCache.length - 1] : null;
-  const resume = failureCache.length <= batches.length && (!failureCache.length
-    || anchor?.id === failureCache.last.id && anchor?.state === failureCache.last.state);
-  const tried = new Map(resume ? failureCache.tried : []);
-  let clock = resume ? failureCache.clock : 0, index = resume ? failureCache.length : 0;
+  const from = resumable(batches, failureCache.revisions);
+  const tried = new Map(from ? failureCache.tried : []);
+  let clock = from ? failureCache.clock : 0;
   const step = batch => { if (batchOutcome(batch) === false) for (const entry of batch.items ?? []) tried.set(entry.id, ++clock); };
-  for (; index < batches.length && final(batches[index]); index += 1) step(batches[index]);
-  failureCache = { length: index, last: index ? { id: batches[index - 1].id, state: batches[index - 1].state } : null, tried: new Map(tried), clock };
-  for (; index < batches.length; index += 1) step(batches[index]);
+  const { revisions, index } = settle(batches, failureCache.revisions, from, step);
+  failureCache = { revisions, tried: new Map(tried), clock };
+  for (let rest = index; rest < batches.length; rest += 1) step(batches[rest]);
   return tried;
 }
