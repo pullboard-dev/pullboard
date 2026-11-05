@@ -55,7 +55,7 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(box.run(path, 'join', 'web', '--model', 'Fixture Model').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
+  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--route', 'strong', '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
     '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
