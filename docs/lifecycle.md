@@ -77,7 +77,7 @@ Each move checks its guards in this order and refuses with the first that fails;
 | escalate | open, claimed | open | agent, coordinator | joined (NOT_JOINED or POLICY_SNAPSHOT_STALE or AGENT_REPLACED or SESSION_LEDGER), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM or ITEM_MOVED), holderOrCoordinator (NOT_YOURS), inState (CLOSED) |
 | refreeze | open, claimed, submitted, verified | open | coordinator, when there is no live claim awaiting a coordinator correction | joined (NOT_JOINED or POLICY_SNAPSHOT_STALE or AGENT_REPLACED or SESSION_LEDGER), coordinatorOnly (COORDINATOR_ONLY), itemExists (NO_ITEM or ITEM_MOVED), inState (CLOSED), specRefreezeAllowed (CLOSED), barReady (BAR_NOT_READY), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG or AGENT_APPROVAL_REQUIRED or BAR_NOT_READY) |
 | refreeze | claimed | claimed | agent, coordinator, when a live claim has a pending coordinator correction or a validated cited-spec correction | joined (NOT_JOINED or POLICY_SNAPSHOT_STALE or AGENT_REPLACED or SESSION_LEDGER), itemExists (NO_ITEM or ITEM_MOVED), holderOrCoordinator (NOT_YOURS), inState (CLOSED), specRefreezeAllowed (CLOSED), barReady (BAR_NOT_READY), rowsInForce (UNKNOWN_SPEC or A5_GRAMMAR_VERSION or NO_POLICY or BAD_CONFIG or AGENT_APPROVAL_REQUIRED or BAR_NOT_READY) |
-| withdraw | open, claimed, submitted | withdrawn | coordinator | joined (NOT_JOINED or POLICY_SNAPSHOT_STALE or AGENT_REPLACED or SESSION_LEDGER), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM or ITEM_MOVED), inState (CLOSED) |
+| withdraw | open, claimed, submitted | withdrawn | coordinator | joined (NOT_JOINED or POLICY_SNAPSHOT_STALE or AGENT_REPLACED or SESSION_LEDGER), coordinatorOnly (COORDINATOR_ONLY), noteGiven (NOTE_REQUIRED), itemExists (NO_ITEM or ITEM_MOVED), mainRedUnchanged (STALE_MAIN_RED), inState (CLOSED) |
 
 ## Required transition guards
 
@@ -264,6 +264,7 @@ Each move checks its guards in this order and refuses with the first that fails;
 | NOTE_REQUIRED | a review release gives a nonempty one-line reason, engine 5 or newer, only when freeing a submitted review reservation | release with --note "why", or --note-file <file> |
 | REVIEW_COOLDOWN | the reviewer has not released this submission within the past hour, engine 5 or newer, only for the same reviewer and current submission | let another reviewer take it, or wait an hour or for a new submission |
 | NOTE_REQUIRED | the move carries a note: what failed, what was tried, or why | --note "..." or --note-file <file> |
+| STALE_MAIN_RED | an audit withdrawal still names the exact open frozen Main red and its audited source head, only expected-item main-audit withdrawals | rerun the native main audit against the current frozen item |
 | BAR_CLAUSE_REQUIRED | a current rejection names wording in its frozen bar | add --clause "exact wording from the frozen criterion or spec row" |
 | BAR_CLAUSE_UNKNOWN | a current rejection names wording in its frozen bar | read pullboard show <id>, then quote the failing requirement with --clause |
 | LINE_SETTING_RANGE | a current rejection names wording in its frozen bar | read the allowed range with pullboard settings line, then record an in-range value or off with its reason and window numbers |

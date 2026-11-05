@@ -41,6 +41,7 @@ import {
   join,
 } from 'node:path';
 import * as store from '../../../../src/board.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   codeIsFromMain,
 } from '../../../../src/git.js';
@@ -101,7 +102,29 @@ function readBoard(info, action, openBoardForRead) {
 function writer(root, { context, ordered, withBoard, nativeBoard }) {
   const io = { cwd: root, nativeBoard, say() {}, err() {}, stderr: { write() {} } };
   const ctx = context(io);
-  return (operation, args) => withBoard(ctx, board => ordered(ctx, board, operation, args));
+  return (operation, args) => withBoard(ctx, board => withAuditedMain(root, board,
+    operation === 'withdraw' ? args[1]?.expected : null, () => ordered(ctx, board, operation, args)));
+}
+
+/** Bind an audit withdrawal to the existing native policy witness across queued SQLite admission. */
+export async function withAuditedMain(root, board, expected, write) {
+  if (expected === null || expected === undefined) return write();
+  const descriptor = Object.getOwnPropertyDescriptor(board, 'prepareWritePolicy');
+  const prepare = board.prepareWritePolicy;
+  Object.defineProperty(board, 'prepareWritePolicy', { configurable: true, value() {
+    // Preparation runs before BEGIN. The existing witness then detects ref changes under the lock and at commit.
+    const policy = typeof prepare === 'function' ? prepare.call(board) : null;
+    if (!policy || typeof policy.current !== 'function' || typeof policy.assertCurrent !== 'function'
+      || git(root, ['rev-parse', 'main^{commit}']).trim() !== expected.head || !policy.current()) {
+      throw new Refused('STALE_MAIN_RED', 'main changed after the captured passing audit; retain the item for the next current-tip audit');
+    }
+    return policy;
+  } });
+  try { return await write(); }
+  finally {
+    if (descriptor) Object.defineProperty(board, 'prepareWritePolicy', descriptor);
+    else delete board.prepareWritePolicy;
+  }
 }
 /** Identify the actual owning process, never an expiry-based permission to steal a controller. */
 function processStart(pid) {
@@ -235,13 +258,11 @@ export async function closeAuditedMainReds(root, job, plan, receipt, write, open
     try {
       await write('withdraw', [item.item_id, { agentId: 'coordinator',
         reason: `Every named frozen-check file passed on main at ${job.tip}.`,
-        expected: { status: 'open', title: item.item_title, check, frozenDigest: item.item_frozen_digest } }]);
+        expected: { status: 'open', title: item.item_title, check, frozenDigest: item.item_frozen_digest, head: job.tip } }]);
     } catch (error) {
       if (error?.code === 'STALE_MAIN_RED') continue;
       throw error;
     }
-    await write('appendFact', [item.item_id, { agentId: 'coordinator', kind: 'measurement',
-      text: `Fixed on main by ${job.tip}; every file named in the frozen check passed in the current-tip audit.` }]);
     closed++;
   }
   return closed;

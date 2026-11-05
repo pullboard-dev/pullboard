@@ -19,6 +19,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "withdraw", order: 20, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "STALE_MAIN_RED": "rerun the native main audit against the current frozen item",
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
   "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",

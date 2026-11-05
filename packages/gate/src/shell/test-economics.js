@@ -121,7 +121,7 @@ export function mainRedFilesProven(check, { plan, receipt, auditedHead, currentH
       || ![...plan.run, ...plan.reused.map(row => row.file)].includes(file) || !receipt.collection.files.includes(file)
       || receipt.failures.some(row => row.file === file)) return false;
     const outcomes = receipt.testOutcomes.filter(row => row.file === file);
-    return outcomes.length > 0 && outcomes.every(row => row.passed === true);
+    return outcomes.length > 0 && outcomes.every(row => row.passed === true && row.skipped !== true);
   });
 }
 

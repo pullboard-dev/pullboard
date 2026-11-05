@@ -6,7 +6,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
 import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
-import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck } from '../packages/gate/index.js';
+import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck, withAuditedMain } from '../packages/gate/index.js';
+import { withOpenedBoard } from '../apps/cli/index.js';
+import { repoInfo } from '../packages/git/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { createHash } from 'node:crypto';
@@ -38,6 +40,12 @@ function fixtureGit(cwd, ...args) {
   return runFixtureGit(args, { cwd, env });
 }
 
+/** Commit the current policy alongside each private Git fixture before native item writes use it. */
+function fixturePolicy(repo) {
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['test/'] } } }));
+  writeFileSync(join(repo, 'SPEC.md'), '# Audit fixture\n## G\n- G1 [approved, must] The fixture keeps its proof. | gate: true\n');
+}
+
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
   assert.deepEqual(mainRedCheckFiles('node bin/run-tests.js test/a.test.js test/b.test.js'), ['test/a.test.js', 'test/b.test.js']);
   assert.deepEqual(mainRedCheckFiles('node --test test/a.test.js'), ['test/a.test.js']);
@@ -65,31 +73,42 @@ test('named green files qualify on the exact audited current main tip even when 
     receipt: { ...proof.receipt, testOutcomes: [{ file: 'test/a.test.js', passed: false }] } }), false, 'a failed named file remains open');
   assert.equal(mainRedFilesProven('node --test test/a.test.js', { ...proof,
     receipt: { ...proof.receipt, testOutcomes: [] } }), false, 'missing per-file outcomes are not inferred');
+  assert.equal(mainRedFilesProven('node --test test/a.test.js', { ...proof,
+    receipt: { ...proof.receipt, testOutcomes: [{ file: 'test/a.test.js', passed: true, skipped: true }] } }), false, 'skipped assertions are not green execution proof');
 });
 
-test('the main audit withdraws only a named-file green Main red and records its source fact [C7]', async t => {
+/** Create a current-policy private audit board with frozen named-file items. */
+function auditFixture(t) {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard main-red auto-close '));
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  let db;
+  t.after(() => { if (db) closeBoard(db); rmSync(scratch, { recursive: true, force: true }); });
   const repo = join(scratch, 'repo');
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/a.test.js'), '');
   writeFileSync(join(repo, 'test/b.test.js'), '');
+  fixturePolicy(repo);
   fixtureGit(repo, 'init', '-q', '-b', 'main');
   fixtureGit(repo, 'add', '-A');
   fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
   const tip = fixtureGit(repo, 'rev-parse', 'HEAD');
   const tree = fixtureGit(repo, 'rev-parse', 'HEAD^{tree}');
   const dbFile = join(repo, '.git/pullboard/board.sqlite');
-  const db = openBoard(dbFile, undefined, { isMain: true, gitRoot: repo });
-  t.after(() => closeBoard(db));
+  db = openBoard(dbFile, undefined, { isMain: true, gitRoot: repo });
   store.register(db, { lane: 'coordinator', path: repo });
+  /** Give a private Main red a real frozen named-file bar without claiming a gate ran. */
   function add(title, check) {
-    const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check });
+    const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check,
+      route: 'strong', brief: 'Files: test/a.test.js\nTest: the current native audit proves the named file.' });
     const frozen = JSON.stringify({ title, criterion: 'The named file passes.', check, rows: [] });
     db.db.prepare('UPDATE item SET item_frozen=?, item_frozen_digest=? WHERE item_id=?')
       .run(frozen, createHash('sha256').update(frozen).digest('hex'), id);
     return id;
   }
+  return { repo, db, tip, tree, add };
+}
+
+test('the main audit withdraws only a named-file green Main red and records its source fact [C7]', async t => {
+  const { repo, db, tip, tree, add } = auditFixture(t);
   const passing = add('Main red: passing named file', 'node --test test/a.test.js');
   // The board lists newest first, so this failing repair is visited before the eligible green repair.
   const failing = add('Main red: failing named file', 'node --test test/b.test.js');
@@ -110,27 +129,18 @@ test('the main audit withdraws only a named-file green Main red and records its 
 });
 
 test('withdraw refuses when the frozen check or digest changed after the audit snapshot [C7]', t => {
-  const scratch = mkdtempSync(join(tmpdir(), 'pullboard main-red race '));
-  t.after(() => rmSync(scratch, { recursive: true, force: true }));
-  const repo = join(scratch, 'repo');
-  mkdirSync(repo);
-  fixtureGit(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'tracked'), 'fixture');
-  fixtureGit(repo, 'add', '-A');
-  fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
-  const db = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
-  t.after(() => closeBoard(db));
-  store.register(db, { lane: 'coordinator', path: repo });
+  const { repo, db } = auditFixture(t);
   const title = 'Main red: changed during audit';
   const check = 'node --test test/a.test.js';
-  const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check });
+  const id = store.addItem(db, { by: 'coordinator', lane: 'core', title, criterion: 'The named file passes.', check,
+    route: 'strong', brief: 'Files: test/a.test.js\nTest: stale captured bars cannot withdraw the item.' });
   const oldFrozen = JSON.stringify({ title, criterion: 'The named file passes.', check, rows: [] });
   const oldDigest = createHash('sha256').update(oldFrozen).digest('hex');
   const newFrozen = JSON.stringify({ title, criterion: 'The named file passes.', check: 'node --test test/b.test.js', rows: [] });
   const newDigest = createHash('sha256').update(newFrozen).digest('hex');
   db.db.prepare('UPDATE item SET item_frozen=?, item_frozen_digest=? WHERE item_id=?').run(newFrozen, newDigest, id);
   const audited = { agentId: 'coordinator', reason: 'audit passed the old bar',
-    expected: { status: 'open', title, check, frozenDigest: oldDigest } };
+    expected: { status: 'open', title, check, frozenDigest: oldDigest, head } };
   const prepared = prepareEngineMove(db, 'withdraw', [id, audited]);
   const floor = minimumMoveEngine('withdraw', [id, audited], db);
   assert.ok(prepared.engine >= floor);
@@ -138,10 +148,53 @@ test('withdraw refuses when the frozen check or digest changed after the audit s
     { sequence: 1, at: '2026-11-03T00:00:00.000Z' }), { code: 'RELAY_MOVE' });
   assert.equal(store.getItem(db, id).item_status, 'open', 'the lower-engine replay leaves the row unchanged');
   assert.throws(() => store.withdraw(db, id, { agentId: 'coordinator', reason: 'audit passed the old bar',
-    expected: { status: 'open', title, check, frozenDigest: oldDigest } }), error => error.code === 'STALE_MAIN_RED');
+    expected: { status: 'open', title, check, frozenDigest: oldDigest, head } }), error => error.code === 'STALE_MAIN_RED');
   assert.equal(store.getItem(db, id).item_status, 'open');
   const legacy = prepareEngineMove(db, 'withdraw', [id, { agentId: 'coordinator', reason: 'legacy withdraw' }], { id: 'legacy-withdraw-without-cas' });
   assert.equal(minimumMoveEngine('withdraw', legacy.args, db), 1, 'ordinary withdrawals retain their historical replay floor');
   assert.equal(applyEngineMove(db, { ...legacy, engine: 1 }, { sequence: 1, at: '2026-11-03T00:01:00.000Z' }).error, undefined);
   assert.equal(store.getItem(db, id).item_status, 'withdrawn');
+});
+
+test('an audit withdrawal rolls back with its required source fact if recording that fact fails [C7]', t => {
+  const { db, tip, add } = auditFixture(t);
+  const id = add('Main red: keep atomic cause', 'node --test test/a.test.js');
+  const item = store.getItem(db, id);
+  const before = store.events(db, { itemId: id });
+  db.db.exec("CREATE TEMP TRIGGER reject_audit_fact BEFORE INSERT ON event WHEN NEW.event_kind='fact' BEGIN SELECT RAISE(ABORT, 'fixture source fact failed'); END");
+  assert.throws(() => store.withdraw(db, id, { agentId: 'coordinator', reason: 'audit is green',
+    expected: { status: 'open', title: item.item_title, check: item.item_check,
+      frozenDigest: item.item_frozen_digest, head: tip } }), /fixture source fact failed/u);
+  assert.equal(store.getItem(db, id).item_status, 'open');
+  assert.deepEqual(store.events(db, { itemId: id }), before, 'neither the withdrawal nor its fact commits alone');
+});
+
+test('native audit admission refuses a main move while its withdrawal waits, without reading Git in replay [C7]', async t => {
+  const { repo, db, tip, add } = auditFixture(t);
+  const id = add('Main red: queued trunk race', 'node --test test/a.test.js');
+  const item = store.getItem(db, id);
+  const expected = { status: 'open', title: item.item_title, check: item.item_check, frozenDigest: item.item_frozen_digest, head: tip };
+  const ctx = { info: repoInfo(repo), io: {} };
+  const writer = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
+  await assert.rejects(withOpenedBoard(ctx, board => withAuditedMain(repo, board, expected, async () => {
+    fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'queued main moved');
+    store.withdraw(board, id, { agentId: 'coordinator', reason: 'old audit is green', expected });
+  }), writer), error => error.code === 'STALE_MAIN_RED');
+  assert.equal(store.getItem(db, id).item_status, 'open');
+  assert.equal(store.events(db, { itemId: id }).some(event => ['withdraw', 'fact'].includes(event.event_kind)), false);
+});
+
+test('the existing native policy witness rolls back a main move after audit withdrawal admission [C7]', async t => {
+  const { repo, db, tip, add } = auditFixture(t);
+  const id = add('Main red: admitted trunk race', 'node --test test/a.test.js');
+  const item = store.getItem(db, id);
+  const expected = { status: 'open', title: item.item_title, check: item.item_check, frozenDigest: item.item_frozen_digest, head: tip };
+  const ctx = { info: repoInfo(repo), io: {} };
+  const writer = openBoard(join(repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true, gitRoot: repo });
+  await assert.rejects(withOpenedBoard(ctx, board => withAuditedMain(repo, board, expected, () => store.atomic(board, () => {
+    store.withdraw(board, id, { agentId: 'coordinator', reason: 'audit was green at admission', expected });
+    fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'admitted main moved');
+  })), writer), error => error.code === 'POLICY_SNAPSHOT_STALE');
+  assert.equal(store.getItem(db, id).item_status, 'open');
+  assert.equal(store.events(db, { itemId: id }).some(event => ['withdraw', 'fact'].includes(event.event_kind)), false);
 });
