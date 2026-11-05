@@ -99,10 +99,13 @@ for (const stage of ['merging', 'gating', 'pushing', 'recording']) {
     const batch = await crash(t, box, reviewer, entries[0].id, stage);
     assert.equal(json(box, box.repo, 'show', String(entries[0].id)).item_merged_commit, null);
     box.git(reviewer, 'checkout', '-q', '--detach', entries[1].head);
-    json(box, reviewer, 'verify', String(entries[1].id), 'accept', '--note', 'Read second independent fixture head and frozen check.');
+    const secondAccept = box.run(reviewer, 'verify', String(entries[1].id), 'accept', '--note', 'Read second independent fixture head and frozen check.');
+    assert.equal(secondAccept.code, 0, `${secondAccept.err}\n${secondAccept.out}`);
+    const acceptance = JSON.parse(secondAccept.out);
     for (const entry of entries) {
       const item = json(box, box.repo, 'show', String(entry.id));
-      assert.ok(item.item_merged_commit, 'native merged receipt exists for ' + entry.id);
+      assert.ok(item.item_merged_commit,
+        `native merged receipt exists for ${entry.id} after accept ${JSON.stringify(acceptance)}; stderr: ${secondAccept.err}`);
       box.git(box.repo, 'merge-base', '--is-ancestor', entry.head, 'main');
       assert.equal(readFileSync(join(box.repo, entry.file), 'utf8'), entry.lane + '\n');
     }
