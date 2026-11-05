@@ -133,7 +133,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
         && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
     }
-    if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
+    if (heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
       worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)

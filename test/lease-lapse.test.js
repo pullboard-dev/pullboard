@@ -133,7 +133,7 @@ test('sealed lapsed-claim expiry replays identically despite fresh replica-local
 });
 
 
-test('bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
+test('clause 1: bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
   const { box, id, unknownIds } = await lapsed(t, { unknownPrefix: 33 });
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
   assert.equal(snapshot.claims.length, 0, 'the first captured batch contains only live holders');
@@ -204,7 +204,7 @@ test('automatic claim expiry records current reason codes while prior lease-laps
 });
 
 
-test('explicit stale CLI releases require a code before observation and retain coded expired-lease authority [C7,B4,H16]', async t => {
+test('clause 1: explicit stale CLI releases require a code before observation and retain coded expired-lease authority [C7,B4,H16]', async t => {
   const { box, id } = await lapsed(t);
   const note = 'The private expired holder is genuinely idle.';
   const before = exportBoard(box.board);
@@ -212,7 +212,7 @@ test('explicit stale CLI releases require a code before observation and retain c
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|DIAGNOSIS_WRONG\|TAKEN_OVER\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);
