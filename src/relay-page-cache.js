@@ -1,3 +1,4 @@
+import { hasPrivatePermissions } from './windows-private-storage.js';
 /** Private device-only cipher cache and durable upload graph; no board key or decrypted record is stored [H15,H17]. */
 import { createHash } from 'node:crypto';
 import {
@@ -29,12 +30,12 @@ export function createRelayPageCache(state) {
   const directory = join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'relay-pages');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const parent = lstatSync(directory);
-  if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw invalid();
+  if (!parent.isDirectory() || parent.isSymbolicLink() || !hasPrivatePermissions(directory, parent)) throw invalid();
   const origin = snapshotSourceId(state.url);
   const file = join(directory, state.board + '-' + origin + '.sqlite');
   try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw invalid();
+  if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat)) throw invalid();
   const db = new DatabaseSync(file);
   try {
     db.exec(`PRAGMA busy_timeout=30000; PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;

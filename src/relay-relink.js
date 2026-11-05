@@ -1,3 +1,4 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 /** Keep explicit local unlinking distinct from joining somebody else's existing remote board [H17]. */
 import {
   randomBytes,
@@ -25,7 +26,7 @@ export function relayRelink(root) {
   const file = markerFile(root);
   if (!existsSync(file)) return null;
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 1024) {
+  if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat) || stat.size > 1024) {
     throw new Refused('RELAY_STORAGE', 'restore the private relink intent before linking this board');
   }
   let value;
@@ -56,7 +57,7 @@ export function rememberRelink(root, previous) {
   const file = markerFile(root);
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, JSON.stringify(value) + '\n', { flag: 'wx', mode: 0o600 });
+    writePrivateFileSync(Refused, temporary, JSON.stringify(value) + '\n', { flag: 'wx', mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
   return value;
@@ -71,7 +72,7 @@ export function archiveRelinkOutbox(root, state) {
     .map(record => ({ sequence: record.sequence, sealed: record.sealed }));
   if (!queued && !records.length) return;
   const name = 'relay-outbox-' + state.board + '-' + randomUUID();
-  writeFileSync(join(directory, name + '.json'), JSON.stringify({ version: 1, board: state.board,
+  writePrivateFileSync(Refused, join(directory, name + '.json'), JSON.stringify({ version: 1, board: state.board,
     url: state.url, sequence: state.sequence, machine: state.machine, records,
     ...(queued ? { encryptedFile: name + '.sealed' } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
   if (queued) renameSync(file, join(directory, name + '.sealed'));

@@ -1,3 +1,4 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 /** CLI pairing flow: the relay stores only a one-use client-encrypted package [H15,H17]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -73,7 +74,7 @@ function linkFile(root) {
 function loadState(file) {
   if (!existsSync(file)) throw new Refused('RELAY_NOT_LINKED', 'link this board with pullboard relay on before pairing a device');
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
+  if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before pairing this board'); }
   if (!state || state.version !== 1 || !BOARD.test(state.board) || !TOKEN.test(state.token) ||
@@ -91,7 +92,7 @@ function saveState(file, state) {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, JSON.stringify(state) + '\n', { flag: 'wx', mode: 0o600 });
+    writePrivateFileSync(Refused, temporary, JSON.stringify(state) + '\n', { flag: 'wx', mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
 }

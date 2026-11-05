@@ -1,3 +1,4 @@
+import { commandShell } from './windows-shell.js';
 import { BOARD_PROOF_GUIDANCE } from './agent-proof-guidance.js';
 /**
  * The checks git runs (C1–C3, L3, L4): the commit message cites the spec, a lane's worktree stays in
@@ -7,7 +8,7 @@ import { BOARD_PROOF_GUIDANCE } from './agent-proof-guidance.js';
 import {
   execFileSync,
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import { gitBoardDataPush } from './git-sync-format.js';
 export { gitBoardDataPush };
 import { hostname } from 'node:os';
@@ -706,7 +707,7 @@ export function applyFixers(root, fixers) {
     const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
       cwd: root,
       env: gitChildEnv(root),
-      shell: true,
+      shell: commandShell(),
       encoding: 'utf8',
       timeout: 120_000,
     });

@@ -3,7 +3,7 @@
  * the spec, and every id a commit cites, must still be there, so a commit or an item that cites a
  * row keeps its meaning however the spec changes.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { parseCommitMessage } from './commit-message.js';
 import {
   ID_RE,

@@ -6,7 +6,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import {
   CONFIG_FILE,
   loadConfig,

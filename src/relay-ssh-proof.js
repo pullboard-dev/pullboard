@@ -1,5 +1,5 @@
 /** Local SSH proofs checked against direct GitHub keys [E17]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   existsSync,
   mkdtempSync,

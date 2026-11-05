@@ -7,7 +7,7 @@
  * left alone, a busy port is one line and never a failure, and the machine setting
  * `view.background` (on unless set to false) turns it off.
  */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   closeSync,
   mkdirSync,

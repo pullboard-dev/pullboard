@@ -1,6 +1,6 @@
 /** Run only an approved due board watch, outside any SQLite write transaction [A6]. */
-import { spawn } from 'node:child_process';
-import { spawnSync } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
+import { spawnSync } from './windows-child-process.js';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';

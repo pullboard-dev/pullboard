@@ -1,5 +1,5 @@
 /** Parse import edges without evaluating repository code, using V8 rather than a JavaScript grammar guess [V4,C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   mkdtempSync,
   rmSync,

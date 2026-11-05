@@ -4,7 +4,7 @@ import {
 } from './timing.js';
 export { provingCheck, sayCheckBaseline } from './check-baseline-format.js';
 /** Observe a proposed check on an isolated copy of main before recording its move [V2,H16]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { randomUUID } from 'node:crypto';
 import {
   mkdtempSync,

@@ -1,5 +1,5 @@
 /** Run a bounded shell under identity-checked process custody before returning its result [E27]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   appendFileSync,
   mkdtempSync,

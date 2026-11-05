@@ -1,5 +1,6 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 /** Device-only board keys, kept outside repositories and relay requests [H1,H15,H17]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { randomUUID } from 'node:crypto';
 import {
   existsSync,
@@ -48,10 +49,10 @@ function writeKeyFile(id, encoded) {
   const directory = join(file, '..');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const parent = lstatSync(directory);
-  if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'use an owner-only relay-keys directory with mode 700');
+  if (!parent.isDirectory() || parent.isSymbolicLink() || !hasPrivatePermissions(directory, parent)) throw new Refused('RELAY_KEY_STORAGE', 'use an owner-only relay-keys directory with mode 700');
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, encoded + '\n', { mode: 0o600, flag: 'wx' });
+    writePrivateFileSync(Refused, temporary, encoded + '\n', { mode: 0o600, flag: 'wx' });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
   return file;
@@ -84,7 +85,7 @@ export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
   const file = keyFile(id);
   if (existsSync(file)) {
     const stat = lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
+    if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
     let encoded;
     try { encoded = readFileSync(file, 'utf8').trim(); }
     catch (error) {
@@ -143,7 +144,7 @@ export function scrubLegacyPersonSessions() {
   const directory = join(keyFile('0'.repeat(32)), '..');
   if (!existsSync(directory)) return;
   const parent = lstatSync(directory);
-  if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) {
+  if (!parent.isDirectory() || parent.isSymbolicLink() || !hasPrivatePermissions(directory, parent)) {
     throw new Refused('RELAY_KEY_STORAGE', 'Restore the owner-only relay-keys directory before removing retired person sessions.');
   }
   for (const name of readdirSync(directory)) {

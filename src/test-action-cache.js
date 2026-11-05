@@ -32,7 +32,7 @@ import {
   resolve,
   sep,
 } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
 export const TEST_STAGE_ENV = 'PULLBOARD_TEST_STAGE';

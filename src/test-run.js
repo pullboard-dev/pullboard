@@ -1,5 +1,5 @@
 /** pullboard test: named test files on the runner pool, with the focused runner's per-file timeout [C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   existsSync,
   mkdtempSync,

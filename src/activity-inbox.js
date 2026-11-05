@@ -1,6 +1,6 @@
 /** Local delivery state and real Git observations for the existing inbox [R2,N26]. */
 import { randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import {
   readFileSync,
   renameSync,

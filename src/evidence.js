@@ -1,5 +1,5 @@
 /** Read-only links between spec rows, their tests, board items and sign-offs. */
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import { resolve } from 'node:path';
 
 /**

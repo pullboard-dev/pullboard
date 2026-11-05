@@ -4,7 +4,7 @@
 import {
   execFileSync,
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import {

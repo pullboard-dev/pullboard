@@ -12,7 +12,7 @@ import { dependencyValues } from './item-dependencies.js';
  * the hosted page at https://app.pullboard.dev, which gets the secret by a round trip that only ever returns there.
  * Idle reads open no outbound connection (P5); an explicit person sign-in reuses the existing relay linking flow.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   randomBytes,
   timingSafeEqual,

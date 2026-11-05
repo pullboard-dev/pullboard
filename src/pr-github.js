@@ -1,5 +1,5 @@
 /** Use GitHub CLI's credential store without copying credentials into config or receipts [B3,R3]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { tryGit } from './git.js';
 import { Refused } from './refused.js';
 

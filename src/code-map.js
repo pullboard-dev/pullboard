@@ -4,7 +4,7 @@
 
 import {
   execFileSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -227,7 +227,11 @@ export function scanSource(rel, src) {
   const importMap = new Map(); for (const im of imports) for (const nm of im.names) if (nm.local) importMap.set(nm.local, { from: im.from, imported: nm.imported });
   const topNames = new Set(fns.map((f) => f.name));
   const childNames = new Set(); const fsNames = new Set();
-  for (const im of imports) { if (im.from === 'node:child_process' || im.from === 'child_process') im.names.forEach((x) => childNames.add(x.local)); if (/^(node:)?fs(\/promises)?$/.test(im.from)) im.names.forEach((x) => fsNames.add(x.local)); }
+  for (const im of imports) {
+    const windowsProcess = im.from.startsWith('.') && posix.normalize(posix.join(posix.dirname(rel), im.from)) === 'src/windows-child-process.js';
+    if (im.from === 'node:child_process' || im.from === 'child_process' || windowsProcess) im.names.forEach((x) => childNames.add(x.local));
+    if (/^(node:)?fs(\/promises)?$/.test(im.from)) im.names.forEach((x) => fsNames.add(x.local));
+  }
   const netNames = new Set(); for (const im of imports) if (/^(node:)?(https?|http2|net|tls|dgram)$/.test(im.from)) im.names.forEach((x) => netNames.add(x.local));
   const childExecImported = [...imports].some((im) => /child_process/.test(im.from) && im.names.some((x) => x.imported === 'exec'));
 

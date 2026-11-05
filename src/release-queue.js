@@ -1,5 +1,5 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';

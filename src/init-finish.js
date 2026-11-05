@@ -3,7 +3,7 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   lstatSync,
   mkdirSync,

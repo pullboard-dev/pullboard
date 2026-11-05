@@ -1,5 +1,5 @@
 /** Check outside contributors' author-matching DCO trailers against committed policy [C1,C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   existsSync,
   readFileSync,

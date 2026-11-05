@@ -20,7 +20,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { gitConfig } from './git.js';
 import { Refused } from './refused.js';
 

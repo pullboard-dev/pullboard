@@ -1,5 +1,5 @@
 /** Native CPU observations for registered agent worktrees; no process is signalled [A6,H16]. */
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import { readlinkSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { basename } from 'node:path';

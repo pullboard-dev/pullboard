@@ -8,7 +8,7 @@ import {
 import {
   execFile,
   execFileSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import {
   readFile,
   readlink,

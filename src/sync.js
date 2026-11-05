@@ -1,7 +1,7 @@
 import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
 import { withRecordedConflictContext } from './recorded-conflict-context.js';
 /** Account-free ordered moves on the repository's own Git remote [H11,H10]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   existsSync,
   readFileSync,

@@ -1,6 +1,6 @@
 /** Acceptance stays append-only; freshness is derived from the known Git trunk [E8,V8]. */
 import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import * as store from './board-query.js';
 import {
   cleanGitEnvironment,

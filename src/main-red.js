@@ -1,5 +1,6 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { randomUUID } from 'node:crypto';
 import {
   lstatSync,
@@ -99,7 +100,7 @@ function cacheFile(root) {
 function readCache(file) {
   try {
     const stat = lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: 1, entries: {} };
+    if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat) || stat.size > 4 * 1024 * 1024) return { version: 1, entries: {} };
     const value = JSON.parse(readFileSync(file, 'utf8'));
     if (value.version !== 1 || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: 1, entries: {} };
     const entries = {};
@@ -127,7 +128,7 @@ function writeCache(file, value) {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    writePrivateFileSync(Refused, temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
     renameSync(temporary, file);
   } finally {
     rmSync(temporary, { force: true });

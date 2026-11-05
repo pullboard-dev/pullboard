@@ -1,5 +1,5 @@
 /** Isolate speculative landing gates while their one parent retains the board lease [B3,V4]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   join,
   resolve,

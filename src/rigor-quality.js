@@ -8,7 +8,7 @@
  *
  * Nothing here drafts or approves a row; rigor-quality-draft.js drafts them for the person.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   mkdirSync,
   mkdtempSync,

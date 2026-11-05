@@ -1,6 +1,6 @@
 /** Bounded Git proof that a resubmission adds only trunk and actual conflict resolutions [V1,V4]. */
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   cleanGitEnvironment,
   mainCheckout,

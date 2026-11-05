@@ -1,8 +1,9 @@
+import { commandShell } from './windows-shell.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   captureTestRuntimes,
   executionEnvironment,
@@ -41,7 +42,7 @@ import { sandboxBlockedOperation } from './sandbox-denial.js';
  */
 export function runShell(root, command, { pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false } = {}) {
   const started = Date.now();
-  const options = { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
+  const options = { cwd: root, env: { ...gitChildEnv(root), ...env }, shell: commandShell(), stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 2 ** 30 };
   let prefix = '';
   if (pipefail) {
     // Probe the same shell as the command, with no load-sensitive deadline or alternate shell.
