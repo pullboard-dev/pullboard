@@ -1254,7 +1254,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
   }
 });
 
-test('next --verify looks and reserves in one transaction, so no other verifier takes the review in between [V15]', () => {
+test('next --verify looks outside the lock and rechecks inside it, so no other verifier takes the review in between [V15]', () => {
   const lab = boardOnDisk();
   const others = [];
   try {
@@ -1268,13 +1268,13 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     let armed = false;
     let rivalSaw = null;
     // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
-    // and the first time the look reads it, a rival verifier on another connection tries to
-    // reserve the same review.
+    // and the first time the look reads it, a rival verifier on another connection reserves the
+    // same review. The look holds no write lock (#3156), so the rival's write lands mid-look.
     const looking = openBoard(lab.file, {
       now: () => {
         if (armed && rivalSaw === null) {
           try {
-            store.reserveReview(rival, id, { agentId: third, leaseMs: 60_000, policy: 'any' });
+            store.reserveReview(rival, id, { agentId: third, leaseMs: 600_000, policy: 'any' });
             rivalSaw = 'reserved';
           } catch (error) {
             rivalSaw = error;
@@ -1286,9 +1286,12 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     others.push(rival, looking);
     armed = true;
     const found = store.reserveNextReview(looking, { agentId: 'web-2', lane: 'web', leaseMs: 60_000, policy: 'any' });
-    assert.equal(found.item?.item_review_by, 'web-2');
     assert.ok(rivalSaw !== null, 'the look read the clock, so the rival had its chance mid-look');
-    assert.equal(rivalSaw.code, 'BOARD_BUSY', 'the rival could not write while the look held the board');
+    assert.equal(rivalSaw, 'reserved', 'the look held no write lock, so the rival reserved mid-look');
+    // The in-lock recheck sees the rival's live reservation and refuses: the looker never takes the review.
+    assert.notEqual(found.item?.item_id, id, 'the looker did not take the review the rival holds');
+    const held = store.getItem(lab.board, id);
+    assert.equal(held.item_review_by, third, 'exactly one verifier holds the review: the rival');
   } finally {
     for (const board of others) store.closeBoard(board);
     lab.done();

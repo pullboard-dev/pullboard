@@ -57,18 +57,24 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   const present = failures.filter(failure => onBase(failure.file));
   if (!present.length) return { known: [], own: absent };
   const files = [...new Set(present.map(failure => failure.file))];
-  let result;
-  try {
-    result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
-      { commit: state.batch.base, detailed: true, allowCancelled: true });
-  } catch { return null; }
-  if (result?.main !== state.batch.base || result.unavailable || !files.every(file => result.files?.some(row => row.file === file))) return null;
+  // Each file is compared on its own: a file main cannot be compared on stays the batch's own red and never discards the
+  // completed results of every other file, as one combined comparison did [C7,#3073]. Results are cached per file.
+  const rows = new Map();
+  for (const file of files) {
+    let result;
+    try {
+      result = await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+        { commit: state.batch.base, detailed: true, allowCancelled: true });
+    } catch { continue; }
+    const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+    if (row) rows.set(file, row);
+  }
+  if (!rows.size) return null;
   const known = [], own = [...absent];
   for (const failure of present) {
-    const row = result.files.find(entry => entry.file === failure.file);
-    // Red on base with no named cases cannot be told apart from the batch's own red, so the batch holds [C7,#2945].
-    if (row.result === 'red' && !(row.failures ?? []).length) return null;
-    (row.result === 'red' && row.failures.some(main => main.name === failure.name) ? known : own).push(failure);
+    const row = rows.get(failure.file);
+    // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
   return { known, own };
 }
