@@ -65,7 +65,7 @@ test('health names the exact native check when every joined seat is excluded fro
   assert.match(finding.why, /COORDINATOR_VERIFIES/u, 'the report names the failing native check rather than inventing a reviewer');
 });
 
-test('configured starvation waits select the oldest eligible review after a reservation expires [C7,N2,V1]', async t => {
+test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', async t => {
   const box = await fixture(t);
   const oldest = box.add('Oldest strict review', { reviewFamily: 'Family Beta' });
   box.submit(oldest);
@@ -73,6 +73,8 @@ test('configured starvation waits select the oldest eligible review after a rese
   box.advance(11 * 60_000);
   const newer = box.add('Newer strict review', { reviewFamily: 'Family Beta' });
   box.submit(newer);
+  const held = box.add('Held build uses the configured urgent threshold', { lane: 'review' });
+  box.claim(held, box.seats.outside);
   const who = { agentId: box.seats.outside.id, lane: 'review', ratio: 99, starveMinutes: 20 };
   assert.equal(store.reviewOffer(box.board, who), null, 'configured twenty-minute wait has not elapsed');
   box.advance(10 * 60_000);
