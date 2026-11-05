@@ -15,7 +15,7 @@ function staticEdges(file, source) {
     .map(edge => edge.from.startsWith('.') ? posix.normalize(posix.join(posix.dirname(file), edge.from)) : edge.from);
 }
 
-test('the moved src/run.js implementation and test-run have no static gate, execution or policy-load edge [C7,#3054]', () => {
+test('clause 1: the moved src/run.js implementation and test-run have no static gate, execution or policy-load edge [C7,#3054]', () => {
   for (const file of ENTRIES) {
     const source = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)), [], file);
