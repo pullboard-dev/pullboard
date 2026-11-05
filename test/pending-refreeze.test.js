@@ -166,7 +166,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   refusal(cycle, 'DEPENDENCY_CYCLE');
   assert.equal(store.getItem(board, second).item_after, '', 'a refused cycle leaves the edge unchanged');
 
-  const claimed = add('Claimed dependency target', 'light');
+  const claimed = add('Claimed dependency target');
   const diagnosis = box.run(box.repo, 'fact', String(claimed), 'diagnosis',
     'Files: web/dependencies.js Change: correct dependency edges without changing the frozen bar Test case: edit adds and clears an item\'s dependencies');
   assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
