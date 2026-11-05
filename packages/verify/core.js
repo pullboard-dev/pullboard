@@ -1,6 +1,5 @@
 import { COORDINATOR } from '../queue/core.js';
 import { Refused } from '../kernel/index.js';
-import { laneOf } from '../seats/src/core/lane-of.js';
 
 /** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
 export function testOutcomeFields(value) {
@@ -38,8 +37,8 @@ export function laneCheckFiles(command) {
   return files.some(file => file.split('/').includes('..')) ? null : files;
 }
 
-/** Refuse a seat's check when any named test file belongs to another lane. */
-export function requireOwnLaneCheck(config, me, lane, check) {
+/** Refuse a seat's check when any named test file belongs to another lane; `laneOf(config, file)` is the caller's ownership port. */
+export function requireOwnLaneCheck(config, me, lane, check, laneOf) {
   if (check === undefined || me.id === COORDINATOR) return;
   const files = laneCheckFiles(check);
   if (!files) return;

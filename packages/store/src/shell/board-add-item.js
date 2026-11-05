@@ -29,6 +29,7 @@ import { Refused } from "../../../kernel/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { requireOwnLaneCheck } from "../../../verify/core.js";
+import { laneOf } from "../../../seats/index.js";
 import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 
 /**
@@ -81,7 +82,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     : checkWiden.editCheck(by, check) ?? '';
   if (board.gitRoot && by !== COORDINATOR) {
     const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(by);
-    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command);
+    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command, laneOf);
   }
   validateCheckTiming(board, by, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
