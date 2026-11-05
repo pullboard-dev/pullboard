@@ -12,14 +12,17 @@ export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', rout
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item. */
-export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixture item is valid.', check = 'true', route = 'strong', brief, args = [], run = box.run } = {}) {
+export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixture item is valid.', check = 'true', route = 'strong', brief, diagnosis, args = [], run = box.run } = {}) {
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
   const addArgs = ['add', lane, title, '--route', route, '--criterion', criterion];
   if (check !== null) addArgs.push('--check', check);
   addArgs.push('--brief', buildBrief, ...args, '--json');
   const result = fixtureResult(run(root, ...addArgs));
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
-  return JSON.parse(result.out).item;
+  const item = JSON.parse(result.out).item;
+  const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
+  assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
+  return item;
 }
 
 /** Create and join a fixture worktree with all current admission identity flags. */
