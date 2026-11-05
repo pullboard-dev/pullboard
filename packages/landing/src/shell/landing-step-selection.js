@@ -85,6 +85,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const touched = new Map();
   const knownReds = batches.flatMap((batch) => batch.culprits ?? []);
   for (const original of pending) {
+    // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
+    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7].
+    if (ready.length >= maximum) break;
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
