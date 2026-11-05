@@ -1,12 +1,14 @@
 /** @pullboard-module-loads bin/pullboard.js */
 /** Concurrent real submits share completed main evidence without serializing their test runs [V4,C7]. */
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { readGateReceipt } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
@@ -32,6 +34,13 @@ function receipt(box, id) {
     const row = db.prepare("SELECT event_id,event_detail FROM event WHERE event_kind='submit' AND item_id=? ORDER BY event_id DESC LIMIT 1").get(id);
     return row && { sequence: row.event_id, detail: JSON.parse(row.event_detail) };
   } finally { db.close(); }
+}
+/** Read only authentic pinned main-red receipts retained by the gate. */
+function mainReceipts(box) {
+  const folder = join(box.root, '.git/pullboard/gate-receipts');
+  return readdirSync(folder).filter(name => name.endsWith('.json'))
+    .map(name => readGateReceipt(folder, name.slice(0, -5)))
+    .filter(value => value?.kind === 'main-red' && value.head === box.main && value.main === box.main);
 }
 /** Wait on an external handshake; this ceiling detects hangs rather than asserting machine speed. */
 async function observed(predicate, message) {
@@ -83,7 +92,8 @@ function fixture(t) {
   });
   cli(box, root, 'add', 'core', 'Main red: both fixture assertions', '--specs', 'G1', '--criterion', 'Both assertions pass.', '--check', 'node test/runner.js test/a.test.js test/b.test.js', '--brief', 'Files: test/a.test.js, test/b.test.js\nTest: real inherited assertions');
   box.cache = join(root, '.git/pullboard/main-red.json');
-  writeFileSync(box.cache, JSON.stringify({ version: 1, entries: { [box.main]: { 'test/b.test.js': { result: 'red' } } } }), { mode: 0o600 });
+  box.cacheSeed = JSON.stringify({ version: 1, entries: { [box.main]: { 'test/b.test.js': { result: 'red' } } } });
+  writeFileSync(box.cache, box.cacheSeed, { mode: 0o600 });
   return box;
 }
 
@@ -105,10 +115,6 @@ test('a second submit records fresh main evidence before a held submit finishes,
   try {
     await observed(() => existsSync(join(box.env.CACHE_CONTROL, 'first.ready')) || first.finished(), 'first submit reaches its real held main comparison');
     assert.equal(first.finished(), false, first.output());
-    const resources = new DatabaseSync(join(box.root, '.git/pullboard/resources.sqlite'), { readOnly: true });
-    try {
-      assert.equal(resources.prepare("SELECT COUNT(*) AS count FROM holder WHERE name='main-red-cache'").get().count, 0, 'a held actual test never holds the cache metadata lease');
-    } finally { resources.close(); }
     second = launch(box, two, 'second');
     await observed(() => second.finished(), 'second submit completes while first actual test remains held');
     const completed = await second.done;
@@ -117,8 +123,15 @@ test('a second submit records fresh main evidence before a held submit finishes,
     assert.equal(receipt(box, one.id), undefined);
     const recordedSecond = receipt(box, two.id);
     assert.ok(recordedSecond, 'second submit is actually recorded before releasing first');
-    const cache = JSON.parse(readFileSync(box.cache, 'utf8'));
-    assert.ok(cache.entries[box.main]['test/b.test.js'].failures.length, 'stale file-only cache was replaced by real named failure evidence');
+    const duringFirst = mainReceipts(box);
+    assert.equal(duringFirst.length, 1, 'the completed submit retained one native exact-main receipt');
+    assert.equal(duringFirst[0].command, createHash('sha256')
+      .update("PULLBOARD_TEST_REUSE=0 node test/runner.js './test/b.test.js'").digest('hex'));
+    assert.equal(duringFirst[0].green, false);
+    assert.deepEqual(duringFirst[0].failures, [{ file: 'test/b.test.js', name: 'b actual inherited assertion [G1]' }]);
+    assert.ok(duringFirst[0].failureSignatures?.failures.length, 'the fresh native receipt carries a named failure signature');
+    assert.equal(duringFirst[0].environment.node, process.versions.node, 'native evidence is bound to this exact runtime');
+    assert.equal(readFileSync(box.cache, 'utf8'), box.cacheSeed, 'the forged generic file-only cache stays unused');
     writeFileSync(join(box.env.CACHE_CONTROL, 'first.release'), 'release');
     const completedFirst = await first.done;
     assert.equal(completedFirst.code, 0, completedFirst.stdout + completedFirst.stderr);
@@ -129,10 +142,19 @@ test('a second submit records fresh main evidence before a held submit finishes,
       assert.equal(report.gate.green, false, 'actual inherited red remains red in the receipt');
       assert.equal(report.gate.knownMainFailures.main, box.main);
       assert.deepEqual(report.gate.knownMainFailures.failures.map(row => row.file).sort(), expected);
-      assert.deepEqual(recorded.detail.submissionProof.knownMainFailures, report.gate.knownMainFailures);
+      const persistedFailures = recorded.detail.submissionProof.knownMainFailures;
+      assert.equal(persistedFailures.main, report.gate.knownMainFailures.main);
+      assert.deepEqual(persistedFailures.failures,
+        report.gate.knownMainFailures.failures.map(({ file, name, signature, item }) => ({ file, name, signature, item })));
     }
+    const all = mainReceipts(box);
+    assert.equal(all.length, 3, 'each comparison was freshly retained as an authentic main-red receipt');
+    const commandFor = name => createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './test/${name}.test.js'`).digest('hex');
+    assert.deepEqual(all.map(value => value.command).sort(), [commandFor('a'), commandFor('b'), commandFor('b')].sort());
+    assert.ok(all.every(value => value.environment.node === process.versions.node && value.environment.platform === process.platform));
+    assert.equal(readFileSync(box.cache, 'utf8'), box.cacheSeed, 'neither concurrent pinned comparison mutates generic cache data');
     const runs = readFileSync(join(box.env.CACHE_CONTROL, 'runs.jsonl'), 'utf8').trim().split('\n').map(row => JSON.parse(row));
-    assert.deepEqual(runs.filter(row => row.files.includes('test/b.test.js')).map(row => row.mode), ['second'], 'first reuses the fresh result written mid-run rather than executing b again');
+    assert.deepEqual(runs.filter(row => row.files.includes('test/b.test.js')).map(row => row.mode).sort(), ['first', 'second'], 'each pinned submit executes its main file instead of reusing generic evidence');
   } finally {
     writeFileSync(join(box.env.CACHE_CONTROL, 'first.release'), 'release');
     await first.done;
