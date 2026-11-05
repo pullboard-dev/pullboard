@@ -127,6 +127,12 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
+    // An expired lease follows the lease-lapse path only after a quiet heartbeat; a live seat still vetoes expiry.
+    if (lapsed.has(row.id)) {
+      if (!heartbeatLost) return [];
+      return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
+        && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
+    }
     if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
       worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
@@ -134,10 +140,6 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {
       if (lapsedOnly) return [];
       return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
-    }
-    if (lapsed.has(row.id)) {
-      return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
-        && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
     }
     if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];

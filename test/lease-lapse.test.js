@@ -43,7 +43,7 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   return { box, id, unknownIds };
 }
 
-test('the next native write frees a lapsed idle claim with one original lease of builder first refusal and named health [B4,C7]', async t => {
+test('clause 1: the next native write frees a lapsed idle claim with one original lease of builder first refusal and named health [B4,C7]', async t => {
   const { box, id } = await lapsed(t);
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private fixture write observes lapsed work.']);
   assert.equal(result.code, 0, result.out + result.err);
@@ -212,7 +212,7 @@ test('explicit stale CLI releases require a code before observation and retain c
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|DIAGNOSIS_WRONG\|TAKEN_OVER\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);
