@@ -1,5 +1,6 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { testClosures } from '../../../gate/index.js';
+import { testActionKeys } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -282,6 +283,33 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
   } catch { return false; } // Unavailable graph or Git evidence never grants known-main acceptance.
 }
 
+/** The most cache generations kept, oldest first out, so the file stays under readCache's size bound. */
+const CACHE_KEYS_KEPT = 512;
+
+/**
+ * Each test file's content key at main: its action key, which hashes the file, its import closure (the packages it
+ * covers) and its declared inputs. Why: main moves on every landing, and a key by commit threw away every known red
+ * whose test and code did not change, so each landing reran main [C7,#3166]. A file with no complete closure has none.
+ */
+async function contentKeys(root, commit, files) {
+  try {
+    const keys = await testActionKeys(root, { commit, files });
+    return new Map(files.map(path => [path, /^[0-9a-f]{64}$/u.test(keys.get(path)?.inputKey ?? '') ? keys.get(path).inputKey : null]));
+  } catch { return new Map(); }
+}
+
+/** Store one outcome under main's commit and its content key, and drop the oldest generations past the bound. */
+function storeOutcome(cache, keys, path, outcome) {
+  for (const key of keys) {
+    if (!key) continue;
+    const files = cache.entries[key] ?? {};
+    delete cache.entries[key];
+    cache.entries[key] = { ...files, [path]: outcome };
+  }
+  const all = Object.keys(cache.entries);
+  for (const key of all.slice(0, Math.max(0, all.length - CACHE_KEYS_KEPT))) delete cache.entries[key];
+}
+
 /**
  * Compare named failed files against one captured main snapshot. Each result is cached by exact
  * commit and file; later submits reuse completed results rather than rerunning the same file.
@@ -339,8 +367,15 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   const snapshot = () => pinned
     ? Promise.resolve({ version: CACHE_VERSION, entries: { [main.commit]: { ...pinnedEntries } } })
     : withComparisonCache(root, onWait, () => readCache(file));
+  const content = pinned ? new Map() : await contentKeys(root, main.commit, files);
+  /** A file's outcome at main: the exact commit's, else the one recorded for the same content key [C7,#3166]. */
+  const outcomeOf = (entries, path) => usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
+    : content.get(path) && usable(entries[content.get(path)]?.[path]) ? entries[content.get(path)][path] : undefined;
+  // A content-keyed outcome is already fresh: the same test and covered code at main were measured, so fresh reruns
+  // only a file with no content key, and each main red runs at most once per content hash.
+  const rerun = path => fresh && !pinned && !content.get(path);
   let cache = await snapshot();
-  const missing = files.filter(path => !usable(cache.entries[main.commit]?.[path]) || fresh && !pinned);
+  const missing = files.filter(path => !outcomeOf(cache.entries, path) || rerun(path));
   if (pinned && missing.length) {
     try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
     catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
@@ -349,7 +384,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   for (const path of missing) {
     try {
       // Another submit may have completed this file after the initial snapshot.
-      if (!fresh && usable((await snapshot()).entries[main.commit]?.[path])) continue;
+      if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) continue;
       // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
       const measured = await withMainCheckout(root, main.commit, async checkout => {
         // Use the same exact-file capability checks as ordinary named tests, on main's source.
@@ -395,28 +430,27 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
       else await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
         // Preserve a completed exact-main result published while this measurement ran.
-        if (!fresh && usable(current.entries[main.commit]?.[path])) return;
-        current.entries[main.commit] ??= {};
-        current.entries[main.commit][path] = measured;
+        if (!rerun(path) && outcomeOf(current.entries, path)) return;
+        storeOutcome(current, [main.commit, content.get(path)], path, measured);
         writeCache(file, current);
       });
     }
     catch (error) {
       // A concurrent completed comparison can satisfy the request even if our own runner failed.
-      if (fresh || !usable((await snapshot()).entries[main.commit]?.[path])) failed ??= error;
+      if (rerun(path) || !outcomeOf((await snapshot()).entries, path)) failed ??= error;
     }
   }
   cache = await snapshot();
-  const incomplete = files.some(path => !usable(cache.entries[main.commit]?.[path]));
+  const incomplete = files.some(path => !outcomeOf(cache.entries, path));
   // A timeout still has a real file verdict; it never supplies the missing case signatures.
   const coarseFiles = files.flatMap(path => {
-    const row = coarse[path] ?? cache.entries[main.commit]?.[path];
+    const row = coarse[path] ?? outcomeOf(cache.entries, path);
     return row ? [{ file: path, result: row.result, ...(row.receiptId ? { receiptId: row.receiptId } : {}) }] : [];
   });
   if (failed && (fresh || incomplete)) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: failed.message ?? 'main comparison could not be completed', ...(runnerAdmission.runnerOnly ? { runnerOnly: true } : {}) };
   if (incomplete) return { main: main.commit, files: [], ...(detailed ? { coarseFiles } : {}), unavailable: 'main comparison cache changed before the completed results could be read' };
   return { main: main.commit, files: files.map(path => ({ file: path, ...(detailed
-    ? cache.entries[main.commit][path] : { result: cache.entries[main.commit][path].result }) })) };
+    ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
 /** Map one or more main-red file results only when the row and its open owner are unambiguous. */
