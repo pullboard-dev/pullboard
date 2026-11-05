@@ -17,11 +17,20 @@ function fixtureAdmissionProof(t) {
   assert.match(item.item_brief, /Files:[\s\S]*Change:[\s\S]*Test:/u);
   assert.match(box.run(box.web, 'whoami', '--json').out, /web-1/u);
 
-  const fixtureFiles = ['e2e-helpers.js', 'land-project-fixture.js', 'board-submit-fixture.js'];
-  for (const file of fixtureFiles) {
+  const fixtureFiles = [
+    { name: 'e2e-helpers.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: 'land-project-fixture.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: 'board-submit-fixture.js', helpers: [] },
+    { name: 'landing-per-item.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: 'landing-plan-missing-excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: 'submit-outcome-fixture.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
+    { name: 'submit-main-red-fixture.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
+  ];
+  for (const { name: file, helpers } of fixtureFiles) {
     const source = readFileSync(join(import.meta.dirname, file), 'utf8');
-    assert.doesNotMatch(source, /\.run\([^\n]*,\s*['"](?:add|join)['"]/u, `${file} delegates CLI fixture admission to testkit-fixture.js`);
+    assert.doesNotMatch(source, /(?:\.run|\bcli)\([^\n]*,\s*['"](?:add|join)['"]/u, `${file} delegates CLI fixture admission to testkit-fixture.js`);
     assert.doesNotMatch(source, /--(?:route|brief|model)\b/u, `${file} leaves admission flags to testkit-fixture.js`);
+    for (const helperName of helpers) assert.match(source, new RegExp(`\\b${helperName}\\b`), `${file} uses ${helperName}`);
   }
   const helper = readFileSync(join(import.meta.dirname, 'testkit-fixture.js'), 'utf8');
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
