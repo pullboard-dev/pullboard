@@ -4,6 +4,7 @@ import { pairedFlakeObservations } from '../core/flake-ratchet.js';
 import { ratchetBoundary } from './ratchet-boundary.js';
 import { repairedAt } from './ratchet-boundary.js';
 import { backfillPairs } from './ratchet-boundary.js';
+import { eventHistory } from './event-history.js';
 import { quarantinesAt } from '../core/flake-ratchet.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../store/index.js";
@@ -35,6 +36,7 @@ import {
 } from "../../../gate/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./flakes.js";
+import { flakeEvents } from "./flakes.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { QUARANTINE_CORE_ENGINE } from "../../../../src/quarantine-core-engine.js";
@@ -51,10 +53,22 @@ export function quarantineOn(board) {
 /** The one identity of a test across runs: its committed file and its structured name. */
 function testKey(file, name) { return JSON.stringify([file, name]); }
 
-/** Every recorded gate run, oldest first, with the event that carries it and the seat that recorded it. */
+/** Each gate-run event parsed once per connection: its run, and whether it was an automatic Submit quarantine run. */
+function gateRunEvents(board) {
+  return eventHistory(board, 'gate-run', ['gate-run'], row => {
+    const detail = JSON.parse(row.event_detail);
+    return { run: { eventId: row.event_id, by: row.event_by, ...detail.run },
+      autoSubmit: detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true };
+  });
+}
+
+/**
+ * Every recorded gate run, oldest first, with the event that carries it and the seat that recorded it. The runs are
+ * frozen and shared: read once per connection, then only the runs after them, so a write that warmed them before its
+ * lock reads only the new runs inside it [C7].
+ */
 export function gateRuns(board) {
-  return board.db.prepare("SELECT event_id, event_by, event_detail FROM event WHERE event_kind = 'gate-run' ORDER BY event_id").all()
-    .map(row => ({ eventId: row.event_id, by: row.event_by, ...JSON.parse(row.event_detail).run }));
+  return gateRunEvents(board).map(entry => entry.run);
 }
 
 /**
@@ -351,6 +365,7 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
   if (marked && autoSubmit === undefined) autoSubmit = true;
   if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null))) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
   if (autoSubmit && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTO_SUBMIT_QUARANTINE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording automatic Submit quarantine');
+  warmFlakeHistory(board);
   return atomic(board, () => {
     if (marked) requireSubmitDiagnosticAdmission(board, agentId, value);
     if (Object.hasOwn(value, 'collection')) {
@@ -404,6 +419,17 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
   });
 }
 
+/**
+ * Read the gate-run and flake histories before a write takes the board lock, so the write reads only the events
+ * since. A caller already inside a transaction reads them there, as before [C7].
+ * @param {any} board
+ */
+export function warmFlakeHistory(board) {
+  if (board.db.isTransaction !== false) return;
+  gateRunEvents(board);
+  flakeEvents(board);
+}
+
 /** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
 function recordStructuredQuarantines(board, agentId, value, lane, owners) {
   const all = gateRuns(board), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
@@ -444,9 +470,9 @@ function fileStructuredQuarantine(board, agentId, { file, name, tree, red, green
 
 /** File one core repair only after two separately admitted native Submit contradictions within the rolling day. */
 function recordSubmitQuarantines(board, agentId, value) {
-  const marked = new Set(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='gate-run'").all()
-    .map(row => JSON.parse(row.event_detail)).filter(row => row.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && row.autoSubmit === true).map(row => row.run.id));
-  const runs = gateRuns(board).filter(run => marked.has(run.id));
+  const events = gateRunEvents(board);
+  const marked = new Set(events.filter(entry => entry.autoSubmit).map(entry => entry.run.id));
+  const runs = events.map(entry => entry.run).filter(run => marked.has(run.id));
   const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
   const filed = [];
   for (const outcome of value.testOutcomes ?? []) {
