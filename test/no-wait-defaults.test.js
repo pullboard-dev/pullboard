@@ -15,7 +15,7 @@ import { main } from './native-cli-fixture.js';
 import * as store from '../packages/store/index.js';
 import { boundedQueuedRedLines } from '../packages/store/src/shell/queued-red-notice.js';
 
-test('defaults, move refusals and the init loop never suggest a timed wait [N42,C7]', () => {
+test('clause 1: defaults, move refusals and the init loop never suggest a timed wait [N42,C7]', () => {
   for (const [code, step] of Object.entries({ ...DEFAULT_NEXT_STEPS, ...NEXT_STEPS })) {
     assert.doesNotMatch(step, /--wait/iu, code);
     assert.doesNotMatch(step, /\bwait (?:for|until|on)\b/iu, code);
@@ -54,7 +54,7 @@ test('native held item and lane claim messages offer work without telling the se
   assert.doesNotMatch(JSON.stringify(laneClaim.document.error), /\bwait\b|--wait/iu);
 });
 
-test('plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
+test('clause 2: plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
   const box = await fixture(t);
   const build = box.add('Build available now');
   const review = box.add('Review available now', { criterion: 'Large frozen bar. '.repeat(2000) });
@@ -97,7 +97,7 @@ test('plain next skips the builders own submitted source and claims other work [
   assert.ok(Buffer.byteLength(taken.out + taken.err) <= 2048);
 });
 
-test('an empty plain next exits zero with a bounded end-turn answer in text and JSON [N41,N42,C7]', async t => {
+test('clause 2 and clause 3: an empty plain next exits zero with a bounded end-turn answer in text and JSON [N41,N42,C7]', async t => {
   const box = await fixture(t, { family: 'require' });
   const ownSession = box.add('Ineligible review');
   box.submit(ownSession);
