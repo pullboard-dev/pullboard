@@ -560,6 +560,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
 
   const inFreeze = editedSource('../packages/spec/src/shell/spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
+    'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
     'MOON_PHASE is raised by submit but not declared there',
