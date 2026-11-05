@@ -15,8 +15,9 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
-  watch,
   rmSync,
+  unwatchFile,
+  watchFile,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -321,13 +322,17 @@ test('an idle resident process closes its board connections and exits [H24]', as
 });
 
 
-/** Resolve true once `file` exists, watching its folder, or false after `ms`. */
+/**
+ * Resolve true once `file` exists, or false after `ms`. Why a stat watch: a folder watch on macOS can coalesce away
+ * the event for a file created among the board's own writes.
+ */
 function appears(file, ms) {
   return new Promise((resolve) => {
-    const watcher = watch(dirname(file), () => { if (existsSync(file)) end(true); });
+    const seen = (stat) => { if (stat.nlink > 0) end(true); };
+    watchFile(file, { interval: 25 }, seen);
     const timer = setTimeout(() => end(false), ms);
     /** Settle once and stop watching. */
-    function end(found) { watcher.close(); clearTimeout(timer); resolve(found); }
+    function end(found) { unwatchFile(file, seen); clearTimeout(timer); resolve(found); }
     if (existsSync(file)) end(true);
   });
 }
