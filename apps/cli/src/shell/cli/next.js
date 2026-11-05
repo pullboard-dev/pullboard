@@ -103,6 +103,10 @@ export async function nextOnce(ctx, values) {
     }
   }
   if (!looked.claim) return looked;
+  if (Number(values.wait) > 0 && !looked.held) {
+    const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
+    if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
+  }
   return await withBoard(ctx, async (board) => {
     const picked = nextPick(ctx, board, values);
     if (picked.autoReview) return { retry: true, retryDetail: { phase: 'first-review reservation', item: picked.autoReview.item_id, code: 'REVIEW_BECAME_MANDATORY' } };
