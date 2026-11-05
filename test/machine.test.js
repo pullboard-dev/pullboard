@@ -527,7 +527,7 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+test('every refusal a move raises today is declared on that move, and every declared code is raised (clause 1) [M1]', () => {
   assert.deepEqual(codeProblems(machineRules.MACHINE), []);
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
