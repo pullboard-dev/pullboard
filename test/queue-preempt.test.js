@@ -9,6 +9,7 @@ import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyRelayMove } from '../packages/state/index.js';
 import { fixtureBoard } from './board-fixture.js';
+import { defaults } from '../packages/config/index.js';
 
 /** A private native board with explicit readiness, person marks and observed work. */
 function fixture(t) {
@@ -16,7 +17,7 @@ function fixture(t) {
   store.register(board, { lane: 'coordinator', path: '/private/preempt-main' });
   const seat = store.register(board, { lane: 'web', path: '/private/preempt-builder', route: 'strong' });
   const add = title => store.addItem(board, { by: 'coordinator', lane: 'web', title,
-    criterion: 'Emergency routing preserves current work.', check: 'true' });
+    criterion: 'Emergency routing preserves current work. [test]', check: 'true' });
   const mark = (id, text, extra = {}) => store.appendFact(board, id, { agentId: 'coordinator', kind: 'urgent',
     text, asPerson: true, channel: 'view', ...extra });
   return { board, seat, add, mark };
@@ -91,10 +92,14 @@ test('Next releases only its caller waiting claim and records why it yielded [N2
       return store.release(board, ...args);
     },
   };
-  const result = await nextTake({ info: { root: '/private/preempt-builder' } }, {}, services);
+  const result = await nextTake({ info: { root: '/private/preempt-builder' }, config: defaults(), clock: f.board.clock, io: {} }, {}, services);
+  assert.equal(result.retry, true, 'the guarded next loop retries through ordinary selection');
   assert.equal(result.retryDetail.code, 'WAITING_CLAIM_RELEASED');
   assert.equal(store.getItem(f.board, waiting).item_status, 'open');
   const release = store.events(f.board).filter(event => event.event_kind === 'release' && event.item_id === waiting).at(-1);
+  const detail = JSON.parse(release.event_detail);
+  assert.equal(detail.reasonCode, 'ROUTED_ELSEWHERE');
+  assert.match(detail.reason, new RegExp('urgent #' + repair));
   assert.match(JSON.stringify(release.event_detail), new RegExp('urgent #' + repair));
   assert.equal(store.getItem(f.board, repair).item_status, 'open', 'the next iteration still takes an ordinary guarded claim');
 });

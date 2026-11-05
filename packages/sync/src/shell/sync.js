@@ -87,7 +87,7 @@ function git(root, args, input = '') {
 /** Turn a Git failure into a stable named refusal, without claiming an unacknowledged move succeeded. */
 async function required(root, args, input) {
   const result = await git(root, args, input);
-  if (result.status !== 0) throw new Refused('GIT_SYNC_REMOTE', 'the repository remote did not acknowledge Git board sync; local reads remain available and the pending move is preserved', 'restore access to origin, then retry the command or run pullboard sync');
+  if (result.status !== 0) throw new Refused('GIT_SYNC_REMOTE', 'the repository remote did not acknowledge Git board sync; local reads remain available and the pending move is preserved', 'restore access to origin, then retry the same command');
   return result.stdout;
 }
 
@@ -217,7 +217,7 @@ async function establish(root, board) {
     return initial;
   }
   tip = await reconcile(root, board);
-  if (!tip) throw new Refused('GIT_SYNC_REMOTE', 'origin refused the initial shared board; no move was recorded', 'restore write access to origin, then run pullboard sync');
+  if (!tip) throw new Refused('GIT_SYNC_REMOTE', 'origin refused the initial shared board; no move was recorded and Git sharing stays off', 'ask the person to restore write access to origin; other commands keep working on this machine');
   return tip;
 }
 
@@ -246,7 +246,16 @@ async function settle(root, board, pending) {
       return receipt.outcome;
     }
   }
-  throw new Refused('GIT_SYNC_REMOTE', 'origin did not acknowledge the shared move after competing pushes; the same sealed move is pending', 'restore access to origin, then retry the command or run pullboard sync');
+  throw new Refused('GIT_SYNC_REMOTE', 'origin did not acknowledge the shared move after competing pushes; the same sealed move is pending', 'restore access to origin, then retry the same command');
+}
+
+/**
+ * Whether this board's Git sharing is on: a valid opt-in marker and a first board origin accepted [C7].
+ * A marker without an acknowledged prefix (left by an older sync whose first push was refused) runs local-only,
+ * so one refused push never makes every later command retry it under the shared lock.
+ */
+export function gitSyncAcknowledged(root, board) {
+  return gitSyncLinked(root) && meta(board, 'tip') !== null;
 }
 
 /** Sync only after explicit opt-in; a normal read catches network refusals and keeps its local prefix. */
@@ -254,13 +263,18 @@ export async function syncGitBoard(root, board, io, { settlePending = false } = 
   board.gitRoot = root; // Runtime Git authority is local, not a field supplied by a replicated move.
   requireCompatibleTransport(root, board);
   const explicit = io?.relayCommand?.cliOperation === 'sync';
-  if (!explicit && !gitSyncLinked(root)) throw new Refused('GIT_SYNC_LINKED', 'only an explicit pullboard sync can enable Git board sharing', 'run pullboard sync explicitly on a board without relay history');
+  if (!explicit && !gitSyncLinked(root)) throw new Refused('GIT_SYNC_LINKED', 'only an explicit pullboard sync can enable Git board sharing', 'ask the person to opt in to Git sharing on a board without relay history');
   const file = paths(root);
   return withGitSyncLock(file.marker, lease => WRITER.run(lease, async () => {
     requireCompatibleTransport(root, board);
+    // The opt-in marker is written only after origin acknowledged the first board; a refusal leaves none.
+    try { await establish(root, board); }
+    catch (error) {
+      if (explicit && meta(board, 'tip') === null) rmSync(file.marker, { force: true });
+      throw error;
+    }
     if (explicit) save(file.marker, { version: 1, remote: 'origin', ref: GIT_BOARD_REF,
       writer: { command: 'sync', pid: process.pid, at: new Date().toISOString() } });
-    await establish(root, board);
     const pending = existsSync(file.pending) ? JSON.parse(readFileSync(file.pending, 'utf8')) : null;
     const outcome = settlePending && pending ? await settle(root, board, pending) : null;
     if (outcome?.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
