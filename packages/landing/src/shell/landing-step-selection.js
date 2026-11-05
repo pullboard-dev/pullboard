@@ -4,6 +4,7 @@ import { localDependencyIds } from '../../../items/index.js';
 import { landingChangedFiles } from '../core/land-collisions.js';
 import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
+import { landingBatchSize } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -125,6 +126,18 @@ export function landsPerItem(config) {
 /** With per-item landing, a landing takes one verified item; otherwise the caller's limit stands [C7,#2901]. */
 export function perItemMaximum(config, maximum = Infinity) {
   return landsPerItem(config) ? 1 : maximum ?? Infinity;
+}
+
+/**
+ * The most items one landing batch takes: one per item when landing per item. Otherwise a set line.landingBatchSize
+ * applies to every real landing, and automatic landing also sizes from the recorded batches; a limit the caller gave
+ * still holds. A hand landing with no setting keeps taking every waiting item [C7,H24].
+ */
+export function landingMaximum(board, config, maximum = Infinity, automatic = false) {
+  if (landsPerItem(config)) return 1;
+  const override = store.lineSettings(board).landingBatchSize;
+  if (typeof override !== 'number' && !automatic) return maximum ?? Infinity;
+  return Math.min(maximum ?? Infinity, landingBatchSize(automatic ? store.landingBatches(board) : [], override));
 }
 
 /**
