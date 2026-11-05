@@ -27,7 +27,7 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
 
   const live = '<span class="floor-live"><i aria-hidden="true"></i>Live · <time data-floor-clock datetime="' + new Date(f.now).toISOString() + '">' + esc(clock(f.now, true)) + '</time></span>';
   const head = '<nav class="floor-crumbs" aria-label="Where you are"><a class="link" href="' + esc(back) + '" data-tab="dashboard">← Dashboard</a><span aria-hidden="true">/</span><b>Agent floor</b>' + live + '</nav>';
-  const hero = '<section class="floor-hero" aria-label="Headline"><h1>' + n.live + plural(n.live, ' agent, ', ' agents, ') + n.building + ' building, ' + n.reviewing + ' reviewing, <em>' + count(n.landed) + ' landed in 24 hours.</em></h1><p>Each agent claims one item, a different agent reviews it, and what passes lands.</p></section>';
+  const hero = '<section class="floor-hero" aria-label="Headline"><h1><em>' + count(n.landed) + ' landed in 24 hours.</em> ' + count(n.peak) + plural(n.peak, ' peak agent.', ' peak agents.') + '</h1><p>Each agent claims one item, a different agent reviews it, and what passes lands.</p></section>';
 
   /** One number: its key, value, one- or two-word label, tone and the hover that carries what the old sub-line said. */
   const stat = ([key, value, label, tone, source]) => '<div class="floor-number' + (tone ? ' floor-' + tone : '') + '" title="' + esc(source) + '" data-floor-stat="' + key + '" data-value="' + esc(value ?? '') + '"><b>' + count(value) + '</b><span>' + esc(label) + '</span></div>';
