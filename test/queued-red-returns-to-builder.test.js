@@ -76,7 +76,7 @@ async function terminal(box, id) {
   return read(box, id);
 }
 
-test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, survives idle maintenance, and opens only after its lease [V4,H16,N2,R2,B4]', async t => {
+test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, survives idle maintenance, and opens only after its lease (clause 1) [V4,H16,N2,R2,B4,C7]', async t => {
   const box = fixture(t);
   const [refused, green, later] = box.ids;
   const first = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
@@ -136,7 +136,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   } finally { board.db.close(); }
 });
 
-test('a returned red claim left untouched is freed by maintenance once its fresh lease lapses [V4,H16,B4]', async t => {
+test('a returned red claim left untouched is freed by maintenance once its fresh lease lapses (clause 1) [V4,H16,B4,C7]', async t => {
   const box = fixture(t);
   const [refused] = box.ids;
   const folder = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
@@ -158,7 +158,7 @@ test('a returned red claim left untouched is freed by maintenance once its fresh
   } finally { board.db.close(); }
 });
 
-test('the red lines carry a refusal naming a file and line verbatim [V4,N2]', () => {
+test('the red lines carry a refusal naming a file and line verbatim (clause 1) [V4,N2,C7]', () => {
   const error = { code: 'CELLS_SUBMIT', message: 'web/page.js:12: added import through compatibility shim src/board.js; import from packages/store/index.js instead',
     next: 'import from the cell front door, commit, then submit again' };
   assert.deepEqual(queuedRedLines([{ id: 7, title: 'Page', leaseUntil: '2026-11-02T12:00:00.000Z', error }]), [
