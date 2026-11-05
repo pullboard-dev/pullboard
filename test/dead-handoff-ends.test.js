@@ -69,8 +69,10 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(box.run(box.repo, 'add', 'web', 'Swept dead handoff', '--specs', 'G1',
+  const id = document(box.run(box.repo, 'add', 'web', 'Swept dead handoff', '--route', 'strong', '--specs', 'G1',
     '--criterion', 'A dead handoff ends within one sweep.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
+  document(box.run(box.repo, 'fact', String(id), 'diagnosis',
+    'Files: web/snapshot.txt test/dead-handoff-ends.test.js Change: hold and release a real submitted gate Test case: one sweep retires the handoff without returning a builder red', '--json'));
   document(box.run(box.web, 'claim', String(id), '--json'));
   t.after(async () => {
     writeFileSync(release, 'release\n');
