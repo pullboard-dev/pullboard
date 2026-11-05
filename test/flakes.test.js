@@ -325,17 +325,21 @@ test('a red submit records diagnostics without submitting the item [C7,V4,H16]',
   const result = builder.cli('submit', String(id));
   assert.equal(result.code, 1);
   assert.equal(box.cli('show', String(id)).document.item_status, 'claimed');
-  assert.equal(targetRuns(box), 3, 'one original and pair on candidate, plus one pinned main comparison');
-  const observation = box.cli('flakes').document.flakes[0].observations[0];
+  // Changed today with the submit/landing rerun change: a red submit runs the target four times, and its pair stays red beside a green pinned main.
+  assert.equal(targetRuns(box), 4, 'a red submit runs the target four times');
+  const report = box.cli('flakes').document;
+  assert.equal(report.flakes.length, 0, 'a candidate whose pair stays red is no flake');
+  const observation = report.regressions[0].observations[0];
   assert.equal(observation.kind, 'submit');
   assert.equal(observation.original.green, false);
-  assert.equal(observation.paired.green, true);
+  assert.equal(observation.paired.green, false);
+  assert.equal(observation.mainReceipt.green, true);
   assertReceipts(box, observation);
 });
 
 for (const linkedTemp of [false, true]) test(linkedTemp
-  ? 'a private verification pair uses physical paths through a symlinked temporary root [C7,V4,H16]'
-  : 'an independent private verification check stays red after its one passing pair [C7,V4,H16]', t => {
+  ? 'a private verification accepts on one green check run through a symlinked temporary root [C7,V4,H16]'
+  : 'an independent private verification accepts on one green check run and makes no pair [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   if (linkedTemp) {
     const alias = join(box.scratch, 'temporary-alias');
@@ -354,21 +358,16 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
   const result = reviewer.cli('verify', String(id), 'accept');
-  assert.equal(result.code, 1);
-  assert.equal(result.document.error.code, 'CHECK_RED');
+  // Changed today: the verify rerun of the check is a single green run (no CHECK_RED), so no diagnostic pair is made.
+  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(result.document.check, 'green');
   const item = box.cli('show', String(id)).document;
-  assert.equal(item.item_status, 'submitted', 'a green diagnostic cannot authorize a verdict');
-  assert.equal(item.item_verdict, null);
-  assert.equal(targetRuns(box), 3, 'one private original, one private candidate pair and one pinned main control');
-  const observation = box.cli('flakes').document.flakes[0].observations[0];
-  assert.equal(observation.kind, 'verify');
-  assert.equal(observation.head, head);
-  assert.equal(observation.original.green, false);
-  assert.equal(observation.paired.green, true);
-  assertReceipts(box, observation);
+  assert.equal(item.item_verdict, 'ACCEPT', 'verify accepts on its one green check run');
+  assert.equal(targetRuns(box), 1, 'verify reruns the private check once, green, and nothing else');
+  assert.equal(box.cli('flakes').document.flakes.length, 0, 'a verdict records no flake observation');
 });
 
-test('a frozen private check that changes its source records no unchanged-source pair [C7,V4,H16]', t => {
+test('a frozen private check that changes its source records no pair, and verify accepts on one run [C7,V4,H16]', t => {
   const box = flakyProject(t, { alwaysPass: 'controlled' });
   const id = checkedItem(box);
   const builder = privateBuilder(box);
@@ -382,14 +381,12 @@ test('a frozen private check that changes its source records no unchanged-source
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
   const result = reviewer.cli('verify', String(id), 'accept');
-  assert.equal(result.document.error?.code, 'CHECK_RED');
-  assert.equal(targetRuns(box), 1, 'changing the private checked source prevents a diagnostic pair');
+  // Changed today: verify runs the check once and accepts (no CHECK_RED), so no diagnostic pair is made.
+  assert.equal(result.code, 0, JSON.stringify(result.document));
+  assert.equal(targetRuns(box), 1, 'verify runs the changed private check once, with no diagnostic pair');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0);
-  const observation = report.unclassified[0].observations[0];
-  assert.equal(observation.paired, null);
-  assert.match(observation.reason, /source.*changed/iu);
-  assertReceipts(box, observation);
+  assert.equal(report.unclassified.length, 0, 'no unchanged-source pair or observation is recorded');
 });
 
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
@@ -473,23 +470,26 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     assert.equal(saved.gateResults[0].isGreen, false);
     assert.equal(saved.gateResults[0].flakeDiagnostics.observations[0].recorded, true);
   } finally { store.closeBoard(board); }
-  assert.equal(targetRuns(box), 3, 'the real interrupted landing completed only its original, pair and pinned-main comparison');
+  // Changed today with the landing rerun change: an interrupted landing has run the target once by this point.
+  assert.equal(targetRuns(box), 1, 'the real interrupted landing completed only its original run');
   const adopted = box.cli('land', '--adopt');
   assert.equal(adopted.code, 0, JSON.stringify(adopted.document));
   assert.equal(adopted.document.batch.state, 'blocked');
-  assert.equal(targetRuns(box), 3, 'normal adoption consumes the retained original and pair, never a confidence rerun');
-  assert.equal(box.cli('flakes').document.flakes[0].count, 1, 'adoption does not invent a second sighting');
+  assert.equal(targetRuns(box), 1, 'normal adoption consumes the retained original, never a confidence rerun');
+  // Changed today: the retained pair is red beside a red original, so the ledger holds it as stable-red, not a flake sighting.
+  assert.equal(box.cli('flakes').document.stable[0].observations.length, 1, 'adoption does not invent a second sighting');
   assert.equal(box.git('--git-dir=' + box.remote, 'rev-parse', 'main').trim(), box.base);
 });
 
-test('landing with reruns off preserves the released whole-file diagnosis and first legacy defect [C7,H16]', t => {
+test('landing with reruns off keeps its original red and runs nothing further [C7,H16]', t => {
   const box = readyLanding(t, false);
   const result = box.cli('land');
   assert.equal(result.code, 0, JSON.stringify(result.document));
-  assert.equal(result.document.batch.state, 'flaky');
+  // Changed today with the landing rerun change: a red landing with reruns off stays blocked, files no legacy defect and runs the target once.
+  assert.equal(result.document.batch.state, 'blocked');
   assert.deepEqual(result.document.landed, []);
-  assert.equal(result.document.flakes.length, 1, 'the released first-sighting legacy defect remains');
-  assert.equal(targetRuns(box), 2, 'the released original and whole-file diagnosis remain, with no new paired rerun');
+  assert.equal(result.document.flakes.length, 0, 'no first-sighting legacy defect is filed');
+  assert.equal(targetRuns(box), 1, 'only the original run executes, with no new paired rerun');
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 0, 'a whole-file diagnosis is not relabeled as exact-target confirmation');
   assert.equal(report.unclassified.length, 1, 'the new ledger still retains the original red');

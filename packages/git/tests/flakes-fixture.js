@@ -37,6 +37,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
     PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0' };
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
+  for (const key of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[key]; // the host agent's session must not make builder and reviewer one session [V4]
   /** Run Git only within this fixture with a private deterministic identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Exercise the real CLI, retaining only its structured receipt for assertions. */
