@@ -42,6 +42,17 @@ test('queued handoff retries an injected busy board write and records the pinned
   assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 5 }]);
 });
 
+test('queued handoff retries an explicitly named locked database refusal [C7]', async () => {
+  let calls = 0;
+  const out = await retryBusyHandoffWrite(async () => {
+    calls += 1;
+    if (calls === 1) throw new Refused('DATABASE_LOCKED', 'fixture lock');
+    return 'written';
+  }, { wait: async () => {}, busyBudgetMs: 10_000 });
+  assert.equal(out.result, 'written');
+  assert.deepEqual(out.busyWaits, [{ code: 'DATABASE_LOCKED', seconds: 5 }]);
+});
+
 test('queued handoff retries each busy storage code on the same pinned write and records every wait [C7]', async () => {
   const failures = [
     new Refused('BOARD_BUSY', 'fixture board is busy'),

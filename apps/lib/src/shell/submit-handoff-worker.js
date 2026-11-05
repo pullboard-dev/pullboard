@@ -113,6 +113,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
   const { request, directory, root } = workerRequest(requestFile);
   let ctx;
   let attached = false;
+  const busyWaits = [];
   try {
     if (!prepared) {
       jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
@@ -122,7 +123,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     ctx = binding.ctx;
     const { job } = binding;
     const start = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }])), { busyBudgetMs: job.leaseMs });
-    const busyWaits = [...start.busyWaits];
+    busyWaits.push(...start.busyWaits);
     const started = start.result;
     if (!started.started) return;
     ctx.submitHandoffOutput = join(directory, 'output');
@@ -137,6 +138,8 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     // The receipt records each busy code and wait beside the submission it delayed.
     writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });
   } catch (error) {
+    // Preserve contention evidence even when the handoff ultimately returns a refusal.
+    writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });
     await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }) });
     throw error;
   } finally {
