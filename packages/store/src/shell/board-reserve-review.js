@@ -7,6 +7,7 @@ import { Refused } from "../../../kernel/index.js";
 import { moveItem } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { seatFamily } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
@@ -39,8 +40,28 @@ export function preparedRelaxation(board, id, { agentId, policy, familyPolicy = 
   const found = getItem(board, id);
   if (!found || (board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_RELAX_ENGINE) return null;
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozenRelaxAt(found)) return null;
-  return { commit: found.item_commit, digest: found.item_frozen_digest,
+  return { commit: found.item_commit, digest: found.item_frozen_digest, inputs: relaxationInputs(board),
     witness: reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) };
+}
+
+/**
+ * The cheap facts a relaxation witness is derived from: every waiting submission with its head, bar and live
+ * reviewer, the seats active in the witness window with their families, and the latest review release. Why: a
+ * witness prepared before the lock is reused only while these are unchanged, so another reviewer reserving a waiting
+ * item, a seat arriving or a release between the look and the lock rebuilds it instead (#3156).
+ *
+ * @param {any} board
+ * @returns {string}
+ */
+export function relaxationInputs(board) {
+  const now = board.clock.now();
+  const at = now.toISOString(), cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
+  const waiting = board.db.prepare("SELECT item_id,item_commit,item_frozen_digest,item_review_by,item_review_until FROM item WHERE item_status='submitted' ORDER BY item_id").all()
+    .map(row => [row.item_id, row.item_commit, row.item_frozen_digest, row.item_review_by && (row.item_review_until ?? '') > at ? row.item_review_by : null]);
+  const active = board.db.prepare('SELECT DISTINCT event_by AS id FROM event WHERE event_at>=? AND event_at<=? ORDER BY event_by').all(cutoff, at)
+    .map(row => [row.id, seatFamily(board, row.id)]);
+  const released = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind IN ('release','review-release')").get()?.id ?? null;
+  return JSON.stringify({ waiting, active, released });
 }
 
 /**
@@ -58,7 +79,8 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   // A witness prepared before the lock for this exact head and bar is reused; anything else is built here.
-  const reuse = prepared && found && prepared.commit === found.item_commit && prepared.digest === found.item_frozen_digest;
+  const reuse = prepared && found && prepared.commit === found.item_commit && prepared.digest === found.item_frozen_digest
+    && prepared.inputs === relaxationInputs(board);
   const witness = reuse ? prepared.witness : enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
   moveItem(board, id, 'reserve', {
     checks: {

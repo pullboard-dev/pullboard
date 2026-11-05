@@ -10,7 +10,7 @@ const SUBMITTED = 30;
 const SEATS = 15;
 
 /** A file board with 30 same-family submissions waiting past the backlog threshold and 15 active seats. */
-function backlog(t) {
+function backlog(t, submitted = SUBMITTED) {
   const board = fixtureBoard(t);
   let now = new Date('2026-01-01T00:00:00.000Z');
   board.clock = { now: () => new Date(now) };
@@ -20,7 +20,7 @@ function backlog(t) {
       parentDigest: seat.toString(16).padStart(64, '0'), model: 'fixture-model' });
   }
   const ids = [];
-  for (let index = 0; index < SUBMITTED; index++) {
+  for (let index = 0; index < submitted; index++) {
     const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: `Waiting review ${index + 1}`, criterion: 'prove it' });
     store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
       freeze: () => ({ text: JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 2 } } }), digest: 'fixture-digest' }) });
@@ -85,4 +85,15 @@ test('clause 3: the reserved item and its family-relaxation witness match the in
   assert.equal(reserved.item.item_id, expected.item_id);
   const event = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(expected.item_id);
   assert.deepEqual(JSON.parse(event.event_detail).familyRelaxation, witness);
+});
+
+test('clause 2: a witness whose queue changed between the look and the lock is rebuilt, never reused stale [C7,V15]', t => {
+  const { board, ids } = backlog(t, 2);
+  let chosen;
+  assert.throws(() => store.reserveNextReview(board, who, { afterSelection: item => {
+    chosen = item.item_id;
+    // Another same-family reviewer takes the other waiting item, so only one review waits: under the threshold of 2.
+    store.reserveReview(board, ids.find(id => id !== item.item_id), { ...who, agentId: 'core-3' });
+  } }), { code: 'SAME_FAMILY' }, 'the rebuilt witness no longer relaxes the frozen family rule');
+  assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale witness');
 });
