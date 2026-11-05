@@ -48,6 +48,7 @@ function project(...args) {
   const run = box.run;
   box.run = (cwd, ...argv) => {
     if (argv[0] === 'submit') argv.push('--wait', '--no-next');
+    if (argv[0] === 'join' && !argv.includes('--model')) argv.push('--model', 'Fixture builder');
     if (argv[0] === 'verify') argv.push('--no-next');
     return run(cwd, ...argv);
   };
@@ -58,6 +59,7 @@ function project(...args) {
 function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'submit') args.push('--wait', '--no-next');
   if (args[0] === 'verify') args.push('--no-next');
+  if (args[0] === 'join' && !args.includes('--model')) args.push('--model', 'Fixture builder');
   return runCliInProcess(args, { cwd, env: box.env });
 }
 
@@ -93,7 +95,7 @@ function replicaPair(t, box) {
 
 /** Add, claim and submit a real item through its joined Git worktree. */
 async function submitFixture(box) {
-  const added = (await fixtureCommand(box, box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.'));
+  const added = (await fixtureCommand(box, box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong'));
   assert.equal(added.code, 0, added.err);
   const claimed = (await fixtureCommand(box, box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.err);
@@ -159,7 +161,7 @@ async function submitLandingFixture(box, number, contents, cwd = box.web) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/landing-${number}`, cwd, 'main');
     assert.match((await fixtureCommand(box, cwd, 'join', 'web')).out, /joined as web-/u);
   }
-  const added = (await fixtureCommand(box, box.repo, 'add', 'web', `Landing fixture ${number}`, '--specs', 'G1', '--criterion', `landing fixture ${number} remains valid`,
+  const added = (await fixtureCommand(box, box.repo, 'add', 'web', `Landing fixture ${number}`, '--specs', 'G1', '--route', 'strong', '--criterion', `landing fixture ${number} remains valid`,
     '--check', 'node --check web/feature.js', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -896,7 +898,7 @@ test('retained main controls builder first refusal during detached review [B13,B
   const box = project();
   /** Await real production commands; fixture moves do not start an unrelated next-work search. */
   const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
-  const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--wait');
+  const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong', '--wait');
   assert.equal(added.code, 0, added.err);
   const claimedFirst = await command(box.web, 'claim', '1');
   assert.equal(claimedFirst.code, 0, claimedFirst.err);
