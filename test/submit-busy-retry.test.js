@@ -10,7 +10,7 @@ const settle = (run, extra = {}) => {
     .then(out => ({ ...out, waits }), error => Object.assign(error, { waits }));
 };
 
-test('many BOARD_BUSY, DATABASE_LOCKED and SLOT_DB_LOCKED answers wait and then go green, counting no attempt [C7]', async () => {
+test('clause 1: many BOARD_BUSY, DATABASE_LOCKED and SLOT_DB_LOCKED answers wait and then go green, counting no attempt [C7]', async () => {
   const codes = ['BOARD_BUSY', 'BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED', 'BOARD_BUSY', 'BOARD_BUSY'];
   const pinned = [];
   const out = await settle(async () => {
@@ -26,7 +26,7 @@ test('many BOARD_BUSY, DATABASE_LOCKED and SLOT_DB_LOCKED answers wait and then 
   assert.deepEqual(out.attempts, [], 'no infrastructure attempt was counted');
 });
 
-test('only a runner or gate failure counts toward GATE_INFRA_EXHAUSTED, even after busy waits [C7]', async () => {
+test('clause 2: only a runner or gate failure counts toward GATE_INFRA_EXHAUSTED, even after busy waits [C7]', async () => {
   let calls = 0;
   const out = await settle(async () => {
     calls += 1;
@@ -37,7 +37,7 @@ test('only a runner or gate failure counts toward GATE_INFRA_EXHAUSTED, even aft
   assert.deepEqual(out.attempts.map(row => row.code), Array(4).fill('RUNNER_UNAVAILABLE'), 'busy answers are not among the counted attempts');
 });
 
-test('busy waits back off and are recorded with each code and duration [C7]', async () => {
+test('clause 3: busy waits back off and are recorded with each code and duration [C7]', async () => {
   let calls = 0;
   const out = await settle(async () => { calls += 1; if (calls <= 3) throw new Refused(calls === 2 ? 'SLOT_DB_LOCKED' : 'BOARD_BUSY', 'busy'); return 'GREEN'; });
   assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 1 }, { code: 'SLOT_DB_LOCKED', seconds: 2 }, { code: 'BOARD_BUSY', seconds: 4 }]);
