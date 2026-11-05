@@ -57,6 +57,7 @@ function project(box) {
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  box.env.PULLBOARD_MODEL ||= 'Fixture builder';
   assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
   return { repo, web };
 }
@@ -71,8 +72,7 @@ function succeeds(box, cwd, ...args) {
 /** Add, claim, commit and submit an item whose criterion names a guard, then check out its commit. */
 function submittedWithGuard(box, repo, web, check) {
   const criterion = 'The fixture item is complete. guard: web/guard.js:1-1';
-  const added = succeeds(box, repo, 'add', 'web', 'Guarded fix', '--specs', 'G1', '--criterion', criterion,
-    '--brief', 'Files: web/guard.js\nTest: the frozen guard check runs', '--check', check);
+  const added = succeeds(box, repo, 'add', 'web', 'Guarded fix', '--specs', 'G1', '--criterion', criterion, '--check', check, '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
   const id = Number(/#(\d+)/.exec(added)?.[1]);
   succeeds(box, web, 'claim', String(id));
   mkdirSync(join(web, 'web'), { recursive: true });
