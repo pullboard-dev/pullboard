@@ -7,8 +7,9 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
   const laneHolds = new Map((project.holds ?? []).map(hold => [hold.hold_lane, hold.hold_reason]));
   const items = (project.items ?? []).map(item => ({ ...item, landingBatchAt: landingAt.get(item.id) || null,
     heldReason: holds.get(item.id) || null, laneHoldReason: laneHolds.get(item.lane) || null,
-    owner: item.status === 'claimed' ? item.claim?.by : null,
-    reviewer: item.status === 'submitted' ? item.claim?.by : null, reviewUntil: item.claim?.until }));
+    owner: item.status === 'claimed' ? item.claim?.by || item.owner : null,
+    reviewer: item.status === 'submitted' ? item.reviewer || item.claim?.by : null,
+    reviewUntil: item.status === 'submitted' ? item.reviewUntil || item.claim?.until : null }));
   const byId = new Map(items.map(item => [item.id, item]));
   const merged = new Map((project.dashboardLanded ?? []).map(entry => [entry.id, entry]));
   const prefix = project.sequence ?? Infinity;
@@ -80,7 +81,48 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
     }
     if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind)) close('review:' + id, at);
   }
-  const claims = items.filter(item => item.status === 'claimed' && item.claim?.by && item.claim.by === item.owner && Date.parse(item.claim.until) > now);
+  /**
+   * The most agents holding a claim or a review at one moment in the last 24 hours, read from the same claim, renew,
+   * reserve, release and close events the timeline reads. An agent counts once however many holds it has open then.
+   * Kept inside this function because the page embeds dashboardModel's source text, so no helper may sit outside it [N26].
+   */
+  const peakAgents = (() => {
+    const floorAt = now - 24 * hour, open = new Map(), spans = [];
+    /** End one open hold at a moment, keeping only the part of it that falls in the last 24 hours. */
+    const end = (key, at) => {
+      const held = open.get(key); if (!held) return;
+      open.delete(key);
+      const from = Math.max(held.start, floorAt), to = Math.min(at, held.until ?? now, now);
+      if (to > from) spans.push({ actor: held.actor, start: from, end: to });
+    };
+    for (const event of events) {
+      const at = Date.parse(event.event_at), d = detail(event), id = event.item_id;
+      if (!Number.isFinite(at)) continue;
+      for (const [key, held] of [...open]) if (held.until <= at) end(key, held.until);
+      if (['claim', 'renew'].includes(event.event_kind)) {
+        const key = 'build:' + id, held = open.get(key);
+        if (held?.actor !== event.event_by) { end(key, at); open.set(key, { actor: event.event_by, start: at, until: Date.parse(d.leaseUntil) || at }); }
+        else held.until = Date.parse(d.leaseUntil) || held.until;
+      }
+      if (['submit', 'lapse', 'withdraw', 'reopen'].includes(event.event_kind) || event.event_kind === 'release' && !d.review) end('build:' + id, at);
+      if (event.event_kind === 'release' && d.review) end('review:' + id, at);
+      if (event.event_kind === 'reserve') {
+        const key = 'review:' + id, held = open.get(key);
+        if (held?.actor !== event.event_by) { end(key, at); open.set(key, { actor: event.event_by, start: at, until: Date.parse(d.until) || at }); }
+        else held.until = Date.parse(d.until) || held.until;
+      }
+      if (['accept', 'reject', 'reopen', 'withdraw', 'patch'].includes(event.event_kind)) end('review:' + id, at);
+    }
+    for (const key of [...open.keys()]) end(key, now);
+    // Concurrency only rises at a span's start, so those starts are the only moments worth counting.
+    let peak = 0;
+    for (const { start: moment } of spans) {
+      const holders = new Set(spans.filter(span => span.start <= moment && moment < span.end).map(span => span.actor));
+      peak = Math.max(peak, holders.size);
+    }
+    return peak;
+  })();
+  const claims = items.filter(item => item.status === 'claimed' && item.owner && Date.parse(item.claim?.until) > now);
   const reviewing = items.filter(item => item.status === 'submitted');
   // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
   // a build at once still reports each one's age; null means the history holds no open stay for this holder.
@@ -121,7 +163,7 @@ export function dashboardModel(project, history, { now, complete = true } = {}) 
   const order = new Map((project.dashboardNext ?? []).map((id, index) => [id, index]));
   const next = items.filter(item => item.status === 'open' && !(item.blockedBy?.length) && !heldItems.has(item.id) && !heldLanes.has(item.lane))
     .toSorted((a,b) => (order.get(a.id) ?? Infinity)-(order.get(b.id) ?? Infinity) || a.id-b.id);
-  return { now, start, complete, pace, claims, reviewing, agents, milestone, comparison: project.statsComparison ?? null,
+  return { now, start, complete, pace, peak: complete ? peakAgents : null, claims, reviewing, agents, milestone, comparison: project.statsComparison ?? null,
     pipeline: project.statsPipeline ?? null,
     inFlight: { building: claims.filter(item => milestoneIds.has(item.id)), review: reviewing.filter(item => milestoneIds.has(item.id)) },
     landed: [...landed].map(([id, at]) => ({ item: byId.get(id), at })).sort((a,b) => b.at-a.at),
