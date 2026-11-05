@@ -1,8 +1,8 @@
 /** A gate slot held by a live but hung process is terminated, freed and its captured request re-run once [C7]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -74,4 +74,83 @@ test('a stale-live holder is terminated, its slot freed and its captured request
     assert.equal(count('requeue'), 1, 'the request is re-dispatched once');
     assert.equal(count('requeue-spent'), 0, 'the re-dispatch is never requeued again');
   } finally { db.close(); }
+});
+
+/** A holder that takes the slot, then blocks its event loop in a synchronous gate run of the given seconds. */
+const BLOCKED = `import { writeFileSync } from 'node:fs';
+const { takeResource } = await import(${JSON.stringify(pathToFileURL(join(REPO, 'packages/resources/index.js')).href)});
+const { runProfiledShell } = await import(${JSON.stringify(pathToFileURL(join(REPO, 'packages/gate/index.js')).href)});
+const [ready, done, root, seconds] = process.argv.slice(2);
+const lease = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', agent: 'blocked' });
+writeFileSync(ready, lease.token);
+const run = runProfiledShell(root, 'sleep ' + seconds, { gateLease: lease });
+writeFileSync(done, String(run.exitCode));
+lease.release();
+`;
+
+/** Start the blocked holder in its own group and wait until it holds the slot; returns its token and paths. */
+async function blockedHolder(t, dir, seconds) {
+  writeFileSync(join(dir, 'blocked.mjs'), BLOCKED);
+  // A gate run reads its log path from Git, so the run's root is a real repository.
+  spawnSync('git', ['init', '--quiet', dir]);
+  const ready = join(dir, 'blocked-ready');
+  const done = join(dir, 'blocked-done');
+  const holder = spawn(process.execPath, [join(dir, 'blocked.mjs'), ready, done, dir, String(seconds)],
+    { detached: true, stdio: 'ignore', env: { ...process.env } });
+  t.after(() => { try { process.kill(-holder.pid, 'SIGKILL'); } catch { /* Already gone. */ } });
+  await waitForCondition(() => existsSync(ready) && readFileSync(ready, 'utf8').length > 0, 'the blocked holder takes the slot');
+  return { holder, token: readFileSync(ready, 'utf8'), done };
+}
+
+/** Whether any process still carries this lease token in its arguments, which only the heartbeat helper does. */
+function helperRunning(token) {
+  const { stdout } = spawnSync('/bin/ps', ['-axwwo', 'args='], { encoding: 'utf8' });
+  return stdout.split('\n').some(line => line.includes(token));
+}
+
+/** Set the shortened liveness windows for one test and restore them after it. */
+function shortWindows(t, home) {
+  const env = { PULLBOARD_MACHINE_HOME: home, PULLBOARD_STALE_HOLDER_MS: '1500', PULLBOARD_HOLDER_KILL_GRACE_MS: '500', PULLBOARD_BLOCKED_HEARTBEAT_MS: '200' };
+  for (const [key, value] of Object.entries(env)) process.env[key] = value;
+  t.after(() => { for (const key of Object.keys(env)) delete process.env[key]; });
+}
+
+test('a holder blocked in a synchronous gate run keeps a fresh heartbeat and is never signalled [C7]', async t => {
+  const { dir, home } = fixture(t);
+  shortWindows(t, home);
+  const { takeResource } = await import(pathToFileURL(join(REPO, 'packages/resources/index.js')).href);
+  const { token, done } = await blockedHolder(t, dir, 4);
+  const db = new DatabaseSync(join(home, 'resources.sqlite'));
+  t.after(() => db.close());
+  let oldest = 0;
+  // Each take runs the reclaimer, which would SIGTERM a holder silent past the 1.5 s window.
+  const deadline = Date.now() + 15_000;
+  while (!existsSync(done) && Date.now() < deadline) {
+    const probe = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', agent: 'probe' });
+    probe.release();
+    const beat = () => db.prepare('SELECT heartbeat FROM holder WHERE token = ?').get(token)?.heartbeat;
+    const seen = beat();
+    if (seen) oldest = Math.max(oldest, Date.now() - seen);
+    // The next probe waits for the next refreshed heartbeat, the run's end, or a freed row.
+    await waitForCondition(() => existsSync(done) || beat() !== seen, 'the blocked holder heartbeat refreshes', { signal: AbortSignal.timeout(5_000) });
+  }
+  assert.equal(existsSync(done) && readFileSync(done, 'utf8'), '0', 'the blocked run completes');
+  assert.ok(oldest < 1500, `the holder heartbeat stays inside the hung window while blocked (oldest ${oldest} ms)`);
+  const terminated = db.prepare("SELECT COUNT(*) AS n FROM liveness_event WHERE kind = 'terminate'").get().n;
+  assert.equal(terminated, 0, 'the blocked holder is never signalled');
+});
+
+test('the out-of-loop heartbeat stops once the run returns and once its holder dies [C7]', async t => {
+  const { dir, home } = fixture(t);
+  shortWindows(t, home);
+  const returned = await blockedHolder(t, dir, 1);
+  await waitForCondition(() => existsSync(returned.done), 'the short run returns');
+  await waitForCondition(() => !helperRunning(returned.token), 'the helper stops within 5 s of the run returning', { signal: AbortSignal.timeout(5_000) });
+
+  const killedDir = join(dir, 'killed');
+  mkdirSync(killedDir);
+  const killed = await blockedHolder(t, killedDir, 30);
+  await waitForCondition(() => helperRunning(killed.token), 'the helper runs while the holder is blocked');
+  process.kill(killed.holder.pid, 'SIGKILL');
+  await waitForCondition(() => !helperRunning(killed.token), 'the helper stops within 5 s of its holder dying', { signal: AbortSignal.timeout(5_000) });
 });
