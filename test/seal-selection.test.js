@@ -13,8 +13,12 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import {
+  CLEAN_GATES_TO_ENFORCE,
+  countTrialGate,
   recordSeal,
   requireSealedSkips,
+  refusalMode,
+  runMachineryGuard,
   runSubmitGate,
   submitGatePlan,
   sealStatus,
@@ -112,9 +116,16 @@ test('control: the real submit path refuses a unit or front-door contract droppe
   assert.equal(plan.testTiers.commit, head);
   assert.ok(plan.testTiers.units.includes(USER_TEST) && plan.proofFiles.includes(USER_TEST), 'the real selection runs the importer');
   assert.doesNotThrow(() => requireSealedSkips(root, plan.testTiers, { proofFiles: plan.proofFiles, check: plan.check }));
+  await assert.doesNotReject(runSubmitGate(root, config, { base: first, check: plan.check, plan, staticChecked: true, executionServices }),
+    'the complete selection is accepted by the real submit path');
   const dropped = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST),
     testTiers: { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== USER_TEST) } };
   assert.deepEqual(dropped.testTiers.skipped, plan.testTiers.skipped, 'nothing is added to skipped');
+  await runMachineryGuard(root, () => requireSealedSkips(root, dropped.testTiers, { proofFiles: dropped.proofFiles, check: dropped.check }),
+    { kind: 'selection', rule: requireSealedSkips.toString(), say() {} });
+  for (let gate = 0; gate < CLEAN_GATES_TO_ENFORCE; gate++) countTrialGate(root, { id: `selection-control-${gate}` });
+  assert.deepEqual(refusalMode(root, 'TEST_SELECTION_INCOMPLETE', { rule: ['selection', requireSealedSkips.toString()] }),
+    { mode: 'enforce', clean: CLEAN_GATES_TO_ENFORCE }, 'the isolated selection guard has completed its report-only trial');
   await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: dropped, staticChecked: true, executionServices }),
     { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/user\/tests\/user\.test\.js/u });
   const unrun = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST) };

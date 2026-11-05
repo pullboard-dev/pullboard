@@ -1,4 +1,5 @@
 import { requireTestTierAccount } from '../../../gate/index.js';
+import { hasTestTiers } from '../../../gate/index.js';
 import { selectTestTiers } from '../../../gate/index.js';
 import { requireSealedSkips } from '../../../gate/index.js';
 import { landingRunFiles } from '../../../gate/index.js';
@@ -88,9 +89,13 @@ function batchAffectedTests(state, readEvents, readItem) {
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
-/** The project's own full configured gate, used when no narrower plan can be established [#2897]. */
+/**
+ * The project's own full configured gate, used when no narrower plan can be established [#2897].
+ * Why no VALUE_GATE mark: the command is the unchanged configured gate, so its green run stamps the tree and the
+ * landing's own pre-push reads that stamp instead of running the whole gate a second time (#3137).
+ */
 function fullGatePlan(state) {
-  const config = { ...state.config, [VALUE_GATE]: true };
+  const config = { ...state.config };
   return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
 }
 
@@ -99,13 +104,20 @@ export function batchGatePlan(state, options = {}) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
-    const config = { ...state.config, [VALUE_GATE]: true };
-    return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+    return fullGatePlan(state);
   }
 }
 
 /** The narrowest proved plan for the batch's merged tree, refusing LAND_DIAGNOSTIC when none can be read. */
-function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
+function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id), focus = null } = {}) {
+  // A bisection round runs only the files the batch failed: a half's whole plan took a full gate per round, and the
+  // final green set still runs its whole plan before landing (#landOnTrunk). Why: a four-item bisect cost 15 minutes.
+  if (focus?.length && state.config.affectedTests?.trim() && !hasTestTiers(state.batch.root)) {
+    const files = [...new Set(focus)].sort();
+    const command = `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`;
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, focused: true,
+      affectedGate: createHash('sha256').update(`focus:${command}`).digest('hex') };
+  }
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
@@ -117,8 +129,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   if (!state.config.affectedTests?.trim()) {
     // Projects without selective-runner policy keep their configured full gate. Its command is the legacy contract
     // for the project and already includes the item check (the source-matched proof was checked at submit).
-    const config = { ...state.config, [VALUE_GATE]: true };
-    return { config, files: selection.files, subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+    return { ...fullGatePlan(state), files: selection.files };
   }
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
   const files = [...new Set([...selection.files, ...deferred])].sort();
@@ -210,7 +221,10 @@ export async function gateGroup(state, label, options) {
   if (cached?.blockingVerdict) {
     try { state.landingPorts.validateQuarantineGate(state.board, cached); } catch { cached = null; }
   }
-  if (cached && (completeGate(cached) || !coveredFailures(state, cached))) return cached;
+  // A recorded run that was stopped before any test failed (every shard "stopped", no named failure) is no verdict:
+  // an adopting worker reran nothing and refused LAND_DIAGNOSTIC on it, so the batch stays blocked on a run that never
+  // finished [C7]. Only a complete run, or an incomplete one with its own named reds, is reused.
+  if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   const directory = join(dirname(state.batch.root), 'logs');
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
