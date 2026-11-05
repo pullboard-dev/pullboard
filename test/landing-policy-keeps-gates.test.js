@@ -69,7 +69,7 @@ function queuedState(box, id) {
   finally { closeBoard(board); }
 }
 
-for (const landingOnly of [true, false]) test(`a real running queued worker ${landingOnly ? 'finishes after landing changes' : 'requeues changed gate policy without a red'} [C7,V4]`, { timeout: 240_000 }, async t => {
+for (const landingOnly of [true, false]) test(`clause ${landingOnly ? 1 : 2}: a real running queued worker ${landingOnly ? 'finishes after landing changes' : 'requeues changed gate policy without a red'} [C7,V4]`, { timeout: 240_000 }, async t => {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   const armed = join(box.dir, 'policy-armed');
