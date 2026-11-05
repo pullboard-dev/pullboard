@@ -1,4 +1,6 @@
 /** A landing batch judges its red cases against main the way submit does (#2528), so known main reds never jam it [B3,C7]. */
+import { spawnSync } from 'node:child_process';
+import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
@@ -20,6 +22,7 @@ export async function knownMainAccount(state, gate) {
   const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true });
   if (!failures?.length) return null;
   const known = [], remaining = [];
+  let changed = null;
   // Each failing file is compared on its own: a file main cannot run (new in the batch) never hides another file's known case.
   for (const file of [...new Set(failures.map(failure => failure.file))]) {
     const cases = failures.filter(failure => failure.file === file);
@@ -29,7 +32,8 @@ export async function knownMainAccount(state, gate) {
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         { commit: state.batch.base, detailed: true, allowCancelled: true });
     } catch { /* An unavailable comparison never excuses a red case. */ }
-    for (const failure of cases) (comparison && matchingMainFailures([failure], comparison, state.batch.base) ? known : remaining).push(failure);
+    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base)
+      || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
   return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining };
@@ -83,4 +87,34 @@ export async function fileKnownMainReds(state, known) {
     } catch (error) { state.say(`main red ${file} was not filed (${error.message}); the coordinator must file its repair`); }
   }
   return filed;
+}
+
+/**
+ * Whether a whole-file failure that names no case sits in a test file main itself fails while no batch item changed it.
+ * Why: an item lands unless its own change breaks a test that passes on main [C7,#3073]. Named cases are matched one by
+ * one; only a runner abort that names no case has nothing to match, and it kept main's red files blocking every batch.
+ *
+ * @param {{file: string, ran?: string}} failure - One batch failure.
+ * @param {{ files: Array<{file: string, result: string}>, coarseFiles?: Array<{file: string, result: string}> }} comparison - Main's run of the failing files.
+ * @param {Set<string>|null} changed - Files the batch changed against its base; null when they cannot be read.
+ * @returns {boolean}
+ */
+export function redOnMainUntouched(failure, comparison, changed) {
+  if (!changed || !failure?.file || !unnamedFileFailure(failure)) return false;
+  const file = failure.ran ?? failure.file;
+  const rows = [...(comparison.files ?? []), ...(comparison.coarseFiles ?? [])];
+  return rows.some(row => row.file === file && row.result === 'red') && !changed.has(file) && !changed.has(failure.file);
+}
+
+/** The files the batch's merged tree changed against its base, or null when Git cannot say. */
+function changedFiles(state) {
+  const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
+  return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
+}
+
+/** Whether a failure is a whole-file row naming no case: the reporter names it by the file's own path. */
+function unnamedFileFailure(failure) {
+  const name = String(failure.name ?? '');
+  // Only the bare path itself: a case title that merely mentions the path never qualifies.
+  return name === failure.file || (isAbsolute(name) && !/\s/u.test(name) && name.endsWith(`/${failure.file}`));
 }
