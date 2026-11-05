@@ -54,12 +54,13 @@ export function withGitReadFacts(work) {
  * @returns {Promise<unknown>}
  */
 export async function withGitFacts(work, { resumeSources = false } = {}) {
-  const cache = { active: true, facts: new Map(), adapterFacts: new WeakMap(), resumeSources };
+  const cache = { active: true, facts: new Map(), observations: new Map(), adapterFacts: new WeakMap(), resumeSources };
   const run = () => gitFacts.run(cache, async () => {
     try { return await work(); }
     finally {
       cache.active = false;
       cache.facts.clear();
+      cache.observations.clear();
     }
   });
   // CLI authority must always use fresh Git facts, even when invoked from an API read callback.
@@ -72,10 +73,23 @@ export function setResumeSourceFacts(enabled) {
   if (cache?.active) cache.resumeSources = enabled === true;
 }
 
-/** Drop facts after this command changes Git state such as refs, configuration, or worktrees. */
-export function invalidateGitFacts() {
-  scopedFacts()?.clear();
+/**
+ * Drop facts after this command changes Git state such as refs, configuration, or worktrees. `keepIdentity` keeps
+ * where each checkout and its Git directories are: a reread of policy before a board write needs fresh refs, and no
+ * read of a checkout's location can change without a Git write, which drops everything.
+ */
+export function invalidateGitFacts({ keepIdentity = false } = {}) {
+  const facts = scopedFacts();
+  if (facts && keepIdentity) {
+    for (const key of [...facts.keys()]) if (!key.startsWith('repoInfo:')) facts.delete(key);
+  } else facts?.clear();
   if (currentGitAdapter() === realGitAdapter) persistentReadFacts.clear();
+}
+
+/** A Git write may change any fact or observation this command holds, so it forgets both. */
+function forgetAfterWrite() {
+  invalidateGitFacts();
+  gitFacts.getStore()?.observations?.clear();
 }
 
 /** Keep injected repositories out of real-Git facts, including nested implementations in one command. */
@@ -358,6 +372,36 @@ function fact(key, read) {
   return value;
 }
 
+/**
+ * Reuse one Git-derived observation for the rest of this command, as the built-in facts are reused. A Git write through
+ * git() or tryGit() clears it, and outside a command scope it is computed every time.
+ *
+ * @param {string} key
+ * @param {() => any} read
+ * @returns {any}
+ */
+export function commandFact(key, read) {
+  return fact(`command:${key}`, read);
+}
+
+/**
+ * Reuse one observation of working files for the rest of this command. Unlike a fact it outlives the fresh-facts reset
+ * a write takes before its lock: that reset is for policy, and a command reports one view of each seat's edits. A Git
+ * write made through git() or tryGit() still forgets it.
+ *
+ * @param {string} key
+ * @param {() => any} read
+ * @returns {any}
+ */
+export function commandObservation(key, read) {
+  const cache = gitFacts.getStore();
+  if (!cache?.active || currentGitAdapter() !== realGitAdapter) return read();
+  if (cache.observations.has(key)) return cache.observations.get(key);
+  const value = read();
+  cache.observations.set(key, value);
+  return value;
+}
+
 /** Read one Git config value with its status, reusing the same query for this command.
  *
  * @param {string} root
@@ -419,6 +463,8 @@ export function mainSourceBlobs(root) {
  * @returns {{ branch: string, commit: string | null } | null}
  */
 function readMainCheckout(root) {
+  const files = fileMainCheckout(root);
+  if (files !== undefined) return files;
   const env = cleanGitEnvironment();
   /** Run one Git lookup with the sanitized environment. */
   const gitCall = (args) => gitSpawnSync([...GIT_FLAGS, ...args], {
@@ -435,6 +481,159 @@ function readMainCheckout(root) {
   if (resolved.status !== 0 && resolved.status !== 1) throw new Refused('NO_POLICY', 'the primary checkout commit cannot be read; restore its Git objects and ask the coordinator to retry');
   return { branch, commit: resolved.status === 0 ? resolved.stdout.trim() : null };
 }
+const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+
+/**
+ * Locate a checkout's Git metadata from its files: the worktree Git dir and the shared one. Undefined when an inherited
+ * selector, a reftable store or an unusual layout means only Git can answer, so callers fall back to Git itself.
+ * A clean reader, one that runs Git without inherited selectors anyway, ignores them here too.
+ * Why: a board command read these three facts with three Git processes, each costing more than the read.
+ */
+function fileLocation(root, { clean = false } = {}) {
+  if (!clean && !plainRepositoryEnvironment()) return undefined;
+  try {
+    let top = resolve(root);
+    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    const marker = join(top, '.git');
+    let gitDir = marker;
+    if (!statSync(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(marker, 'utf8').trim());
+      if (!match) return undefined;
+      gitDir = resolve(top, match[1].trim());
+    }
+    const commonFile = join(gitDir, 'commondir');
+    const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+    if (existsSync(join(commonDir, 'reftable'))) return undefined;
+    return { gitDir, commonDir };
+  } catch { return undefined; }
+}
+
+/** Read a HEAD file: its symbolic ref, or null when detached; undefined when the file is not a plain HEAD. */
+function fileHeadRef(gitDir) {
+  try {
+    const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim();
+    if (head.startsWith('ref: refs/')) return head.slice('ref: '.length);
+    return OBJECT_ID.test(head) ? null : undefined;
+  } catch { return undefined; }
+}
+
+/** Resolve a branch from a loose or packed ref: its commit, null when absent, undefined when unreadable. */
+function fileRefCommit(commonDir, ref) {
+  try {
+    const loose = join(commonDir, ref);
+    if (existsSync(loose)) { const value = readFileSync(loose, 'utf8').trim(); return OBJECT_ID.test(value) ? value : undefined; }
+    const packed = join(commonDir, 'packed-refs');
+    if (!existsSync(packed)) return null;
+    const line = readFileSync(packed, 'utf8').split('\n').find(row => row.endsWith(` ${ref}`) && !row.startsWith('#') && !row.startsWith('^'));
+    if (!line) return null;
+    const value = line.slice(0, line.indexOf(' '));
+    return OBJECT_ID.test(value) ? value : undefined;
+  } catch { return undefined; }
+}
+
+/** The primary checkout's branch and commit from Git's files, or undefined when Git must answer. */
+function fileMainCheckout(root) {
+  const location = fileLocation(root);
+  if (!location) return undefined;
+  const branch = fileHeadRef(location.commonDir);
+  if (branch === undefined) return undefined;
+  if (branch === null) return null;
+  const commit = fileRefCommit(location.commonDir, branch);
+  return commit === undefined ? undefined : { branch, commit };
+}
+
+/**
+ * The short branch name a checkout has checked out, or null when detached or unknown, read from its HEAD file when
+ * Git's own files can answer; otherwise Git answers, as symbolic-ref --short does.
+ *
+ * @param {string} root
+ * @returns {string | null}
+ */
+export function checkoutBranch(root) {
+  const location = fileLocation(root);
+  const ref = location ? fileHeadRef(location.gitDir) : undefined;
+  if (ref !== undefined) return ref === null ? null : ref.replace(/^refs\/heads\//u, '');
+  const result = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return result.status === 0 ? result.stdout : null;
+}
+
+/**
+ * A checkout's shared Git directory, read from its files when they can answer; otherwise from Git in env.
+ *
+ * @param {string} root
+ * @param {{ env?: NodeJS.ProcessEnv }} [options]
+ * @returns {string | null}
+ */
+export function checkoutCommonDir(root, { env = process.env } = {}) {
+  const location = fileLocation(root);
+  if (location) return location.commonDir;
+  const result = tryGit(root, ['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
+  return result.status === 0 ? result.stdout : null;
+}
+/**
+ * A checkout's HEAD commit read from its files, or undefined when Git must answer (an inherited selector, a reftable
+ * store, an unreadable ref).
+ *
+ * @param {string} root
+ * @returns {string | undefined}
+ */
+export function checkoutHead(root) {
+  const location = fileLocation(root);
+  if (!location) return undefined;
+  const ref = fileHeadRef(location.gitDir);
+  if (ref === undefined) return undefined;
+  if (ref === null) {
+    try { return readFileSync(join(location.gitDir, 'HEAD'), 'utf8').trim(); } catch { return undefined; }
+  }
+  return fileRefCommit(location.commonDir, ref) ?? undefined;
+}
+
+/**
+ * A branch's commit in a checkout's repository, read from Git's ref files, or undefined when Git must answer.
+ *
+ * @param {string} root
+ * @param {string} ref a full ref name, such as refs/heads/main
+ * @returns {string | null | undefined}
+ */
+export function checkoutRefCommit(root, ref) {
+  const location = fileLocation(root);
+  return location ? fileRefCommit(location.commonDir, ref) : undefined;
+}
+
+/**
+ * This command's one porcelain v1 status of a worktree, untracked files listed, as raw bytes. Every reader of a seat's
+ * edits in one command shares it. Throws as Git does when the worktree cannot be read.
+ *
+ * @param {string} root
+ * @returns {Buffer}
+ */
+export function worktreeStatus(root) {
+  return commandObservation(JSON.stringify(['worktree-status', resolve(root)]), () => gitExecFileSync(
+    ['--no-optional-locks', '--no-replace-objects', '-c', 'core.quotepath=false', 'status', '--porcelain=v1', '-z', '--untracked-files=all'],
+    { cwd: root, timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }));
+}
+
+/**
+ * Split a porcelain v1 -z status into the paths it changes, both sides of a rename or copy, and its untracked paths.
+ *
+ * @param {Buffer | string} status
+ * @returns {{ changed: string[], untracked: string[] }}
+ */
+export function statusPaths(status) {
+  const fields = status.toString('utf8').split('\0');
+  const changed = [], untracked = [];
+  for (let index = 0; index < fields.length; index++) {
+    const entry = fields[index];
+    if (entry.length < 4) continue;
+    const code = entry.slice(0, 2), path = entry.slice(3);
+    if (code === '??') { untracked.push(path); continue; }
+    if (code === '!!') continue;
+    changed.push(path);
+    if (/[RC]/u.test(code)) changed.push(fields[++index]);
+  }
+  return { changed, untracked };
+}
+
 const CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /**
@@ -481,7 +680,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
     }).trim();
   } finally {
-    if (changesGitFacts(args)) invalidateGitFacts();
+    if (changesGitFacts(args)) forgetAfterWrite();
   }
 }
 
@@ -494,7 +693,7 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
  */
 export function tryGit(cwd, args, { env = process.env } = {}) {
   const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
-  if (changesGitFacts(args)) invalidateGitFacts();
+  if (changesGitFacts(args)) forgetAfterWrite();
   return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim(), stderr: (result.stderr ?? '').trim() };
 }
 
@@ -576,7 +775,33 @@ function boundedRepoInfo(cwd, { env } = {}) {
 }
 
 /**
- * Read top level, worktree Git dir and shared Git dir in one process. With no inherited selector, the same process
+ * The repo around `cwd` read from Git's own files, with this command's HEAD and primary-checkout facts, or undefined
+ * when only Git can answer: a separate work tree or bare setting in the config, a reftable store, a cwd inside the Git
+ * directory, or any unreadable file. Why: every command asked Git for these three paths before doing anything.
+ */
+function fileRepoInfo(cwd) {
+  try {
+    const here = realpathSync.native(cwd);
+    let top = here;
+    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    const location = fileLocation(top);
+    if (!location) return undefined;
+    const gitDir = realpathSync.native(location.gitDir), commonDir = realpathSync.native(location.commonDir);
+    if (here === gitDir || here.startsWith(gitDir + sep) || here === commonDir || here.startsWith(commonDir + sep)) return undefined;
+    if (existsSync(join(gitDir, 'config.worktree'))) return undefined;
+    const config = readFileSync(join(commonDir, 'config'), 'utf8');
+    if (/^\s*worktree\s*=/imu.test(config) || /^\s*bare\s*=\s*(?:true|yes|on|1)\s*$/imu.test(config)) return undefined;
+    const head = checkoutHead(top), main = fileMainCheckout(top);
+    if (head === undefined || main === undefined) return undefined;
+    const facts = scopedFacts();
+    facts.set(`headCommit:${resolve(top)}`, head);
+    facts.set(`mainCheckout:${resolve(top)}`, main);
+    return { root: top, commonDir, gitDir, isMain: gitDir === commonDir };
+  } catch { return undefined; }
+}
+
+/**
+ * Read top level, worktree Git dir and shared Git dir, from Git's files when they can answer, else in one process. With no inherited selector, the same process
  * also reads this checkout's HEAD commit and the primary checkout's branch and commit, and keeps them as this
  * command's headCommit, mainCheckout and effective hook-path facts, preserving Git's own configuration resolution.
  *
@@ -585,6 +810,10 @@ function boundedRepoInfo(cwd, { env } = {}) {
  */
 function readRepoInfo(cwd, env) {
   const combined = !env && gitFacts.getStore()?.active && plainRepositoryEnvironment();
+  if (combined && !gitFacts.getStore().resumeSources) {
+    const files = fileRepoInfo(cwd);
+    if (files) return files;
+  }
   const resumeSources = combined && gitFacts.getStore().resumeSources;
   const optional = ['main-worktree/HEAD:pullboard.json', 'main-worktree/HEAD:DOCTRINE.md'];
   const primary = combined ? ['HEAD^{commit}', 'main-worktree/HEAD^{commit}', '--git-path', 'hooks',
@@ -643,6 +872,11 @@ export function codeUsesRepository(commonDir, root = CODE_ROOT) {
 
 /** Determine whether the code is from its main checkout, retaining the non-repository fallback. */
 function readCodeIsFromMain(root) {
+  // Git's own files say whether the code's checkout is the main one: there the worktree Git dir is the shared one.
+  const location = fileLocation(root, { clean: true });
+  if (location) {
+    try { return realpathSync.native(location.commonDir) === realpathSync.native(location.gitDir); } catch { /* Git answers below. */ }
+  }
   // The same variables `git rev-parse --local-env-vars` names, cleared without a Git process to ask.
   const env = cleanGitEnvironment();
   const info = tryGit(root, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir'], { env });
@@ -815,8 +1049,11 @@ export function contains(root, ancestor, descendant) {
  * @returns {string}
  */
 export function gitPath(root, name) {
-  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`,
-    () => resolve(root, git(root, ['rev-parse', '--git-path', name])));
+  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
+    // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
+    const location = /^pullboard-[\w.-]+$/u.test(name) ? fileLocation(root) : undefined;
+    return location ? join(location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
+  });
 }
 
 /** Refuse lane-sensitive history checks while grafts can rewrite commit ancestry despite replacement guards [L3]. */

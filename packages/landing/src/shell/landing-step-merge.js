@@ -4,6 +4,7 @@ import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
+import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../merge/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { refreshLandingDocs } from './landing-docs.js';
@@ -21,6 +22,7 @@ import { landingContext } from '../core/landing-message.js';
 import { tightenLandingDoctrine } from './landing-doctrine.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
+import { landingHooks } from './landing-step-selection.js';
 
 /** Append a durable snapshot before or after each external side effect. */
 export async function save(state, patch) {
@@ -81,6 +83,8 @@ export async function mergeGroup(state, items) {
   const merged = [];
   const conflicts = [];
   const resolutions = [];
+  // A per-item landing merges the reviewed commit with repository hooks off: they ran when the item was built [C7,#2901].
+  const hooks = landingHooks(state.config);
   for (const entry of items) {
     await state.checkLease();
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
@@ -94,7 +98,7 @@ export async function mergeGroup(state, items) {
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
     const trunk = headCommit(batch.root);
     const message = messages.get(item.item_id);
-    const result = tryGit(batch.root, ['-c', 'merge.log=false', 'merge', '--no-ff', '--no-log', checked, '-m', message.header, '-m', message.trailers]);
+    const result = tryGit(batch.root, [...hooks, '-c', 'merge.log=false', 'merge', '--no-ff', '--no-log', checked, '-m', message.header, '-m', message.trailers]);
     if (result.status !== 0) {
       const files = tryGit(batch.root, ['diff', '--name-only', '--diff-filter=U']).stdout.split('\n').filter(Boolean);
       if (!files.length) throw new Refused('LAND_MERGE', `merge of #${item.item_id} failed outside a conflict: ${result.stderr || result.stdout}; inspect ${batch.root} and its hooks before adopting`);
@@ -106,7 +110,7 @@ export async function mergeGroup(state, items) {
       if (!resolution.files.length) {
         git(batch.root, ['add', '--', ...files]);
         // The message is written again, so Git's conflict notes can never follow the trailers.
-        git(batch.root, ['commit', '-m', message.header, '-m', message.trailers]);
+        git(batch.root, [...hooks, 'commit', '-m', message.header, '-m', message.trailers]);
         resolutions.push({ id: item.item_id, files, entries: resolution.entries });
         state.say(`mechanical merge #${item.item_id}: ${files.join(', ')}`);
       } else {
@@ -119,12 +123,12 @@ export async function mergeGroup(state, items) {
     const gateRenames = repointLandingGates(batch.root, state.config, trunk, headCommit(batch.root));
     if (gateRenames.length) {
       git(batch.root, ['add', '--', state.config.spec]);
-      git(batch.root, ['commit', '--amend', '--no-edit']);
+      git(batch.root, [...hooks, 'commit', '--amend', '--no-edit']);
       resolutions.push({ id: item.item_id, files: [state.config.spec], entries: gateRenames.map(change => ({ kind: 'spec-gate-rename', ...change })) });
       for (const change of gateRenames) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
-    const engines = amendLandingEngines(batch.root);
+    const engines = amendLandingEngines(batch.root, hooks);
     for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = firstContainingCommit(batch.root, checked);
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
@@ -137,12 +141,12 @@ export async function mergeGroup(state, items) {
       const parents = git(batch.root, ['rev-list', '--parents', '-n', '1', tip]).split(' ');
       if (tip !== batch.base && parents.length === 3 && merged.some(entry => entry.merge === tip)) {
         // Badges belong to the final item merge, preserving its parents/trailer and first-containing receipt.
-        git(batch.root, ['commit', '--amend', '--no-edit']);
+        git(batch.root, [...hooks, 'commit', '--amend', '--no-edit']);
         const refreshed = headCommit(batch.root);
         for (const entry of merged) if (entry.merge === tip) entry.merge = refreshed;
       } else {
         // An already-contained item may create no merge: never amend the existing trunk's history.
-        git(batch.root, ['commit', '-m', 'chore: refresh board badge counts']);
+        git(batch.root, [...hooks, 'commit', '-m', 'chore: refresh board badge counts']);
       }
     }
   }
@@ -160,18 +164,20 @@ export async function mergeGroup(state, items) {
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
 }
 
-/** Allocate and stage engine history, then place it before amending that same item merge. */
-export function amendLandingEngines(root) {
+/** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
+export function amendLandingEngines(root, hooks = []) {
   const engines = assignEngineNumbers(root);
   if (existsSync(join(root, 'src', 'formats')) && existsSync(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-  for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);
+  refreshLandingDocs(root);
+  const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
+  for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
   if (engines.files.length) {
     // Canonical rule placement accepts only staged regular files, including this just-generated history.
     git(root, ['add', '--', ...engines.files]);
     const placed = placeLandingHistory(root, engines.files);
     if (placed.length) git(root, ['add', '--', ...placed]);
-    git(root, ['commit', '--amend', '--no-edit']);
+    git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   }
   return engines;
 }

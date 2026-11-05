@@ -4,12 +4,16 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
 import { realpathSync } from 'node:fs';
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
 import { fileWatchdogLimits } from '../core/file-watchdog-policy.js';
 
 /** Observe real writes and return a lifecycle reporter for the current test-file process. */
 export function installFileWatchdog(file) {
   const path = relative(realpathSync(process.cwd()), realpathSync(resolve(file))).replaceAll('\\', '/');
-  const limits = fileWatchdogLimits(path);
+  const limits = fileWatchdogLimits(path, process.env, { load: loadavg()[0], cores: cpus().length });
+  // The limit this file actually ran under, kept in its own output beside the results.
+  if (limits.loadFactor > 1) process.stderr.write(`# run-tests: wall limit ${limits.wallMs}ms (${limits.baseWallMs}ms x ${limits.loadFactor.toFixed(2)} for machine load)\n`);
   const legacyDirectory = process.env.PULLBOARD_LEGACY_WATCHDOG_DIR;
   if (legacyDirectory) delete process.env.PULLBOARD_LEGACY_WATCHDOG_DIR;
   const worker = new Worker(new URL('./file-watchdog-worker.js', import.meta.url), {
