@@ -22,6 +22,17 @@ import { barCoverageCommand } from '../../../../../packages/verify/index.js';
 import { barCoverageForPolicy } from '../../../../../packages/verify/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';
+
+/**
+ * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
+ * accepted warns and writes local-only, so a refused push cannot freeze the board.
+ */
+async function gitSyncOn(ctx, board) {
+  if (!gitSyncLinked(ctx.info.root)) return false;
+  if ((await import('../../../../../packages/sync/index.js')).gitSyncAcknowledged(ctx.info.root, board)) return true;
+  (await import('../cli-sync.js')).warnGitSyncLocalOnly(ctx.io);
+  return false;
+}
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import * as itemSessions from '../../../../../packages/items/index.js';
@@ -133,7 +144,7 @@ export async function ordered(ctx, board, operation, args) {
         ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
       return ctx.privateBoard
         ? store.recordSpecApprovalBaseline(board, ...values)
-        : gitSyncLinked(ctx.info.root)
+        : await gitSyncOn(ctx, board)
         ? (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
         ? relayOperation(ctx.info.root, 'recordSpecApprovalBaseline', values, baselineIo, undefined,
@@ -168,7 +179,7 @@ export async function ordered(ctx, board, operation, args) {
       return result;
     };
     // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
-    const gitLinked = !ctx.privateBoard && gitSyncLinked(ctx.info.root);
+    const gitLinked = !ctx.privateBoard && await gitSyncOn(ctx, board);
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
       : gitLinked
