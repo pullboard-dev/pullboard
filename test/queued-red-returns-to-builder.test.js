@@ -49,8 +49,9 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queued submit with a cells plan [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  // Strong authoring accepts a new item before a capable seat records any light-route diagnosis.
   const add = (title, criterion = `${title} passes its gate.`) => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', criterion, '--check', 'true', '--wait', '--json')).item.item_id;
+    '--route', 'strong', '--criterion', criterion, '--check', 'true', '--wait', '--json')).item.item_id;
   const ids = [add('Refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
   t.after(async () => {
     for (const id of ids) {
