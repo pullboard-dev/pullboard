@@ -1,5 +1,6 @@
 import {
   setImmediate as yieldNext,
+  setTimeout as pause,
 } from 'node:timers/promises';
 import {
   performance,
@@ -160,7 +161,7 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
     finally { stop(); }
   }
   /** Retry transient peer races finitely; an unchanged refusal cannot create a microtask/SQLite spin. */
-  async function retry(found) {
+  async function retry(found, { until = null, rest = 2_000 } = {}) {
     const detail = found.retryDetail ?? { phase: 'routing retry', item: null, code: 'NO_REVIEW_RESERVED' };
     enter(detail.phase, detail.item);
     const key = JSON.stringify([detail.phase, detail.item, detail.code]);
@@ -168,6 +169,12 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
     repeated.set(key, count); retries++;
     try {
     check();
+    if ((count >= 3 || retries >= maxRetries) && until !== null && Date.now() < until) {
+      stop(); repeated.clear(); retries = 0;
+      await pause(rest);
+      started = now(); phaseStarted = started;
+      return;
+    }
     if (count >= 3 || retries >= maxRetries) {
       stop();
       throw new Refused('NEXT_TIMEOUT', `next made no progress in ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; ${detail.code}${detail.message ? ': ' + detail.message : ''}; inspect your current claim or review before retrying`);
