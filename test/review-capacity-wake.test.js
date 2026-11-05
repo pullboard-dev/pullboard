@@ -16,7 +16,8 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  let at = Date.now();
+  const staleBy = Math.max(0, SEAT_LIVE_WINDOW_MS - REVIEW_WAKE_WAIT_MS + 2);
+  let at = Date.now() - staleBy;
   const clock = { now: () => new Date(at) };
   /** Preserve actual parsing, authorization, board writes, health scans and executable delivery. */
   const cli = (cwd, ...argv) => captureCommandInProcess((args, streams) => main(args, { ...streams, clock }), argv,
@@ -44,7 +45,7 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   t.after(() => closeBoard(board));
   assert.equal(getItem(board, item).item_status, 'submitted');
   // Wake tests need an idle reviewer even when the queue's deadline is shorter than seat liveness.
-  at += Math.max(REVIEW_WAKE_WAIT_MS, SEAT_LIVE_WINDOW_MS);
+  at += REVIEW_WAKE_WAIT_MS - 1;
   if (awake) {
     assert.equal(heartbeatSeat(board, JSON.parse(joined.out).agent), true, 'the native local observation protocol marks the reviewer awake');
   }
@@ -54,11 +55,18 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   const wakes = () => existsSync(output) ? readFileSync(output, 'utf8').trim().split('\n').map(row => JSON.parse(row)) : [];
   /** Count only person requests from this capacity rule, excluding ordinary health notices. */
   const requests = () => recentShouts(board).filter(row => row.shout_to === 'person' && row.shout_text.startsWith(`#${item} needs an independent reviewer:`));
-  return { ...box, item, board, sweep, wakes, requests };
+  /** Advance the injected fixture clock without sleeping or changing recorded event timestamps. */
+  function advance(milliseconds) { at += milliseconds; }
+  return { ...box, item, board, sweep, wakes, requests, advance };
 }
 
 test('one health sweep wakes an eligible independent reviewer with its exact green item once [C7]', async t => {
   const box = await fixture(t);
+  const early = await box.sweep();
+  assert.equal(early.code, 0, early.err + early.out);
+  assert.deepEqual(box.wakes(), [], 'the five-minute review deadline has not passed');
+  assert.deepEqual(box.requests(), []);
+  box.advance(1);
   for (let sweep = 0; sweep < 2; sweep++) {
     const result = await box.sweep();
     assert.equal(result.code, 0, result.err + result.out);
@@ -69,6 +77,10 @@ test('one health sweep wakes an eligible independent reviewer with its exact gre
 
 test('an eligible awake reviewer needs no new wake or person request [C7]', async t => {
   const box = await fixture(t, { awake: true });
+  const early = await box.sweep();
+  assert.equal(early.code, 0, early.err + early.out);
+  assert.deepEqual(box.requests(), []);
+  box.advance(1);
   const result = await box.sweep();
   assert.equal(result.code, 0, result.err + result.out);
   assert.deepEqual(box.wakes(), []);
@@ -79,12 +91,18 @@ test('missing or failed eligible reviewer wake commands ask the person once per 
   for (const options of [{ command: false }, { fails: true }]) {
     await t.test(options.fails ? 'registered command fails [C7]' : 'no registered command [C7]', async child => {
       const box = await fixture(child, options);
+      const early = await box.sweep();
+      assert.equal(early.code, 0, early.err + early.out);
+      assert.deepEqual(box.wakes(), [], 'the five-minute review deadline has not passed');
+      assert.deepEqual(box.requests(), []);
+      box.advance(1);
       for (let sweep = 0; sweep < 2; sweep++) {
         const result = await box.sweep();
         assert.equal(result.code, 0, result.err + result.out);
       }
       assert.equal(box.wakes().length, options.fails ? 1 : 0);
       assert.equal(box.requests().length, 1);
+      assert.match(box.requests()[0].shout_text, /required reviewer family: Independent Fixture Vendor/u);
     });
   }
 });
