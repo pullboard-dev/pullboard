@@ -62,9 +62,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
-  // An item that failed this queue round goes behind every untried item, oldest failure first, so red items a small
-  // adaptive cap keeps picking cannot starve the queue (#2911).
-  const failed = roundFailures(batches, pending.map(item => item.item_id));
+  // A failed item goes behind every untried item, least recently failed first, so red items a small adaptive cap keeps
+  // picking take turns and cannot starve the queue (#2911).
+  const failed = roundFailures(batches);
   pending.sort((left, right) => {
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;

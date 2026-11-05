@@ -44,24 +44,28 @@ test('clause 1: the size folds every recorded batch, so a long run of red/green 
   assert.equal(landingBatchSize([landed, landed, ...pairs]), 16, 'two greens then eight red/green pairs stays at 16');
 });
 
-test('clause 1: at a cap of 1, two items that stay red never shut out a third, which lands [C7]', () => {
-  const red = id => ({ state: 'blocked', items: [{ id }] });
-  // Simulate selection at cap 1: untried items first in accept order, then failures oldest first.
+test('clause 1: at a cap of 1, items that stay red take turns, a third still lands, and one that turns green lands [C7]', () => {
+  const red = (id, n) => ({ id: `r${n}`, state: 'blocked', items: [{ id }] });
+  // Selection at cap 1: untried items first in accept order, then failures least recently failed first.
   const pick = (batches, waiting) => {
-    const failed = roundFailures(batches, waiting);
+    const failed = roundFailures(batches);
     return [...waiting].sort((a, b) => (failed.has(a) ? 1 : 0) - (failed.has(b) ? 1 : 0) || (failed.get(a) ?? 0) - (failed.get(b) ?? 0) || a - b)[0];
   };
-  const batches = [];
-  let waiting = [1, 2, 3], landedC = false;
-  for (let round = 0; round < 6 && !landedC; round += 1) {
+  const batches = [], picked = [];
+  let waiting = [1, 2, 3];
+  const greenAfter = new Map([[2, 2]]); // B turns green on its second turn
+  const turns = new Map();
+  for (let n = 0; n < 8 && waiting.length > 1; n += 1) {
     const chosen = pick(batches, waiting);
-    if (chosen === 3) { batches.push({ state: 'landed', items: [{ id: 3 }] }); waiting = waiting.filter(id => id !== 3); landedC = true; }
-    else batches.push(red(chosen));
+    picked.push(chosen);
+    turns.set(chosen, (turns.get(chosen) ?? 0) + 1);
+    const lands = chosen === 3 || greenAfter.get(chosen) === turns.get(chosen);
+    if (lands) { batches.push({ id: `l${n}`, state: 'landed', items: [{ id: chosen }] }); waiting = waiting.filter(id => id !== chosen); }
+    else batches.push(red(chosen, n));
   }
-  assert.equal(landedC, true, 'C is picked once A and B have each failed this round');
-  assert.deepEqual(batches.map(batch => batch.items[0].id), [1, 2, 3]);
-  assert.deepEqual([...roundFailures([red(1), red(2), red(1)], [1, 2])], [[1, 0]], 'a round where every waiting item failed starts over: only the new round\'s failure counts');
-  assert.deepEqual([...roundFailures([red(1), { state: 'landed', items: [{ id: 5 }] }], [1, 2])], [], 'a landing starts a new round');
+  assert.deepEqual(picked.slice(0, 3), [1, 2, 3], 'A and B fail, then C, untried, is picked and lands');
+  assert.deepEqual(picked.slice(3, 5), [1, 2], 'A and B take turns by least recent failure, and B lands when it turns green');
+  assert.deepEqual(waiting, [1], 'only the item still red is left');
 });
 
 test('clause 1: a repeated selection folds only new batches and matches a full fold [C7]', () => {

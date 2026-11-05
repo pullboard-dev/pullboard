@@ -53,25 +53,27 @@ function foldBatchSize(batches) {
   return size;
 }
 
+/** The failure fold over the settled prefix, so a selection folds only batches recorded since it. */
+let failureCache = { length: 0, last: null, tried: new Map(), clock: 0 };
+
 /**
- * The order in which items failed in the current queue round: each red batch adds its items, a landed batch starts a new
- * round, and so does a round in which every waiting item has failed. Selection puts these behind every untried item,
- * oldest failure first. Why: at a cap of 1 two red oldest items that stay verified (their failures are outside their
- * own files) alternated forever and shut out every later item (#2911).
+ * When each item last failed: every red batch stamps its items with a rising clock. Selection puts failed items behind
+ * every untried item and orders them least recently failed first, so items that stay red take turns and never shut out
+ * the rest, and an item that turns green gets its turn. Why: at a cap of 1 red oldest items that stay verified (their
+ * failures are outside their own files) were picked again and again and starved later items (#2911).
  *
  * @param {object[]} batches landing batches in recorded order
- * @param {Iterable<number>} waiting the verified item ids that can be selected now
- * @returns {Map<number, number>} item id to the position of its failure in this round
+ * @returns {Map<number, number>} item id to the clock of its latest failure
  */
-export function roundFailures(batches, waiting) {
-  const pending = new Set(waiting);
-  let tried = new Map();
-  for (const batch of batches) {
-    const result = batchOutcome(batch);
-    if (result === true) { tried = new Map(); continue; }
-    if (result !== false) continue;
-    for (const entry of batch.items ?? []) { tried.delete(entry.id); tried.set(entry.id, tried.size); }
-    if (pending.size && [...pending].every(id => tried.has(id))) tried = new Map();
-  }
+export function roundFailures(batches) {
+  const anchor = failureCache.length ? batches[failureCache.length - 1] : null;
+  const resume = failureCache.length <= batches.length && (!failureCache.length
+    || anchor?.id === failureCache.last.id && anchor?.state === failureCache.last.state);
+  const tried = new Map(resume ? failureCache.tried : []);
+  let clock = resume ? failureCache.clock : 0, index = resume ? failureCache.length : 0;
+  const step = batch => { if (batchOutcome(batch) === false) for (const entry of batch.items ?? []) tried.set(entry.id, ++clock); };
+  for (; index < batches.length && final(batches[index]); index += 1) step(batches[index]);
+  failureCache = { length: index, last: index ? { id: batches[index - 1].id, state: batches[index - 1].state } : null, tried: new Map(tried), clock };
+  for (; index < batches.length; index += 1) step(batches[index]);
   return tried;
 }
