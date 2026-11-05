@@ -195,7 +195,7 @@ window.fetch = async (input, options) => {
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizations, 1, 'one tap authorizes exactly once');
 });
 
-test('a phone draws its saved board while the approvals read never answers [N26,H5,H17]', chromeOptions, async t => {
+test('a phone draws its saved board while the approvals read never answers [N26,H5,H17] [clause 1]', chromeOptions, async t => {
   const box = await relayClientFixture(t);
   const marker = 'READABLE_BOARD_WITH_PENDING_REQUESTS_899';
   assert.equal((await box.cli('add', box.lane, marker)).code, 0);
