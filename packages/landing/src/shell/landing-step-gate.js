@@ -88,9 +88,13 @@ function batchAffectedTests(state, readEvents, readItem) {
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
-/** The project's own full configured gate, used when no narrower plan can be established [#2897]. */
+/**
+ * The project's own full configured gate, used when no narrower plan can be established [#2897].
+ * Why no VALUE_GATE mark: the command is the unchanged configured gate, so its green run stamps the tree and the
+ * landing's own pre-push reads that stamp instead of running the whole gate a second time (#3137).
+ */
 function fullGatePlan(state) {
-  const config = { ...state.config, [VALUE_GATE]: true };
+  const config = { ...state.config };
   return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
 }
 
@@ -99,8 +103,7 @@ export function batchGatePlan(state, options = {}) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
-    const config = { ...state.config, [VALUE_GATE]: true };
-    return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+    return fullGatePlan(state);
   }
 }
 
@@ -117,8 +120,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   if (!state.config.affectedTests?.trim()) {
     // Projects without selective-runner policy keep their configured full gate. Its command is the legacy contract
     // for the project and already includes the item check (the source-matched proof was checked at submit).
-    const config = { ...state.config, [VALUE_GATE]: true };
-    return { config, files: selection.files, subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
+    return { ...fullGatePlan(state), files: selection.files };
   }
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
   const files = [...new Set([...selection.files, ...deferred])].sort();
@@ -151,6 +153,9 @@ function criterionTestFiles(root, entry, item, runner, detail) {
     || Object.hasOwn(detail, 'criterionDigest') && detail.criterionDigest !== item.item_frozen_digest) return null;
   let frozen;
   try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
+  // No frozen check names no files: the submit proof alone is the plan. Why: null here voided the whole batch's plan
+  // and sent every batch holding such an item to the full configured gate, 25 minutes that never completed [C7].
+  if (typeof frozen?.check !== 'string' || !frozen.check.trim()) return [];
   let check;
   try { check = mappedCheck(root, frozen.check, { commit: entry.commit }); } catch { return null; }
   const words = literalShellWords(check);
