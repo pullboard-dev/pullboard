@@ -36,7 +36,8 @@ export async function knownMainAccount(state, gate) {
       const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged });
-    } catch { /* An unavailable comparison never excuses a red case. */ }
+    } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); /* An unavailable comparison never excuses a red case. */ }
+    if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
     for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
