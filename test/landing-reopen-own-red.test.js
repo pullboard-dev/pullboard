@@ -130,3 +130,12 @@ test('a worker that gives up on BOARD_BUSY does not mark its batch blocked, so a
   const source = readFileSync(new URL('../packages/landing/src/shell/landing-step-batch.js', import.meta.url), 'utf8');
   assert.match(source, /&& !landingFault\(error\)\s*\n\s*&& \['merging', 'gating'\]\.includes\(state\.batch\.state\)\)\) await save\(state, \{ state: 'blocked' \}\)/u);
 });
+
+test('a locked slot database is a landing fault, and the local trunk keeps its batch resumable [C7]', async () => {
+  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  assert.equal(landingFault(new Refused('SLOT_DB_LOCKED', 'never ran: the resource queue database stayed locked')), true);
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../packages/landing/src/shell/landing-step-trunk.js', import.meta.url), 'utf8');
+  const handler = /\} catch \(error\) \{\s*if \(!\(error instanceof Refused\)\) throw error;\s*[^\n]*\n\s*if \(landingFault\(error\)\) throw error;/u;
+  assert.match(source, handler, 'a landing fault leaves the local trunk before it can save the batch blocked');
+});
