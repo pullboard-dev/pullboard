@@ -41,7 +41,7 @@ function receipt(item, digest, seat, { green, failures = [], shadow } = {}) {
       counts: { passed: 0, failed: green ? 0 : 1, skipped: 0 }, durationMs: 5, sourceClean: true } };
 }
 
-test('tier 1 judges reachable failures, static or check failures and unreachable failures apart [V4]', () => {
+test('clause 2: tier 1 judges reachable failures, static or check failures and unreachable failures apart [V4]', () => {
   assert.deepEqual(tier1Shadow({ real: true }).verdict, 'green');
   assert.equal(tier1Shadow({ real: false, failures: [failure], reachable: ['test/near.test.js'] }).verdict, 'red');
   const far = tier1Shadow({ real: false, failures: [failure], reachable: ['test/other.test.js'] });
@@ -64,7 +64,7 @@ test('a malformed or self-contradicting shadow is refused by the receipt check [
   assert.equal(receiptFields(receipt(1, null, 'seat', { green: false, failures: [failure], shadow: { ...shadow, verdict: 'red' } })), null);
 });
 
-test('a recorded proof keeps the real verdict unchanged when the shadow differs and replays at its own engine [V4,H16]', t => {
+test('clause 1 and clause 2: a recorded proof keeps the real verdict unchanged when the shadow differs [V4,H16]', t => {
   const board = fixtureBoard(t);
   board.executionEngineVersion = SHADOW_TIER1_ENGINE;
   store.register(board, { lane: 'coordinator', path: '/shadow/main' });
@@ -77,6 +77,7 @@ test('a recorded proof keeps the real verdict unchanged when the shadow differs 
   const run = receiptFields(receipt(id, digest, seat, { green: false, failures: [failure], shadow }));
   assert.ok(run);
   const recorded = store.recordProofRun(board, { agentId: seat, itemId: id, receipt: run, exitFailures: true });
+  assert.equal(store.getItem(board, id).item_status, 'claimed', 'recording the shadow does not change the real item state');
   assert.deepEqual(recorded.shadow, shadow);
   assert.equal(recorded.exitCode, 1, 'the real exit code is as run');
   const stored = store.proofReceipts(board, id).find(row => row.id === run.id);
