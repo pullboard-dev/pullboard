@@ -38,7 +38,7 @@ async function withoutRunnerJob(work) {
   finally { if (saved === undefined) delete process.env.PULLBOARD_RUNNER_JOB; else process.env.PULLBOARD_RUNNER_JOB = saved; }
 }
 
-test('a linked worktree with an inherited GIT_DIR still registers the timer without an error [B3,C7]', async t => {
+test('clause 1: a linked worktree with an inherited GIT_DIR still registers the timer without an error [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { linked } = repository(t), saved = process.env.GIT_DIR;
     process.env.GIT_DIR = maintenanceGit(linked.info.root, ['rev-parse', '--absolute-git-dir']).trim();
@@ -49,7 +49,7 @@ test('a linked worktree with an inherited GIT_DIR still registers the timer with
   });
 });
 
-test('a linked worktree skips quietly when the repository identity cannot be proved [B3,C7]', async t => {
+test('clause 1: a linked worktree skips quietly when the repository identity cannot be proved [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { linked, commonDir } = repository(t);
     linked.info = { ...linked.info, commonDir: join(commonDir, 'elsewhere') };
@@ -58,7 +58,7 @@ test('a linked worktree skips quietly when the repository identity cannot be pro
   });
 });
 
-test('a real registration failure in the main checkout is still thrown once [B3,C7]', async t => {
+test('clause 2: a real registration failure in the main checkout is still thrown once [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { primary, commonDir } = repository(t);
     primary.info = { ...primary.info, commonDir: join(commonDir, 'elsewhere') };
