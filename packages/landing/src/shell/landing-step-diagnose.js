@@ -4,6 +4,8 @@ import { requireTestTierAccount } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
@@ -147,8 +149,10 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   for (const [index, part] of [items.slice(0, middle), items.slice(middle)].entries()) {
     const build = await mergeGroup(state, part);
     await save(state, { ...build, state: 'bisecting' });
-    // Each half runs only the files the batch failed; the final green set runs its whole plan before landing [C7].
-    const gate = await evaluate(state, `${label}-${index}`, { focus: [...new Set(failures.map(failure => failure.file).filter(Boolean))] });
+    // Each half runs only the files the batch failed, those its tree holds; a half without any of them cannot have
+    // caused those reds and is green for this split. The final green set runs its whole plan before landing [C7].
+    const focus = [...new Set(failures.map(failure => failure.file).filter(Boolean))].filter(file => existsSync(join(state.batch.root, file)));
+    const gate = focus.length ? await evaluate(state, `${label}-${index}`, { focus }) : { isGreen: true, failures: [], absentFocus: true };
     // Only unwaived reds split a group further; a group red only on waived files is green for bisection [C7,#2900].
     const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
     if (gate.isGreen || waivedProof(state, gate) || !own.length) green.push(...build.items);
