@@ -46,11 +46,20 @@ export function submitFixture(board, id, options) {
  * CLI places it, so submit seals the repository's accepted policy instead of refusing NO_POLICY [V4,C7].
  */
 export function repositoryBoardFile(directory) {
+  policyRepository(directory);
+  mkdirSync(join(directory, '.git', 'pullboard'));
+  return join(directory, '.git', 'pullboard', 'board.sqlite');
+}
+
+/**
+ * Make `directory` a real repository with one commit of policy on main and return it, for a board kept outside
+ * .git that is opened with this repository as its gitRoot, so submit seals that policy instead of refusing NO_POLICY [V4,C7].
+ */
+export function policyRepository(directory) {
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: directory, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(directory, 'pullboard.json'), JSON.stringify({ lanes: {} }));
   git('add', 'pullboard.json');
   git('commit', '-q', '-m', 'fixture policy');
-  mkdirSync(join(directory, '.git', 'pullboard'));
-  return join(directory, '.git', 'pullboard', 'board.sqlite');
+  return directory;
 }

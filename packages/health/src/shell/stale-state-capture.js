@@ -13,6 +13,7 @@ import { CLAIM_RECENT_COMMIT_MS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
+import { claimFolderActive } from './claim-folder-activity.js';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
@@ -107,6 +108,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     const lastHeartbeat = row.heartbeatAt ?? row.claimAt;
     const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
+    // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
+    if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
     if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: row.heartbeatAt ?? null,
       worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'

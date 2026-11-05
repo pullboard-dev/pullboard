@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-test-loads packages/runners/index.js packages/landing/index.js */
 /** Landing aliases are removable only with equivalent imports and a bounded native move closure [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
