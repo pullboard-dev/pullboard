@@ -80,3 +80,18 @@ test('clause 1: equivalent spellings of one test file plan onto one shard once [
   assert.equal(plan[0].weight, 900, 'the recorded time follows the file through any spelling');
   assert.equal(planLandingShards(['test/../test/a.test.js', 'test/a.test.js'], 2).flatMap(shard => shard.files).length, 1, 'no root still folds relative spellings');
 });
+
+test('clause 1: a caller --shard narrows the files before the landing fan-out, so no shard runs an excluded file [C7]', async t => {
+  const { callerShardFiles } = await import('../packages/gate/index.js');
+  const files = ['test/a.test.js', 'test/b.test.js', './test/a.test.js', 'test/c.test.js', 'test/d.test.js'];
+  assert.deepEqual(callerShardFiles(files, ['--test-shard=1/2']), ['test/a.test.js', 'test/c.test.js']);
+  assert.deepEqual(callerShardFiles(files, ['--test-shard', '2/2']), ['test/b.test.js', 'test/d.test.js']);
+  assert.deepEqual(callerShardFiles(files, ['--test-name-pattern', 'x']), files, 'no selector keeps every file');
+  assert.throws(() => callerShardFiles(files, ['--test-shard=3/2']), /invalid --test-shard/u);
+  const box = project(t);
+  const run = gate(box, '^target', ['--shard', '2/3']);
+  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
+  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
+  assert.equal(cases, 2, 'shard 2/3 of six files keeps b and e, and only their target cases run');
+  assert.doesNotMatch(run.stdout, /target [acdf] /u, 'no landing shard runs a file the caller sharded out');
+});
