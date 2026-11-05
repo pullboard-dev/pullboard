@@ -1,7 +1,9 @@
 /** Preserve proved foreign paths for their owner without submitting or accepting them [B3,L1,V4]. */
 import { Refused } from '../../../kernel/index.js';
-import { OWNERSHIP_WAIT_ENGINE } from '../../../../src/ownership-wait-engine.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
+import {
+  OWNERSHIP_WAIT_ENGINE,
+  ENGINE_VERSION,
+} from '../../../state/index.js';
 import {
   atomic,
   logEvent,

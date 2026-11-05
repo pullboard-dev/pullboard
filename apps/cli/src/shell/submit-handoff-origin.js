@@ -1,3 +1,4 @@
+import { ownershipWaitForJob } from '../../../../packages/store/index.js';
 import { requireSubmitHandoffHookProof } from '../../../../packages/store/index.js';
 import {
   mainPolicy,
@@ -26,7 +27,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 
 const CONTEXTS = new WeakMap();
 const BOARDS = new WeakMap();
-const WRITES = new Set(['claim', 'recordProofRun', 'recordGateRun', 'recordFlakeObservation', 'appendFact', 'shout', 'submit', 'completeSubmitHandoff', 'startSubmitHandoff']);
+const WRITES = new Set(['claim', 'recordProofRun', 'recordGateRun', 'recordFlakeObservation', 'appendFact', 'shout', 'submit', 'deferOwnership', 'completeSubmitHandoff', 'startSubmitHandoff']);
 
 /** Derive the private source location from native queue identity, never a caller-selected repository. */
 export function submitHandoffRoot(commonDir, job) {
@@ -44,7 +45,7 @@ export function bindSubmitHandoffOrigin(ctx, board, itemId, jobId) {
     || headCommit(ctx.info.root) !== job.commit || headTree(ctx.info.root) !== job.tree) {
     throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the worker needs the exact native queued candidate on its own board');
   }
-  CONTEXTS.set(ctx, { itemId, jobId, actor: job.agentId, root: ctx.info.root, main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree });
+  CONTEXTS.set(ctx, { itemId, jobId, actor: job.agentId, root: ctx.info.root, main: job.main, digest: job.digest, executionCommit: job.executionCommit, executionTree: job.executionTree });
 }
 
 /** Recheck native ownership and frozen identity on each worker read or write. */
@@ -53,10 +54,15 @@ export function submitHandoffActor(ctx, board, operation, args) {
   if (!origin) return null;
   const job = submitHandoff(board, origin.itemId);
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(origin.itemId);
+  const wait = job && ownershipWaitForJob(board, job.id);
+  const routed = wait?.job === origin.jobId && wait.agentId === origin.actor
+    && wait.commit === origin.executionCommit && wait.tree === origin.executionTree
+    && wait.main === origin.main && wait.digest === origin.digest;
+  const finishingRoute = routed && (!operation || operation === 'completeSubmitHandoff');
   if (!job || job.id !== origin.jobId || job.agentId !== origin.actor || !['queued', 'running'].includes(job.state)
-    || item?.item_frozen_digest !== job.digest || itemPatchDigest(board, origin.itemId, job.commit) !== job.companionDigest
-    || !(item.item_status === 'claimed' && item.item_owner === origin.actor
-      || item.item_status === 'submitted' && item.item_built_by === origin.actor && (!operation || ['completeSubmitHandoff', 'appendFact', 'shout'].includes(operation)))) {
+    || !finishingRoute && (item?.item_frozen_digest !== job.digest || itemPatchDigest(board, origin.itemId, job.commit) !== job.companionDigest
+      || !(item.item_status === 'claimed' && item.item_owner === origin.actor
+        || item.item_status === 'submitted' && item.item_built_by === origin.actor && (!operation || ['completeSubmitHandoff', 'appendFact', 'shout'].includes(operation))))) {
     throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the queued owner or frozen bar changed; the old worker cannot act');
   }
   if (operation && (job.state === 'queued' && !['startSubmitHandoff', 'completeSubmitHandoff'].includes(operation) || !WRITES.has(operation) || !workerMoveMatches(origin, operation, args))) {
@@ -68,6 +74,13 @@ export function submitHandoffActor(ctx, board, operation, args) {
 
 /** Constrain every write to this sender and item; normal move guards remain authoritative. */
 function workerMoveMatches(origin, operation, args) {
+  if (operation === 'deferOwnership') {
+    const value = args[1];
+    return args[0] === origin.itemId && value?.agentId === origin.actor
+      && value.commit === origin.executionCommit && value.tree === origin.executionTree && value.main === origin.main
+      && (value.root === origin.root || value.version === 1 && value.item === origin.itemId
+        && value.job === origin.jobId && value.digest === origin.digest);
+  }
   if (operation === 'recordFlakeObservation') {
     const value = args[0];
     return value?.agentId === origin.actor && value.observation?.kind === 'submit'

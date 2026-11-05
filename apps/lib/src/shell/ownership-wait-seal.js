@@ -24,8 +24,6 @@ import {
   submitHandoff,
 } from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { itemFolderIdentity } from './item-folder.js';
-import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Derive routing data from the board's repository and the same strict lane refusal, never supplied paths. */
 export function sealOwnershipWait(board, id, request) {
@@ -35,20 +33,25 @@ export function sealOwnershipWait(board, id, request) {
     || headCommit(root) !== request.commit || headTree(root) !== request.tree || !isClean(root)) {
     throw new Refused('OWNERSHIP_WAIT_SOURCE', 'ownership routing must seal the clean proved source in this board\'s native item context');
   }
-  const seatRoot = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(request.agentId)?.agent_path;
+  const workerRoot = board.enginePorts.submitHandoffBoardRoot(board, id, request.agentId);
   const captured = submitHandoff(board, id);
   const worker = captured?.state === 'running' && captured.agentId === request.agentId
     && captured.executionCommit === request.commit && captured.executionTree === request.tree
     && captured.digest === item.item_frozen_digest && captured.main === request.main
-    && realpathSync(root) === realpathSync(submitHandoffRoot(repoInfo(root).commonDir, captured));
+    && typeof workerRoot === 'string' && realpathSync(root) === realpathSync(workerRoot);
   const nativeMain = mainPolicy(root).commit;
   if (request.main !== nativeMain && !(worker && contains(root, request.main, nativeMain))) {
     throw new Refused('OWNERSHIP_WAIT_SOURCE', "ownership routing needs current main or the captured worker's still-ancestral pinned main");
   }
-  const identity = worker ? null : itemFolderIdentity(board, root);
-  if (!seatRoot || !(realpathSync(root) === realpathSync(seatRoot)
-    || identity?.item === id && identity.agent.agent_id === request.agentId || worker)) {
-    throw new Refused('OWNERSHIP_WAIT_SOURCE', 'route only from the registered builder, its native item folder or its exact captured worker');
+  if (!worker) {
+    const source = board.enginePorts.sealSubmitHandoffQueue(board, id, {
+      agentId: request.agentId, main: request.main, commit: request.commit, tree: request.tree,
+      executionCommit: request.commit, executionTree: request.tree,
+      companionDigest: board.enginePorts.itemPatchDigest(board, id, request.commit),
+    }, { sourceOnly: true });
+    if (realpathSync(root) !== realpathSync(source.root)) {
+      throw new Refused('OWNERSHIP_WAIT_SOURCE', 'route only from the registered builder, its native item folder or its exact captured worker');
+    }
   }
   let refused;
   try { submissionPaths(root, item, request.commit, { mainCommit: request.main, dependencies: dependencySnapshots(board.db, item) }); }

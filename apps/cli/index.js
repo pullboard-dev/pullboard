@@ -44,4 +44,3 @@ export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';
 
-export { sealOwnershipWait } from './src/shell/ownership-wait-seal.js';

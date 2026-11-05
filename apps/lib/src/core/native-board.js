@@ -1,4 +1,4 @@
-import { sealOwnershipWait } from '../../../cli/index.js';
+import { sealOwnershipWait } from '../shell/ownership-wait-seal.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
