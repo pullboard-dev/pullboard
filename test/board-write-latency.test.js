@@ -24,7 +24,7 @@ process.on('message', message=>{
   if(message==='stop') {clearInterval(timer);store.closeBoard(board);process.disconnect();return;}
   if(kind==='landing') {
    const progress=()=>{batch=store.recordLandingBatch(board,{agentId:'coordinator',batch,revision:batch.revision??0});process.send({progress:batch.revision});};
-   progress();timer=setInterval(progress,20);return;
+   progress();timer=setInterval(progress,100);return;
   }
   const started=performance.now();
   if(kind==='join') store.register(board,{lane:'core',path:'/latency/join-'+index,model:'Fixture Model'});
