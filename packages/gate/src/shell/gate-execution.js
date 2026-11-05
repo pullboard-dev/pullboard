@@ -1,5 +1,6 @@
 import { auditAdapterEnvironment } from '../../../kernel/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
+import { landingShardCount } from './test-concurrency.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
@@ -437,6 +438,24 @@ export async function withLandingGateSlot(root, action, options = {}) {
   return withGateSlot(root, action, { ...options, executionServices, landing: true, ...(constrained ? { remote: false } : {}) });
 }
 
+/**
+ * Where a landing gate's own command runs. A sharded landing runs its controller here, so run-tests fans one shard out
+ * to each runner; placed whole on a runner, it was already inside a runner slot and never sharded, so every landing ran
+ * its selection serially on one runner (about 30 minutes) [C7,#3158].
+ *
+ * @param {string} root
+ * @param {{ required?: unknown }} [facts]
+ * @returns {{ remote?: false, runnerOnly?: false, runnerWaitMs?: undefined, runnerDeadlineAt?: undefined }}
+ */
+export function landingControllerPlacement(root, { required } = {}) {
+  // Only a gate's own controller calls this; its shards keep their runner placement and read runners-only themselves
+  // (runLandingShards' own gateRunnerAdmission), so a runners-only machine still runs no shard here. The controller runs
+  // no test file itself, so it stays here even on a runners-only machine; sent to a runner it could never fan out.
+  if (required) return {};
+  // Dropping runners-only drops its captured wait and deadline too, which the slot refuses without it.
+  return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined } : {};
+}
+
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */
 export function pinRunMain(lease, observer) {
   if (typeof observer?.main === 'string') lease.runMetadata = { ...(lease.runMetadata ?? {}), main: observer.main };
@@ -495,6 +514,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
     browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
+    ...(landing && !runnerOnly ? landingControllerPlacement(root, { required: releaseRequest }) : {}),
   });
 }
 

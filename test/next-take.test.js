@@ -1,5 +1,6 @@
 import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
+import './next-wait-race-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
 import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI } from './main-red-build-routing-fixture.js';

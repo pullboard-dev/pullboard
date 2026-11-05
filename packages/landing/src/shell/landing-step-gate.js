@@ -45,6 +45,7 @@ import { accountedFailures } from './landing-step-failures.js';
 import { knownMainAccount } from './landing-known-main.js';
 import { knownMainFields } from './landing-known-main.js';
 import { knownMainLine } from './landing-known-main.js';
+import { fileKnownMainReds } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -150,6 +151,9 @@ function criterionTestFiles(root, entry, item, runner, detail) {
     || Object.hasOwn(detail, 'criterionDigest') && detail.criterionDigest !== item.item_frozen_digest) return null;
   let frozen;
   try { frozen = JSON.parse(item.item_frozen); } catch { return null; }
+  // No frozen check names no files: the submit proof alone is the plan. Why: null here voided the whole batch's plan
+  // and sent every batch holding such an item to the full configured gate, 25 minutes that never completed [C7].
+  if (typeof frozen?.check !== 'string' || !frozen.check.trim()) return [];
   let check;
   try { check = mappedCheck(root, frozen.check, { commit: entry.commit }); } catch { return null; }
   const words = literalShellWords(check);
@@ -218,7 +222,9 @@ export async function gateGroup(state, label, options) {
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
-    : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
+    // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
+    // never be compared with main and one red test blocked every landing [C7,#3167].
+    : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext });
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
@@ -232,9 +238,10 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
-  // One item's red is its own: a per-item landing never compares main [C7,#2901].
-  const known = singleItemLanding(state) ? null : await knownMainAccount(state, result);
-  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
+  // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
+  // cases red there too are filed as Main red and never charged to the items.
+  const known = await knownMainAccount(state, result);
+  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
