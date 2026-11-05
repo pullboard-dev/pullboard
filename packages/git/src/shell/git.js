@@ -30,7 +30,8 @@ import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { removeGitRepositorySelectors } from '../core/git-child-selectors.js';
 
-const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];
+// gc.auto=0: a landing's own commits never start a background repack in its worktree (minutes under the batch) [C7].
+const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0'];
 const gitFacts = new AsyncLocalStorage();
 const gitReadFacts = new AsyncLocalStorage();
 const READ_FACT_LIMIT = 512;
