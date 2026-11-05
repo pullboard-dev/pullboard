@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { refuseWrongBranch } from '../apps/cli/src/shell/cli/submit.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 const dirs = [];
 after(() => { for (const dir of dirs) rmSync(dir, { recursive: true, force: true }); });
@@ -54,4 +55,47 @@ test('[V1] a topic merged --no-ff onto main still names its item, so the wrong s
   assert.throws(() => refuseWrongBranch(root, { item_id: 3 }, merged, { commit: main }),
     (error) => error.code === 'WRONG_BRANCH' && /#7/u.test(error.message));
   refuseWrongBranch(root, { item_id: 7 }, merged, { commit: main });
+});
+
+/** Run the real fixture CLI and retain both output streams when setup or submission fails. */
+function nativeJson(box, cwd, ...args) {
+  const result = box.run(cwd, ...args, '--json');
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  return JSON.parse(result.out);
+}
+
+test('native submit refuses another item trailer and records a submission for its own trailer [V1,V4]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  for (const wrong of [true, false]) {
+    const box = helpers.project('true');
+    /** Add a real item whose frozen check requires the feature committed below. */
+    const add = title => nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1',
+      '--criterion', 'The committed feature is submitted.', '--check', 'test -f web/feature.txt').item.item_id;
+    const target = add('Target item');
+    const author = wrong ? add('Source item') : target;
+    nativeJson(box, box.web, 'claim', String(author));
+    const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add feature [G1]');
+    assert.equal(committed.status, 0, committed.stderr);
+    const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
+    assert.match(box.git(box.web, 'show', '-s', '--format=%B', head), new RegExp(`Pullboard-Item: #${author}\\b`));
+    if (wrong) {
+      nativeJson(box, box.web, 'release', String(author), '--reason', 'OTHER', '--note', 'Retain source to exercise wrong-item submission.', '--no-next');
+      nativeJson(box, box.web, 'claim', String(target));
+      const refused = box.run(box.web, 'submit', String(target), '--no-next', '--json');
+      assert.notEqual(refused.code, 0);
+      const refusal = JSON.parse(refused.out);
+      assert.equal(refusal.error.code, 'WRONG_BRANCH');
+      assert.match(refusal.error.message, new RegExp(`#${author}\\b`));
+      assert.equal(nativeJson(box, box.web, 'show', String(target)).item_status, 'claimed');
+    } else {
+      nativeJson(box, box.web, 'submit', String(target), '--no-next');
+      const shown = nativeJson(box, box.web, 'show', String(target));
+      assert.equal(shown.item_status, 'submitted');
+      assert.equal(shown.item_commit, head);
+      const submission = shown.thread.findLast(row => row.kind === 'submit');
+      assert.equal(submission.detail.commit, head);
+      assert.equal(shown.item_id, target);
+    }
+  }
 });
