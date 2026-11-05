@@ -4,6 +4,7 @@ import { isSeatTest } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { beatingProbes } from './waiter-heartbeat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -1371,7 +1372,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe }).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
     }
   } catch (error) {
