@@ -76,6 +76,6 @@ test('five native claim join and fact writes finish within 1 s while landing rec
   console.log('native concurrent write measurements ' + JSON.stringify(results.map(result => result.messages.find(message => message.elapsedMs !== undefined))));
 });
 
-test('native board writer call graph permits no git or test process under the transaction [C7]', () => {
+test('clause 2: native board writer call graph permits no git or test process under the transaction [C7]', () => {
   assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
 });
