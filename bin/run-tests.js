@@ -991,9 +991,9 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
       setup(tests) {
-        // A HUNG file stays red, but its watchdog must not cancel the remaining named files.
+        // A HUNG or wall-TIMEOUT file stays red, but its watchdog must not cancel the remaining named files (#3167).
         tests.on('test:stderr', data => {
-          if (data.file && data.message?.includes('run-tests: HUNG file ')) hungFiles.add(data.file);
+          if (data.file && /run-tests: (?:HUNG|TIMEOUT) file /u.test(data.message ?? '')) hungFiles.add(data.file);
         });
         tests.on('test:complete', data => {
           const { file, name, details } = data;

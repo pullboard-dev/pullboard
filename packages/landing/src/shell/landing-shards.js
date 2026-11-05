@@ -312,6 +312,15 @@ async function stopShard(child, closed, parseProcessCensus) {
   return left.map(row => `pid ${row.pid} (${row.processSha256.slice(0, 12)})`);
 }
 
+/**
+ * Whether a red shard's only failures are files their own watchdog stopped: a HUNG or TIMEOUT line, with no first
+ * failure that stopped the shard early. Why: one hung file must stay red without leaving every other file not run (#3167).
+ */
+export function watchdogStoppedOnly(output) {
+  const text = String(output ?? '');
+  return /run-tests: (?:HUNG|TIMEOUT) file /u.test(text) && !/^Landing gate stopped early after /mu.test(text);
+}
+
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
 async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
@@ -534,6 +543,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     } else {
       entry.done = true;
       entry.status = status;
+      // A shard red only from a file its watchdog stopped (hung or past its wall) never stops the others (#3167).
+      if (status === 'red' && watchdogStoppedOnly(record.output)) return signalChange();
       if (status === 'red' || status === 'refused' || status === 'infrastructure') {
         firstFailure ??= entry.label;
         if (status === 'refused' || status === 'infrastructure' || !collectAll) stopper.abort();
