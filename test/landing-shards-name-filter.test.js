@@ -70,3 +70,13 @@ test('clause 1: duplicate paths run once, and every selector option reaches ever
   assert.deepEqual(selectionPatternArgs(['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only', '--test-concurrency', '2', 'test/a.test.js'], arg => arg === '--test-concurrency'),
     ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only']);
 });
+
+test('clause 1: equivalent spellings of one test file plan onto one shard once [C7]', async () => {
+  const { planLandingShards } = await import('../packages/landing/index.js');
+  const root = '/repo';
+  const spellings = ['test/a.test.js', './test/a.test.js', 'test/../test/a.test.js', 'test//a.test.js', 'test/./a.test.js', '/repo/test/a.test.js', 'test/b.test.js', 'test/x/../b.test.js'];
+  const plan = planLandingShards(spellings, 6, { 'test/a.test.js': 900 }, root);
+  assert.deepEqual(plan.map(shard => shard.files), [['test/a.test.js'], ['test/b.test.js']], 'each file is planned once, under its first spelling');
+  assert.equal(plan[0].weight, 900, 'the recorded time follows the file through any spelling');
+  assert.equal(planLandingShards(['test/../test/a.test.js', 'test/a.test.js'], 2).flatMap(shard => shard.files).length, 1, 'no root still folds relative spellings');
+});

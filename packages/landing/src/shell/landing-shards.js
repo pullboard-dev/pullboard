@@ -27,7 +27,9 @@ import {
 } from 'node:fs';
 import {
   dirname,
+  isAbsolute,
   join,
+  posix,
   relative,
   resolve,
   sep,
@@ -96,7 +98,7 @@ export function releasePlacement(value, actual = releaseExecutors()) {
 
 /** Partition every file once, reserving compatible work for each executor before balancing the rest. */
 export async function planReleaseShards(files, executors, times = {}, needsBrowser = async () => true, needsGui = async () => true, needsCpuRunner = async () => false) {
-  if (!files.length || new Set(files).size !== files.length || executors.length < 1 || files.length < executors.length) {
+  if (!files.length || new Set(files.map(file => fileKey(file))).size !== files.length || executors.length < 1 || files.length < executors.length) {
     throw new Error('a release needs distinct tracked files and nonempty work for every executor');
   }
   const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms) && ms >= 0);
@@ -144,9 +146,16 @@ function writeFileTimes(root, measured) {
   renameSync(temporary, path);
 }
 
-/** Normalize a test file path to its repository-relative form, without a leading `./`. */
-export function fileKey(file) {
-  return String(file).replace(/^\.\//u, '');
+/**
+ * Canonicalize a test file path to its repository-relative form: `./`, `..` and doubled slashes
+ * fold away, and an absolute path under `root` becomes relative to it. Two spellings of one file
+ * then share one key, so the shard planner never runs the same cases twice (#3158).
+ */
+export function fileKey(file, root = null) {
+  const text = String(file).split(sep).join('/');
+  if (!text) return '';
+  const inside = root && isAbsolute(text) ? relative(root, text).split(sep).join('/') : text;
+  return posix.normalize(inside).replace(/^\.\//u, '');
 }
 
 /**
@@ -157,13 +166,16 @@ export function fileKey(file) {
  * @param {string[]} files
  * @param {number} count
  * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
  * @returns {{ files: string[], weight: number }[]}
  */
-export function planLandingShards(files, count, times = {}) {
-  const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms));
+export function planLandingShards(files, count, times = {}, root = null) {
+  const known = files.map(file => times[fileKey(file, root)]).filter(ms => Number.isFinite(ms));
   const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
-  const weight = file => known.length ? (Number.isFinite(times[fileKey(file)]) ? times[fileKey(file)] : average) : 1;
-  const ordered = [...new Map(files.map(file => [fileKey(file), file])).values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b)); // One path once, so no case runs twice (#3158).
+  const weight = file => known.length ? (Number.isFinite(times[fileKey(file, root)]) ? times[fileKey(file, root)] : average) : 1;
+  const distinct = new Map();
+  for (const file of files) if (!distinct.has(fileKey(file, root))) distinct.set(fileKey(file, root), file); // One file once, however spelled, so no case runs twice (#3158).
+  const ordered = [...distinct.values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const shards = Array.from({ length: Math.max(1, count) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
     const lightest = shards.reduce((best, shard) => shard.weight < best.weight
@@ -420,7 +432,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
   const history = readFileTimes(root);
   const plan = release ? await planReleaseShards(files, release.executors, history, needsBrowser, needsGui,
     shardFiles => cpuRunnerRequired(root, shardFiles))
-    : planLandingShards(files, count, history);
+    : planLandingShards(files, count, history, root);
   const balance = landingBalance(files, history);
   const total = plan.length;
   const stopper = new AbortController();
