@@ -75,6 +75,13 @@ function warmFiles(ctx, board, me) {
  */
 export async function nextOnce(ctx, values) {
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
+  if (!values.verify) {
+    const waiting = withBoardRead(ctx, board => {
+      const me = whoAmI(ctx, board);
+      return store.ownershipWaiting(board, me.id === COORDINATOR ? COORDINATOR : me.lane);
+    });
+    if (waiting.length) return { ownershipWaiting: waiting };
+  }
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
     checkMainVerifier(ctx, board, values);

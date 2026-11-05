@@ -61,6 +61,17 @@ export async function waitForSubmitGate(ctx, id, acknowledgment, jobId, ports) {
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, { id: jobId }));
   for (;;) {
     const { job, item } = observeJob(ctx, id, acknowledgment, jobId, ports);
+    if (job.state === 'ownership-wait') {
+      const wait = ports.withBoardRead(ctx, board => ports.ownershipWaitForJob(board, job.id));
+      if (!wait || wait.key !== job.ownershipWait || wait.commit !== job.executionCommit || wait.tree !== job.executionTree
+        || wait.agentId !== job.agentId || wait.digest !== job.digest) {
+        throw new Refused('SUBMIT_HANDOFF_RESULT', 'the ownership result must match its exact queued source');
+      }
+      const { receipts, job: _job, ...waitingOwner } = wait;
+      ctx.io.result?.({ id, commit: wait.commit, queued: false, state: 'ownership-wait', waitingOwner });
+      ctx.io.say(`#${id} waits on ${wait.owners.join(', ')} ownership; the builder claim is released`);
+      return 0;
+    }
     if (['green', 'submitted'].includes(job.state)) {
       const result = completedResult(directory, job, item, id);
       ctx.io.result?.(result);
@@ -76,14 +87,18 @@ export async function waitForSubmitGate(ctx, id, acknowledgment, jobId, ports) {
     const claimed = item.item_owner === job.agentId && item.item_status === 'claimed';
     const finalizing = item.item_status === 'submitted' && item.item_built_by === job.agentId
       && item.item_commit === job.executionCommit;
-    if (!['queued', 'running'].includes(job.state) || !(claimed || finalizing)) {
+    const ownerWait = !claimed && !finalizing && ports.ownershipWait
+      ? ports.withBoardRead(ctx, board => ports.ownershipWait(board, id)) : null;
+    const routing = ownerWait?.job === job.id && ownerWait.commit === job.executionCommit
+      && ownerWait.tree === job.executionTree && ownerWait.digest === job.digest;
+    if (!['queued', 'running'].includes(job.state) || !(claimed || finalizing || routing)) {
       throw new Refused('SUBMIT_HANDOFF_CHANGED', `the queued gate no longer owns #${id}; run pullboard show ${id}`);
     }
     // Observe native completion again after checking process death: completion can race the last worker exit.
     try { requireWorker(directory, jobId, id); }
     catch (error) {
       const final = observeJob(ctx, id, acknowledgment, jobId, ports);
-      if (['green', 'submitted', 'red', 'incomplete'].includes(final.job.state)) continue;
+      if (['green', 'submitted', 'ownership-wait', 'red', 'incomplete'].includes(final.job.state)) continue;
       throw error;
     }
     await pause(250);

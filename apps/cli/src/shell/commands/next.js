@@ -142,8 +142,32 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    if (!values.verify) {
+      const ownerQueue = withBoardRead(ctx, board => {
+        const me = whoAmI(ctx, board);
+        return store.ownershipWaiting(board, ctx.info.isMain ? 'coordinator' : me.lane);
+      });
+      if (ownerQueue.length) {
+        io.result?.({ action: 'ownership', ownershipWaiting: ownerQueue });
+        for (const waiting of ownerQueue) {
+          io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+          io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+          io.say(waiting.diff);
+        }
+        return 0;
+      }
+    }
     const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
+    if (found.ownershipWaiting?.length) {
+      io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
+      for (const waiting of found.ownershipWaiting) {
+        io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+        io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+        io.say(waiting.diff);
+      }
+      return 0;
+    }
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);

@@ -107,3 +107,5 @@ export {
 } from './src/shell/board-repository.js';
 
 export { boardWriteLog } from './src/shell/board-write-lock.js';
+
+export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
