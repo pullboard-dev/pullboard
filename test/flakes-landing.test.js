@@ -46,7 +46,8 @@ test('enabled landing retains its original red without a second diagnostic or fi
   const report = box.cli('flakes').document;
   assert.equal(report.flakes.length, 1);
   assert.equal(report.flakes[0].count, 1);
-  assert.equal(report.flakes[0].item, null, 'first sighting does not invent repair work');
+  // Changed with #3131: a proven ledger flake files its repair on the first sighting.
+  assert.ok(Number.isSafeInteger(report.flakes[0].item), 'a proven flake files one repair item on its first sighting');
   assert.equal(report.flakes[0].observations[0].kind, 'land');
   assertReceipts(box, report.flakes[0].observations[0]);
   assert.equal(box.git('rev-parse', 'HEAD').trim(), box.base);

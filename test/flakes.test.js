@@ -114,7 +114,8 @@ test('a red gate records one paired pass and drafts repair work on a second sigh
   assert.equal(row.observations[0].original.green, false);
   assert.equal(row.observations[0].paired.green, true);
   assertReceipts(box, row.observations[0]);
-  assert.equal(row.item, null, 'one sighting records evidence without inventing a repair item');
+  // Changed with #3131: a proven ledger flake files its repair on the first sighting.
+  assert.ok(Number.isSafeInteger(row.item), 'a proven flake files one repair item on its first sighting');
   const second = box.cli('gate');
   assert.equal(second.code, 1);
   assert.equal(second.document.green, false);
