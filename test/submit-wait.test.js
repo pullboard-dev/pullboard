@@ -34,7 +34,7 @@ function onBoard(box, action, clock) {
 /** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1',
+  assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
