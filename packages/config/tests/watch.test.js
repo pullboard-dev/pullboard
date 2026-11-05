@@ -391,11 +391,12 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
+  // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
-    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject',
-  ], 'only the explicit moves, native placements, baseline and submit proofs were recorded');
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
+  ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
   const facts = recorded.filter(event => event.event_kind === 'fact');
   assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
   for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {
