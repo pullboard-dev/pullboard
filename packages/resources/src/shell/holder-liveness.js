@@ -1,50 +1,12 @@
-/** A gate holder that stops heartbeating is terminated, its slot freed, and its captured request re-run once [C7]. */
+/** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 
-/** A holder with no heartbeat for this long is hung; a live hung holder is terminated and its slot freed. */
-export const STALE_HOLDER_MS = 120_000;
-/** Overrides the hung-holder window in milliseconds; tests use it to reach the window quickly. */
-export const STALE_HOLDER_ENV = 'PULLBOARD_STALE_HOLDER_MS';
-/** How long a terminated holder gets after SIGTERM before SIGKILL; its slot stays held until its PID is gone. */
-export const HOLDER_KILL_GRACE_MS = 10_000;
-/** Overrides the SIGTERM-to-SIGKILL grace in milliseconds. */
-export const HOLDER_KILL_GRACE_ENV = 'PULLBOARD_HOLDER_KILL_GRACE_MS';
 /** Set in the environment of a re-dispatched request so its own holder is never requeued a second time. */
 export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
-
-/**
- * The configured hung-holder window, or the default when unset or invalid.
- *
- * @returns {number} Milliseconds without a heartbeat before a live holder counts as hung.
- */
-function staleHolderMs() {
-  const value = Number(process.env[STALE_HOLDER_ENV]);
-  return Number.isSafeInteger(value) && value > 0 ? value : STALE_HOLDER_MS;
-}
-
-/**
- * The configured SIGTERM-to-SIGKILL grace, or the default when unset or invalid.
- *
- * @returns {number} Milliseconds a terminated holder has to exit before SIGKILL.
- */
-function holderKillGraceMs() {
-  const value = Number(process.env[HOLDER_KILL_GRACE_ENV]);
-  return Number.isSafeInteger(value) && value > 0 ? value : HOLDER_KILL_GRACE_MS;
-}
-
-/**
- * Send a signal to a holder's process group, falling back to the process itself when it leads no group.
- * Why: a detached holder leads its own group, so its children die with it; a holder that does not lead one still gets the signal.
- *
- * @param {number} pid - The holder's process ID, already verified as the recorded incarnation.
- * @param {'SIGTERM'|'SIGKILL'} signal - The signal to send.
- */
-function signalHolder(pid, signal) {
-  try { process.kill(-pid, signal); return; } catch { /* No group leads with this PID; signal the process itself. */ }
-  try { process.kill(pid, signal); } catch { /* Already gone, which is the outcome we want. */ }
-}
 
 /**
  * Record one liveness decision in the durable event table, so a freed or re-dispatched slot can be traced later.
@@ -70,7 +32,7 @@ function recordLiveness(db, kind, row, detail = '') {
  */
 function freeHolder(db, row, relaunches) {
   db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
-  recordLiveness(db, 'freed', row, 'process gone or hung past its window');
+  recordLiveness(db, 'freed', row, 'process gone, or its PID now names another process');
   if (!row.request) {
     recordLiveness(db, 'reopen', row, 'no captured request; the item reopens to its holder through next');
     return;
@@ -85,34 +47,28 @@ function freeHolder(db, row, relaunches) {
 }
 
 /**
- * Free holders whose process is gone, and terminate live holders that stopped heartbeating.
- * A live holder with no heartbeat for the hung window gets SIGTERM, then SIGKILL after the grace period; its row goes
- * only once its PID is gone. Identity is checked before any signal, so a reused PID is never signalled.
- * Why: a hung holder otherwise keeps its slot indefinitely, and nothing else can release it.
+ * Free holders whose process is gone. The OS decides: a holder is alive while its PID answers (EPERM counts as alive)
+ * and the OS start time matches the one recorded with the lease, so a reused PID never passes as the holder. A gone
+ * PID, a zombie or a different start time frees the slot at once; a live holder is never reclaimed, however stale its
+ * heartbeat timestamp. Holder rows always name a process on this machine, so no timestamp decides here.
+ * Why: a holder blocked in synchronous child work (a gate execute, runOnRunner, a private check) could not refresh its
+ * timestamp, and the 120 s hung window killed live gates and landings mid-run (#3088, #3154).
  *
  * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
- * @param {number} now - Epoch milliseconds for the staleness comparisons.
- * @param {{ alive: (pid: number) => boolean, processIdentity: (pid: number) => ({ started: string, zombie: boolean } | null), sameProcess: (pid: number, started: string) => boolean, leaseMs: number }} probes - The slot module's process checks and lease window.
+ * @param {number} now - Epoch milliseconds, kept for the caller's interface.
+ * @param {{ alive: (pid: number) => boolean, processIdentity: (pid: number) => ({ started: string, zombie: boolean } | null), freshIdentity?: (pid: number) => ({ started: string, zombie: boolean } | null) }} probes - The slot module's process checks; freshIdentity reads past any cache.
  * @returns {Array<object>} Captured requests to re-dispatch after the commit.
  */
 export function reclaimHolders(db, now, probes) {
   const relaunches = [];
-  const leaseCutoff = now - probes.leaseMs;
-  const hungCutoff = now - staleHolderMs();
-  for (const row of db.prepare('SELECT token, name, pid, started, item, heartbeat, terminating, request, relaunched FROM holder').all()) {
-    if (row.pid === process.pid) continue;
-    if (!probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
-    if (row.heartbeat < leaseCutoff && !probes.sameProcess(row.pid, row.started)) { freeHolder(db, row, relaunches); continue; }
-    if (!(row.terminating > 0 || row.heartbeat < hungCutoff)) continue;
-    // Only a verified incarnation is signalled; an unknown identity is kept, never guessed at.
-    const identity = row.started ? probes.processIdentity(row.pid) : null;
-    if (!identity || identity.zombie || identity.started !== row.started) continue;
-    if (row.terminating === 0) {
-      signalHolder(row.pid, 'SIGTERM');
-      db.prepare('UPDATE holder SET terminating = ? WHERE token = ?').run(now, row.token);
-      recordLiveness(db, 'terminate', row, 'no heartbeat past the hung window; SIGTERM sent');
-    } else if (now - row.terminating >= holderKillGraceMs()) {
-      signalHolder(row.pid, 'SIGKILL');
+  for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched FROM holder').all()) {
+    if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
+    // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
+    // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
+    const gone = identity => identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started));
+    // A cached identity may predate the PID's reuse, so a mismatch is read again uncached before any row is freed.
+    if (gone(probes.processIdentity(row.pid)) && gone(probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
+      freeHolder(db, row, relaunches);
     }
   }
   return relaunches;
@@ -155,4 +111,38 @@ export function capturedRequestOf(value) {
     throw new Refused('BAD_RESOURCE_METADATA', 'capturedRequest needs argv, a non-empty array of strings, and an optional absolute cwd');
   }
   return JSON.stringify({ argv: [...value.argv], cwd: value.cwd ?? '' });
+}
+
+/** Which reader produced a start identity: a platform fallback tags its value, and ps lstart has no tag. */
+function startSource(started) {
+  return /^(linux|win):/u.exec(started)?.[1] ?? 'ps';
+}
+
+/**
+ * Whether a read identity proves a different process than the recorded start: only a start read by the same source
+ * can differ; an unrecorded start, or one read another way after a ps failure, is unknown, which counts as alive.
+ */
+export function differentStart(identity, started) {
+  return Boolean(started && identity?.started && startSource(identity.started) === startSource(started) && identity.started !== started);
+}
+
+/**
+ * The start identity where ps is unavailable: /proc/<pid>/stat field 22 plus the boot time on Linux, Get-Process
+ * StartTime on Windows; null when unreadable, which keeps a live PID authoritative (#3154).
+ */
+export function platformIdentity(pid) {
+  try {
+    if (process.platform === 'linux') {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      const boot = Number(/^btime (\d+)$/mu.exec(readFileSync('/proc/stat', 'utf8'))?.[1]);
+      return Number.isFinite(boot) ? { started: `linux:${boot}:${fields[19]}`, zombie: fields[0] === 'Z' } : null;
+    }
+    if (process.platform === 'win32') {
+      const ticks = execFileSync('powershell.exe', ['-NoProfile', '-Command', `(Get-Process -Id ${Number(pid)}).StartTime.ToUniversalTime().Ticks`],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5_000 }).trim();
+      return /^\d+$/u.test(ticks) ? { started: `win:${ticks}`, zombie: false } : null;
+    }
+  } catch { /* Unreadable: the live PID stays authoritative. */ }
+  return null;
 }
