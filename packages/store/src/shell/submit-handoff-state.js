@@ -15,6 +15,7 @@ import {
   logEvent,
 } from "./board-event-log.js";
 import { release } from "./board.js";
+import { setItem } from "./board.js";
 import {
   getItem,
   now,
@@ -145,8 +146,9 @@ export function startSubmitHandoff(board, id, options) {
 /** Store the canonical result without performing any submission transition or accepting new proof. */
 export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMinutes, ...options }) {
   return atomic(board, () => {
-    const job = matching(board, id, options);
-    if (!['queued', 'running'].includes(job.state)) return job;
+    const saved = matching(board, id, options);
+    if (!['queued', 'running'].includes(saved.state)) return saved;
+    const job = { ...saved, ...lockWaitRecord(result?.lockWaits) };
     const item = getItem(board, id);
     if (result?.code === 0) {
       if (item.item_status !== 'submitted' || item.item_built_by !== job.agentId || item.item_commit !== result.commit) {
@@ -191,13 +193,25 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
 }
 
 /**
+ * The lock waits a queued gate sat through, as a job field: count, total wait in ms and count per lock code.
+ * Why: a gate that waits on a busy board instead of stopping (#3087) should still show the wait it paid.
+ */
+function lockWaitRecord(waits) {
+  const count = Number(waits?.count), totalMs = Number(waits?.totalMs);
+  if (!Number.isSafeInteger(count) || count <= 0 || !Number.isSafeInteger(totalMs) || totalMs < 0) return {};
+  const codes = Object.fromEntries(Object.entries(waits.codes ?? {})
+    .filter(([code, n]) => /^[A-Z_]{1,40}$/u.test(code) && Number.isSafeInteger(n) && n > 0));
+  return { lockWaits: { count, totalMs, codes } };
+}
+
+/**
  * Keep a red queued item claimed by the seat that submitted it, with a fresh lease from now.
  * Why: a released red sat open with no holder while the cause was unread (#2454); the builder fixes it first,
  * and only a lease that lapses without action frees the item for anyone.
  */
 function returnToBuilder(board, id, job, error) {
   const leaseUntil = new Date(board.clock.now().getTime() + job.leaseMs).toISOString();
-  board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(leaseUntil, id);
+  setItem(board, id, { item_lease_until: leaseUntil });
   // The fresh deadline is lease evidence like any renewal, so lapsed-claim maintenance can free it once it ends.
   logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
