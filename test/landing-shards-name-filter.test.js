@@ -13,7 +13,7 @@ const SOURCE = resolve(import.meta.dirname, '..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 /** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6. */
-function project(t, redFile = null) {
+function project(t, redFile = null, slowFile = null) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-name-shards-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const repo = join(dir, 'repo'), home = join(dir, 'home');
@@ -23,7 +23,8 @@ function project(t, redFile = null) {
   copyPackageFiles(SOURCE, repo);
   for (const name of NAMES) {
     writeFileSync(join(repo, 'test', `${name}.test.js`), `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n`
-      + `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`
+      + (name === slowFile ? `test('target ${name} [C7]', () => new Promise(done => setTimeout(done, 6_000)));\n`
+        : `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`)
       + `test('unrelated ${name} [C7]', () => assert.fail('the name filter must skip this case'));\n`);
   }
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js', landingShards: 6 }));
@@ -66,9 +67,10 @@ test('clause 1: duplicate paths run once, and every selector option reaches ever
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
   const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
   assert.equal(cases, 4, 'each target runs once despite duplicate paths, and the skip pattern drops c and e in their shards');
-  const { selectionPatternArgs } = await import('../packages/gate/index.js');
-  assert.deepEqual(selectionPatternArgs(['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only', '--test-concurrency', '2', 'test/a.test.js'], arg => arg === '--test-concurrency'),
-    ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-only']);
+  const { landingShardOptions } = await import('../packages/gate/index.js');
+  assert.deepEqual(landingShardOptions(['--test-name-pattern', 'x', 'test/a.test.js', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap', '--', 'test/b.test.js'],
+    arg => ['--test-name-pattern', '--test-timeout'].includes(arg)),
+  ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap'], 'every option as written; only files drop');
 });
 
 test('clause 1: equivalent spellings of one test file plan onto one shard once [C7]', async () => {
@@ -118,4 +120,29 @@ test('clause 1: a selector option missing its value refuses as the unsharded run
     assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
     assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
   }
+});
+
+test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', t => {
+  for (const extra of [['--test-timeout', '3000'], ['--test-timeout=3000']]) {
+    const run = gate(project(t, null, 'd'), '^target', extra);
+    assert.notEqual(run.status, 0, `${extra.join(' ')}: ${run.stdout}${run.stderr}`);
+    assert.match(run.stdout, /# landing shards: 6 /u, 'the run was sharded');
+    assert.match(run.stdout + run.stderr, /target d|d\.test\.js/u, 'the timed-out test is named');
+    assert.match(run.stdout + run.stderr, /timed out after 3000ms/u, 'the caller timeout applied');
+    assert.match(run.stdout, /# landing result: red/u);
+  }
+});
+
+test('clause 1: a name filter with no file arguments fans out, and its collection never claims the full suite [C7]', t => {
+  const box = project(t);
+  // Only the six fixture files stay tracked tests, so the unfiltered default suite is exactly them.
+  const packaged = execFileSync('git', ['ls-files', '*.test.js'], { cwd: box.repo, env: box.env, encoding: 'utf8' }).split('\n').filter(file => file && !file.startsWith('test/'));
+  if (packaged.length) execFileSync('git', ['rm', '-q', '--', ...packaged], { cwd: box.repo, env: box.env });
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'test: only the fixture tests'], { cwd: box.repo, env: box.env });
+  const run = gate({ ...box, env: { ...box.env, PULLBOARD_LANDING_COLLECT_ALL: '1', PULLBOARD_LANDING_COLLECTION_ID: 'filtered-suite' } }, '^target', [], []);
+  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
+  assert.match(run.stdout, /# landing shards: \d+ /u, 'the run was sharded');
+  const suite = [...run.stdout.matchAll(/^# pullboard-landing-collection (\{.*\})$/gmu)].map(match => JSON.parse(match[1])).find(frame => frame.scope === 'suite');
+  assert.ok(suite, 'the suite collection frame printed');
+  assert.equal(suite.full, false, 'a filtered run is never a full-suite collection');
 });

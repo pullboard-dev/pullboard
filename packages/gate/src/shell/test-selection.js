@@ -30,15 +30,26 @@ export function testSelectionPatterns(args, takesValue) {
   return patterns;
 }
 
-/** Every test-selector option token (name and skip patterns, --test-only), so each landing shard selects alike (#3158). */
-export function selectionPatternArgs(args, takesValue) {
-  const tokens = [];
+/** Whether a name, skip, only or shard option narrows the run, so its collection can never claim the full suite (#3158). */
+export function narrowsSelection(args, takesValue) {
+  return testSelectionPatterns(args, takesValue).length > 0 || args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg));
+}
+
+/**
+ * The caller's options for every landing shard: each option and its value exactly as written, in order, with only the
+ * file selectors removed (positionals, and everything from `--` on), so timeouts, patterns, reporters and every other
+ * option reach each shard unchanged and a shard runs what the unsharded gate would (#3158). Shard flags never get here:
+ * landingFanOutFiles refuses them first. Values are skipped by the runner's own option arity, so a value that looks
+ * like a path stays an option value.
+ */
+export function landingShardOptions(args, takesValue) {
+  const options = [];
   for (let index = 0; index < args.length && args[index] !== '--'; index++) {
-    if (/^--test[-_](?:name|skip)[-_]pattern=/u.test(args[index]) || /^--test[-_]only$/u.test(args[index])) tokens.push(args[index]);
-    else if (/^--test[-_](?:name|skip)[-_]pattern$/u.test(args[index]) && index + 1 < args.length) tokens.push(args[index], args[++index]);
-    else if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
+    if (!args[index].startsWith('-')) continue;
+    options.push(args[index]);
+    if (!args[index].includes('=') && takesValue(args[index]) && index + 1 < args.length) options.push(args[++index]);
   }
-  return tokens;
+  return options;
 }
 
 /**

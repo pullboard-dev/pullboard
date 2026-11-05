@@ -29,7 +29,7 @@ import {
   isGitWorkTree,
   trackedDefaultTestFiles,
   shardArguments,
-  testSelectionPatterns,
+  testSelectionPatterns, narrowsSelection,
 } from '../packages/gate/index.js';
 import {
   AGENT_SHELL_MARKERS,
@@ -1284,7 +1284,7 @@ async function main(args) {
   const runnerAdmission = (await import('../packages/config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
-    fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
+    fullSuite && !narrowsSelection(args, optionTakesValue));
   timing.phase('selectionMs', selectionAt);
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
@@ -1325,7 +1325,7 @@ async function main(args) {
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
     if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
-      const { landingShardCount, selectionPatternArgs, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
+      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
       const count = landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
@@ -1338,7 +1338,7 @@ async function main(args) {
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { testsNeedBrowser } = await import('../packages/gate/index.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus, args: selectionPatternArgs(nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue).args, optionTakesValue), // The unsharded parser's refusals, then its parsed values.
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
         timing.sharded(result, files);
