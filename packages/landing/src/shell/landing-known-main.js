@@ -3,6 +3,8 @@ import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
+import { laneOf } from '../../../seats/index.js';
+import { listItems } from '../../../store/index.js';
 
 /**
  * Split a fully accounted red landing gate into cases red identically on the batch's main base and cases red only in the batch.
@@ -46,4 +48,39 @@ export function knownMainFields(gate, account) {
 /** One line naming each known-main case, for the landing's own output. */
 export function knownMainLine(account) {
   return `known main red at ${account.main.slice(0, 12)} (not failing this batch): ${account.known.map(row => `${row.file} :: ${row.name}`).join('; ')}`;
+}
+
+/** Quote one literal file for a stored check command. */
+function word(file) { return "'" + file.replaceAll("'", "'\\''") + "'"; }
+
+/**
+ * File one Main red item per file for cases red at the batch's base main as well, or reuse the one already pending, so
+ * main's own red is owned by a repair and never charged to the batch's items [C7,#3073]. A file no lane owns is said
+ * aloud for the coordinator; filing never stops the landing.
+ *
+ * @param {{ board: object, config: object, batch: { id: string, base: string, root: string }, write: Function, say: Function }} state
+ * @param {Array<{file: string, name: string}>} known - The known-main cases.
+ * @returns {Promise<Array<{file: string, item: number}>>} The Main red item for each file.
+ */
+export async function fileKnownMainReds(state, known) {
+  const filed = [];
+  for (const file of [...new Set(known.map(row => row.file))]) {
+    // The whole filing is contained: a board read or write error is said aloud and the landing goes on.
+    try {
+      const title = `Main red: ${file}`;
+      const pending = listItems(state.board, { all: true }).find(item => item.item_title === title && !item.item_merged_commit
+        && ['open', 'claimed', 'submitted', 'verified'].includes(item.item_status));
+      if (pending) { filed.push({ file, item: pending.item_id }); continue; }
+      const lane = laneOf({ lanes: state.config.lanes }, file);
+      if (!lane || lane === 'coordinator') { state.say(`main red ${file} has no owning lane; the coordinator must file its repair`); continue; }
+      const cases = known.filter(row => row.file === file).map(row => row.name);
+      const criterion = `Repair these exact cases on main ${state.batch.base}: ${cases.join('; ')}. They fail at main alone, found by landing batch ${state.batch.id}.`;
+      // A repair is diagnosed by the seat that takes it, so it files on the strong route.
+      const item = await state.write('addItem', [{ by: 'coordinator', lane, title, route: 'strong', specIds: [], parentId: null, after: [],
+        criterion, brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: landing batch ${state.batch.id}; main ${state.batch.base}`,
+        check: `${String(state.config.affectedTests ?? '').trim()} ${word(file)}`.trim() }]);
+      filed.push({ file, item: typeof item === 'object' ? item?.item_id ?? item?.item?.item_id : item });
+    } catch (error) { state.say(`main red ${file} was not filed (${error.message}); the coordinator must file its repair`); }
+  }
+  return filed;
 }

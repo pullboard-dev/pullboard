@@ -69,7 +69,7 @@ function adoptBatch(box, entry, { dirty = false, reset = false, runs = 1 } = {})
   return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
 }
 
-test('a batch whose every item already landed another way is dropped and its worktree removed [B35,B3]', () => {
+test('clause 1: a batch whose every item already landed another way is dropped and its worktree removed [B35,B3]', () => {
   const { box, entry } = acceptedProject();
   recordManualMergedItems(box, [entry]);
   const result = adoptBatch(box, entry);
