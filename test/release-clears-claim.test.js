@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
-test('clauses 1 and 2: a successful INELIGIBLE release immediately shows the item open and unheld [B4,C7]', t => {
+test('clause 1 and clause 2: a successful INELIGIBLE release immediately shows the item open and unheld [B4,C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
