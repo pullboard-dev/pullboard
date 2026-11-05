@@ -62,7 +62,7 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   const initialized = run(repo, 'init');
   assert.equal(initialized.status, 0, initialized.failure || initialized.stderr);
   git(repo, 'add', '-A'); git(repo, 'commit', '-q', '--allow-empty', '-m', 'chore: initialize owner fixture [G1]');
-  const claimBase = git(repo, 'rev-parse', 'HEAD').stdout.trim();
+  const claimBase = git(repo, 'rev-parse', 'HEAD');
   document(run(builder, 'join', 'web', '--model', 'Owner wait fixture model', '--json'));
   const added = document(run(repo, 'add', 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The finished web file is present.', '--check', 'test -f web/done.txt',
