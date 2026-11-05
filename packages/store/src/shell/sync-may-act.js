@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { repoInfo } from '../../../git/index.js';
+import { repoInfo } from '../../../git/src/shell/git.js';
 import { Refused } from '../../../kernel/core.js';
 
 const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;

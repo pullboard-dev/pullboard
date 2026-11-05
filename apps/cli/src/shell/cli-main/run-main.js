@@ -24,7 +24,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   }
   if (!info.isMain) return;
   const primary = mainCheckout(info.root);
-  if (primary?.branch) (await import('../../../../../packages/sandbox/src/shell/trusted-policy-read.js')).trunkRef(info.root, primary.branch);
+  if (primary?.branch) (await import('../../../../../packages/git/src/shell/git-trunk-ref.js')).trunkRef(info.root, primary.branch);
 }
 
 /**
@@ -54,7 +54,7 @@ async function timedMain(argv, streams) {
   }
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
-  const { withGitFacts } = await import('../../../../../packages/git/index.js');
+  const { withGitFacts } = await import('../../../../../packages/git/src/shell/git.js');
   let command;
   try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
   if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
@@ -156,7 +156,7 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
+  const git = needsRepo ? await import('../../../../../packages/git/src/shell/git.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
     try {
