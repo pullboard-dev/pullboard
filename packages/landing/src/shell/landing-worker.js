@@ -14,7 +14,14 @@ import { Refused } from '../../../kernel/index.js';
 
 
 /** Preserve one typed refusal prefix while passing it through more than one process. */
-function messageText(error) { return String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, ''); }
+function messageText(error) {
+  const text = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, '');
+  // An unexpected error names where it was thrown: a bare "database is locked" left no way to find the write [C7].
+  if (error instanceof Refused || typeof error?.stack !== 'string') return text;
+  const frames = error.stack.split('\n').filter(line => /^\s+at /u.test(line) && !/node:internal|^\s+at node:/u.test(line))
+    .slice(0, 3).map(line => line.trim().replace(/^at /u, '').replace(/file:\/\/\/.*?\/(packages|apps|bin|src)\//u, '$1/'));
+  return frames.length ? `${text} (at ${frames.join(' < ')})` : text;
+}
 
 /** Read process identities before attributing a live worker or its detached gate descendants. */
 function census(parseProcessCensus) {
