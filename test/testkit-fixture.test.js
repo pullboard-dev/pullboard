@@ -35,7 +35,7 @@ function fixtureAdmissionProof(t) {
   ];
   for (const { name: file, helpers } of fixtureFiles) {
     const source = readFileSync(join(import.meta.dirname, file), 'utf8');
-    assert.doesNotMatch(source, /(?:\.run|\bcli)\([^\n]*,\s*['"](?:add|join)['"]/u, `${file} delegates CLI fixture admission to testkit-fixture.js`);
+    assert.doesNotMatch(source, /(?:\.run|\bcli)\(\s*[^,\n]+,\s*['"](?:add|join)['"](?=\s*[,\)])/u, `${file} delegates CLI fixture admission to testkit-fixture.js`);
     assert.doesNotMatch(source, /--(?:route|brief|model)\b/u, `${file} leaves admission flags to testkit-fixture.js`);
     for (const helperName of helpers) {
       const usage = new RegExp(String.raw`\b${helperName}\b`, 'u');

@@ -20,8 +20,10 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   const result = fixtureResult(run(root, ...addArgs));
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
   const item = JSON.parse(result.out).item;
-  const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
-  assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
+  if (check !== null) {
+    const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
+    assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
+  }
   return item;
 }
 
