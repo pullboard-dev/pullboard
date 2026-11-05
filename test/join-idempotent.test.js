@@ -24,4 +24,5 @@ test('same lane and model rejoin exits 0; a different lane or model still refuse
   const otherModel = box.run(worktree, 'join', 'web', '--model', 'Another Fixture');
   assert.notEqual(otherModel.code, 0);
   assert.match(otherModel.err, /ALREADY_JOINED/u);
+  assert.equal(JSON.parse(box.run(worktree, 'whoami', '--json').out).model, 'Fixture', 'a refused rejoin preserves the registered model');
 });
