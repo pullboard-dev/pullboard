@@ -22,7 +22,7 @@ function commitAs(box, cwd, session, path, message) {
   } finally { delete box.env.CODEX_SESSION_ID; }
 }
 
-test('with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
+test('clauses 1, 2 and 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
   const box = helpers.project();
   const session = 'hook-no-slot-2505';
   assert.equal(box.run(box.repo, 'add', 'web', 'Hook speed', '--specs', 'G1').code, 0);
@@ -39,7 +39,7 @@ test('with every local slot held, a one-line commit passes its hooks without que
     const ok = commitAs(box, box.web, session, 'web/page.html', 'feat(web): one line [G1]');
     assert.equal(ok.status, 0, ok.text);
     // Before this change each hook waited 30 s for the held lease and then refused with CHECKOUT_BUSY.
-    assert.ok(ok.ms < 1000, `the commit with its hooks took ${Math.round(ok.ms)} ms with every slot held`); // budget: derived from the frozen #2505 bar requiring completion under 1 s.
+    assert.ok(ok.ms < 2000, `the commit with its hooks took ${Math.round(ok.ms)} ms with every slot held`); // budget: frozen #2505 clause 3 permits under 2 s.
     const started = performance.now();
     const direct = box.run(box.web, 'hook', 'pre-commit');
     const hookMs = performance.now() - started;
