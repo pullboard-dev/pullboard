@@ -556,17 +556,27 @@ test('hot board queries never scan events or shouts [C7]', () => {
     assert.deepEqual(scans, [], `${scans.length} hot statements scan events or shouts:\n${scans.join('\n')}`);
     assert.deepEqual([...wholeHistory].sort(), WHOLE_HISTORY, 'a whole-history read stopped scanning: remove it from WHOLE_HISTORY');
 
-    store.openDecisions(board, 'coordinator');
-    const runs = [];
-    for (let n = 0; n < 5; n += 1) {
-      const started = performance.now();
-      const open = store.openDecisions(board, 'coordinator');
-      runs.push(performance.now() - started);
-      assert.equal(open.length, 575);
-    }
-    const median = runs.sort((a, b) => a - b)[2];
-    assert.ok(median < 5, `openDecisions took ${median.toFixed(2)} ms, over 5 ms`);
-    console.log(`# openDecisions median ${median.toFixed(2)} ms; ${timings.join('; ')}`);
+    // openDecisions is judged by the work it asks SQLite to do, which machine load cannot change:
+    // a fixed number of statements, each reaching shouts through an index.
+    const decisionStatements = [];
+    const prepare = board.db.prepare.bind(board.db);
+    board.db.prepare = (sql) => { decisionStatements.push(sql); return prepare(sql); };
+    let open;
+    try { open = store.openDecisions(board, 'coordinator'); }
+    finally { board.db.prepare = prepare; }
+    assert.equal(open.length, 575);
+    assert.ok(decisionStatements.length < 10, `openDecisions prepared ${decisionStatements.length} statements for 575 decisions, not a fixed few`);
+    const decisionScans = [...new Set(decisionStatements)].flatMap((sql) => {
+      const names = scanNames(sql);
+      const bindings = Array.from(sql.matchAll(/\?/gu), () => null);
+      const plan = prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...bindings).map((row) => row.detail);
+      return plan.filter((detail) => {
+        const match = /^(?:SCAN (\w+)|SEARCH (\w+) USING AUTOMATIC)/u.exec(detail);
+        return match && names.has(match[1] ?? match[2]);
+      }).map((detail) => `${sql.replace(/\s+/gu, ' ').slice(0, 200)}\n    ${detail}`);
+    });
+    assert.deepEqual(decisionScans, [], `openDecisions scans events or shouts:\n${decisionScans.join('\n')}`);
+    console.log(`# ${timings.join('; ')}`);
   } finally {
     store.closeBoard(board);
   }
