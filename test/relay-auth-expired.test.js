@@ -43,7 +43,7 @@ function commitOutboxChoice(box, value) {
   runFixtureGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: configure relay outbox'], { cwd: box.root, env: box.env });
 }
 
-test('reads and status answer when the relay sign-in expired [H16,H5]', async t => {
+test('reads and status answer when the relay sign-in expired [H16,H5] [clause 1]', async t => {
   const box = await relayClientFixture(t);
   const obligation = await prepareKeylessInbox(box);
   commitOutboxChoice(box, false);
@@ -68,7 +68,7 @@ test('reads and status answer when the relay sign-in expired [H16,H5]', async t 
   assert.equal(existsSync(view.document.path), true, 'the local view export is available after relay auth refusal');
 });
 
-test('a revoked agent token is never reminted from the machine credential; the person reissues the coordinator [H16,H5,H2]', async t => {
+test('a revoked agent token is never reminted from the machine credential; the person reissues the coordinator [H16,H5,H2] [clause 1]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const seed = await box.cli('add', box.lane, 'seed agent credential');
@@ -102,7 +102,7 @@ test('a revoked agent token is never reminted from the machine credential; the p
   assert.equal(tokens.document.coordinatorEvents[1].issued, reissued.id);
 });
 
-test('moves stay local while the machine credential expires, then replay after sign-in [H21,H16,H5]', async t => {
+test('moves stay local while the machine credential expires, then replay after sign-in [H21,H16,H5] [clause 1]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const seed = await box.cli('add', box.lane, 'seed revoked machine fixture');
@@ -223,7 +223,7 @@ test('moves stay local while the machine credential expires, then replay after s
 
 });
 
-test('relay off keeps a board out of auto-link [H1,H7,H16]', async t => {
+test('relay off keeps a board out of auto-link [H1,H7,H16] [clause 1]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const machineFile = join(box.env.PULLBOARD_HOME, 'relay-machine', 'state.json');
@@ -287,7 +287,7 @@ async function joinedDeletionFixture(t) {
   return { box, joined, ...phone };
 }
 
-test('a joined computer adds locally after the owner deletes the relay copy [H17,E9]', async (t) => {
+test('a joined computer adds locally after the owner deletes the relay copy [H17,E9] [clause 1]', async (t) => {
   const { box, joined, headers, deviceId } = await joinedDeletionFixture(t);
   const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
   const off = await box.cli('relay', 'off');
@@ -312,7 +312,7 @@ test('a joined computer adds locally after the owner deletes the relay copy [H17
   assert.equal(status.document.relay.linked, false, 'the deleted relay copy no longer intercepts later local moves');
 });
 
-test('the owner is warned that deleting the relay copy cuts off joined computers [H17,E9]', async (t) => {
+test('the owner is warned that deleting the relay copy cuts off joined computers [H17,E9] [clause 1]', async (t) => {
   const { box, joined } = await joinedDeletionFixture(t);
   const off = await box.cli('relay', 'off');
   assert.equal(off.code, 0);
@@ -322,7 +322,7 @@ test('the owner is warned that deleting the relay copy cuts off joined computers
 });
 
 
-test('an agent token cannot inventory joined computers [H17,E9]', async (t) => {
+test('an agent token cannot inventory joined computers [H17,E9] [clause 1]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -335,7 +335,7 @@ test('an agent token cannot inventory joined computers [H17,E9]', async (t) => {
 });
 
 
-test('another board deletion never turns this board into local mode [H17,E9]', async (t) => {
+test('another board deletion never turns this board into local mode [H17,E9] [clause 1]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -360,7 +360,7 @@ test('another board deletion never turns this board into local mode [H17,E9]', a
   assert.equal((await box.cli('add', box.lane, 'the surviving board still syncs')).code, 0, 'ordinary ordered work remains available with its own credential');
 });
 
-test('a move pending acknowledgement when the relay copy is deleted is kept [H17,E9]', async t => {
+test('a move pending acknowledgement when the relay copy is deleted is kept [H17,E9] [clause 1]', async t => {
  const box = await relayClientFixture(t);
  await box.link();
  const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -399,7 +399,7 @@ test('a move pending acknowledgement when the relay copy is deleted is kept [H17
    'the local sender retains its earlier accepted obligation across the deletion and lost acknowledgement');
 });
 
-test('a deleted-copy pending move survives interrupted cleanup and is returned only once on retry [H17,E9]', async t => {
+test('a deleted-copy pending move survives interrupted cleanup and is returned only once on retry [H17,E9] [clause 1]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
