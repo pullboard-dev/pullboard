@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fixture as dispatchFixture } from './next-take-fixture.js';
 import { main } from './native-cli-fixture.js';
 
-test('a seat that joins now reports 0 unread until a later shout reaches it [C7]', () => {
+test('clause 1: a seat that joins now reports 0 unread until a later shout reaches it [C7]', () => {
   let cleanup;
   const board = fixtureBoard({ after: callback => { cleanup = callback; } });
   try {
@@ -35,7 +35,7 @@ async function nextAnswer(box, cwd) {
   return { code, text: `${out}${err}` };
 }
 
-test('native next omits pre-join unread counts and reports genuine post-join mail [C7]', async t => {
+test('clause 2: native next omits pre-join unread counts and reports genuine post-join mail [C7]', async t => {
   const box = await dispatchFixture(t);
   store.shout(box.board, { from: 'coordinator', to: 'all', text: 'history before the fresh seat joined' });
   const path = join(box.root, '..', 'fresh-inbox-seat');
