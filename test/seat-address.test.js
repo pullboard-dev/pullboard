@@ -88,13 +88,17 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
   const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
   document(await second.cli('answer', String(question.id), 'Confirmed by the local coordinator'));
-  document(await second.cli('shout', sender.id, 'Force native inbox delivery after revocation'));
-  const beforeDelivery = replicaEventCount(second.root, sender.id);
+  document(await second.cliAt(second.root, 'shout', sender.id, 'Fresh local interrupt'));
+  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  const deliveriesBefore = replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count;
+  const senderDeliveriesBefore = replicaEventCount(second.root, sender.id);
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
   assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
-  assert.equal(replicaEventCount(second.root, sender.id), beforeDelivery, 'the revoked seat appends no activity-delivery event');
-  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  assert.equal(replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count, deliveriesBefore,
+    'the revoked seat cannot append an activity-delivery event');
+  assert.equal(replicaEventCount(second.root, sender.id), senderDeliveriesBefore,
+    'the revoked seat appends no activity-delivery event');
   let localInbox;
   try {
     // Inspect the real sender replica with the inbox's canonical audience query without recording a delivery.
