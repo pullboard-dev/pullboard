@@ -87,12 +87,15 @@ function workerContext(request, directory, root, nativeBoard) {
 /** Retain a refusal and return only this process's still-current native job through the normal move. */
 async function recordWorkerFailure(ctx, request, directory, failure) {
   writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
+  let busyWaits = [];
+  try { busyWaits = JSON.parse(readFileSync(join(directory, 'busy-waits.json'), 'utf8')); }
+  catch { /* No completed busy wait was recorded for this refusal. */ }
   if (ctx && isSubmitHandoffWorker(ctx)) {
     try {
       const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
         await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-          { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+          { agentId: job.agentId, job: job.id, result: { ...failure, busyWaits }, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
   }
@@ -133,7 +136,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), busyBudgetMs: job.leaseMs });
     busyWaits.push(...settled.busyWaits);
     const completed = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit } }])), { busyBudgetMs: job.leaseMs });
+      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, busyWaits } }])), { busyBudgetMs: job.leaseMs });
     busyWaits.push(...completed.busyWaits);
     // The receipt records each busy code and wait beside the submission it delayed.
     writeFileSync(join(directory, 'busy-waits.json'), JSON.stringify(busyWaits) + '\n', { mode: 0o600 });

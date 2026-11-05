@@ -50,6 +50,16 @@ function record(board, id, job) {
   return structuredClone(job);
 }
 
+/** Validate the small public wait receipt so malformed worker output cannot pollute native history. */
+function busyWaitReceipt(value) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some(row => !row || typeof row.code !== 'string' || !/^[A-Z0-9_]{1,80}$/u.test(row.code)
+    || !Number.isFinite(row.seconds) || row.seconds <= 0)) {
+    throw new Refused('BAD_SUBMIT_HANDOFF', 'retain busy waits as code and positive seconds in the queued result');
+  }
+  return value.map(({ code, seconds }) => ({ code, seconds }));
+}
+
 /** Validate a captured candidate without treating a queue request as a gate receipt. */
 function candidate(value) {
   if (!Number.isSafeInteger(value.leaseMs) || value.leaseMs <= 0 || !JOB.test(value.job ?? '') || !SHA.test(value.main ?? '') || !SHA.test(value.commit ?? '') || !SHA.test(value.tree ?? '') || !SHA.test(value.executionCommit ?? '') || !SHA.test(value.executionTree ?? '') || !DIGEST.test(value.digest ?? '') || !(value.companionDigest === null || DIGEST.test(value.companionDigest ?? ''))) {
@@ -148,6 +158,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
   return atomic(board, () => {
     const job = matching(board, id, options);
     if (!['queued', 'running'].includes(job.state)) return job;
+    const busyWaits = busyWaitReceipt(result?.busyWaits);
     const item = getItem(board, id);
     if (result?.code === 0) {
       if (item.item_status !== 'submitted' || item.item_built_by !== job.agentId || item.item_commit !== result.commit) {
@@ -161,7 +172,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
         throw new Refused('SUBMIT_HANDOFF_RESULT', 'the queued source needs its own actual native submit event and captured-source proof receipts');
       }
       const gateGreen = submitted.gateGreen === true;
-      return record(board, id, { ...job, state: gateGreen ? 'green' : 'submitted', gateGreen, submitted: result.commit, completedAt: now(board) });
+      return record(board, id, { ...job, ...(busyWaits ? { busyWaits } : {}), state: gateGreen ? 'green' : 'submitted', gateGreen, submitted: result.commit, completedAt: now(board) });
     }
     if (result?.code !== 1 || !result.error || typeof result.error.code !== 'string' || !result.error.code
       || typeof result.error.message !== 'string' || typeof result.error.next !== 'string') {
@@ -173,7 +184,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
       // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
       insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
-      return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
+      return record(board, id, { ...job, ...(busyWaits ? { busyWaits } : {}), state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;
@@ -187,7 +198,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, ...reservation });
       insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${result.error.code}); read pullboard show ${id} for the original refusal; finish or release your current build at a natural break, then claim this item.`, lanes: [] });
     }
-    return record(board, id, { ...job, state, error: { ...result.error }, completedAt: now(board) });
+    return record(board, id, { ...job, ...(busyWaits ? { busyWaits } : {}), state, error: { ...result.error }, completedAt: now(board) });
   });
 }
 

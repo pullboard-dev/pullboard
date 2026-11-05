@@ -176,9 +176,13 @@ test('a queued gate stopped by an infrastructure Git read stays claimed and is n
       executionTree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), digest: item.item_frozen_digest,
       companionDigest: null, leaseMs: 7_200_000 };
     const queued = writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner);
+    const busyWaits = [{ code: 'BOARD_BUSY', seconds: 5 }, { code: 'SLOT_DB_LOCKED', seconds: 10 }];
     const done = completeSubmitHandoff(board, box.id, { agentId: item.item_owner, job: queued.job.id,
-      result: { code: 1, error: { code: 'GIT_READ_INFRASTRUCTURE', message: 'the accepted cells-plan presence could not be read from Git', next: 'retry' } } });
+      result: { code: 1, busyWaits, error: { code: 'GIT_READ_INFRASTRUCTURE', message: 'the accepted cells-plan presence could not be read from Git', next: 'retry' } } });
     assert.equal(done.state, 'infrastructure');
+    assert.deepEqual(done.busyWaits, busyWaits, 'the durable queued result retains every busy code and wait');
+    const shown = document(box.run(box.web, 'show', String(box.id), '--json'));
+    assert.deepEqual(shown.queuedSubmit.busyWaits, busyWaits, 'the public queued result exposes the receipt');
     assert.equal(getItem(board, box.id).item_status, 'claimed');
     assert.equal(getItem(board, box.id).item_owner, item.item_owner, 'the builder keeps its claim');
     const texts = board.db.prepare('SELECT shout_to AS to_, shout_text AS text FROM shout').all();
