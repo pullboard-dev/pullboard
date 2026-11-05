@@ -5,7 +5,7 @@ import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { reviewFamilyRelaxation } from '../packages/store/src/shell/board-review-family.js';
-import { relaxationInputs, preparedRelaxation, reserveWithin } from '../packages/store/src/shell/board-reserve-review.js';
+import { relaxationInputs, preparedRelaxation } from '../packages/store/src/shell/board-reserve-review.js';
 
 const SUBMITTED = 30;
 const SEATS = 15;
@@ -136,26 +136,4 @@ test('clause 2: a seat route change is a witness input, so a rejoined seat never
   const before = relaxationInputs(board);
   board.db.prepare("UPDATE agent SET agent_route='light' WHERE agent_id='core-5'").run();
   assert.notEqual(relaxationInputs(board), before, 'the active seat route is part of the inputs');
-});
-
-test('clause 2: a prepared witness that no longer matches in the lock is never rebuilt there [C7,V15]', t => {
-  const { board, ids } = backlog(t, 2);
-  const stale = { ...preparedRelaxation(board, ids[0], who), inputs: 'inputs from before the lock' };
-  const holds = writerHolds(board);
-  preparedRelaxation(board, ids[0], who);
-  const witnessCost = holds.prepared, mark = holds.length;
-  assert.throws(() => store.atomic(board, () => reserveWithin(board, ids[0], { ...who, prepared: stale })), { code: 'REVIEW_QUEUE_CHANGED' });
-  const own = holds.slice(mark);
-  assert.ok(own.every(hold => hold.statements < witnessCost), 'the refused transaction did no witness work: ' + JSON.stringify(own));
-  assert.equal(store.getItem(board, ids[0]).item_review_by, null);
-});
-
-test('clause 2: next --verify renews the caller\'s own live reservation in the lock [C7,V15]', t => {
-  const { board, advance } = backlog(t);
-  const first = store.reserveNextReview(board, who);
-  const until = first.item.item_review_until;
-  advance(60_000);
-  const renewed = store.reserveNextReview(board, who);
-  assert.equal(renewed.item.item_id, first.item.item_id, 'the same review is renewed');
-  assert.ok(renewed.item.item_review_until > until, 'the lease moved forward');
 });

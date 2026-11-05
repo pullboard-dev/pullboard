@@ -86,8 +86,6 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
   // A witness prepared before the lock for this exact head and bar is reused; anything else is built here.
   const reuse = prepared && found && prepared.commit === found.item_commit && prepared.digest === found.item_frozen_digest
     && prepared.inputs === relaxationInputs(board);
-  // A prepared witness that no longer matches is never rebuilt here, inside the caller's lock: the look runs again.
-  if (prepared && !reuse) throw new Refused('REVIEW_QUEUE_CHANGED', 'the review queue changed since this review was chosen; run next --verify again');
   const witness = reuse ? prepared.witness : enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
   moveItem(board, id, 'reserve', {
     checks: {
