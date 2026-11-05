@@ -84,7 +84,14 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const blocked = [];
   const touched = new Map();
   const knownReds = batches.flatMap((batch) => batch.culprits ?? []);
+  // Unverified submissions not already on base, read once: a pending item stacks on one when that submission's commit
+  // is among the item's own commits past base. Why: two merge-base walks per pending item per submission (850 Git
+  // processes for 85 waiting items) cost 4 minutes of every selection and left the lander idle between batches.
+  const unverified = store.unverifiedSubmissions(board).filter((other) => tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
   for (const original of pending) {
+    // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
+    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7].
+    if (ready.length >= maximum) break;
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
@@ -100,9 +107,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
     if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
-    const stacked = store.unverifiedSubmissions(board).find((other) => other.item_id !== item.item_id
-      && tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, item.item_landing_commit]).status === 0
-      && tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+    const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
+    const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {
       blocked.push({ id: item.item_id, code: 'STACKED_UNVERIFIED', stacked: stacked.item_id });
       continue;
