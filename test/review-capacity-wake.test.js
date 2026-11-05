@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard, getItem, heartbeatSeat, recentShouts } from '../packages/store/index.js';
 import { REVIEW_WAKE_WAIT_MS } from '../packages/sentinels/index.js';
+import { SEAT_LIVE_WINDOW_MS } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
 import { main } from './native-cli-fixture.js';
@@ -42,7 +43,8 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   assert.equal(getItem(board, item).item_status, 'submitted');
-  at += REVIEW_WAKE_WAIT_MS;
+  // Wake tests need an idle reviewer even when the queue's deadline is shorter than seat liveness.
+  at += Math.max(REVIEW_WAKE_WAIT_MS, SEAT_LIVE_WINDOW_MS);
   if (awake) {
     assert.equal(heartbeatSeat(board, JSON.parse(joined.out).agent), true, 'the native local observation protocol marks the reviewer awake');
   }

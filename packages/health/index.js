@@ -10,3 +10,4 @@ export { staleStateSnapshot } from './src/shell/stale-state-snapshot.js';
 export { captureLapsedClaims, pinClaimHandoff } from './src/shell/stale-state-capture.js';
 export { sweepClaims } from './src/shell/claim-sweep.js';
 export { landingFailureFindings, landingFailureObservation } from './src/shell/landing-failure.js';
+export { reviewFamilyCover, reviewFamilyBuildPause, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG } from './src/shell/review-family-cover.js';
