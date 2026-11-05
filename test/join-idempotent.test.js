@@ -15,7 +15,7 @@ test('same lane and model rejoin exits 0; a different lane or model still refuse
   assert.equal(first.code, 0, first.err);
   const again = box.run(worktree, 'join', 'web', '--model', 'Fixture');
   assert.equal(again.code, 0, again.err);
-  assert.match(again.out, /already joined as web-1; run pullboard next/u);
+  assert.match(again.out, /already joined as web-1 \(Fixture\); run pullboard next/u);
   assert.equal(JSON.parse(box.run(worktree, 'join', 'web', '--model', 'Fixture', '--json').out).agent, 'web-1');
 
   const otherLane = box.run(worktree, 'join', 'api', '--model', 'Fixture');
