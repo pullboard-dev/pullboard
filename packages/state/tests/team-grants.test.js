@@ -43,7 +43,7 @@ function run(box, root, ...args) {
   return result.out;
 }
 
-test('an agent grant narrows at claim and expires identically on independent replicas [E21]', () => {
+test('clause 1: an agent grant narrows at claim and expires identically on independent replicas [E21]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
     run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof');
@@ -93,7 +93,7 @@ test('an agent grant narrows at claim and expires identically on independent rep
     'a fresh unclaimed seat still has only its registered lane');
 });
 
-test('an agent grant narrows at claim without changing old receipts or permitting an old-engine bypass [E21,H16]', async t => {
+test('clause 1: an agent grant narrows at claim without changing old receipts or permitting an old-engine bypass [E21,H16]', async t => {
   const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../src/agent-grant-engine.js');
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-01T00:00:00.000Z') };
@@ -150,7 +150,7 @@ test('an agent grant narrows at claim without changing old receipts or permittin
 });
 
 
-test('an agent grant narrows at claim without trapping its own handoff facts [E21,B3]', () => {
+test('clause 1: an agent grant narrows at claim without trapping its own handoff facts [E21,B3]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Unrelated work']) {
     run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof', '--wait');
@@ -193,7 +193,7 @@ test('an agent grant narrows at claim without trapping its own handoff facts [E2
 });
 
 
-test('an agent grant narrows at claim for accepted numeric-text item ids [E21,H16]', () => {
+test('clause 1: an agent grant narrows at claim for accepted numeric-text item ids [E21,H16]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
     run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof', '--wait');
@@ -238,7 +238,7 @@ test('an agent grant narrows at claim for accepted numeric-text item ids [E21,H1
 });
 
 /** Real Git and two private SQLite replicas; seeded acceptances are lifecycle fixtures, not executed gates. */
-test('an agent grant narrows at claim without trapping its own verdict withdrawal [E21,V2,V6,H16]', t => {
+test('clause 1: an agent grant narrows at claim without trapping its own verdict withdrawal [E21,V2,V6,H16]', t => {
   const box = helpers.project();
   let instant = Date.parse('2026-10-24T00:00:00Z');
   const clock = { now: () => new Date(instant) };
@@ -303,7 +303,7 @@ test('an agent grant narrows at claim without trapping its own verdict withdrawa
 
 
 /** Append-only findings are communication, not authority to change item state. */
-test('an agent grant narrows at claim but any joined seat can append attributed findings on every replica [E21,H16]', () => {
+test('clause 1: an agent grant narrows at claim but any joined seat can append attributed findings on every replica [E21,H16]', () => {
   const box = helpers.project();
   for (const title of ['Claimed work', 'Other work']) {
     run(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'strong', '--check', 'test -f web/grant-proof');
@@ -344,7 +344,7 @@ test('an agent grant narrows at claim but any joined seat can append attributed 
 
 
 /** The activation boundary is an ordered engine prefix, not a client opening the database. */
-test('an agent grant narrows at claim after the recorded engine high-water mark [E21,H16]', async t => {
+test('clause 1: an agent grant narrows at claim after the recorded engine high-water mark [E21,H16]', async t => {
   const { AGENT_GRANT_ENGINE: agentGrantEngine } = await import('../../../src/agent-grant-engine.js');
   const box = helpers.project();
   const directory = join(box.dir, 'actual-pre-grant-writer');
@@ -401,7 +401,7 @@ test('an agent grant narrows at claim after the recorded engine high-water mark 
 
 
 
-test('an agent grant narrows at claim without losing its submitted attempt receipt [E21,H16]', t => {
+test('clause 1: an agent grant narrows at claim without losing its submitted attempt receipt [E21,H16]', t => {
   const box = helpers.project();
   const clock = { now: () => new Date('2026-10-24T00:00:00Z') };
   const boards = ['attempt-primary.sqlite', 'attempt-peer.sqlite'].map(name => openBoard(join(box.dir, name), clock, { gitRoot: box.repo }));
