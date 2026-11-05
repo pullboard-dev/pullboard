@@ -26,6 +26,24 @@ export function reserveReview(board, id, who) {
 }
 
 /**
+ * Build the family-relaxation witness for an item outside any write transaction, bound to the head and bar it was
+ * built for. Why: each witness walks every waiting review for every seat (0.5-0.9 s on a 28-submission board), and
+ * inside the lock that blocked every other writer (#3156).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, policy: string, familyPolicy?: string, familyRelaxAt?: number }} who
+ * @returns {{ commit: string, digest: string, witness: any } | null}
+ */
+export function preparedRelaxation(board, id, { agentId, policy, familyPolicy = 'off', familyRelaxAt }) {
+  const found = getItem(board, id);
+  if (!found || (board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_RELAX_ENGINE) return null;
+  if (familyRelaxAt !== undefined && familyRelaxAt !== frozenRelaxAt(found)) return null;
+  return { commit: found.item_commit, digest: found.item_frozen_digest,
+    witness: reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) };
+}
+
+/**
  * The reserve move, inside a transaction the caller holds.
  *
  * @param {any} board
@@ -33,13 +51,15 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string }} who
  * @returns {any}
  */
-export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt }) {
+export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared }) {
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
   const frozen = found ? frozenRelaxAt(found) : undefined;
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-  const witness = enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
+  // A witness prepared before the lock for this exact head and bar is reused; anything else is built here.
+  const reuse = prepared && found && prepared.commit === found.item_commit && prepared.digest === found.item_frozen_digest;
+  const witness = reuse ? prepared.witness : enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
