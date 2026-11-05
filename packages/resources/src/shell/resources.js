@@ -6,7 +6,6 @@ import { pruneControllerOrphans } from './controller-custody.js';
 import { controllerRegistrationPorts } from './controller-custody.js';
 import { consumeControllerDisposition } from './controller-disposition.js';
 import { settleControllerCancellation } from './controller-disposition.js';
-import { isAbsolute } from 'node:path';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
 import {
   existsSync,
@@ -52,6 +51,7 @@ import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
+import { platformIdentity } from './holder-liveness.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -313,7 +313,7 @@ function processIdentity(pid) {
     const fields = output.split(/\s+/u);
     const state = fields.pop();
     if (fields.length) identity = { started: fields.join(' '), zombie: state?.startsWith('Z') ?? false };
-  } catch { /* A live PID remains authoritative when the OS identity utility is unavailable. */ }
+  } catch { identity = platformIdentity(pid); }
   processIdentities.set(pid, { identity, checkedAt: Date.now() });
   if (processIdentities.size > 1024) {
     for (const [cachedPid, entry] of processIdentities) {
@@ -359,7 +359,7 @@ function update(db, action) {
   try {
     pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
-    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, sameProcess, leaseMs: LEASE_MS });
+    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity });
     for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
       // A live but hung gate process cannot retain a queue place indefinitely.
       const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
