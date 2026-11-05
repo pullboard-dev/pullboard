@@ -29,8 +29,9 @@ export function reviewOffer(board, who) {
     const picked = nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip], reviewOrder });
     if (picked.item) return { item: picked.item, queue: reviewQueue(board), mandatory: true, urgent: 'first-review', starveMinutes: 15 };
   }
-  // A green, unreserved submission comes before any build with no starvation wait (#2992).
-  const green = who.mandatoryOnly ? greenReviewFor(board, who) : null;
+  // A green, unreserved submission comes before any build with no starvation wait, for the mandatory-only offer and
+  // the full one alike: plain next reads the mandatory review from the full offer (#2978, #2992).
+  const green = greenReviewFor(board, who);
   if (green) return { item: green, queue: reviewQueue(board), mandatory: true, urgent: 'green-review' };
   if (who.mandatoryOnly) return null;
   return capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
