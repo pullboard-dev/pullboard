@@ -12,6 +12,7 @@ import { sourcePreparationFields } from '../../core.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { invalidateGitFacts } from '../../../../src/git.js';
+import { keepHeartbeatWhileBlocked } from '../../../resources/index.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
   TIMING_RUN_ID_ENV,
@@ -369,9 +370,14 @@ export function runProfiledShell(root, command, options) {
   try {
     const { value: plan } = execution.next();
     const { gateLease } = plan;
-    const run = gateLease?.runner
-      ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
-      : runShell(root, command, plan.localOptions);
+    // The blocked loop cannot fire the lease's heartbeat timer; a helper keeps it until the run's own timeout (#3130).
+    const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease, { timeoutMs: plan.localOptions?.timeoutMs });
+    let run;
+    try {
+      run = gateLease?.runner
+        ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
+        : runShell(root, command, plan.localOptions);
+    } finally { stopHeartbeat(); }
     return execution.next(run).value;
   } finally { execution.return(); }
 }
