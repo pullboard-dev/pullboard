@@ -73,3 +73,12 @@ test('a BOARD_BUSY on one write mid-batch retries only that write and never redo
     'the landing engine\'s single write port waits out a busy lock');
   assert.doesNotMatch(source, /untilBoardFree\(\(\) => actOn/u, 'the whole landing is never retried');
 });
+
+test('progress always wins over a deferral; with nothing moved the deferral stands [C7]', () => {
+  const deferredUntil = '2026-11-04T07:03:00.000Z', next = new Date(NOW + LANDING_NEXT_BATCH_MS).toISOString();
+  for (const moved of [{ landed: [1] }, { landed: [], culprits: [{ id: 2 }] }, { landed: [], conflicts: [{ id: 3 }] }, { landed: [], reopened: 1 }]) {
+    assert.equal(landingRetryAt({ ...moved, deferredUntil, waiting: true }, NOW), next, JSON.stringify(moved));
+  }
+  assert.equal(landingRetryAt({ landed: [], culprits: [], conflicts: [], reopened: 0, deferredUntil, waiting: true }, NOW), deferredUntil);
+  assert.equal(landingRetryAt({ landed: [], deferredUntil, waiting: false }, NOW), deferredUntil, 'a recorded deferral keeps its wake');
+});

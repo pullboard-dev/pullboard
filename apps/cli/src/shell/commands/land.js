@@ -163,18 +163,19 @@ export async function untilBoardFree(work, { wait = ms => new Promise(resolve =>
 }
 
 /**
- * When the board's next landing wake is due: a recorded deferral; within seconds after a run that moved work; else one retry interval from now while verified,
+ * When the board's next landing wake is due: within seconds after a run that moved work, else a recorded deferral, else one retry interval from now while verified,
  * unheld items are still waiting; null when nothing waits [C7,#2898].
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
+  // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
+  // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
+  // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
+  // loops hot.
+  const moved = result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
-  if (!result?.waiting) return null;
-  // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once: the lander sat idle about
-  // 65% of the time waiting a full interval after every landing (#3149). A run that moved nothing keeps the interval,
-  // so a refusal that stays put never loops hot.
-  const moved = result.landed?.length > 0 || result.conflicts?.length > 0 || result.culprits?.length > 0 || result.reopened > 0;
-  return new Date(now + (moved ? LANDING_NEXT_BATCH_MS : result.retryMs ?? LANDING_RETRY_MS)).toISOString();
+  return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
 }
 
 /** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */

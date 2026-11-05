@@ -35,14 +35,7 @@ function blockedHeartbeatMs() {
  * Why: the parent's in-process heartbeat is a timer, and a spawnSync gate blocks the timer for the whole run.
  */
 const HELPER = `const { DatabaseSync } = require('node:sqlite');
-const { spawnSync } = require('node:child_process');
-const [file, token, parentText, everyText, deadlineText, whileChildText] = process.argv.slice(1);
-// A lifetime helper refreshes only while the parent waits on a child other than this helper: a parent blocked in its
-// own code, with no child, still goes stale and is reclaimed.
-const childOtherThanMe = () => {
-  const found = spawnSync('/usr/bin/pgrep', ['-P', String(Number(parentText))], { encoding: 'utf8', timeout: 2000 });
-  return found.status === 0 && found.stdout.split('\\n').some(line => line.trim() && Number(line) !== process.pid);
-};
+const [file, token, parentText, everyText, deadlineText] = process.argv.slice(1);
 const parent = Number(parentText);
 const deadline = Number(deadlineText);
 let db;
@@ -50,7 +43,6 @@ try { db = new DatabaseSync(file); db.exec('PRAGMA busy_timeout = 2000'); } catc
 const beat = () => {
   if (!(Date.now() < deadline)) process.exit(0);
   try { process.kill(parent, 0); } catch { process.exit(0); }
-  if (whileChildText === '1' && !childOtherThanMe()) return;
   try {
     const changed = db.prepare('UPDATE holder SET heartbeat = ? WHERE token = ? AND pid = ? AND terminating = 0').run(Date.now(), token, parent).changes;
     if (!changed) process.exit(0);
@@ -69,23 +61,20 @@ process.stdin.resume();
  * Why: a landing worker's synchronous runner gate was SIGTERMed as hung after 120 s with no heartbeat (#3130).
  *
  * @param {{ token?: string, pool?: string } | undefined} lease - The held resource lease.
- * @param {{ everyMs?: number, timeoutMs?: number, whileChild?: boolean }} [options] - The refresh interval, and the blocking
- *   call's own timeout; refreshing stops at that timeout plus a margin, or at the untimed limit when the call has none.
- *   whileChild refreshes only while the parent has a child process: a whole-lease helper uses it (#3149).
+ * @param {{ everyMs?: number, timeoutMs?: number }} [options] - The refresh interval, and the blocking call's own timeout;
+ *   refreshing stops at that timeout plus a margin, or at the untimed limit when the call has none.
  * @returns {() => void} Stops the helper; safe to call twice.
  */
-export function keepHeartbeatWhileBlocked(lease, { everyMs = blockedHeartbeatMs(), timeoutMs, whileChild = false } = {}) {
+export function keepHeartbeatWhileBlocked(lease, { everyMs = blockedHeartbeatMs(), timeoutMs } = {}) {
   const deadline = Date.now() + refreshWindowMs(timeoutMs);
   if (typeof lease?.token !== 'string' || !lease.token || typeof lease.pool !== 'string' || !lease.pool) return () => {};
   let child;
   try {
-    child = spawn(process.execPath, ['--no-warnings', '-e', HELPER, lease.pool, lease.token, String(process.pid), String(everyMs), String(deadline), whileChild ? '1' : '0'],
+    child = spawn(process.execPath, ['--no-warnings', '-e', HELPER, lease.pool, lease.token, String(process.pid), String(everyMs), String(deadline)],
       { stdio: ['pipe', 'ignore', 'ignore'], detached: false });
     child.on('error', () => {});
     child.stdin.on('error', () => {});
     child.unref();
-    // A lifetime helper must never keep its parent alive at exit; the parent's exit closes this pipe and ends it.
-    child.stdin.unref?.();
   } catch { return () => {}; }
   let stopped = false;
   return () => {

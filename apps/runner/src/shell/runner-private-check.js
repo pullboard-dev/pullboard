@@ -26,7 +26,6 @@ import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { runOnRunner } from '../../../../packages/runners/index.js';
-import { keepHeartbeatWhileBlocked } from '../../../../packages/resources/index.js';
 import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
 import {
   privateCheckEnvelope,
@@ -109,13 +108,8 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const checkedSource = { commit: item.item_commit, tree: policyGit(root, ['rev-parse', `${item.item_commit}^{tree}`]).trim() };
   const started = Date.now();
   lease.tracker?.mark('runAt');
-  // runOnRunner blocks this event loop, so a helper keeps the gate holder's heartbeat until the check's own ceiling, or
-  // the holder is reclaimed as hung mid-check (#3088, #3130).
-  const stopHeartbeat = keepHeartbeatWhileBlocked(lease, { timeoutMs: frozenCheckCeilingMs(policy.config) });
-  let result;
-  try { result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, byLaunch: lease.browserByLaunch,
-    metadata: { ...lease.runMetadata, ...(lease.testOutcomeRunId ? { timingRunId: lease.testOutcomeRunId } : {}), testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') }); }
-  finally { stopHeartbeat(); }
+  const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, byLaunch: lease.browserByLaunch,
+    metadata: { ...lease.runMetadata, ...(lease.testOutcomeRunId ? { timingRunId: lease.testOutcomeRunId } : {}), testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
   lease.tracker?.mark('ranAt');
   lease.environment = result.environment ?? null;
   lease.gui = result.executionCapabilities?.gui ?? null;
