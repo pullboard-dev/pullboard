@@ -23,6 +23,9 @@ export const SETUP_REFUSALS = {
   DIAGNOSIS_ROUTE: 'only a diagnosis fact checks the recording seat\'s route; a release appends a note',
   DIAGNOSIS_HELD: 'only a diagnosis fact checks who holds the item; a release appends a note',
   DIAGNOSIS_REQUIRED: 'only a diagnosis fact parses a diagnosis; a release appends a note, and claim declares its own route check',
+  // Submit's Main red autofile files an untyped final clause, so CLAUSE_EVIDENCE_REQUIRED always refuses first.
+  CLAUSE_EVIDENCE_KIND: 'the only move path, submit\'s Main red autofile, is refused CLAUSE_EVIDENCE_REQUIRED first',
+  CLAUSE_REASONING_ONLY: 'the only move path, submit\'s Main red autofile, is refused CLAUSE_EVIDENCE_REQUIRED first',
   BRIEF_TOO_LONG: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   NO_BRIEF: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   CHECK_MASKS_EXIT: 'only a diagnosis fact routes the item and checks its check; a release appends a note',

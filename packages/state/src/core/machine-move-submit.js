@@ -12,12 +12,9 @@ export const MOVES = [
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
     alsoRefuses: [
-      { code: 'DIAGNOSIS_REQUIRED', rule: 'a light item is submitted only under its current diagnosis', next: 'have a mid or strong seat record Files, Change and Test case with pullboard fact <id> diagnosis' },
       { code: 'SUBMIT_RED_LOOP', rule: 'two red test gates that still match the item code stop another unchanged submit', next: 'change the failing code before another submit' },
       { code: 'AGENT_APPROVAL_REQUIRED', rule: 'cited rows satisfy the accepted person approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
-      { code: 'CLAUSE_EVIDENCE_KIND', rule: 'each frozen clause names one evidence kind', next: 'split outcomes or choose one evidence kind per clause' },
       { code: 'CLAUSE_EVIDENCE_REQUIRED', rule: 'each frozen clause declares its evidence kind', next: 'ask the coordinator to declare the missing clause evidence kind' },
-      { code: 'CLAUSE_REASONING_ONLY', rule: 'observable outcomes require observable evidence', next: 'declare test, command, screenshot or measurement evidence' },
       { code: 'EMPTY_SUBMIT', rule: 'the submitted source changes accepted main', next: 'commit the item work in its native item folder, then submit' },
       { code: 'KERNEL_EXPORT_APPROVAL', rule: 'the person approved the exact Kernel front-door change', next: 'ask the coordinator to bring the exact export decision to the person' },
       { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },
