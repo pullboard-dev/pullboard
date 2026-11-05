@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { landingBatchSize } from '../packages/landing/index.js';
-import { lastRedBatchItems } from '../packages/landing/src/core/landing-batch-size.js';
+import { roundFailures } from '../packages/landing/src/core/landing-batch-size.js';
 import { landingMaximum } from '../packages/landing/src/shell/landing-step-selection.js';
 
 const landed = { state: 'trunk' };
@@ -44,10 +44,30 @@ test('clause 1: the size folds every recorded batch, so a long run of red/green 
   assert.equal(landingBatchSize([landed, landed, ...pairs]), 16, 'two greens then eight red/green pairs stays at 16');
 });
 
-test('clause 1: the items of the last red batch go behind the queue for a round, and a landed batch clears them [C7]', () => {
-  const red = { state: 'blocked', items: [{ id: 7 }] };
-  assert.deepEqual([...lastRedBatchItems([landed, red])], [7]);
-  assert.deepEqual([...lastRedBatchItems([red, { state: 'trunk', items: [{ id: 8 }] }])], [], 'a landed batch after it clears the rotation');
-  assert.deepEqual([...lastRedBatchItems([red, { state: 'gating', items: [{ id: 9 }] }])], [7], 'an unfinished batch says nothing');
-  assert.deepEqual([...lastRedBatchItems([])], []);
+test('clause 1: at a cap of 1, two items that stay red never shut out a third, which lands [C7]', () => {
+  const red = id => ({ state: 'blocked', items: [{ id }] });
+  // Simulate selection at cap 1: untried items first in accept order, then failures oldest first.
+  const pick = (batches, waiting) => {
+    const failed = roundFailures(batches, waiting);
+    return [...waiting].sort((a, b) => (failed.has(a) ? 1 : 0) - (failed.has(b) ? 1 : 0) || (failed.get(a) ?? 0) - (failed.get(b) ?? 0) || a - b)[0];
+  };
+  const batches = [];
+  let waiting = [1, 2, 3], landedC = false;
+  for (let round = 0; round < 6 && !landedC; round += 1) {
+    const chosen = pick(batches, waiting);
+    if (chosen === 3) { batches.push({ state: 'landed', items: [{ id: 3 }] }); waiting = waiting.filter(id => id !== 3); landedC = true; }
+    else batches.push(red(chosen));
+  }
+  assert.equal(landedC, true, 'C is picked once A and B have each failed this round');
+  assert.deepEqual(batches.map(batch => batch.items[0].id), [1, 2, 3]);
+  assert.deepEqual([...roundFailures([red(1), red(2), red(1)], [1, 2])], [[1, 0]], 'a round where every waiting item failed starts over: only the new round\'s failure counts');
+  assert.deepEqual([...roundFailures([red(1), { state: 'landed', items: [{ id: 5 }] }], [1, 2])], [], 'a landing starts a new round');
+});
+
+test('clause 1: a repeated selection folds only new batches and matches a full fold [C7]', () => {
+  const history = Array.from({ length: 40 }, (_, index) => ({ id: `b${index}`, state: index % 3 ? 'landed' : 'blocked' }));
+  const full = landingBatchSize(history);
+  assert.equal(landingBatchSize([...history, { id: 'live', state: 'gating' }]), full, 'an unfinished batch says nothing');
+  assert.equal(landingBatchSize([...history, { id: 'new', state: 'landed' }]), Math.min(16, full * 2), 'a new landed batch folds onto the cached size');
+  assert.equal(landingBatchSize([{ id: 'other', state: 'blocked' }]), 2, 'a different history folds afresh');
 });
