@@ -85,7 +85,7 @@ export function deferOwnership(board, id, request) {
       throw new Refused('OWNERSHIP_WAIT_INVALID', 'only the current builder can route its exact frozen, proved source to its owners');
     }
     greenOwnershipProof(board, id, item, wait);
-    release(board, id, wait.agentId, `Green checks await ownership of ${wait.paths.join(', ')}`, 'ROUTED_ELSEWHERE');
+    release(board, id, wait.agentId, `Green checks await ownership of ${wait.paths.join(', ')}`, undefined, 'ROUTED_ELSEWHERE');
     setItem(board, id, { item_hold_reason: `waiting on ownership ${wait.key}`, item_hold_by: 'coordinator', item_hold_at: board.clock.now().toISOString() });
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
       .run(PREFIX + id, JSON.stringify(wait));

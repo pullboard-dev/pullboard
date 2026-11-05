@@ -74,6 +74,6 @@ export function sealOwnershipWait(board, id, request) {
   if (existing.status !== 0) policyGit(root, ['update-ref', sourceRef, request.commit, '0'.repeat(request.commit.length)]);
   return { version: 1, key, item: id, agentId: request.agentId, commit: request.commit, tree: request.tree,
     main: request.main, job, digest: item.item_frozen_digest, policy: policy.commit, paths, owners,
-    lanes: Object.keys(policy.config.lanes), diff, sourceRef, receipts };
+    lanes: [...new Set(['coordinator', ...Object.keys(policy.config.lanes)])], diff, sourceRef, receipts };
 }
 

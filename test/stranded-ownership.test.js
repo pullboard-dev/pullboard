@@ -72,7 +72,7 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   return box;
 }
 
-test('a green coordinator-owned path waits in its owner next with the exact diff and frees its builder [B3,L1,V4]', async t => {
+test('a green coordinator-owned path waits in its owner next with the exact diff and frees its builder [B3,L1,V4] [clause 1]', async t => {
   const box = fixture(t);
   const acknowledgment = document(box.run(box.root, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(acknowledgment.queued, true, 'the ordinary captured gate must run');
@@ -120,7 +120,7 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   } finally { closeBoard(board); }
 });
 
-test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4]', t => {
+test('a red gate cannot free its builder or create an owner wait for foreign paths [B3,L1,V4] [clause 1]', t => {
   const box = fixture(t, { gate: 'false', handoff: false });
   const failed = box.run(box.root, 'submit', String(box.id), '--no-next', '--json');
   assert.notEqual(failed.status, 0);
