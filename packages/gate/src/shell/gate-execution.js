@@ -444,13 +444,16 @@ export async function withLandingGateSlot(root, action, options = {}) {
  * its selection serially on one runner (about 30 minutes) [C7,#3158].
  *
  * @param {string} root
- * @param {{ required?: unknown, runnerOnly?: boolean }} [facts]
- * @returns {{ remote?: false }}
+ * @param {{ required?: unknown }} [facts]
+ * @returns {{ remote?: false, runnerOnly?: false, runnerWaitMs?: undefined, runnerDeadlineAt?: undefined }}
  */
-export function landingControllerPlacement(root, { required, runnerOnly = false } = {}) {
-  // Only a gate's own controller calls this; its shards keep their runner placement. Runners-only keeps it remote too.
-  if (required || runnerOnly) return {};
-  return landingShardCount(root) > 1 ? { remote: false } : {};
+export function landingControllerPlacement(root, { required } = {}) {
+  // Only a gate's own controller calls this; its shards keep their runner placement and read runners-only themselves
+  // (runLandingShards' own gateRunnerAdmission), so a runners-only machine still runs no shard here. The controller runs
+  // no test file itself, so it stays here even on a runners-only machine; sent to a runner it could never fan out.
+  if (required) return {};
+  // Dropping runners-only drops its captured wait and deadline too, which the slot refuses without it.
+  return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined } : {};
 }
 
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */
@@ -511,7 +514,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
     browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
-    ...(landing ? landingControllerPlacement(root, { required: releaseRequest, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true }) : {}),
+    ...(landing && !runnerOnly ? landingControllerPlacement(root, { required: releaseRequest }) : {}),
   });
 }
 
