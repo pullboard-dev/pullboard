@@ -211,6 +211,17 @@ export function namedFailures(gate) {
  */
 const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
 
+/**
+ * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
+ * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
+ */
+export const LANDING_FAULTS = new Set(['BOARD_BUSY']);
+
+/** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
+export function landingFault(error) {
+  return error instanceof Refused && LANDING_FAULTS.has(error.code);
+}
+
 /** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
 export function itemRefusal(error) {
   if (!(error instanceof Refused)) return false;
