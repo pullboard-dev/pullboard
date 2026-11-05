@@ -33,6 +33,7 @@ import { singleItemLanding } from './landing-step-selection.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
+import { landingFault } from './landing-step-diagnose.js';
 
 /** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
 function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
@@ -124,6 +125,8 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
+    // A landing fault keeps the batch merging or gating with its worktree, so the next wake adopts and resumes it [C7].
+    if (landingFault(error)) throw error;
     if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
       await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
       state.say(`nothing landed: ${error.message}`);
