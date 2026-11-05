@@ -5,6 +5,19 @@ import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../../../../packages/landing/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
+/**
+ * Claims that may stamp trailers: the live ones, or the submitted item's own claim when only its gate handoff remains,
+ * so a fix commit still cites the item while the gate runs [C7,#2882].
+ *
+ * @param {any[]} claims - This seat's claimed items.
+ * @param {(item: any) => unknown} pending - Whether the item's submit handoff is queued or running.
+ * @returns {any[]}
+ */
+export function submittedClaimsFallback(claims, pending) {
+  const live = claims.filter(item => !pending(item));
+  return live.length ? live : claims;
+}
+
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
@@ -119,7 +132,8 @@ export async function hookCommand(io, { first, second }) {
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem) && !pendingSubmitHandoff(board, item)),
+        claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
+          item => pendingSubmitHandoff(board, item)),
         landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
           : landingBatchItemsAtRoot(store.landingBatches(board), info.root, items, item => store.checkedLandingCommit(board, item)),
       };
