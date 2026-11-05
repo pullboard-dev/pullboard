@@ -88,6 +88,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
   const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
   document(await second.cli('answer', String(question.id), 'Confirmed by the local coordinator'));
+  document(await second.cli('shout', sender.id, 'Force native inbox delivery after revocation'));
   const beforeDelivery = replicaEventCount(second.root, sender.id);
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
