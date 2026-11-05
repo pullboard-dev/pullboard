@@ -70,7 +70,7 @@ test('native submit refuses another item trailer and records a submission for it
   for (const wrong of [true, false]) {
     const box = helpers.project('true');
     /** Add a diagnosed fixture item whose frozen check requires the feature committed below. */
-    const add = title => nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1',
+    const add = title => nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'mid',
       '--criterion', 'The committed feature is submitted.', '--check', 'test -f web/feature.txt', '--brief',
       'Files: web/feature.txt\nChange: commit the native submit fixture payload.\nTest: native submit preserves the matching item trailer [V1,V4]').item.item_id;
     const target = add('Target item');
