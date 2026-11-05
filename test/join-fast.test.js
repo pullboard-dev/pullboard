@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { runFixtureGit } from './fixture-child.js';
