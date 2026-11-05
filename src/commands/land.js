@@ -115,7 +115,17 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
         if (item.item_status !== 'verified' || item.item_merged_commit) return null;
         return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
       },
-      execute: () => executeBoardLanding(landing, board, io) });
+      execute: async () => {
+        let result;
+        do {
+          result = await executeBoardLanding(landing, board, io, {
+            adopt: store.landingBatches(board).some(batch => !['landed', 'blocked', 'flaky', 'test-defect'].includes(batch.state)),
+          });
+          // Resuming an older batch must not strand the acceptance that triggered its recovery.
+        } while (result?.batch?.state === 'landed'
+          && store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit));
+        return result;
+      } });
   });
   if (result?.deferredUntil) {
     await schedule(root, result.deferredUntil, new URL('../../bin/automatic-landing.js', import.meta.url));
