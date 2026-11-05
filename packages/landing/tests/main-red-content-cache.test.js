@@ -17,6 +17,7 @@ import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const MAIN_RED = pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href;
 const KNOWN_MAIN = pathToFileURL(join(import.meta.dirname, '../src/shell/landing-known-main.js')).href;
+const ENVIRONMENT = pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href;
 const RED = "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n";
 
 /** Write one file under the fixture repo. */
@@ -75,10 +76,16 @@ function compare(box, mode, commitId) {
   writeFileSync(driver, [
     `import { compareMainFailures } from ${JSON.stringify(MAIN_RED)};`,
     `import { knownMainAccount } from ${JSON.stringify(KNOWN_MAIN)};`,
+    `import { executionEnvironment } from ${JSON.stringify(ENVIRONMENT)};`,
     "import { spawnSync } from 'node:child_process';",
     'const [root, mode, commit] = process.argv.slice(2);',
     "const file = 'test/inherited.test.js';",
     "if (mode === 'submit') console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file, passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
+    // Submit's real call: pinned to the candidate check's executor and runtime, collecting each measured receipt.
+    "else if (mode.startsWith('pinned')) { const environment = executionEnvironment(); const receipts = [];",
+    "  const execution = { executor: { kind: 'local' }, environment: mode === 'pinned-other' ? { ...environment, node: '99.0.0' } : environment };",
+    "  const result = await compareMainFailures(root, { tests: [{ file, passed: false }] }, undefined, '', { commit, detailed: true, fresh: true, execution, onMeasuredReceipt: id => { receipts.push(id); } });",
+    "  console.log(JSON.stringify({ ...result, receipts })); }",
     'else {',
     "  const ran = spawnSync(process.execPath, ['--test', '--test-reporter=tap', file], { cwd: root, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });",
     "  const gate = { isGreen: false, output: ran.stdout, stages: [{ status: ran.status, output: ran.stdout }], profile: { format: 'tap' } };",
@@ -120,4 +127,37 @@ test('clause 2: a changed test file forces one fresh main rerun, whose result is
   const moved = commit(box, 'docs: main moves');
   assert.equal(compare(box, 'submit', moved).files[0].result, 'red');
   assert.equal(runs(box), 2, 'the new record survives the next main move');
+});
+
+test('clause 3: submit\'s executor-pinned comparisons write and read the content record under their executor and runtime [C7,#3166]', t => {
+  const box = fixture(t);
+  const first = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  const measured = compare(box, 'pinned', first);
+  assert.equal(measured.files[0].result, 'red', JSON.stringify(measured));
+  assert.equal(runs(box), 1, 'the pinned comparison measured main once');
+  assert.equal(measured.receipts.length, 1, 'its receipt is reported');
+  put(box.root, 'docs/unrelated.md', 'main moves with the test and its code unchanged\n');
+  const moved = commit(box, 'docs: main moves');
+  const reused = compare(box, 'pinned', moved);
+  assert.equal(reused.files[0].result, 'red');
+  assert.equal(runs(box), 1, 'the same executor and runtime reuse the record after main moves');
+  assert.deepEqual(reused.receipts, measured.receipts, 'the reused record names the receipt that measured it');
+  assert.equal(compare(box, 'landing', moved)?.known?.length, 1, 'a landing reads the record the pinned run wrote');
+  assert.equal(runs(box), 1, 'so main ran once for that content');
+  const other = compare(box, 'pinned-other', moved);
+  assert.ok(runs(box) > 1 || other.unavailable, 'another runtime never reuses that evidence');
+});
+
+test('clause 1: a batch that changed the failing test\'s inputs is compared with a fresh main run, never the content record [C7,#3166]', t => {
+  const box = fixture(t);
+  const first = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  assert.equal(compare(box, 'submit', first).files[0].result, 'red');
+  assert.equal(runs(box), 1);
+  put(box.root, 'docs/unrelated.md', 'main moves\n');
+  const base = commit(box, 'docs: main moves');
+  // The batch's own commit on that base changes the failing test, which stays red with the same case name.
+  put(box.root, 'test/inherited.test.js', RED.replace('assert.equal(1, 2)', 'assert.equal(1, 2, "changed by the item")'));
+  commit(box, 'test: the item changes the red test');
+  compare(box, 'landing', base);
+  assert.equal(runs(box), 2, 'the landing reran main for the changed test instead of trusting the content record');
 });

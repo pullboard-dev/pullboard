@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
+import { sameTestInputs } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
 import { laneOf } from '../../../seats/index.js';
@@ -29,8 +30,10 @@ export async function knownMainAccount(state, gate) {
     let comparison = null;
     try {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
+      // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
+      const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true });
+        { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged });
     } catch { /* An unavailable comparison never excuses a red case. */ }
     for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base)
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);

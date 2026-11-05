@@ -298,6 +298,21 @@ async function contentKeys(root, commit, files) {
   } catch { return new Map(); }
 }
 
+/**
+ * Whether a test's inputs are the same at two commits: the same action inputKey, so the file, its import closure and
+ * declared inputs did not change. Why: a main red recorded by content excuses a batch's case only when the batch left
+ * that test's inputs alone; a batch that changed them is compared with a fresh exact-main run [C7,#3166].
+ */
+export async function sameTestInputs(root, base, head, file) {
+  const [before, after] = await Promise.all([contentKeys(root, base, [file]), contentKeys(root, head, [file])]);
+  return Boolean(before.get(file)) && before.get(file) === after.get(file);
+}
+
+/** The content key a pinned comparison uses: the test's inputs plus the exact executor and runtime it must run on. */
+function pinnedContentKey(inputKey, execution) {
+  return inputKey ? createHash('sha256').update(JSON.stringify([inputKey, execution.executor ?? null, execution.environment ?? null])).digest('hex') : null;
+}
+
 /** Store one outcome under main's commit and its content key, and drop the oldest generations past the bound. */
 function storeOutcome(cache, keys, path, outcome) {
   for (const key of keys) {
@@ -322,7 +337,7 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [], contentCache = true } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -340,7 +355,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
-  const file = pinned ? null : cacheFile(root);
+  const file = cacheFile(root);
   const pinnedEntries = Object.create(null);
   // Board events carry native receipt bytes; bind them to the retained receipt, exact
   // main, focused command and runtime before using them as comparison evidence.
@@ -363,11 +378,12 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures));
   /** Read a consistent cache generation in a short metadata-only critical section. */
-  // Executor-pinned evidence never reads or populates the generic commit/file cache.
-  const snapshot = () => pinned
-    ? Promise.resolve({ version: CACHE_VERSION, entries: { [main.commit]: { ...pinnedEntries } } })
-    : withComparisonCache(root, onWait, () => readCache(file));
-  const content = pinned ? new Map() : await contentKeys(root, main.commit, files);
+  // Executor-pinned evidence never reads or populates the generic commit entries: under main's commit it sees only its
+  // recorded runs, and it shares content-keyed records only under a key that also names its executor and runtime.
+  const snapshot = () => withComparisonCache(root, onWait, () => readCache(file))
+    .then(cache => pinned ? { ...cache, entries: { ...cache.entries, [main.commit]: { ...pinnedEntries } } } : cache);
+  const inputs = contentCache ? await contentKeys(root, main.commit, files) : new Map();
+  const content = pinned ? new Map(files.map(path => [path, pinnedContentKey(inputs.get(path), execution)])) : inputs;
   /** A file's outcome at main: the exact commit's, else the one recorded for the same content key [C7,#3166]. */
   const outcomeOf = (entries, path) => usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
     : content.get(path) && usable(entries[content.get(path)]?.[path]) ? entries[content.get(path)][path] : undefined;
@@ -427,11 +443,12 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
       }, { onMainBranch: true });
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (pinned) pinnedEntries[path] = measured;
-      else await withComparisonCache(root, onWait, () => {
+      await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
         // Preserve a completed exact-main result published while this measurement ran.
-        if (!rerun(path) && outcomeOf(current.entries, path)) return;
-        storeOutcome(current, [main.commit, content.get(path)], path, measured);
+        if (!pinned && !rerun(path) && outcomeOf(current.entries, path)) return;
+        // A pinned run is also a real main run: it fills the generic content record a landing reads, never the commit entry.
+        storeOutcome(current, pinned ? [content.get(path), inputs.get(path)] : [main.commit, content.get(path)], path, measured);
         writeCache(file, current);
       });
     }
@@ -441,6 +458,11 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     }
   }
   cache = await snapshot();
+  // A pinned comparison served by its content record names that record's retained receipt, as a fresh run would.
+  if (pinned && onMeasuredReceipt) for (const path of files.filter(entry => !missing.includes(entry) && !pinnedEntries[entry])) {
+    const receiptId = outcomeOf(cache.entries, path)?.receiptId;
+    if (receiptId) try { await onMeasuredReceipt(receiptId); } catch { /* Timing retention never changes the verdict. */ }
+  }
   const incomplete = files.some(path => !outcomeOf(cache.entries, path));
   // A timeout still has a real file verdict; it never supplies the missing case signatures.
   const coarseFiles = files.flatMap(path => {
