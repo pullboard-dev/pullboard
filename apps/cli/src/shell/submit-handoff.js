@@ -28,6 +28,7 @@ import { tmpdir } from 'node:os';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { itemUrgent } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -42,7 +43,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
   }]);
     // Keep the native move and reservation inside the machine ordering lock, before capture.
-    return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart }) } : queued;
+    return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart, urgent: itemUrgent(board, item.item_id) }) } : queued;
   }));
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, result.job));
   if (result.created) {

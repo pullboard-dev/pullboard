@@ -54,6 +54,7 @@ import { remoteGateWanted } from '../submit-remote-gate.js';
 import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
 import { acceptRunnerPlan } from '../submit-remote-gate.js';
 import { runSubmitGateWithRunnerPlan } from '../submit-remote-gate.js';
+import { gateWithRunnerPlan } from '../submit-remote-gate.js';
 import { doctrineRunnerChecks } from '../submit-remote-gate.js';
 export { doctrineExecutionPhases } from '../submit-remote-gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
@@ -509,8 +510,8 @@ export async function submitHere(ctx, id, infra) {
   /** Judge the test result, including exact-main comparison, while other independent stages run. */
   const judgeTests = async (signal) => {
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
-  const runnerPlan = remoteMode ? acceptRunnerPlan(await selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests }) : {};
-  let gate = await runGate(frozenCheck(held), runnerPlan);
+  let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
+    runnerPlan => runGate(frozenCheck(held), runnerPlan));
   if (signal.aborted) throw signal.reason;
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
