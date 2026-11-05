@@ -10,6 +10,10 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { writeTestTiers } from '../packages/gate/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
+import { selectTestTiers } from '../packages/gate/index.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { runFixtureGit } from './fixture-child.js';
 import { loadConfig } from '../packages/config/index.js';
 import { executionServices } from './gate-execution-fixture.js';
 
@@ -228,4 +232,65 @@ test('a runner that ignores selected units cannot report a false green [C7,V4]',
   assert.equal(JSON.parse(result.out).error.code, 'TEST_SELECTION_UNVERIFIED');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.equal(json(box, box.repo, 'show', String(entry.id)).item_status, 'claimed');
+});
+
+/** A real repository whose machine audit reads source text for refusal codes, as test/machine.test.js does, and imports nothing from the sources. */
+function auditFixture(t) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-refusal-floor-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => String(runFixtureGit(args, { cwd: root, encoding: 'utf8' })).trim();
+  const commitAll = message => { git('add', '-A'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message); return git('rev-parse', 'HEAD'); };
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
+  for (const name of ['alpha', 'beta']) {
+    mkdirSync(join(root, `packages/${name}/src`), { recursive: true });
+    writeFileSync(join(root, `packages/${name}/index.js`), `export * from './src/${name}.js';\n`);
+    writeFileSync(join(root, `packages/${name}/src/${name}.js`), `export const ${name} = 1;\nexport function fail() { throw new Refused('KNOWN_${name.toUpperCase()}', 'x'); }\n`);
+  }
+  mkdirSync(join(root, 'test'), { recursive: true });
+  for (const name of ['alpha', 'beta']) writeFileSync(join(root, `test/${name}.test.js`), `import { test } from 'node:test';\nimport '../packages/${name}/index.js';\ntest('${name} loads', () => {});\n`);
+  writeFileSync(join(root, 'test/machine.test.js'), `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import '../packages/alpha/index.js';
+import '../packages/beta/index.js';
+const declared = new Set(['KNOWN_ALPHA', 'KNOWN_BETA']);
+test('every refusal a move raises today is declared on that move [M1]', () => {
+  const raised = ['alpha', 'beta'].flatMap(name => [...readFileSync(new URL('../packages/' + name + '/src/' + name + '.js', import.meta.url), 'utf8').matchAll(/new Refused\\('([A-Z_]+)'/g)].map(match => match[1]));
+  assert.deepEqual(raised.filter(code => !declared.has(code)), []);
+});
+`);
+  const manifest = writeTestTiers(root).manifest;
+  assert.equal(manifest.files.find(row => row.file === 'test/machine.test.js').tier, 'T3', 'the audit imports two packages, so it is a journey that waits for landing');
+  const base = commitAll('test: base with the declaration audit [M1]');
+  return { root, git, commitAll, base };
+}
+
+test('clause 1: a submit whose diff adds a refusal code runs test/machine.test.js though no import path reaches it [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/alpha/src/alpha.js'), `export const alpha = 1;\nexport function fail() { throw new Refused('KNOWN_ALPHA', 'x'); }\nexport function more() { throw new Refused('BRAND_NEW_CODE', 'y'); }\n`);
+  const head = f.commitAll('feat(alpha): raise a new refusal [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
+  assert.ok(!plan.journeys.includes('test/machine.test.js'), 'the audit no longer waits for landing');
+});
+
+test('clause 2: a change that raises an undeclared refusal code is refused at submit with the machine.test.js case named [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/beta/src/beta.js'), `export const beta = 1;\nexport function fail() { throw new Refused('KNOWN_BETA', 'x'); }\nexport function more() { throw new Refused('UNDECLARED_CODE', 'y'); }\n`);
+  const head = f.commitAll('feat(beta): raise an undeclared refusal [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(plan.units.includes('test/machine.test.js'));
+  const run = runFixtureChild(process.execPath, ['--test', ...plan.units.filter(file => file === 'test/machine.test.js')], { cwd: f.root, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')) });
+  assert.notEqual(run.status, 0, `the selected audit fails the submit run`);
+  assert.match(`${run.stdout}${run.stderr}`, /every refusal a move raises today is declared on that move/u, 'the failing case is named');
+});
+
+test('clause 3: a diff that touches no refusal code does not add machine.test.js to its submit check [M1,V4]', t => {
+  const f = auditFixture(t);
+  writeFileSync(join(f.root, 'packages/alpha/src/alpha.js'), `export const alpha = 2;\nexport function fail() { throw new Refused('KNOWN_ALPHA', 'changed message'); }\n`);
+  const head = f.commitAll('feat(alpha): change a value and a message [M1]');
+  const plan = selectTestTiers(f.root, { base: f.base, commit: head });
+  assert.ok(!plan.units.includes('test/machine.test.js'), `units: ${plan.units.join(', ')}`);
+  assert.ok(plan.journeys.includes('test/machine.test.js'), 'it stays a landing journey');
 });
