@@ -66,7 +66,7 @@ test('queued handoff retries each busy storage code on the same pinned write and
     const failure = failures.shift();
     if (failure) throw failure;
     return 'written';
-  }, { wait: async ms => waits.push(ms), busyBudgetMs: 30_000 });
+  }, { wait: async ms => waits.push(ms), busyBudgetMs: 60_000 });
   assert.equal(out.result, 'written');
   assert.deepEqual(candidates, Array(4).fill('pinned-candidate'));
   assert.deepEqual(waits, [5_000, 10_000, 20_000]);
