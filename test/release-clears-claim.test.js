@@ -10,7 +10,7 @@ test('a successful INELIGIBLE release immediately shows the item open and unheld
   sandbox.env.PULLBOARD_MODEL = 'Release clears claim fixture';
   const box = helpers.project('true', sandbox);
   const added = box.run(box.repo, 'add', 'web', 'Release clears its claim', '--specs', 'G1',
-    '--criterion', 'A successful release clears the claimed state [test].', '--check', 'true', '--json');
+    '--criterion', 'A successful release clears the claimed state [test].', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');
