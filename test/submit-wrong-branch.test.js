@@ -69,9 +69,10 @@ test('native submit refuses another item trailer and records a submission for it
   t.after(helpers.cleanup);
   for (const wrong of [true, false]) {
     const box = helpers.project('true');
-    /** Add a real item whose frozen check requires the feature committed below. */
+    /** Add a diagnosed fixture item whose frozen check requires the feature committed below. */
     const add = title => nativeJson(box, box.repo, 'add', 'web', title, '--specs', 'G1',
-      '--criterion', 'The committed feature is submitted.', '--check', 'test -f web/feature.txt').item.item_id;
+      '--criterion', 'The committed feature is submitted.', '--check', 'test -f web/feature.txt', '--brief',
+      'Files: web/feature.txt\nChange: commit the native submit fixture payload.\nTest: native submit preserves the matching item trailer [V1,V4]').item.item_id;
     const target = add('Target item');
     const author = wrong ? add('Source item') : target;
     nativeJson(box, box.web, 'claim', String(author));
