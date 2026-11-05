@@ -5,10 +5,15 @@ import {
   gitSpawnSync,
 } from '../../../../src/git-adapter.js';
 import {
+  globSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 
 /** Read name-pattern options, skipping values with the runner's own Node option-arity parser. */
 export function testSelectionPatterns(args, takesValue) {
@@ -36,24 +41,28 @@ export function selectionPatternArgs(args, takesValue) {
 }
 
 /**
- * The files a caller's `--test-shard=<i>/<n>` (or a translated `--shard`) keeps, picked the way the unsharded gate
- * picks them (test-file-dispatch): one entry per resolved file in the order given, then every n-th from i. The landing
- * fan-out must apply it before splitting: the selector is not forwarded, so each runner shard would otherwise run
- * files the caller excluded (#3158).
+ * The landing fan-out's one file list: every selector expanded to real files the way the unsharded gate expands them
+ * (test-file-dispatch: a glob matches sorted, a plain path stands for itself), each file once by resolved path, as a
+ * repository-relative path, then cut to the caller's `--test-shard=<i>/<n>` (or a translated `--shard`) by every n-th
+ * from i. The selector is not forwarded to the runner shards, so it must apply here, after expansion: a glob counted as
+ * one entry would keep or drop all its files at once, and overlapping globs would run a file twice (#3158).
  */
-export function callerShardFiles(files, args) {
+export function callerShardFiles(files, args, root = process.cwd()) {
   let value;
   for (let index = 0; index < args.length && args[index] !== '--'; index++) {
     if (args[index].startsWith('--test-shard=')) value = args[index].slice('--test-shard='.length);
     else if (args[index] === '--test-shard') value = args[++index];
   }
-  if (value === undefined) return files;
-  const match = String(value).match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
-  if (!match || Number(match[1]) > Number(match[2])) throw new Error(`invalid --test-shard value "${value}"; expected <i>/<n> with 1 <= i <= n`);
-  const [index, total] = [Number(match[1]), Number(match[2])];
+  const match = value === undefined ? null : String(value).match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
+  if (value !== undefined && (!match || Number(match[1]) > Number(match[2]))) throw new Error(`invalid --test-shard value "${value}"; expected <i>/<n> with 1 <= i <= n`);
   const distinct = new Map();
-  for (const file of files) if (!distinct.has(resolve(file))) distinct.set(resolve(file), file);
-  return [...distinct.values()].filter((_, position) => position % total === index - 1);
+  for (const selector of files) {
+    const matches = /[?*[{]/u.test(selector) ? globSync(selector, { cwd: root }).sort() : [selector];
+    if (!matches.length) throw new Error(`test file pattern matched no files: ${selector}`);
+    for (const file of matches) if (!distinct.has(resolve(root, file))) distinct.set(resolve(root, file), relative(root, resolve(root, file)).split(sep).join('/'));
+  }
+  const expanded = [...distinct.values()];
+  return match ? expanded.filter((_, position) => position % Number(match[2]) === Number(match[1]) - 1) : expanded;
 }
 
 /** The line a name-filtered landing shard prints with its matched case count; its controller sums them. */
