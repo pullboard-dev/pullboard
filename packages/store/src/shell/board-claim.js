@@ -97,7 +97,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       routeAllows: (found) => {
         const route = routeOf(board, agentId);
-        const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
+        // Only light work needs a diagnosis; a light seat reaching above its route is refused ROUTE (#2886).
+        const diagnosisProblem = route === 'light' && found.item_route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
         if (diagnosisProblem) return diagnosisProblem;
         return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; you joined on the ${route} route. Take your next item: pullboard next`);
       },

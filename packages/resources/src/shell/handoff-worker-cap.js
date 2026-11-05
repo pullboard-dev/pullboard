@@ -72,10 +72,13 @@ export function handoffQueueDirectory() { return join(machineHome(), 'handoff-qu
  * Take the next place in line, at the submit ordering point and before the slow tooling copy.
  * The place is a monotonic number kept on disk, so ties and clock skew cannot reorder submits.
  *
+ * An urgent place is marked in its name, so the dispatcher starts it before every routine one without a board read.
+ *
  * @param {string} job - The job id the place belongs to.
+ * @param {{ startOf?: (pid: number) => string, urgent?: boolean }} [options] - Process identity and whether the item is urgent.
  * @returns {Promise<string>} The reservation name; pass it to queueHandoffLaunch.
  */
-export async function reserveHandoffTicket(job, { startOf = () => '' } = {}) {
+export async function reserveHandoffTicket(job, { startOf = () => '', urgent = false } = {}) {
   const queue = handoffQueueDirectory();
   mkdirSync(queue, { recursive: true, mode: 0o700 });
   const lock = await takeResource({ name: 'submit-handoff-ticket', capacity: 1, scope: 'machine', agent: 'handoff-ticket' });
@@ -85,7 +88,7 @@ export async function reserveHandoffTicket(job, { startOf = () => '' } = {}) {
     try { next = Number(readFileSync(counter, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (!Number.isSafeInteger(next) || next < 1 || next === Number.MAX_SAFE_INTEGER) throw new Refused('HANDOFF_TICKET_SOURCE', 'restore the durable next-ticket counter before queueing another worker');
     writeFileSync(counter, String(next + 1), { mode: 0o600 });
-    const name = `${String(next).padStart(12, '0')}-${job}.reserved`;
+    const name = `${String(next).padStart(12, '0')}-${job}${urgent ? URGENT_MARK : ''}.reserved`;
     writeFileSync(join(queue, name), JSON.stringify({ pid: process.pid, started: startOf(process.pid) }) + '\n', { mode: 0o600 });
     return name;
   } finally { lock.release(); }
@@ -108,9 +111,16 @@ export function queueHandoffLaunch(launch, reservation) {
   return name;
 }
 
-/** Places in line, lowest number first; reservations count so a slow submit keeps its turn. */
+/** The name mark of a ticket whose item is urgent. */
+const URGENT_MARK = '.urgent';
+
+/**
+ * Places in line: urgent tickets first, then routine ones, each lowest number first; reservations count so a slow
+ * submit keeps its turn. Why urgent first: an unblocking fix must not wait behind routine resubmits (#3062).
+ */
 function waitingTickets() {
-  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort(); }
+  const urgent = name => name.replace(/\.(json|reserved)$/u, '').endsWith(URGENT_MARK);
+  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
@@ -141,6 +151,26 @@ async function startWorker(launch, relaunches, startOf) {
     }
     return worker;
   } finally { closeSync(log); }
+}
+
+/**
+ * A worker that cannot start, most often because temp cleanup removed its captured tools, leaves an unstarted record
+ * where its worker record would be, so the health sweep ends its job as infrastructure, never a builder red; the
+ * dispatcher then carries on with the next ticket. Why: on 4 Nov one missing tools folder stopped the dispatcher, and
+ * 100 of 142 queued gates sat behind it. A ticket whose record cannot be written is kept aside, hidden, as evidence.
+ */
+function endUnstarted(file, name, launch, error) {
+  const reason = { code: error.code ?? 'HANDOFF_WORKER_START', message: error.message };
+  try {
+    writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: null, started: null,
+      relaunches: launch.relaunches ?? 0, unstarted: reason }) + '\n', { mode: 0o600 });
+    rmSync(file, { force: true });
+    process.stderr.write(`[HANDOFF_WORKER_START] queued worker ${launch.job} could not start (${error.message}); its gate ends as infrastructure\n`);
+  } catch (record) {
+    try { renameSync(file, join(handoffQueueDirectory(), `.${name}.unstarted`)); }
+    catch { rmSync(file, { force: true }); /* a ticket that can be neither kept nor recorded still never blocks the queue */ }
+    process.stderr.write(`[HANDOFF_WORKER_START] queued worker ${launch.job} could not start (${error.message}) or be recorded (${record.message}); its ticket is kept aside\n`);
+  }
 }
 
 /**
@@ -221,7 +251,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       let worker;
       const startedAt = Date.now();
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
-      catch (error) { slot.release(); throw new Refused('HANDOFF_WORKER_START', `cannot start queued worker ${launch.job}: ${error.message}; restore its captured tools and retry dispatch`); }
+      catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
       started.push(launch.job);
       running.set(worker, { worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 });
