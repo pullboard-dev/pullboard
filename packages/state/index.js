@@ -1,5 +1,5 @@
-export { OWNERSHIP_WAIT_ENGINE } from '../../src/ownership-wait-engine.js';
 /** Shared state definitions without later-cell runtime imports [C7,H16]. */
+export { OWNERSHIP_WAIT_ENGINE } from '../../src/ownership-wait-engine.js';
 export { RIGOR_INSTRUCTIONS_ENGINE } from '../../src/rigor-instructions-engine.js';
 export { decisionFields } from './src/core/fact-projection.js';
 export { factFromEvent } from './src/core/fact-projection.js';

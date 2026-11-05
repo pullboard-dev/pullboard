@@ -60,6 +60,7 @@ export function submitHandoffActor(ctx, board, operation, args) {
     && wait.main === origin.main && wait.digest === origin.digest;
   const finishingRoute = routed && (!operation || operation === 'completeSubmitHandoff');
   if (!job || job.id !== origin.jobId || job.agentId !== origin.actor || !['queued', 'running'].includes(job.state)
+    || job.digest !== origin.digest || job.executionCommit !== origin.executionCommit || job.executionTree !== origin.executionTree
     || !finishingRoute && (item?.item_frozen_digest !== job.digest || itemPatchDigest(board, origin.itemId, job.commit) !== job.companionDigest
       || !(item.item_status === 'claimed' && item.item_owner === origin.actor
         || item.item_status === 'submitted' && item.item_built_by === origin.actor && (!operation || ['completeSubmitHandoff', 'appendFact', 'shout'].includes(operation))))) {
