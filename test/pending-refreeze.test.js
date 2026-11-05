@@ -134,7 +134,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
   const add = (title) => {
-    const result = box.run(box.repo, 'add', 'web', title, '--criterion', title, '--json');
+    const result = box.run(box.repo, 'add', 'web', title, '--route', 'mid', '--criterion', title, '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
   };
