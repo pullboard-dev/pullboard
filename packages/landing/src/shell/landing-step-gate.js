@@ -87,9 +87,18 @@ function batchAffectedTests(state, readEvents, readItem) {
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
+/**
+ * The project's own configured gate, unmarked: VALUE_GATE is for derived subsets, and the configured gate is not one.
+ * Why: a green landing run of it then stamps its tree, so the trunk push's pre-push hook reuses that proof instead of
+ * running the whole gate again; marked, every red batch paid one extra full run after bisecting (#3163).
+ */
+function configuredGate(state) {
+  return { ...state.config };
+}
+
 /** The project's own full configured gate, used when no narrower plan can be established [#2897]. */
 function fullGatePlan(state) {
-  const config = { ...state.config, [VALUE_GATE]: true };
+  const config = configuredGate(state);
   return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
 }
 
@@ -98,7 +107,7 @@ export function batchGatePlan(state, options = {}) {
   try { return selectedGatePlan(state, options); } catch (error) {
     // A per-item landing whose one item has no narrower readable plan runs the full configured gate instead of stopping [C7,#2901].
     if (!singleItemLanding(state) || error.code !== 'LAND_DIAGNOSTIC') throw error;
-    const config = { ...state.config, [VALUE_GATE]: true };
+    const config = configuredGate(state);
     return { config, files: [], subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
   }
 }
@@ -116,7 +125,7 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   if (!state.config.affectedTests?.trim()) {
     // Projects without selective-runner policy keep their configured full gate. Its command is the legacy contract
     // for the project and already includes the item check (the source-matched proof was checked at submit).
-    const config = { ...state.config, [VALUE_GATE]: true };
+    const config = configuredGate(state);
     return { config, files: selection.files, subset: false, affectedGate: createHash('sha256').update(config.gate).digest('hex') };
   }
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
