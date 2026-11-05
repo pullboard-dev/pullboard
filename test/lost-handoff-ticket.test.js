@@ -81,15 +81,6 @@ test('a queued gate with no worker and no ticket ends on one sweep only past its
 
   ageJob(box, id, 3 * 60_000);
   sweep(box);
-  assert.equal(onBoard(box, board => submitHandoff(board, id)).state, 'queued', 'captured tools relaunch the lost launch');
-  const relaunched = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(job.id) && !name.startsWith('.')));
-  assert.equal(relaunched.length, 1, 'the relaunch takes a new place in line');
-
-  // Lost again, now with its captured tools removed by temp cleanup, as #3121's were: nothing can start it.
-  await inMachineHome(box, () => rmSync(join(handoffQueueDirectory(), relaunched[0])));
-  const request = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'request.json'), 'utf8'));
-  rmSync(request.tools, { recursive: true, force: true });
-  sweep(box);
   const ended = onBoard(box, board => submitHandoff(board, id));
   assert.equal(ended.id, job.id);
   assert.equal(ended.state, 'infrastructure', 'one sweep ends the lost launch as infrastructure');

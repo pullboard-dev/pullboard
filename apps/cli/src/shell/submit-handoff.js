@@ -137,6 +137,8 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
     // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
     if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
+    // A lost place in line ends as infrastructure rather than relaunching: nothing records how often it was lost (#3153).
+    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST') throw new Refused('SUBMIT_HANDOFF_RECOVERY', worker.unstarted.message);
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
