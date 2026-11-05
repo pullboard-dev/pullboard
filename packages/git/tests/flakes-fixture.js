@@ -1,5 +1,6 @@
 /** Real private flake projects own their counter and native board evidence bytes [C7,H16]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   lstatSync,
@@ -104,4 +105,52 @@ test(${JSON.stringify(TITLE)}, () => {
   ${mutate ? (mutate === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " : '') + 'appendFileSync(new URL(import.meta.url), ' + JSON.stringify('\n// fixture source changed\n') + ');' : ''}
   ${alwaysPass === 'controlled' ? "if (readFileSync(marker + '.mode', 'utf8') !== 'pass') " + assertion : alwaysPass ? 'assert.ok(true);' : assertion}
 });\n`);
+}
+
+/** Count the target's actual executions independently of any agent's reported verdict. */
+export function targetRuns(box) { return box.readData(box.counter, 'utf8').trim().split('\n').length; }
+
+/** Verify the whole immutable evidence, including profiles, before the private fixture is removed. */
+export function assertReceipts(box, observation) {
+  for (const value of [observation.original, observation.paired, observation.mainReceipt].filter(Boolean)) {
+    const file = join(box.root, '.git/pullboard', value.artifact);
+    const bytes = box.readData(file);
+    assert.equal(bytes.length, value.bytes);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), value.sha256);
+    if (value.profileSha256 !== null) assert.equal(createHash('sha256').update(box.readData(file.replace(/\.log$/u, '.profile.json'))).digest('hex'), value.profileSha256);
+  }
+}
+
+/** Join through the actual CLI, using a separate session-bound worktree for a candidate. */
+export function privateBuilder(box) {
+  const made = box.cli('worktree', box.lane, '--model', 'Flake fixture model');
+  assert.equal(made.code, 0, JSON.stringify(made.document));
+  const root = made.document.path;
+  /** Run a candidate command without taking the coordinator's seat. */
+  const cli = (...args) => box.cliAt(root, ...args);
+  /** Commit only this private candidate's source. */
+  const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
+  return { root, cli, git };
+}
+
+/** Commit one real file change in a private candidate, because submit refuses a head with no change against main. */
+export function commitCandidate(builder, message) {
+  mkdirSync(join(builder.root, 'test'), { recursive: true });
+  writeFileSync(join(builder.root, 'test', 'candidate-note.txt'), message + '\n');
+  builder.git('add', '-A');
+  builder.git('commit', '-q', '-m', message);
+}
+
+/** Await the real baseline, then start each later controlled assertion with a fresh execution counter. */
+export function checkedItem(box) {
+  writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
+  const check = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate;
+  // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
+  const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
+    '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
+  assert.equal(added.code, 0, JSON.stringify(added.document));
+  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
+  assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
+  writeFileSync(box.counter, '');
+  return added.document.item.item_id;
 }
