@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/store/src/shell/builder-family-required.js packages/store/src/shell/board-claim.js packages/store/src/shell/board-submit.js */
 /** Required-family builds admit derived families before claiming and never submit an unknown builder [C7,#3078]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
