@@ -1,4 +1,5 @@
 import { requireTestTierAccount } from '../../../gate/index.js';
+import { hasTestTiers } from '../../../gate/index.js';
 import { selectTestTiers } from '../../../gate/index.js';
 import { requireSealedSkips } from '../../../gate/index.js';
 import { landingRunFiles } from '../../../gate/index.js';
@@ -108,7 +109,15 @@ export function batchGatePlan(state, options = {}) {
 }
 
 /** The narrowest proved plan for the batch's merged tree, refusing LAND_DIAGNOSTIC when none can be read. */
-function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id) } = {}) {
+function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id), focus = null } = {}) {
+  // A bisection round runs only the files the batch failed: a half's whole plan took a full gate per round, and the
+  // final green set still runs its whole plan before landing (#landOnTrunk). Why: a four-item bisect cost 15 minutes.
+  if (focus?.length && state.config.affectedTests?.trim() && !hasTestTiers(state.batch.root)) {
+    const files = [...new Set(focus)].sort();
+    const command = `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}`;
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, focused: true,
+      affectedGate: createHash('sha256').update(`focus:${command}`).digest('hex') };
+  }
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
