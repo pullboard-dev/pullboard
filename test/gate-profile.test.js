@@ -68,11 +68,11 @@ function gateRepo(box, gate) {
   installPrivatePullboardPath(box);
   mkdirSync(join(repo, 'work'));
   writeFileSync(join(repo, 'work/owner.txt'), 'coordinator lane fixture\n');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, spec: 'SPEC.md', verify: 'any', lanes: { coordinator: { owns: ['work/'], specs: ['G1'] } } }, null, 2));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, spec: 'SPEC.md', verify: 'any', lanes: { work: { owns: ['work/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
-  const added = box.run(repo, 'add', 'coordinator', 'Work');
+  const added = box.run(repo, 'add', 'work', 'Work');
   assert.equal(added.status, 0, added.stderr || added.stdout);
   const claimed = box.run(repo, 'claim', '1');
   assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
