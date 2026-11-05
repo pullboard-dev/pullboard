@@ -120,6 +120,8 @@ test('a holder blocked in a synchronous gate run keeps a fresh heartbeat and is 
   const { takeResource } = await import(pathToFileURL(join(REPO, 'packages/resources/index.js')).href);
   const { token, done } = await blockedHolder(t, dir, 4);
   const db = new DatabaseSync(join(home, 'resources.sqlite'));
+  // The holder refreshes this row while the test reads it; the reader waits out its short write locks.
+  db.exec('PRAGMA busy_timeout = 2000');
   t.after(() => db.close());
   let oldest = 0;
   // Each take runs the reclaimer, which would SIGTERM a holder silent past the 1.5 s window.
@@ -195,6 +197,15 @@ test('clause 1 and clause 2: a local holder is alive while its PID answers with 
   const self = holderDb(t, { pid: process.pid, started: 'Mon Nov  4 03:00:00 2026', heartbeat: ancient });
   reclaimHolders(self, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 03:00:00 2026', zombie: false }) });
   assert.equal(held(self), 1, 'our own live lease is kept');
+  // A stale cache still holds the old process; the PID now belongs to the live holder this row records.
+  const cachedOld = holderDb(t, { pid: 4249, started: 'Mon Nov  4 05:00:00 2026', heartbeat: now });
+  reclaimHolders(cachedOld, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 01:00:00 2026', zombie: false }),
+    freshIdentity: () => ({ started: 'Mon Nov  4 05:00:00 2026', zombie: false }) });
+  assert.equal(held(cachedOld), 1, 'a stale cached identity is re-read uncached before a live reused PID is freed');
+  const confirmed = holderDb(t, { pid: 4250, started: 'Mon Nov  4 05:00:00 2026', heartbeat: now });
+  reclaimHolders(confirmed, now, { alive: () => true, processIdentity: () => ({ started: 'Mon Nov  4 01:00:00 2026', zombie: false }),
+    freshIdentity: () => ({ started: 'Mon Nov  4 01:00:00 2026', zombie: false }) });
+  assert.equal(held(confirmed), 0, 'a mismatch the fresh read confirms is freed');
 });
 
 test('clause 1: a really blocked holder past the hung window is never reclaimed while its process lives [C7]', async t => {
@@ -209,6 +220,8 @@ test('clause 1: a really blocked holder past the hung window is never reclaimed 
   // A stopped process cannot refresh anything; make its heartbeat far older than the old hung window.
   process.kill(holder.pid, 'SIGSTOP');
   const db = new DatabaseSync(join(home, 'resources.sqlite'));
+  // The holder refreshes this row while the test reads it; the reader waits out its short write locks.
+  db.exec('PRAGMA busy_timeout = 2000');
   t.after(() => db.close());
   db.exec('PRAGMA busy_timeout = 2000');
   db.prepare('UPDATE holder SET heartbeat = ? WHERE pid = ?').run(Date.now() - 10 * 60_000, holder.pid);

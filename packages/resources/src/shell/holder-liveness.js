@@ -56,7 +56,7 @@ function freeHolder(db, row, relaunches) {
  *
  * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
  * @param {number} now - Epoch milliseconds, kept for the caller's interface.
- * @param {{ alive: (pid: number) => boolean, processIdentity: (pid: number) => ({ started: string, zombie: boolean } | null) }} probes - The slot module's process checks.
+ * @param {{ alive: (pid: number) => boolean, processIdentity: (pid: number) => ({ started: string, zombie: boolean } | null), freshIdentity?: (pid: number) => ({ started: string, zombie: boolean } | null) }} probes - The slot module's process checks; freshIdentity reads past any cache.
  * @returns {Array<object>} Captured requests to re-dispatch after the commit.
  */
 export function reclaimHolders(db, now, probes) {
@@ -65,9 +65,11 @@ export function reclaimHolders(db, now, probes) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
     // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
     // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
-    const identity = probes.processIdentity(row.pid);
-    if (identity && (row.pid !== process.pid && identity.zombie
-      || differentStart(identity, row.started))) freeHolder(db, row, relaunches);
+    const gone = identity => identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started));
+    // A cached identity may predate the PID's reuse, so a mismatch is read again uncached before any row is freed.
+    if (gone(probes.processIdentity(row.pid)) && gone(probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
+      freeHolder(db, row, relaunches);
+    }
   }
   return relaunches;
 }

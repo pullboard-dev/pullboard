@@ -359,7 +359,7 @@ function update(db, action) {
   try {
     pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
     const cutoff = Date.now() - LEASE_MS;
-    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity });
+    const relaunches = reclaimHolders(db, Date.now(), { alive, processIdentity, freshIdentity: pid => { processIdentities.delete(pid); return processIdentity(pid); } });
     for (const row of db.prepare('SELECT token, name, pid, started, heartbeat FROM waiter').all()) {
       // A live but hung gate process cannot retain a queue place indefinitely.
       const staleGate = row.name === 'gate' && row.heartbeat < Date.now() - GATE_WAITER_HEARTBEAT_MS;
