@@ -1,19 +1,17 @@
 /** A proven ledger flake files its repair and quarantine, and the landing ratchet accepts it [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openBoard } from '../apps/lib/index.js';
 import { recordFlakeObservation } from '../apps/lib/index.js';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
-import { ensureCoordinator } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { logEvent } from '../packages/store/index.js';
-import { register } from '../packages/store/index.js';
 import { withdraw } from '../packages/store/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
 import { flakeQuarantines } from '../packages/flakes/index.js';
 import { landingFlakeRatchet } from '../packages/flakes/index.js';
 import { LEDGER_QUARANTINE_ENGINE } from '../src/ledger-quarantine-engine.js';
+import { boardFixture } from './next-order-fixture.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 /** A typed flake observation (red original, green pair) for one named synthetic test. */
@@ -28,11 +26,9 @@ function recordBeforeEngine(board, agentId, observation) {
 
 /** A coordinator board with one core seat; the caller closes it. */
 function fixture(t) {
-  const board = openBoard(':memory:');
+  const { board, builder } = boardFixture();
   t.after(() => closeBoard(board));
-  const coordinator = ensureCoordinator(board, '/coordinator');
-  const seat = register(board, { lane: 'core', path: '/seat' });
-  return { board, coordinator, seat };
+  return { board, coordinator: 'coordinator', seat: builder };
 }
 
 /** The active quarantine for one synthetic test name, if any. */
