@@ -1251,7 +1251,7 @@ async function main(args) {
   }
   const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
   process.env[COLLECTION_ID_ENV] ||= timing.id;
-  const sharding = shardArguments(args);
+  const sharding = shardArguments(args, optionTakesValue);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
     process.exitCode = 1;
@@ -1332,7 +1332,7 @@ async function main(args) {
       if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
         const files = callerShardFiles(actions.files ?? (fullSuite // The caller's --test-shard narrows the files before fan-out.
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
-          : explicitTestFiles(args)), actions.args, process.cwd());
+          : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');

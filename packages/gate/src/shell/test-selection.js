@@ -47,11 +47,14 @@ export function selectionPatternArgs(args, takesValue) {
  * from i. The selector is not forwarded to the runner shards, so it must apply here, after expansion: a glob counted as
  * one entry would keep or drop all its files at once, and overlapping globs would run a file twice (#3158).
  */
-export function callerShardFiles(files, args, root = process.cwd()) {
+export function callerShardFiles(files, args, root, takesValue) {
+  if (typeof takesValue !== 'function') throw new TypeError('callerShardFiles needs the runner option-arity reader');
   let value;
   for (let index = 0; index < args.length && args[index] !== '--'; index++) {
     if (args[index].startsWith('--test-shard=')) value = args[index].slice('--test-shard='.length);
     else if (args[index] === '--test-shard') value = args[++index];
+    // Skip every other option's value with the runner's own arity, so a value that looks like a flag is never a shard.
+    else if (args[index].startsWith('-') && !args[index].includes('=') && takesValue(args[index])) index += 1;
   }
   const match = value === undefined ? null : String(value).match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
   if (value !== undefined && (!match || Number(match[1]) > Number(match[2]))) throw new Error(`invalid --test-shard value "${value}"; expected <i>/<n> with 1 <= i <= n`);
@@ -125,8 +128,9 @@ export function trackedDefaultTestFiles(cwd, env) {
     .map(path => `./${path}`);
 }
 
-/** Translate the runner's shard option to Node's native test-shard option, refusing malformed ranges. */
-export function shardArguments(args) {
+/** Translate the runner's shard option to Node's native test-shard option, refusing malformed ranges; option values skip by the runner's arity. */
+export function shardArguments(args, takesValue) {
+  if (typeof takesValue !== 'function') throw new TypeError('shardArguments needs the runner option-arity reader');
   const forwarded = [];
   let shard;
   for (let index = 0; index < args.length; index += 1) {
@@ -142,6 +146,8 @@ export function shardArguments(args) {
       continue;
     }
     forwarded.push(argument);
+    // An option's value is never read as an option, so a pattern like '--shard=2/2' stays a pattern (#3158).
+    if (argument.startsWith('-') && !argument.includes('=') && takesValue(argument) && index + 1 < args.length) forwarded.push(args[++index]);
   }
   if (shard === undefined) return { args: forwarded };
   const match = shard.match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);
