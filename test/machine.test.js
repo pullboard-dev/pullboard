@@ -522,8 +522,11 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
-  assert.deepEqual(codeProblems(machineRules.MACHINE), []);
+test('clause 1: every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+  const problems = codeProblems(machineRules.MACHINE);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
+    'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
