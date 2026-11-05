@@ -114,6 +114,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       if (!work) return [];
       const dependency = strandedDependency(board, item, row, at.getTime(), snapshot.limits.dependency, work);
       if (dependency) return [{ ...dependency, handoff: pinClaimHandoff(board, dependency, item, dependency.workRoot) }];
+      // A measured dependency has its own configured interval; generic forty-minute idle expiry cannot shorten it.
+      return [];
     }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
