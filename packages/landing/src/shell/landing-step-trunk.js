@@ -133,7 +133,8 @@ export async function landOnTrunk(state) {
     gate = await quickGuards(state);
     if (!accepted(state, gate) && singleItemLanding(state)) {
       // One item's red sends that item alone back to open with the evidence; no bisection, no trunk hold [C7,#2901].
-      await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+      // A complete gate had its known-main account: what remains red is the one item's, in any file [C7].
+      await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
       await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
       return;
     }
