@@ -309,3 +309,35 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
     await allView.stop();
   }
 });
+
+test('doctrine rows use the Spec state circle and the plain tier pill, the same pill Spec uses [D3,N26]', async () => {
+  const box = machine();
+  const alpha = project(box, 'alpha', SPEC, { practice: 'ways.md' });
+  writeFileSync(join(alpha.repo, 'ways.md'), '# Local rules\n\n## Team\n- R1 [approved, must] Keep evidence. | gate: review\n- R2 [draft, aim] Draft the habit. | gate: review\n');
+  const view = await startView(box);
+  try {
+    const page = await openPage(view, { width: 1440 });
+    await page.click({ tab: 'doctrine' });
+    const list = page.show('doctrine-list');
+    /** One rendered row's markup, found by its row id. */
+    const rowOf = (html, kind, id) => html.split('<div class="srow').slice(1).find((chunk) => chunk.includes('data-row="' + kind + ':' + id + '"'));
+    const approved = rowOf(list, 'doctrine', 'R1'), draft = rowOf(list, 'doctrine', 'R2'), review = rowOf(list, 'doctrine', 'PB7');
+    assert.match(approved, /class="dot verified"[^>]*>✓</, 'an approved rule shows the green check circle');
+    assert.match(draft, /class="dot open"[^>]*>✎</, 'a draft rule shows the amber pencil circle');
+    assert.match(review, /class="dot warn"[^>]*><svg class="doctrine-eye"/, 'a standard rule to review shows the eye circle');
+    assert.match(approved, /<div class="spec-row-side"><span class="chip tier-pill tier-must">must<\/span>/, 'the tier is the plain pill on the right');
+    assert.match(draft, /<span class="chip tier-pill tier-aim">aim<\/span>/);
+    assert.doesNotMatch(approved + draft, /<span class="chip (?:ok|no|warn|)[^"]*">(?:approved|draft)<\/span>/, 'approved and draft status chips are gone from rows');
+    assert.match(review, /<span class="chip warn tier-pill doctrine-review-chip">To review<\/span>/, 'a rule waiting for the person reads To review in the same pill shape');
+    await page.click({ tab: 'spec' });
+    await page.click({ rows: 'spec:all' });
+    const specRow = page.show('spec-list');
+    const specPill = /<span class="chip (tier-pill tier-(?:must|aim))">/.exec(specRow)?.[1]?.replace(/aim/, 'must');
+    assert.equal(specPill, 'tier-pill tier-must', 'Spec rows carry the same tier pill class as Doctrine');
+    const style = await styleOf(view);
+    assert.match(style, /\.chip\.tier-pill \{[^}]*border-radius: var\(--radius-pill\)[^}]*font: 600 var\(--text-xs\)\/var\(--leading-body\) var\(--sans\)/, 'the shared pill is rounded sans text, not boxed mono');
+    assert.match(style, /:is\(#spec-list, #doctrine-list\) \.spec-record > \.dot \{[^}]*width: var\(--space-6\)/, 'Doctrine rows take the Spec state circle');
+  } finally {
+    await view.stop();
+  }
+});

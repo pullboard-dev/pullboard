@@ -33,11 +33,12 @@ function commitIdentity(identity) {
   const commit = Array.isArray(identity) ? identity[0] : identity && typeof identity === 'object' ? identity.commit : identity;
   return typeof commit === 'string' && commit ? commit : mainFactDigest(JSON.stringify(identity));
 }
+// Undefined until computed; null once the installation proved it cannot be fingerprinted, so no command walks it again.
 let toolIdentity;
 
 /** Bind facts to the complete shipped tool, including moved parser providers and grammar assets. */
 export function mainFactToolIdentity() {
-  if (!toolIdentity) {
+  if (toolIdentity === undefined) {
     const root = fileURLToPath(new URL('../', import.meta.url));
     const hash = createHash('sha256');
     let size = 0;
@@ -58,7 +59,7 @@ export function mainFactToolIdentity() {
       }
     }
     try { for (const file of ['package.json', 'src', 'bin', 'packages']) visit(file); }
-    catch { return null; }
+    catch { toolIdentity = null; return null; }
     toolIdentity = hash.digest('hex');
   }
   return toolIdentity;
