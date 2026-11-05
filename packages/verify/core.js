@@ -1,6 +1,6 @@
 import { COORDINATOR } from '../queue/core.js';
 import { Refused } from '../kernel/index.js';
-import { laneOf } from '../seats/index.js';
+import { laneOf } from '../seats/src/core/lane-of.js';
 
 /** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
 export function testOutcomeFields(value) {
