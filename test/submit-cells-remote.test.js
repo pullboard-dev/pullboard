@@ -41,7 +41,7 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     assert.deepEqual(result, { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] });
 
     put('packages/gate/index.js', trustedGate);
-    put('bin/cells-submit-checks.js', "throw new Error('CELL_DIAGNOSTIC: refusing candidate');\n");
+    put('bin/cells-submit-checks.js', "export async function requireSubmitCells() { throw new Error('CELL_DIAGNOSTIC: refusing candidate'); }\n");
     git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'refusing checker');
     const refusingMain = git('rev-parse', 'HEAD');
     const refusingCommand = submitCellsRemoteCommand({ main: refusingMain, source, criterion: 'fixture', cutRows: [{ item_id: 7 }] });
