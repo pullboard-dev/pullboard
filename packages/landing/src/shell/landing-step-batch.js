@@ -27,6 +27,7 @@ import { checkLandingMessages } from '../core/landing-message.js';
 import { heldBatchEntries } from '../core/runner-source-hold.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 import { repeatedLandingHold } from '../core/runner-source-hold.js';
+import { repeatedLandingHoldCleared } from '../core/runner-source-hold.js';
 import { landingContext } from '../core/landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
@@ -404,17 +405,15 @@ async function releaseClearedRepeatHolds(root, board, trunk, write, onWait) {
     if (!item.item_hold_at || item.item_hold_by !== 'coordinator') continue;
     const hold = repeatedLandingHold(item.item_hold_reason);
     if (!hold) continue;
-    let cleared = item.item_commit !== hold.commit || trunk.commit !== hold.base;
-    if (!cleared && hold.kind === 'case') {
-      const [file, ...rest] = hold.key.split('::');
-      const name = rest.join('::');
-      if (!file || !name) continue;
-      const comparison = await compareMainFailures(root, { tests: [{ file, passed: false }] }, onWait, '',
-        { commit: trunk.commit, detailed: true });
-      const row = comparison.files?.find(entry => entry.file === file);
-      cleared = row?.result === 'green' || Array.isArray(row?.failures)
-        && !row.failures.some(failure => `${failure.file}::${failure.name}` === hold.key);
+    let comparison = null;
+    if (item.item_commit === hold.commit && trunk.commit === hold.base && hold.kind === 'case') {
+      const [file] = hold.key.split('::');
+      if (!file) continue;
+      try {
+        comparison = await compareMainFailures(root, { tests: [{ file, passed: false }] }, onWait, '',
+          { commit: trunk.commit, detailed: true });
+      } catch { comparison = null; }
     }
-    if (cleared) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
+    if (repeatedLandingHoldCleared(hold, item, trunk.commit, comparison)) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
   }
 }

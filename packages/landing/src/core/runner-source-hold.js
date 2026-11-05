@@ -19,6 +19,25 @@ export function repeatedLandingHold(reason) {
   } catch { return null; }
 }
 
+/** Decide whether an automatic repeat hold's original refusal or failing case has cleared. */
+export function repeatedLandingHoldCleared(hold, item, base, comparison) {
+  if (item.item_commit !== hold.commit || base !== hold.base) return true;
+  if (hold.kind !== 'case') return false;
+  const [file, ...rest] = hold.key.split('::');
+  const name = rest.join('::');
+  if (!file || !name) return false;
+  const row = comparison?.main === base && !comparison.unavailable
+    ? comparison.files?.find(entry => entry.file === file) : null;
+  return row?.result === 'green' || Array.isArray(row?.failures)
+    && !row.failures.some(failure => `${failure.file}::${failure.name}` === hold.key);
+}
+
+/** Format the one coordinator notice for an automatic repeated-cause hold. */
+export function repeatedLandingNotice(id, cause) {
+  const label = cause.kind === 'case' ? 'failing case' : 'refusal';
+  return `Landing parked #${id} after two blocked batches with ${label} ${cause.detail}; it will rejoin when the cause clears.`;
+}
+
 /**
  * Every RUNNER_SOURCE refusal one batch recorded, oldest first.
  * Why: an adopted batch resumes the same record and clears its current refusal, so only the kept history counts

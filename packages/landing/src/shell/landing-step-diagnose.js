@@ -26,6 +26,7 @@ import { compareMainFailures } from './main-red.js';
 import { spawnSync } from 'node:child_process';
 import { repeatedBlockedCause } from '../core/runner-source-hold.js';
 import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
+import { repeatedLandingNotice } from '../core/runner-source-hold.js';
 
 /** Require a green base for every failing file before attributing a red to an item. */
 export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
@@ -226,8 +227,7 @@ export async function parkRepeatedItem(state, item) {
   if (!cause) return false;
   const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ kind: cause.kind, key: cause.key, base: cause.base, commit: cause.commit })} ${cause.detail}`;
   await state.write('holdItem', [item.id, { agentId: 'coordinator', reason }]);
-  const label = cause.kind === 'case' ? 'failing case' : 'refusal';
-  const text = `Landing parked #${item.id} after two blocked batches with ${label} ${cause.detail}; it will rejoin when the cause clears.`;
+  const text = repeatedLandingNotice(item.id, cause);
   await state.write('shout', [{ from: 'coordinator', to: 'all', text, lanes: [] }]);
   state.say(text);
   return true;

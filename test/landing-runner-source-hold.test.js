@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause } from '../packages/landing/src/core/runner-source-hold.js';
+import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause, repeatedLandingHoldCleared, repeatedLandingNotice } from '../packages/landing/src/core/runner-source-hold.js';
 import { applyItemHold, applyItemHoldRelease } from '../packages/items/src/core/item-holds.js';
 import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
 
@@ -82,7 +82,7 @@ test('a full batch stops landing selection before checking later items [C7]', t 
   assert.deepEqual(selected, { ready: [], blocked: [] });
 });
 
-test('two consecutive blocked batches with the same refusal park only that exact item head [C7]', () => {
+test('clause 1: two consecutive blocked batches with the same refusal park only that exact item head [C7]', () => {
   /** Make one blocked batch recording the selected item's refusal. */
   const batch = (id, base, code) => ({ id, state: 'blocked', base, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
     refusal: { code, message: 'runner could not adopt the recorded tree' } });
@@ -93,11 +93,32 @@ test('two consecutive blocked batches with the same refusal park only that exact
     { ...ITEM, item_commit: 'c'.repeat(40) }), null);
 });
 
-test('two consecutive blocked batches with the same named failing case park it, but a different case does not [C7]', () => {
+test('clause 1: two consecutive blocked batches with the same named failing case park it, but a different case does not [C7]', () => {
   /** Make one blocked batch recording a named failing case for the selected item. */
   const batch = (id, name) => ({ id, state: 'blocked', base: BASE, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
     culprits: [{ id: ITEM.item_id, commit: ITEM.item_commit, tests: [{ file: 'test/landing.test.js', name }] }] });
   assert.equal(repeatedBlockedCause([batch('one', 'clause 1 parks the item'), batch('two', 'clause 1 parks the item')], ITEM)?.key,
     'test/landing.test.js::clause 1 parks the item');
   assert.equal(repeatedBlockedCause([batch('one', 'first case'), batch('two', 'second case')], ITEM), null);
+});
+
+test('clause 2: a repeated refusal hold clears when its item head or main base changes [C7]', () => {
+  const hold = { kind: 'refusal', key: 'LAND_DIRTY', base: BASE, commit: ITEM.item_commit };
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), true);
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), true);
+});
+
+test('clause 2: a repeated named-case hold clears only when main no longer reproduces that exact case [C7]', () => {
+  const hold = { kind: 'case', key: 'test/landing.test.js::clause 2 parks the item', base: BASE, commit: ITEM.item_commit };
+  const comparison = failures => ({ main: BASE, files: [{ file: 'test/landing.test.js', result: 'red', failures }] });
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, comparison([{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }])), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, comparison([{ file: 'test/landing.test.js', name: 'another case' }])), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: BASE, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: 'c'.repeat(40), unavailable: 'source changed', files: [] }), false);
+});
+
+test('clause 3: the one coordinator notice names the parked item and repeated cause [C7]', () => {
+  assert.equal(repeatedLandingNotice(3189, { kind: 'case', detail: 'test/landing.test.js :: repeats' }),
+    'Landing parked #3189 after two blocked batches with failing case test/landing.test.js :: repeats; it will rejoin when the cause clears.');
 });
