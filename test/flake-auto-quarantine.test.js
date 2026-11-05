@@ -162,6 +162,8 @@ for (const companion of [false, true]) test(`two actual ${companion ? 'composed 
   }
   assert.equal(cleanIds.size, 20, 'twenty actual executions, never a reused green stamp');
   assert.equal(snapshot(box).quarantines[0].status, 'quarantined', 'automatic quarantine cannot use the legacy 20-clean-run release');
+  const renewed = box.builder.cli('claim', String(box.id));
+  assert.equal(renewed.code, 0, JSON.stringify(renewed.document));
   const third = submit(box);
   assert.equal(third.code, 0, JSON.stringify(third.document));
   assert.equal(snapshot(box).quarantines.length, 1, 'later admissions retain one active repair');
