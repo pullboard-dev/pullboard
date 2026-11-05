@@ -8,6 +8,7 @@ import { moveItem } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
 import { reviewerChecks } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
+import { confirmFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
@@ -30,18 +31,21 @@ export function reserveReview(board, id, who) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string, relax?: boolean }} who - relax: false
- *   checks the pair under the item's frozen family rule with no relaxation witness, the cheap per-pair check that
- *   next --verify runs in the lock; a same-family pair then refuses, and the caller reserves it the old way (#3156).
+ * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string, prepared?: { witness: any } }} who -
+ *   prepared: a family-relaxation witness next --verify built before the lock. It is confirmed here against the
+ *   chosen item and the threshold, never rebuilt, so the lock holds no queue-wide scan; an unconfirmed witness
+ *   relaxes nothing and a same-family pair refuses (#3156).
  * @returns {any}
  */
-export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, relax = true }) {
+export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared }) {
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
   const frozen = found ? frozenRelaxAt(found) : undefined;
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-  const witness = relax && enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
+  const witness = !enabled || !found ? null
+    : prepared ? (prepared.witness ? confirmFamilyRelaxation(board, found, prepared.witness, agentId, familyRelaxAt, policy, familyPolicy) : null)
+      : reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy);
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
