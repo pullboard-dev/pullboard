@@ -104,6 +104,32 @@ export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicke
   return job?.state === 'queued' && Number.isFinite(at) && now - at > LOST_LAUNCH_GRACE_MS && !waiting(job.id);
 }
 
+/** The job's worker record, or null while none is written. */
+function readWorkerRecord(directory) {
+  try { return JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
+  catch { return null; }
+}
+
+/**
+ * The worker record recovery judges: the written one, or a lost-launch record when the job has neither a worker nor a
+ * place in line; null leaves the job alone. Why the second read: the dispatcher writes worker.json and only then
+ * removes the ticket, outside this guard, so a first read can miss a worker that a later ticket check no longer
+ * sees; reading again after the ticket check finds it, and a live launch is never ended (#3153).
+ *
+ * @param {{ id: string, state: string, at: string }} job
+ * @param {{ readWorker: () => object | null, waiting?: (job: string) => boolean, now?: number }} ports
+ * @returns {object | null}
+ */
+export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWaiting, now = Date.now() }) {
+  const first = readWorker();
+  if (first) return first;
+  if (!lostQueuedLaunch(job, { now, waiting })) return null;
+  const again = readWorker();
+  if (again) return again;
+  return { version: 1, job: job.id, pid: null, started: null, relaunches: 0,
+    unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
+}
+
 /**
  * Recover only this authenticated builder's unfinished job, queued or running, outside the native writer. Why running
  * too: a worker that died mid-gate (#2469, ITEM_LEASE_LOST) left its job running forever, refusing every resubmit.
@@ -116,14 +142,8 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
-  let worker;
-  try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch {
-    if (!lostQueuedLaunch(observed)) return;
-    worker = { version: 1, job: observed.id, pid: null, started: null, relaunches: 0,
-      unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
-  }
-  if (!deadWorker(worker, observed)) return;
+  const worker = queuedWorkerRecord(observed, { readWorker: () => readWorkerRecord(directory) });
+  if (!worker || !deadWorker(worker, observed)) return;
   let owned = false;
   const current = withBoardRead(ctx, board => {
     const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);

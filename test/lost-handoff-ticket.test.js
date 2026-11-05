@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
+import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
 import { HANDOFF_DISPATCHER_RESOURCE, handoffQueueDirectory, takeResource } from '../packages/resources/index.js';
 
 /** Require authentic command success before interpreting any native result. */
@@ -94,4 +95,16 @@ test('a queued gate with no worker and no ticket ends on one sweep only past its
   assert.equal(box.run(other, 'join', 'web').code, 0);
   const claimed = box.run(other, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
+});
+
+test('a launch that publishes its worker while the sweep checks its ticket is never ended [C7,#3153]', () => {
+  const job = { id: 'race-job', state: 'queued', at: new Date(Date.now() - 3 * 60_000).toISOString() };
+  const live = { version: 1, job: job.id, pid: process.pid, started: 'fixture-start', relaunches: 0 };
+  let worker = null;
+  // The dispatcher's order: write worker.json, then remove the ticket; here both happen inside the ticket check.
+  const waiting = () => { worker = live; return false; };
+  assert.deepEqual(queuedWorkerRecord(job, { readWorker: () => worker, waiting }), live, 'the second read finds the live worker');
+  const lost = queuedWorkerRecord(job, { readWorker: () => null, waiting: () => false });
+  assert.equal(lost.unstarted.code, 'HANDOFF_TICKET_LOST', 'with no worker after the ticket check the launch is lost');
+  assert.equal(queuedWorkerRecord({ ...job, at: new Date().toISOString() }, { readWorker: () => null, waiting: () => false }), null, 'under the grace it is left alone');
 });
