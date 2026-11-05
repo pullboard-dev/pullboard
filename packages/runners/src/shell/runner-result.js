@@ -43,8 +43,15 @@ export function resultFrom(request, result, { privateCheckPhases }) {
   // never manufacture source/proof metadata or treat the refusal as a transport retry.
   if (!result.error && Number.isInteger(result.status) && result.status > 0 && result.status <= 255 && output.length === 0 && receipts.length === 0
       && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
-    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution`);
-    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: 'invalid work specification' };
+    // The runner's fixed rule text (never a value); an older runner sends none.
+    const ruleLine = lines.find(line => line.startsWith('PULLBOARD_RUNNER_SPEC_RULE '));
+    const rule = ruleLine && /^[A-Za-z][A-Za-z0-9 ,'-]{0,119}$/u.test(ruleLine.slice(27)) ? ruleLine.slice(27) : '';
+    const versions = lines.filter(line => /^PULLBOARD_RUNNER_SPEC_VERSION (?:0|[1-9][0-9]{0,8})$/u.test(line));
+    const runnerVersion = versions.length === 1 ? Number(versions[0].split(' ').at(-1)) : null;
+    const mismatch = runnerVersion !== null && Number.isSafeInteger(request.spec.version) && runnerVersion !== request.spec.version;
+    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution${mismatch ? `: controller version ${request.spec.version}, runner version ${runnerVersion}` : rule ? `: ${rule}` : ''}`);
+    if (mismatch) refused.workSpecVersions = { controller: request.spec.version, runner: runnerVersion };
+    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: rule ? `invalid work specification: ${rule}` : 'invalid work specification' };
     throw refused;
   }
 

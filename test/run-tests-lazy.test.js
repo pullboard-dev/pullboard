@@ -217,3 +217,18 @@ assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => erro
   const result = runFixtureChild(process.execPath, ['--import', pathToFileURL(counter).href, '--input-type=module', '-e', script], { cwd: installed, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context ?? result.stderr);
 });
+
+test('clause 1: importing the runners package spawns nothing and pins no tooling [C7]', () => {
+  const script = [
+    "import cp from 'node:child_process';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    'let spawned = 0;',
+    "for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) { const original = cp[name]; cp[name] = (...args) => { spawned += 1; return original(...args); }; }",
+    'syncBuiltinESMExports();',
+    `const runners = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)});`,
+    'console.log(JSON.stringify({ spawned, pinned: runners.runnerToolingPinned() }));',
+  ].join('\n');
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout.trim().split('\n').at(-1)), { spawned: 0, pinned: false });
+});

@@ -11,6 +11,34 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Name the first top-level rule a work specification breaks, or '' when none.
+ * Why: the controller records this fixed text, so a refusal says which field failed without echoing any value.
+ */
+function firstBrokenRule(value) {
+  const rules = [
+    ['work specification is not an object with version 1', () => !value || value.version !== 1],
+    ['work specification id is malformed', () => !/^[A-Za-z0-9_-]{1,100}$/u.test(value.id)],
+    ['work specification commit is malformed', () => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)],
+    ['work specification tree is malformed', () => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.tree)],
+    ['work specification commit and tree lengths differ', () => value.commit.length !== value.tree.length],
+    ['work specification repoId is malformed', () => !/^[a-f0-9]{64}$/u.test(value.repoId ?? '')],
+    ['work specification command is empty', () => typeof value.command !== 'string' || !value.command.trim()],
+    ['work specification pipefail is not boolean', () => typeof value.pipefail !== 'boolean'],
+    ['work specification slots is not a positive integer', () => !Number.isSafeInteger(value.slots) || value.slots < 1],
+    ['work specification browser is not a count', () => !Number.isSafeInteger(value.browser) || value.browser < 0],
+    ['work specification browserRequired is not boolean', () => typeof value.browserRequired !== 'boolean'],
+    ['work specification requires a browser the runner lacks', () => value.browserRequired && value.browser < 1],
+    ['work specification guiRequired is not boolean', () => value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'],
+    ['work specification timing is not boolean', () => value.timing !== undefined && typeof value.timing !== 'boolean'],
+    ['work specification browserByLaunch is not boolean', () => value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean'],
+    ['work specification runtime files are missing', () => !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'],
+    ['work specification runtime digest is missing', () => typeof value.runtime.sha256 !== 'string'],
+  ];
+  for (const [message, broken] of rules) if (broken()) return message;
+  return '';
+}
+
 /** Parse and strictly validate the controller's one-shot work specification. */
 export async function readSpec(S) {
   let buffered = Buffer.alloc(0);
@@ -51,21 +79,9 @@ export async function readSpec(S) {
     process.stdin.resume();
   });
   const value = spec;
-  if (!value || value.version !== 1 || !/^[A-Za-z0-9_-]{1,100}$/u.test(value.id)
-    || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)
-    || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.tree)
-    || value.commit.length !== value.tree.length
-    || !/^[a-f0-9]{64}$/u.test(value.repoId ?? '')
-    || typeof value.command !== 'string' || !value.command.trim()
-    || typeof value.pipefail !== 'boolean' || !Number.isSafeInteger(value.slots) || value.slots < 1
-    || !Number.isSafeInteger(value.browser) || value.browser < 0
-    || typeof value.browserRequired !== 'boolean'
-    || value.browserRequired && value.browser < 1
-    || value.guiRequired !== undefined && typeof value.guiRequired !== 'boolean'
-    || (value.timing !== undefined && typeof value.timing !== 'boolean')
-    || (value.browserByLaunch !== undefined && typeof value.browserByLaunch !== 'boolean')
-    || !value.runtime || typeof value.runtime !== 'object' || !value.runtime.files || typeof value.runtime.files !== 'object'
-    || typeof value.runtime.sha256 !== 'string') throw new Error('invalid work specification');
+  if (Number.isSafeInteger(value?.version) && value.version >= 0 && value.version !== 1) S.workSpecVersion = value.version;
+  const rule = firstBrokenRule(value);
+  if (rule) throw new Error(rule);
   if (value.recovery !== undefined && (!recoveryIdentity(value.recovery) || value.recovery.request !== value.id || value.recovery.tooling !== value.tooling?.sha256)) throw new Error('invalid recovery identity');
   if (value.trustedMode !== undefined) {
     const mode = privateCheckEnvelope(value.trustedMode);
@@ -82,16 +98,16 @@ export async function readSpec(S) {
     || entry.kind === 'case' && (typeof entry.file !== 'string' || !entry.file || entry.file.startsWith('/')
       || /[\\\r\n\0]/u.test(entry.file) || entry.file.split('/').some(part => !part || part === '.' || part === '..'))))) throw new Error('invalid continuation projection');
   if (value.origin !== undefined) {
-    if (typeof value.origin !== 'string') throw new Error('invalid work specification');
+    if (typeof value.origin !== 'string') throw new Error('work specification origin is not a string');
     let origin;
-    try { origin = new URL(value.origin); } catch { throw new Error('invalid work specification'); }
+    try { origin = new URL(value.origin); } catch { throw new Error('work specification origin is not a URL'); }
     if (origin.protocol !== 'https:' || !origin.hostname || origin.username || origin.password || origin.search || origin.hash) {
-      throw new Error('invalid work specification');
+      throw new Error('work specification origin must be a plain https URL');
     }
   }
   if (value.originBase !== undefined
     && (typeof value.originBase !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.originBase)
-      || value.originBase.length !== value.commit.length || !value.origin)) throw new Error('invalid work specification');
+      || value.originBase.length !== value.commit.length || !value.origin)) throw new Error('work specification originBase is malformed or has no origin');
   if (!Array.isArray(value.tags) || value.tags.length > 1_024) throw new Error('invalid tag manifest');
   const tagNames = new Set();
   for (const tag of value.tags) {
@@ -122,10 +138,10 @@ export async function readSpec(S) {
     throw new Error('invalid trusted tooling identity');
   }
   for (const field of ['landing', 'itemCheck', 'diagnostic', 'auditCoverage']) {
-    if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error('invalid work specification');
+    if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error(`work specification ${field} is not boolean`);
   }
   for (const field of ['item', 'kind']) {
-    if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error('invalid work specification');
+    if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error(`work specification ${field} is not a string`);
   }
   if (value.timingRunId !== undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value.timingRunId)) throw new Error('invalid timing invocation');
   if (value.testResults !== undefined && (!Array.isArray(value.testResults.inputKeys)
@@ -133,7 +149,7 @@ export async function readSpec(S) {
     || !(value.testResults.packet === null || typeof value.testResults.packet === 'string')
     || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.testResults.stage)
     || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
-  if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
+  if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('work specification root is not an absolute path');
   if (value.recovery?.launchFence === 1) {
     const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
     if (!claimRunnerWorker(root, value.recovery, processCensus)) throw new Error('runner launch was fenced or unclaimed');

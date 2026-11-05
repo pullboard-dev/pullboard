@@ -1,4 +1,5 @@
 /** Send the single result receipt and name a refused setup without leaking paths or credentials [C7]. */
+import { SPEC_RULES } from './runner-spec-rules.js';
 import { flushStdout } from './runner-worker-command.js';
 import { safeGitDiagnostic } from './runner-worker-git.js';
 import { executionEnvironment } from '../../../../packages/sandbox/src/shell/execution-environment.js';
@@ -56,8 +57,18 @@ export function safeSetupMessage(S, error, step) {
   return `runner setup refused: ${category}; step: ${error?.runnerSetupStep ?? step}${code}\ncause: ${cause || '(unavailable)'}`;
 }
 
+/**
+ * The fixed rule text of a refused spec, or a generic name when the cause is not one of this runner's own fixed messages.
+ * Why: JSON parser and system errors can quote the rejected input, so only the listed rule texts pass.
+ */
+export function specRefusalRule(error) {
+  if (error instanceof SyntaxError) return 'work specification is not valid JSON';
+  const message = String(error?.message ?? '');
+  return SPEC_RULES.has(message) ? message : 'work specification could not be read';
+}
+
 /** Terminate a pre-receipt refusal without waiting for the controller's still-open input stream. */
-export function failedWorker(S) {
+export function failedWorker(S, error) {
   if (S.workSpecAccepted) { process.exitCode = 1; return; }
   clearInterval(S.heartbeatTimer);
   clearTimeout(S.cleanupTimer);
@@ -65,6 +76,8 @@ export function failedWorker(S) {
   S.rejectPendingFrame = null;
   // Never echo rejected JSON, paths or credentials; this marker is a failure, not an execution receipt.
   process.stderr.write('PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\n');
+  process.stderr.write(`PULLBOARD_RUNNER_SPEC_RULE ${specRefusalRule(error)}\n`);
+  if (Number.isSafeInteger(S.workSpecVersion)) process.stderr.write('PULLBOARD_RUNNER_SPEC_VERSION 1\n');
   process.exitCode = 1;
   stopReading();
 }
