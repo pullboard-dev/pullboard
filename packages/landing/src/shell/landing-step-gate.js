@@ -45,6 +45,7 @@ import { accountedFailures } from './landing-step-failures.js';
 import { knownMainAccount } from './landing-known-main.js';
 import { knownMainFields } from './landing-known-main.js';
 import { knownMainLine } from './landing-known-main.js';
+import { fileKnownMainReds } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -241,9 +242,10 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
-  // One item's red is its own: a per-item landing never compares main [C7,#2901].
-  const known = singleItemLanding(state) ? null : await knownMainAccount(state, result);
-  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
+  // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
+  // cases red there too are filed as Main red and never charged to the items.
+  const known = await knownMainAccount(state, result);
+  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
