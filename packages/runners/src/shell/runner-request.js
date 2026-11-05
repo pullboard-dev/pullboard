@@ -75,6 +75,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
     const id = randomUUID();
     const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+      ...(runner.publicKey ? { runnerPublicKey: runner.publicKey } : {}),
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
       ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),

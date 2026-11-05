@@ -5,6 +5,11 @@ import { executionEnvironment } from '../../../../packages/sandbox/src/shell/exe
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
+import { userInfo } from 'node:os';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { readRunnerSigningKey } from '../../../../packages/runners/src/core/runner-signature.js';
+import { signRunnerReceipt } from '../../../../packages/runners/src/core/runner-signature.js';
 
 const RECEIPT = 'PULLBOARD_RUNNER_RESULT';
 
@@ -21,7 +26,14 @@ export async function receipt(spec, fields, sink) {
     ...(fields.trustedMode ? { trustedMode: fields.trustedMode } : {}),
     ...(fields.testResults ? { testResults: fields.testResults } : {}),
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
-  const encoded = Buffer.from(JSON.stringify(body)).toString('base64');
+  let completed = body;
+  if (spec.runnerPublicKey) {
+    const configuredHome = process.env.PULLBOARD_MACHINE_HOME;
+    if (configuredHome !== undefined && !isAbsolute(configuredHome)) throw new Error('runner signing home is invalid');
+    const signingHome = configuredHome ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard');
+    completed = { ...body, signature: signRunnerReceipt(body, readRunnerSigningKey(signingHome, spec.runnerPublicKey)) };
+  }
+  const encoded = Buffer.from(JSON.stringify(completed)).toString('base64');
   await new Promise((resolveWrite, rejectWrite) => process.stderr.write(`${RECEIPT} ${spec.id} ${encoded}\n`, error => error ? rejectWrite(error) : resolveWrite()));
 }
 

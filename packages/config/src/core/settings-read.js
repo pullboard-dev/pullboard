@@ -106,6 +106,16 @@ export function validateRunner(value) {
     throw new Refused('BAD_RUNNER', 'use an SSH host or alias, positive --slots, and --browser from zero through slots');
   }
   if (value.gui !== undefined && value.gui !== null && typeof value.gui !== 'boolean') throw new Refused('BAD_RUNNER', 'runner gui must be true, false, or unknown');
+  if (value.publicKey !== undefined) {
+    const key = value.publicKey;
+    let der;
+    try { der = typeof key === 'string' ? Buffer.from(key, 'base64url') : Buffer.alloc(0); }
+    catch { der = Buffer.alloc(0); }
+    if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{59}$/u.test(key) || der.length !== 44
+      || der.toString('base64url') !== key || der.subarray(0, 12).toString('hex') !== '302a300506032b6570032100') {
+      throw new Refused('BAD_RUNNER', 'runner publicKey must be an enrolled Ed25519 SPKI key; run pullboard runner add <ssh-host>');
+    }
+  }
   for (const key of ['node', 'root']) {
     if (value[key] !== undefined && (typeof value[key] !== 'string' || /[\u0000-\u001f\u007f]/u.test(value[key])
       || !(value[key].startsWith('/') && value[key].length > 1 || key === 'node' && value[key] === 'node'))) {
@@ -119,6 +129,7 @@ export function validateRunner(value) {
   if (value.measuredAt !== undefined && !Number.isFinite(Date.parse(value.measuredAt))) throw new Refused('BAD_RUNNER', 'runner measuredAt must be a timestamp');
   if (value.cpuLoad !== undefined && !validRunnerCpuLoad(value.cpuLoad)) throw new Refused('BAD_RUNNER', 'runner CPU load requires its own timestamp, busy percentage and three load averages');
   return { host: value.host, ...(value.cpuLoad ? { cpuLoad: value.cpuLoad } : {}), slots: value.slots, browser: value.browser, ...(value.gui !== undefined ? { gui: value.gui } : {}),
+    ...(value.publicKey ? { publicKey: value.publicKey } : {}),
     ...(value.node ? { node: value.node } : {}), ...(value.root ? { root: value.root } : {}),
     ...(value.fixed === true ? { fixed: true } : {}),
     ...(value.cores !== undefined && value.memoryMB !== undefined ? { cores: value.cores, memoryMB: value.memoryMB, ...(value.measuredAt !== undefined ? { measuredAt: value.measuredAt } : {}) } : {}) };

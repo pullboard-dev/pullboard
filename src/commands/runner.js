@@ -90,7 +90,9 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const root = values.root ?? prior?.root;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true });
+  if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
+  if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
   if (node === undefined) probed.node = observation.nodePath;
   const measuredSize = observation.cores !== undefined ? { cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: new Date().toISOString() } : {};
@@ -99,7 +101,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const sized = slotsGiven ? { slots: Number(values.slots), browser: Number(values.browser), fixed: true }
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
-  const configured = validateRunner({ ...probed, ...sized, ...measuredSize });
+  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey });
   const runner = addRunner({ ...configured, gui: observation.gui });
   recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });
