@@ -151,7 +151,7 @@ function open(file, machine = false) {
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`);
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer [C7].
   let transaction = false;
   try {
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
