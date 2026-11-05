@@ -13,7 +13,9 @@ import { after, test } from 'node:test';
 import { endThen, flushesDue, lockPath, releaseOwnSocket } from '../bin/resident-socket.js';
 
 const ENTRY = resolve(import.meta.dirname, '..', 'bin', 'resident-board.js');
-const dir = mkdtempSync(join(tmpdir(), 'pb-res-'));
+// Unix socket paths are limited to about 104 bytes on macOS, and a runner's job temp folder alone is longer, so the
+// sockets live in a short private folder under /tmp, as the resident client's own fallback does (#3168).
+const dir = mkdtempSync(join(process.platform === 'win32' ? tmpdir() : '/tmp', 'pb-res-'));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 const identity = (path) => { const stat = statSync(path); return `${stat.dev}:${stat.ino}`; };
