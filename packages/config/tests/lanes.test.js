@@ -528,14 +528,9 @@ test('native submit accepts a plan row for an item file after reclaim and refree
 });
 
 test('native submit refuses a plan row for a file already present on main [L3,C7,#2108]', () => {
-  const { box, shardPath } = nativePlanRowFixture();
+  const { box, shardPath } = nativePlanRowFixture({ mainFile: 'src/already-main.js' });
   const id = nativePlanRowItem(box, 'Refuse a plan row for a main file');
-  mkdirSync(join(box.web, 'src'), { recursive: true });
-  writeFileSync(join(box.web, 'src/already-main.js'), 'export {};\n');
   commitPlanRow(box, id, shardPath, 'src/already-main.js');
-  box.git(box.repo, 'add', 'src/already-main.js');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: add the source to main');
-  box.git(box.web, 'merge', '-q', 'main');
   const refused = box.run(box.web, 'submit', String(id), '--json');
   assert.equal(refused.code, 1, refused.err + refused.out);
   const error = JSON.parse(refused.out).error;
