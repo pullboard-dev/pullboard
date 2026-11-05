@@ -3,6 +3,22 @@
 /** Automatic landing retries a RUNNER_SOURCE refusal at most this many times before holding the item. */
 export const RUNNER_SOURCE_RETRIES = 3;
 
+/** Prefix for automatic holds created after the same landing cause blocks two batches. */
+export const REPEATED_LANDING_HOLD = 'landing-repeat-v1:';
+
+/** Decode only a well-formed automatic repeat hold; other coordinator holds retain their own lifetime. */
+export function repeatedLandingHold(reason) {
+  if (typeof reason !== 'string' || !reason.startsWith(REPEATED_LANDING_HOLD)) return null;
+  const end = reason.indexOf(' ', REPEATED_LANDING_HOLD.length);
+  if (end < 0) return null;
+  try {
+    const value = JSON.parse(reason.slice(REPEATED_LANDING_HOLD.length, end));
+    if (!['case', 'refusal'].includes(value.kind) || typeof value.key !== 'string'
+      || !/^[0-9a-f]{40}$/u.test(value.base ?? '') || !/^[0-9a-f]{40}$/u.test(value.commit ?? '')) return null;
+    return value;
+  } catch { return null; }
+}
+
 /**
  * Every RUNNER_SOURCE refusal one batch recorded, oldest first.
  * Why: an adopted batch resumes the same record and clears its current refusal, so only the kept history counts
@@ -89,4 +105,27 @@ export function heldBatchEntries(batches, batch, getItem) {
     if (retried) held.push({ id: entry.id, ...retried });
   }
   return held;
+}
+
+/** Find the cause repeated by an item's two latest blocked batches, bound to its exact accepted commit. */
+export function repeatedBlockedCause(batches, item) {
+  const relevant = batches.filter(batch => batch.state === 'blocked'
+    && (batch.candidates ?? batch.items ?? []).some(entry => entry.id === item.item_id && entry.commit === item.item_commit));
+  if (relevant.length < 2) return null;
+  const previous = relevant.at(-2), latest = relevant.at(-1);
+  /** Extract only recorded refusal codes and named culprit cases for this item's exact accepted head. */
+  const causes = batch => {
+    const found = [];
+    if (batch.refusal?.code) found.push({ kind: 'refusal', key: batch.refusal.code, detail: batch.refusal.message ?? batch.refusal.code });
+    for (const culprit of batch.culprits ?? []) {
+      if (culprit.id !== item.item_id || culprit.commit !== item.item_commit) continue;
+      for (const test of culprit.tests ?? []) if (test.file && test.name) {
+        found.push({ kind: 'case', key: `${test.file}::${test.name}`, detail: `${test.file} :: ${test.name}` });
+      }
+    }
+    return found;
+  };
+  const prior = causes(previous);
+  const repeated = causes(latest).find(cause => prior.some(earlier => earlier.kind === cause.kind && earlier.key === cause.key));
+  return repeated ? { ...repeated, base: latest.base, commit: item.item_commit, batch: latest.id } : null;
 }

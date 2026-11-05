@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { RUNNER_SOURCE_RETRIES, runnerSourceHold } from '../packages/landing/src/core/runner-source-hold.js';
+import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause } from '../packages/landing/src/core/runner-source-hold.js';
 import { applyItemHold, applyItemHoldRelease } from '../packages/items/src/core/item-holds.js';
 import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
 
@@ -80,4 +80,24 @@ test('a full batch stops landing selection before checking later items [C7]', t 
   // A batch with no room left never walks the queue, so no item beyond it costs a verdict projection or git call.
   const selected = candidates(board, root, BASE, 0, { listItems: () => listed });
   assert.deepEqual(selected, { ready: [], blocked: [] });
+});
+
+test('two consecutive blocked batches with the same refusal park only that exact item head [C7]', () => {
+  /** Make one blocked batch recording the selected item's refusal. */
+  const batch = (id, base, code) => ({ id, state: 'blocked', base, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
+    refusal: { code, message: 'runner could not adopt the recorded tree' } });
+  assert.deepEqual(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_ADOPT')], ITEM),
+    { kind: 'refusal', key: 'LAND_ADOPT', detail: 'runner could not adopt the recorded tree', base: BASE, commit: ITEM.item_commit, batch: 'two' });
+  assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_DIRTY')], ITEM), null);
+  assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_ADOPT')],
+    { ...ITEM, item_commit: 'c'.repeat(40) }), null);
+});
+
+test('two consecutive blocked batches with the same named failing case park it, but a different case does not [C7]', () => {
+  /** Make one blocked batch recording a named failing case for the selected item. */
+  const batch = (id, name) => ({ id, state: 'blocked', base: BASE, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
+    culprits: [{ id: ITEM.item_id, commit: ITEM.item_commit, tests: [{ file: 'test/landing.test.js', name }] }] });
+  assert.equal(repeatedBlockedCause([batch('one', 'clause 1 parks the item'), batch('two', 'clause 1 parks the item')], ITEM)?.key,
+    'test/landing.test.js::clause 1 parks the item');
+  assert.equal(repeatedBlockedCause([batch('one', 'first case'), batch('two', 'second case')], ITEM), null);
 });
