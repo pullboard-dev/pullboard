@@ -145,7 +145,7 @@ export async function ordered(ctx, board, operation, args) {
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
       await (await import('../../../../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
-    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
+    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.board_ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
     await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
