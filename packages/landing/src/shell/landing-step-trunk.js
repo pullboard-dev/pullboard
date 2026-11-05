@@ -33,6 +33,7 @@ import { singleItemLanding } from './landing-step-selection.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
+import { landingFault } from './landing-step-diagnose.js';
 
 /** A landing gate the batch may land on: green, red only in base main's own cases, or fully waived [C7,#2941]. */
 function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
@@ -41,9 +42,9 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
-async function quickGuards(state, label = 'local-trunk') {
+async function quickGuards(state, label = 'local-trunk', options = {}) {
   await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
-  const gate = await gateGroup(state, label, { localTrunk: true });
+  const gate = await gateGroup(state, label, { localTrunk: true, ...options });
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
@@ -124,6 +125,8 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
+    // A landing fault keeps the batch merging or gating with its worktree, so the next wake adopts and resumes it [C7].
+    if (landingFault(error)) throw error;
     if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
       await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
       state.say(`nothing landed: ${error.message}`);
