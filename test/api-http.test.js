@@ -30,13 +30,21 @@ import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
+/** Commit one fixture-owned app file so submission captures an actual worktree head. */
+function commitAppChange(worktree, filename, env) {
+  mkdirSync(join(worktree.path, 'app'), { recursive: true });
+  writeFileSync(join(worktree.path, 'app', filename), 'export const fixture = true;\n');
+  runFixtureGit(['add', '--', `app/${filename}`], { cwd: worktree.path, env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [A2]`], { cwd: worktree.path, env, stdio: 'pipe' });
+}
+
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
 const REPEATED_READ_HARNESS = `
 import assert from 'node:assert/strict';
 import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -78,7 +86,7 @@ for (const method of childMethods) {
 }
 syncBuiltinESMExports();
 
-const [serveFile, projectJson, codeMetadataMarker] = process.argv.slice(1);
+const [serveFile, projectJson, codeMetadataMarker, codeRoot] = process.argv.slice(1);
 const projects = JSON.parse(projectJson);
 const { serveView } = await import(pathToFileURL(serveFile).href);
 const { main: nativeTestMain } = await import(${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)});
@@ -183,13 +191,13 @@ try {
     rounds: 2, elapsedMs: Number(elapsedMs.toFixed(2)), processes: { ...counters, methods: { ...counters.methods } } };
   const provenanceChecks = [];
   if (codeMetadataMarker) {
-    const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
-    const { openBoard, openBoardForRead } = await import(new URL('../../apps/lib/index.js', pathToFileURL(serveFile)));
+    const { apiBoards } = await import(pathToFileURL(join(codeRoot, 'packages/api/src/shell/api.js')).href);
+    const { openBoard, openBoardForRead } = await import(pathToFileURL(join(codeRoot, 'apps/lib/index.js')).href);
     const apiBoardOpeners = { openBoard, openBoardForRead };
-    const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
+    const { withGitReadFacts } = await import(pathToFileURL(join(codeRoot, 'packages/git/src/shell/git.js')).href);
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID
     // diagnostic before measuring provenance; ordinary warmed reads still require zero children.
-    const { prepareBoardWriteIdentity } = await import(new URL('../../packages/store/index.js', pathToFileURL(serveFile)));
+    const { prepareBoardWriteIdentity } = await import(pathToFileURL(join(codeRoot, 'packages/store/index.js')).href);
     prepareBoardWriteIdentity();
     for (const status of [undefined, true]) {
       // A current board opens read-only with no authority to decide; a cleared stamp makes each need a write open (#1047).
@@ -383,7 +391,7 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   try {
     const result = runFixtureChild(process.execPath, [
       '--input-type=module', '-e', REPEATED_READ_HARNESS,
-      join(codeLinked, 'apps', 'cli', 'src', 'shell', 'commands', 'view.js'), JSON.stringify(projects), privateCommonDir,
+      join(codeLinked, 'apps', 'cli', 'src', 'shell', 'commands', 'view.js'), JSON.stringify(projects), privateCommonDir, codeLinked,
     ], { cwd: box.root, env: box.env, encoding: 'utf8' });
     const initialContext = JSON.stringify({
       route: 'GET /api/v1/boards; 3x state; 3x item detail; GET /',
@@ -602,12 +610,15 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   } })).item.item_id;
   await move({ verb: 'claim', item: accepted, agent: builder.agent });
   await move({ verb: 'fact', item: accepted, agent: builder.agent, args: { kind: 'note', text: 'a fact only the thread carries' } });
+  commitAppChange(builder, `http-${accepted}.js`, box.env);
   await move({ verb: 'submit', item: accepted, agent: builder.agent });
   await move({ verb: 'next', agent: verifier.agent, args: { verify: true } });
   await move({ verb: 'verify', item: accepted, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'ran the check and read the summary' } });
-  const claimed = (await move({ verb: 'add', args: { lane: 'app', title: 'Claimed summary item', criterion: 'stays claimed', specs: 'G1' } })).item.item_id;
+  const claimed = (await move({ verb: 'add', args: { lane: 'app', title: 'Claimed summary item', criterion: 'stays claimed',
+    brief: 'Files: app/claimed.js\nTest: the state summary keeps this item claimed.', specs: 'G1' } })).item.item_id;
   await move({ verb: 'claim', item: claimed, agent: builder.agent });
-  const open = (await move({ verb: 'add', args: { lane: 'app', title: 'Open summary item', criterion: 'waits for a builder', specs: 'G1' } })).item.item_id;
+  const open = (await move({ verb: 'add', args: { lane: 'app', title: 'Open summary item', criterion: 'waits for a builder',
+    brief: 'Files: app/open.js\nTest: the open item appears in the state summary.', specs: 'G1' } })).item.item_id;
   box.cli(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(accepted));
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
@@ -745,8 +756,10 @@ test("[A2, N26] a sent-back item's summary carries its reject note's first line"
   }
   /** Build an item to submission and reserve its review for the verifier. */
   async function submitted(title) {
-    const id = (await move({ verb: 'add', args: { lane: 'app', title, criterion: 'shows a greeting', specs: 'G1' } })).item.item_id;
+    const id = (await move({ verb: 'add', args: { lane: 'app', title, criterion: 'shows a greeting',
+      brief: 'Files: app/greeting.js\nTest: the row carries its sent-back note.', specs: 'G1' } })).item.item_id;
     await move({ verb: 'claim', item: id, agent: builder.agent });
+    commitAppChange(builder, `http-${id}.js`, box.env);
     await move({ verb: 'submit', item: id, agent: builder.agent });
     await move({ verb: 'next', agent: verifier.agent, args: { verify: true } });
     return id;
@@ -782,8 +795,10 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
     assert.equal(moved.status, 200, JSON.stringify(moved.document));
     return moved.document.result;
   }
-  const item = (await move({ verb: 'add', args: { lane: 'app', title: 'Delta item', criterion: 'moves through review', specs: 'G1' } })).item.item_id;
-  const waiting = (await move({ verb: 'add', args: { lane: 'app', title: 'Waiting item', criterion: 'stays open', specs: 'G1', after: String(item) } })).item.item_id;
+  const item = (await move({ verb: 'add', args: { lane: 'app', title: 'Delta item', criterion: 'moves through review',
+    brief: 'Files: app/delta.js\nTest: the item moves through review.', specs: 'G1' } })).item.item_id;
+  const waiting = (await move({ verb: 'add', args: { lane: 'app', title: 'Waiting item', criterion: 'stays open',
+    brief: 'Files: app/waiting.js\nTest: this item waits for its dependency.', specs: 'G1', after: String(item) } })).item.item_id;
 
   const first = (await box.call(box.path + '/state')).document.state;
   assert.ok(Number.isSafeInteger(first.sequence), 'a snapshot names the event it reflects');
@@ -814,6 +829,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   const changed = (delta, field) => (delta.merge[field]?.set ?? []).map((entry) => entry[delta.merge[field].key]);
 
   await move({ verb: 'claim', item, agent: builder.agent });
+  commitAppChange(builder, `http-${item}.js`, box.env);
   const claimed = await catchUp('claim');
   assert.deepEqual(changed(claimed, 'items'), [item], 'only the claimed item travels');
   assert.equal(claimed.merge.items.set[0].claim.by, builder.agent);

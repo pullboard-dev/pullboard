@@ -1,15 +1,61 @@
 /** HTTP event stream fixtures cover state changes, lease expiry and multiple-board cursors [A2,N26]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { board as store } from '../apps/lib/index.js';
 import { registerProject } from '../packages/seats/index.js';
-import { apiHttpFixture as fixture, apiHttpBox as httpBox } from './api-fixture.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
+import { apiHttpFixture as fixture, apiHttpBox as httpBox, shellWord } from './api-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
+
+/** Commit a fixture-owned app change so the native submit move has a real head to capture. */
+function commitAppChange(worktree, filename, env) {
+  mkdirSync(join(worktree.path, 'app'), { recursive: true });
+  writeFileSync(join(worktree.path, 'app', filename), 'export const fixture = true;\n');
+  runFixtureGit(['add', '--', `app/${filename}`], { cwd: worktree.path, env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [A2]`], { cwd: worktree.path, env, stdio: 'pipe' });
+}
+
+/** Serve a registered private fixture through the actual person's view adapter. */
+async function viewHttpBox(t, existing = null) {
+  const box = existing ?? fixture(t);
+  const previousHome = process.env.PULLBOARD_HOME;
+  let view;
+  t.after(async () => {
+    try { await view?.close(); }
+    finally {
+      if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
+      else process.env.PULLBOARD_HOME = previousHome;
+    }
+  });
+  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
+  registerProject(box.root);
+  view = await serveView({ port: 0, runCommand: nativeTestMain });
+  const url = new URL(view.url);
+  const key = url.searchParams.get('k');
+  const origin = url.origin;
+  /** Make a real HTTP call to this fixture's view and decode its versioned response. */
+  async function call(path, value, headers = {}) {
+    const response = await fetchFresh(origin + path, {
+      method: value === undefined ? 'GET' : 'POST',
+      headers: { 'x-pullboard-key': key, ...(value === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+      ...(value === undefined ? {} : { body: JSON.stringify(value) }),
+    });
+    const document = await response.json();
+    assert.equal(document.version, 1);
+    return { status: response.status, document };
+  }
+  const listed = await call('/api/v1/boards');
+  assert.equal(listed.status, 200);
+  assert.equal(listed.document.boards.length, 1);
+  const id = listed.document.boards[0].id;
+  return { ...box, api: view, origin, key, id, call, path: '/api/v1/boards/' + id };
+}
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
   const box = await httpBox(t);
@@ -21,6 +67,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   const id = added.document.result.item.item_id;
   const claimed = await box.call(box.path + '/moves', { verb: 'claim', item: id, agent: one.agent });
   assert.equal(claimed.status, 200);
+  commitAppChange(one, `http-${id}.js`, box.env);
   assert.equal(claimed.document.event.event_by, one.agent);
   assert.equal(claimed.document.event.event_kind, 'claim');
   const refused = await box.call(box.path + '/moves', { verb: 'claim', item: id, agent: two.agent });
