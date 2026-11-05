@@ -83,8 +83,9 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
 }
 
-/** An absent process or a different exact incarnation proves death; unavailable identity never does. */
+/** An absent process, a different exact incarnation or a worker the dispatcher could not start proves death; unavailable identity never does. */
 function deadWorker(worker, job) {
+  if (worker?.job === job.id && worker.unstarted && worker.pid === null) return true;
   if (worker?.job !== job.id || !Number.isSafeInteger(worker.pid) || worker.pid < 1) return false;
   try { process.kill(worker.pid, 0); }
   catch (error) { return error.code === 'ESRCH'; }
