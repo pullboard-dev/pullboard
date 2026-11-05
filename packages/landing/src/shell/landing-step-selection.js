@@ -5,6 +5,7 @@ import { landingChangedFiles } from '../core/land-collisions.js';
 import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
 import { landingBatchSize } from '../core/landing-batch-size.js';
+import { lastRedBatchItems } from '../core/landing-batch-size.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,7 +62,11 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const collisionFree = store.lineSettings(board).collisionFreeBatch === true;
   const batches = store.landingBatches(board);
   const priorities = collisionFree ? deferredLandingPriorities(batches, pending) : new Map();
+  // Items of the last red batch that are still verified go behind the rest for a round, so a red oldest item a small
+  // adaptive cap keeps picking cannot starve the queue (#2911).
+  const lastRed = lastRedBatchItems(batches);
   pending.sort((left, right) => {
+    if (lastRed.has(left.item_id) !== lastRed.has(right.item_id)) return lastRed.has(left.item_id) ? 1 : -1;
     const leftPriority = priorities.get(left.item_id);
     const rightPriority = priorities.get(right.item_id);
     if (leftPriority !== undefined || rightPriority !== undefined) {
