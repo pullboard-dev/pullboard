@@ -86,7 +86,11 @@ async function readMirroredMove({ address, board, token, key, after, item, title
   const move = JSON.parse(new TextDecoder().decode(bytes));
   if (move.operation === 'addItem') {
     if (move.args?.[0]?.title !== title) throw new Error('the decrypted relay operation is not the smoke item');
-    const saved = await request({ url: address, board, token }, `/api/v1/boards/${board}/state`, {}, { err: line => process.stderr.write(line + '\n') });
+    let saved = await request({ url: address, board, token }, `/api/v1/boards/${board}/state`, {}, { err: line => process.stderr.write(line + '\n') });
+    for (let attempt = 0; attempt < 20 && saved.state.sequence !== event.event_id; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      saved = await request({ url: address, board, token }, `/api/v1/boards/${board}/state`, {}, { err: line => process.stderr.write(line + '\n') });
+    }
     const checkpointBytes = await unseal(key, Buffer.from(saved.state.sealed, 'base64url'), {
       boardId: board, kind: 'snapshot', sequence: saved.state.sequence,
     });
