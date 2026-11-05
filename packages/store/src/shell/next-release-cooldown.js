@@ -62,7 +62,7 @@ export const RESCOPE_REASONS = Object.freeze(['BLOCKED', 'ROUTED_ELSEWHERE', 'IN
  * @returns {{id: number, reasons: string[]}[]}
  */
 export function itemsNeedingRescope(board, lane, route) {
-  const rows = board.db.prepare(`SELECT e.event_id, e.item_id, e.event_by, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
+  const rows = board.db.prepare(`SELECT e.event_id, e.event_at, e.item_id, e.event_by, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
     JOIN agent a ON a.agent_id = e.event_by
     WHERE e.event_kind = 'release' AND i.item_status = 'open' AND a.agent_lane = ? AND a.agent_route = ? ORDER BY e.event_id`).all(lane, route);
   const byItem = new Map();
@@ -75,7 +75,7 @@ export function itemsNeedingRescope(board, lane, route) {
     const open = detail.reasonCode === 'BLOCKED' && Array.isArray(detail.blockedOn) && detail.blockedOn.length
       ? detail.blockedOn.filter(id => { const dep = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id); return dep && dep.item_status !== 'withdrawn' && !dep.item_merged_commit; }) : null;
     if (open && !open.length) { byItem.delete(row.item_id); continue; }
-    const entry = byItem.get(row.item_id) ?? { id: row.item_id, reasons: [] };
+    const entry = byItem.get(row.item_id) ?? { id: row.item_id, since: row.event_at, reasons: [] };
     entry.reasons.push(`${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`);
     byItem.set(row.item_id, entry);
   }
