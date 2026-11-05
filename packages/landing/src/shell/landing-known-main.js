@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
+import { sameTestInputs } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
 import { laneOf } from '../../../seats/index.js';
@@ -19,7 +20,9 @@ import { listItems } from '../../../store/index.js';
  */
 export async function knownMainAccount(state, gate) {
   if (gate.isGreen || !completeGate(gate, { allowCancelled: true }) || gate.requiresGreen) return null;
-  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true });
+  // A by-case match needs only each failure's file and name, so a run whose details cannot all be signed (a timed-out
+  // file) still compares every named case instead of skipping the whole account [C7,#3073].
+  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true }) ?? gate.accounted ?? null;
   if (!failures?.length) return null;
   const known = [], remaining = [];
   let changed = null;
@@ -29,10 +32,12 @@ export async function knownMainAccount(state, gate) {
     let comparison = null;
     try {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
+      // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
+      const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
       comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true });
+        { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged });
     } catch { /* An unavailable comparison never excuses a red case. */ }
-    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base)
+    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
