@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -167,7 +168,8 @@ function gitCall(cwd, args, env) {
  * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
  */
 export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
-  const directory = join(tmpdir(), `pullboard-main-red-${randomUUID()}`);
+  // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
+  const directory = join(realpathSync(tmpdir()), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
@@ -371,7 +373,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
           // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
-          if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
+          // Named failing cases in the raw output count as well as the profile's rows: either proves main's file ran [C7,#3073].
+          if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length && !failureSignatures(run, checkout, { raw: true, allowCancelled })?.length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
           coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
           const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout, { allowCancelled }) : null;
           // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).

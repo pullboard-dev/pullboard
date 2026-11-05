@@ -27,7 +27,9 @@ import {
 } from 'node:fs';
 import {
   dirname,
+  isAbsolute,
   join,
+  posix,
   relative,
   resolve,
   sep,
@@ -47,6 +49,7 @@ import { localRunnerDescriptor } from '../../../runners/index.js';
 import { guiSession } from '../../../gate/index.js';
 import { headTree } from '../../../../src/git.js';
 import { cpuRunnerRequired } from '../../../gate/index.js';
+import { shardSelectionMatched } from '../../../gate/index.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -95,7 +98,7 @@ export function releasePlacement(value, actual = releaseExecutors()) {
 
 /** Partition every file once, reserving compatible work for each executor before balancing the rest. */
 export async function planReleaseShards(files, executors, times = {}, needsBrowser = async () => true, needsGui = async () => true, needsCpuRunner = async () => false) {
-  if (!files.length || new Set(files).size !== files.length || executors.length < 1 || files.length < executors.length) {
+  if (!files.length || new Set(files.map(file => fileKey(file))).size !== files.length || executors.length < 1 || files.length < executors.length) {
     throw new Error('a release needs distinct tracked files and nonempty work for every executor');
   }
   const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms) && ms >= 0);
@@ -143,9 +146,16 @@ function writeFileTimes(root, measured) {
   renameSync(temporary, path);
 }
 
-/** Normalize a test file path to its repository-relative form, without a leading `./`. */
-export function fileKey(file) {
-  return String(file).replace(/^\.\//u, '');
+/**
+ * Canonicalize a test file path to its repository-relative form: `./`, `..` and doubled slashes
+ * fold away, and an absolute path under `root` becomes relative to it. Two spellings of one file
+ * then share one key, so the shard planner never runs the same cases twice (#3158).
+ */
+export function fileKey(file, root = null) {
+  const text = String(file).split(sep).join('/');
+  if (!text) return '';
+  const inside = root && isAbsolute(text) ? relative(root, text).split(sep).join('/') : text;
+  return posix.normalize(inside).replace(/^\.\//u, '');
 }
 
 /**
@@ -156,13 +166,16 @@ export function fileKey(file) {
  * @param {string[]} files
  * @param {number} count
  * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
  * @returns {{ files: string[], weight: number }[]}
  */
-export function planLandingShards(files, count, times = {}) {
-  const known = files.map(file => times[fileKey(file)]).filter(ms => Number.isFinite(ms));
+export function planLandingShards(files, count, times = {}, root = null) {
+  const known = files.map(file => times[fileKey(file, root)]).filter(ms => Number.isFinite(ms));
   const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
-  const weight = file => known.length ? (Number.isFinite(times[fileKey(file)]) ? times[fileKey(file)] : average) : 1;
-  const ordered = [...files].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+  const weight = file => known.length ? (Number.isFinite(times[fileKey(file, root)]) ? times[fileKey(file, root)] : average) : 1;
+  const distinct = new Map();
+  for (const file of files) if (!distinct.has(fileKey(file, root))) distinct.set(fileKey(file, root), file); // One file once, however spelled, so no case runs twice (#3158).
+  const ordered = [...distinct.values()].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const shards = Array.from({ length: Math.max(1, count) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
     const lightest = shards.reduce((best, shard) => shard.weight < best.weight
@@ -300,11 +313,11 @@ async function stopShard(child, closed, parseProcessCensus) {
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
-async function runLocalShard({ root, runner, files, label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
+async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
-  const child = spawn(process.execPath, [runner, ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [runner, ...args, '--', ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
   child.stdout.setEncoding('utf8').on('data', part => chunks.push(part));
   child.stderr.setEncoding('utf8').on('data', part => chunks.push(part));
@@ -393,7 +406,7 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
+export async function runLandingShards({ root, runner, files, args = [], count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
   const runnerOnly = runnerAdmission.runnerOnly === true;
   const selectionAt = performance.now();
@@ -419,7 +432,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const history = readFileTimes(root);
   const plan = release ? await planReleaseShards(files, release.executors, history, needsBrowser, needsGui,
     shardFiles => cpuRunnerRequired(root, shardFiles))
-    : planLandingShards(files, count, history);
+    : planLandingShards(files, count, history, root);
   const balance = landingBalance(files, history);
   const total = plan.length;
   const stopper = new AbortController();
@@ -466,18 +479,16 @@ export async function runLandingShards({ root, runner, files, count, inherited =
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SOURCE_CHANGED', output: '', wallMs: Math.round(performance.now() - started) };
       };
       if (drifted()) return sourceChanged('before');
-      const run = await runLocalShard({ root, runner, files: entry.shard.files, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
-      if (run.unverified.length) {
-        // Fail closed: name what may still run, as a runner's unverified cleanup does.
+      const run = await runLocalShard({ root, runner, files: entry.shard.files, args, label: entry.label, lease, stop, collectAll, collectionId, parseProcessCensus });
+      if (run.unverified.length) { // Fail closed: name what may still run, as a runner's unverified cleanup does.
         write(`landing shard ${entry.label}: [LANDING_SHARD_CLEANUP_UNVERIFIED] the stopped shard's processes could not be shown gone: ${run.unverified.join(', ')}; inspect and stop them before another run\n`);
-      }
-      if (run.unverified.length) return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) };
+        return { attempt: number, host: 'local', outcome: 'refused', reason: 'landing refused: LANDING_SHARD_CLEANUP_UNVERIFIED', output: run.output, wallMs: Math.round(performance.now() - started) }; }
       if (!stop.aborted && drifted()) return sourceChanged('while');
       return { attempt: number, host: 'local', outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
         ...(release ? { executor: localRunnerDescriptor(null, null).id, head: pinned.commit, tree: pinnedTree,
           command: createHash('sha256').update(JSON.stringify([process.execPath, runner, ...entry.shard.files])).digest('hex') } : {}) };
     }
-    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...entry.shard.files].map(word).join(' ')}`;
+    const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './bin/run-tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
@@ -641,7 +652,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
-  const isGreen = shards.every(entry => entry.status === 'green');
+  const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
   return { isGreen, balance, full: fullScope && shards.every(entry => entry.attempts.at(-1)?.collectionComplete === true),
