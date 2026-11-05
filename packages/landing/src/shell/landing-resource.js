@@ -6,6 +6,7 @@ import {
   landingLeaseState,
   renewLocalLanding,
 } from '../../../../src/board-landing-lease.js';
+import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { coordinatorHolder } from '../../../seats/index.js';
 import {
@@ -25,6 +26,21 @@ function deadLocalOwner(holder, local) {
       catch (guardianError) { return guardianError.code === 'ESRCH'; }
     }
     return true;
+  }
+}
+
+/**
+ * Run one renewal, retrying BOARD_BUSY with doubling backoff until the lease period ends; any other refusal, and the
+ * last BOARD_BUSY, propagates. Why: a busy board is a momentary landing fault, and one refusal killed the worker (#3068).
+ */
+export async function renewWithBackoff(renew, { now = Date.now, pausing = pause, periodMs = LANDING_LEASE_MS, firstMs = 100 } = {}) {
+  const end = now() + periodMs;
+  for (let wait = firstMs; ; wait = Math.min(wait * 2, 2000)) {
+    try { return renew(); }
+    catch (error) {
+      if (error?.code !== 'BOARD_BUSY' || now() + wait >= end) throw error;
+      await pausing(wait);
+    }
   }
 }
 
@@ -49,7 +65,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     const task = pending.then(async () => {
       if (lost) throw lost;
       try {
-        const result = renewLocalLanding(board, { ...parameters, generation });
+        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }));
         if (lost) throw lost;
         const holder = assertLandingLease(board, { token, branch, generation }); // A delayed recovered receipt is not a fresh grant.
         confirmedUntil(holder.until);

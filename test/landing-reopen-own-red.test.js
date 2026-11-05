@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -96,4 +97,36 @@ test('a refusal of the item\'s own content still reopens it [C7,#2967]', async t
   t.after(close);
   assert.equal(await returnRefusedItem(state, new Refused('LAND_PLAN_UNPLACED', 'abc fails the cells-plan check')), true);
   assert.equal(status(), 'open');
+});
+
+test('BOARD_BUSY during a per-item landing leaves the item verified and is a landing fault, never a culprit [C7,#3068] clause 2', async t => {
+  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  const { close, state, writes, status } = landing();
+  t.after(close);
+  assert.equal(landingFault(new Refused('BOARD_BUSY', 'the board is busy')), true);
+  assert.equal(landingFault(new Refused('LAND_HEADER', 'bad header')), false);
+  assert.equal(await returnRefusedItem(state, new Refused('BOARD_BUSY', 'the board is busy')), false);
+  assert.equal(status(), 'verified');
+  assert.deepEqual(writes, []);
+});
+
+test('renewLocalLanding retries BOARD_BUSY with backoff for up to one lease period, then gives up [C7,#3068] clause 1', async () => {
+  const { renewWithBackoff } = await import('../packages/landing/src/shell/landing-resource.js');
+  let at = 0;
+  const pauses = [];
+  const clock = { now: () => at, pausing: async ms => { pauses.push(ms); at += ms; }, periodMs: 30_000 };
+  let failures = 3;
+  const renewed = await renewWithBackoff(() => { if (failures-- > 0) throw new Refused('BOARD_BUSY', 'busy'); return 'renewed'; }, clock);
+  assert.equal(renewed, 'renewed');
+  assert.deepEqual(pauses, [100, 200, 400]);
+  at = 0;
+  await assert.rejects(renewWithBackoff(() => { throw new Refused('BOARD_BUSY', 'busy'); }, clock), /busy/);
+  assert.ok(at < 30_000 && at > 20_000, `gave up inside one lease period after ${at} ms`);
+  await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, clock), /lost/);
+});
+
+test('a worker that gives up on BOARD_BUSY does not mark its batch blocked, so adoption resumes it [C7,#3068] clause 3', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../packages/landing/src/shell/landing-step-batch.js', import.meta.url), 'utf8');
+  assert.match(source, /&& !landingFault\(error\)\s*\n\s*&& \['merging', 'gating'\]\.includes\(state\.batch\.state\)\)\) await save\(state, \{ state: 'blocked' \}\)/u);
 });
