@@ -426,9 +426,11 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
-  const lightWork = box.add('api', 'Light release work', 'light');
+  const lightWork = box.add('api', 'Light release work', 'mid');
   box.json(box.run(box.repo, 'fact', String(lightWork), 'diagnosis',
-    'Files: api/light.js Change: keep the light item eligible for its route Test case: a light seat selects this item from the release queue', '--json'));
+    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest case: a light seat selects this item from the release queue', '--json'));
+  box.json(box.run(box.repo, 'edit', String(lightWork), '--route', 'light', '--brief',
+    'Files: api/light.js\nChange: keep the light item eligible for its route\nTest: a light seat selects this item from the release queue', '--json'));
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
@@ -869,9 +871,11 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
     'a new claim over the limit names the oldest eligible waiting review');
   const foreign = store.register(board, { lane: 'core', path: join(root, 'takeover'), route: 'strong', parent: 'takeover-T', session: 'takeover-child' });
   const returned = store.getItem(board, waiting[0]);
-  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
-    clause: returned.item_title, note: 'Synthetic lifecycle refusal; no gate execution claimed.', head: returned.item_commit,
-    digest: returned.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 60 });
+  store.verify(board, returned.item_id, { agentId: reviewer, decision: 'ACCEPT', reason: 'CRITERION_MET',
+    clause: returned.item_title, note: 'Synthetic accepted lifecycle record; no gate execution claimed.', head: returned.item_commit,
+    digest: returned.item_frozen_digest, policy: 'any' });
+  store.reopen(board, returned.item_id, { agentId: 'coordinator', conflict: { files: ['src/board.js'], trunk: 'b'.repeat(40) },
+    note: 'Synthetic main-merge conflict lifecycle record; no merge is claimed.', reopenFirstRefusalMinutes: 60 });
   setting('wipPerReviewer', false);
   setting('takeoverMinutes', 15);
   const historyBefore = store.events(board, { itemId: returned.item_id });
