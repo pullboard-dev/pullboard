@@ -68,7 +68,7 @@ function seeded() {
   return box;
 }
 
-test('every measured command prints within its committed baseline and declared budget on a seeded board [C7,N26]', () => {
+test('every measured command prints within its committed baseline and declared budget on a seeded board [C7,N26] clause 1', () => {
   const box = seeded();
   const measured = {};
   const unlisted = Object.keys(COMMANDS).filter(command => !Object.hasOwn(BASELINE, command) && !Object.hasOwn(EXCLUDED, command));

@@ -51,7 +51,7 @@ export function agentTreeLines(tree, indent = '', { detail = true } = {}) {
   if (!indent && !tree.length) return ['no agents have joined'];
   return tree.flatMap((agent) => {
     const held = agent.holds.map((hold) => `#${hold.item} (${hold.status})`).join(', ');
-    const parent = detail || agent.parentSession ? ` parent ${agent.parentSession ?? 'unknown'}` : '';
+    const parent = ` parent ${agent.parentSession ?? (detail ? 'unknown' : '?')}`;
     return [`${indent}${agent.displayName} (${agent.lane})${parent} ${agent.path} ${agent.address}${held ? `: ${held}` : ''}`, ...agentTreeLines(agent.helpers, indent + '  ', { detail })];
   });
 }
