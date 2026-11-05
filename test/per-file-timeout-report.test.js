@@ -10,14 +10,14 @@ import { runFixtureChild } from './fixture-child.js';
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
 /** Run one fixture file under configured wall and idle limits, returning status and combined output. */
-function run(t, name, source, { wallMs = 2000, idleMs = 4000 } = {}) {
+function run(t, name, source, { wallMs = 2000, idleMs = 4000, caseMs = 20000 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-file-timeout-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, name), source);
   const result = runFixtureChild(process.execPath, [runner, join(root, name)], {
     cwd: root, encoding: 'utf8', detached: true,
-    env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_TEST_TIMEOUT_MS: '20000',
+    env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_TEST_TIMEOUT_MS: String(caseMs),
       PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ [name]: wallMs }), PULLBOARD_TEST_IDLE_TIMEOUT_MS: String(idleMs) },
   });
   return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
@@ -32,14 +32,22 @@ test('a file whose cases each finish in budget can exceed three whole-file walls
   assert.doesNotMatch(output, /TIMEOUT file|HUNG file/u);
 });
 
+test('a legitimate first case keeps its enforced budget beyond the whole-file wall [C7,V10]', t => {
+  const { status, output } = run(t, 'first.test.js', `import { test } from 'node:test';
+test('long first case [C7]', () => { const until = Date.now() + 4500; while (Date.now() < until) {} });
+`, { wallMs: 1000, idleMs: 8000 });
+  assert.equal(status, 0, output);
+  assert.doesNotMatch(output, /TIMEOUT file|HUNG file|per-test timeout/u);
+});
+
 test('a file that stalls reports its running case and every finished case duration [C7,V10]', t => {
   const finished = Array.from({ length: 45 }, (_, index) => `test('finished ${index + 1} [C7]', async () => { await pause(10); });`);
   const { status, output } = run(t, 'stall.test.js', [
     "import { test } from 'node:test';", pause, ...finished,
     "test('the stuck case [C7]', () => { while (true) {} });",
-  ].join('\n') + '\n', { wallMs: 3000, idleMs: 1000 });
+  ].join('\n') + '\n', { wallMs: 3000, idleMs: 1000, caseMs: 1200 });
   assert.equal(status, 1, output);
-  assert.match(output, /TIMEOUT file .*stall\.test\.js" slowest running case "the stuck case \[C7\] \(running \d+ms\)": whole-file wall limit 3000ms/u);
+  assert.match(output, /test "the stuck case \[C7\]" in .*stall\.test\.js failed: it ran [\d.]+s, past the 1200ms per-test timeout/u);
   const match = output.match(/finished cases (\[[^\r\n]*\])/u);
   assert.ok(match, output);
   const summaries = JSON.parse(match[1]);

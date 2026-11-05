@@ -10,6 +10,7 @@ import { statSync } from 'node:fs';
 
 const tests = new Map();
 const startedAt = new Map();
+const deadlines = new Map();
 let quietAt = performance.now();
 let tree = processTreeCpu(process.pid);
 let treeMicros = 0;
@@ -53,20 +54,25 @@ parentPort.on('message', message => {
     if (message.name === null) {
       lastFinishAt = performance.now();
       if (startedAt.has(message.id)) finished.push({ name: tests.get(message.id), ms: Math.round(lastFinishAt - startedAt.get(message.id)) });
-      tests.delete(message.id); startedAt.delete(message.id);
+      tests.delete(message.id); startedAt.delete(message.id); deadlines.delete(message.id);
     }
-    else { tests.set(message.id, message.name); startedAt.set(message.id, performance.now()); }
+    else {
+      const at = performance.now();
+      tests.set(message.id, message.name); startedAt.set(message.id, at);
+      if (Number.isSafeInteger(message.timeoutMs) && message.timeoutMs > 0) deadlines.set(message.id, at + message.timeoutMs);
+    }
   }
 });
 /**
  * The wall bounds a stuck file, not a slow one. Past the wall a file keeps running while cases keep finishing
- * (each already bounded by its own per-case timeout), and fails only after the configured quiet window.
- * A file where no case has finished by the wall is stuck, and fails at the wall as before.
+ * (each already bounded by its own per-case timeout). An active case also keeps its real enforced budget,
+ * even when it is the first case; unknown budgets and setup or cleanup retain the existing wall guard.
  */
 function wallCheck() {
   const now = performance.now();
   const sinceFinish = lastFinishAt === null ? Infinity : now - lastFinishAt;
-  if (sinceFinish > workerData.idleMs) hung(`whole-file wall limit ${workerData.wallMs}ms with no finished case for ${workerData.idleMs}ms`, true);
+  const withinCaseBudget = tests.size > 0 && [...tests.keys()].every(id => now < deadlines.get(id));
+  if (!withinCaseBudget && sinceFinish > workerData.idleMs) hung(`whole-file wall limit ${workerData.wallMs}ms with no finished case for ${workerData.idleMs}ms`, true);
   else setTimeout(wallCheck, 250);
 }
 setTimeout(wallCheck, workerData.wallMs);
