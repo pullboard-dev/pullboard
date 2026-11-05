@@ -109,3 +109,13 @@ test('clause 1: a name-filtered landing that also carries a caller shard flag re
     assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
   }
 });
+
+test('clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', t => {
+  const box = project(t);
+  for (const option of ['--test-skip-pattern', '--test-name-pattern']) {
+    const run = gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]);
+    assert.notEqual(run.status, 0, option);
+    assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
+    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
+  }
+});
