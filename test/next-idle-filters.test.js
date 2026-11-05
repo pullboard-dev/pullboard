@@ -5,7 +5,7 @@ import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../packages/store/index.js';
 import { idleSkipMinutes } from '../packages/stats/index.js';
 
-test('focused idle next records the first refusal for its top three candidates and stats reports their last-24h seat minutes [C7,#3080]', async t => {
+test('clause 1 and clause 2: focused idle next records the first refusal for its top three candidates and stats reports their last-24h seat minutes [C7,#3080]', async t => {
   const box = await fixture(t, { family: 'require' });
   const ids = Array.from({ length: 4 }, (_, n) => box.add(`Same-family review ${n}`));
   for (const id of ids) box.submit(id);
@@ -31,7 +31,7 @@ test('focused idle next records the first refusal for its top three candidates a
   assert.deepEqual(stats.document.idleSkips.rows, [{ code: 'SAME_FAMILY', seatMinutes: 30 }], 'three candidate details count one seat interval, and a claim ends it');
 });
 
-test('changed first skip evidence starts a new observation even when its broad idle reason is unchanged [C7,#3080]', async t => {
+test('clause 2: changed first skip evidence starts a new observation even when its broad idle reason is unchanged [C7,#3080]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor.id;
   store.recordNextIdle(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 1, code: 'ITEM_HELD' }] });
@@ -46,7 +46,7 @@ test('changed first skip evidence starts a new observation even when its broad i
     [{ code: 'DEPENDENCY', seatMinutes: 1440 }], 'carry-in is clipped to the window; older causes contribute nothing');
 });
 
-test('an empty other-lane fallback retains this seat own build filters [C7,#3080]', async t => {
+test('clause 1: an empty other-lane fallback retains this seat own build filters [C7,#3080]', async t => {
   const box = await fixture(t);
   const ids = [box.add('Held build one'), box.add('Held build two')];
   for (const id of ids) store.holdItem(box.board, id, { agentId: 'coordinator', reason: 'Native fixture hold' });
