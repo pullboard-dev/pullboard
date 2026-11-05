@@ -107,3 +107,4 @@ export {
 } from './src/shell/board-repository.js';
 
 export { boardWriteLog } from './src/shell/board-write-lock.js';
+export { objectItemPatch } from './src/shell/board.js';
