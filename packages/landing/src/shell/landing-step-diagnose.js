@@ -221,7 +221,8 @@ const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE
  * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
  * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
  */
-export const LANDING_FAULTS = new Set(['BOARD_BUSY']);
+// A locked board or slot database means the run never started, not that the batch or an item failed.
+export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
 
 /** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
 export function landingFault(error) {
