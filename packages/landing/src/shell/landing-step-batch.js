@@ -160,7 +160,16 @@ export async function land(options) {
       adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal, workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus });
+      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal,
+      workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus,
+      onStall: async ({ batch, description }) => {
+        const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
+        if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
+        const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
+          refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
+        options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
+        return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true };
+      } });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }

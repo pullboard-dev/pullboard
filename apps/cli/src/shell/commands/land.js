@@ -172,7 +172,7 @@ export function landingRetryAt(result, now) {
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
   // loops hot.
-  const moved = result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
   if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
