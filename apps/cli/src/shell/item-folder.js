@@ -11,6 +11,8 @@ import { archiveMaintenanceWorktree } from './worktree-maintenance-archive.js';
 import { maintenanceArchiveMatches } from './worktree-maintenance-archive.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
+import { checkoutBranch } from '../../../../packages/git/index.js';
+import { checkoutCommonDir } from '../../../../packages/git/index.js';
 import { primaryCheckoutRoot } from './cli/worktree.js';
 import { writeItemMarker } from './item-folder-identity.js';
 export { itemFolderIdentity, itemFolderPath } from './item-folder-identity.js';
@@ -113,14 +115,17 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   }
 }
 
+/** Whether two paths name one existing directory, however each was spelled. */
+function sameDirectory(first, second) {
+  try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
+}
+
 /** Open or reuse this item's branch, starting a new branch at the current primary main. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
   if (existsSync(path)) {
-    const actual = tryGit(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-    const common = tryGit(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    if (actual.status !== 0 || actual.stdout !== ref || common.status !== 0 || common.stdout !== ctx.info.commonDir) throw new Error(`item folder ${path} is occupied by another checkout`);
+    if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
     writeItemMarker(path, me.id, id);
     return path;
   }

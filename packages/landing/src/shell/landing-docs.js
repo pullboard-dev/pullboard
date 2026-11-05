@@ -18,7 +18,7 @@ function contents(root, file) {
 
 /** Refresh outputs after every merge/allocation, including clean merges that have no textual conflict. */
 export function refreshLandingDocs(root) {
-  if (!existsSync(join(root, 'src', 'generated-docs.js')) || !existsSync(join(root, 'bin', 'update-docs.js'))) return [];
+  if (!existsSync(join(root, 'apps', 'cli', 'src', 'shell', 'generated-docs.js')) || !existsSync(join(root, 'bin', 'update-docs.js'))) return [];
   const before = new Map(GENERATED_DOC_PATHS.map(file => [file, contents(root, file)]));
   const result = spawnSync(process.execPath, ['bin/update-docs.js'], {
     cwd: root, env: cleanGitEnvironment(), timeout: 30_000, maxBuffer: 32 * 1024 * 1024,

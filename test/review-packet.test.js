@@ -112,12 +112,29 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const git = loggingGit(box);
   const path = box.env.PATH;
   box.env.PATH = `${git.bin}:${path}`;
-  const started = performance.now();
-  const review = ok(box, box.repo, 'show', String(id), '--review');
-  const elapsedMs = performance.now() - started;
+  const startupTrace = join(box.dir, 'review-startup.jsonl');
+  box.env.PULLBOARD_STARTUP_TRACE_FILE = startupTrace;
+  box.env.PULLBOARD_STARTUP_TRACE_ENTRY = helpers.BIN;
+  const traceSamples = [];
+  let review;
+  for (let run = 0; run < 3; run += 1) {
+    const traceOffset = existsSync(startupTrace) ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).length : 0;
+    const started = performance.now();
+    const current = ok(box, box.repo, 'show', String(id), '--review');
+    const elapsedMs = performance.now() - started;
+    review ??= current;
+    const traceRows = existsSync(startupTrace)
+      ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).slice(traceOffset).map(line => JSON.parse(line))
+      : [];
+    assert.ok(traceRows.length > 0, `startup trace is recorded for run ${run + 1}`);
+    traceSamples.push({ run: run + 1, processId: traceRows[0]?.processId ?? null,
+      phases: traceRows.map(({ phase, elapsedMs: phaseElapsedMs }) => ({ phase, elapsedMs: phaseElapsedMs })) });
+    assert.ok(elapsedMs < 2000, `show --review run ${run + 1} took ${Math.round(elapsedMs)} ms; startup samples ${JSON.stringify(traceSamples)}`); // budget: declared ceiling of the frozen bar
+  }
+  delete box.env.PULLBOARD_STARTUP_TRACE_FILE;
+  delete box.env.PULLBOARD_STARTUP_TRACE_ENTRY;
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
   box.env.PATH = path;
-  assert.ok(elapsedMs < 2000, `show --review took ${Math.round(elapsedMs)} ms`); // budget: declared ceiling of the frozen bar
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
   assert.deepEqual(calls.filter(call => /(?:^| )(?:checkout|switch|read-tree|clone|diff|cat-file|worktree add)(?: |$)/u.test(call)), [],
     'show --review reads the stored packet: no checkout and no diff');
