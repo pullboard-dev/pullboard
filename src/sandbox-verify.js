@@ -1,5 +1,5 @@
 /** Docker-compatible, fail-closed execution of outside programs. No host-process isolation fallback. */
-import { execFile } from 'node:child_process';
+import { execFile } from './windows-child-process.js';
 import {
   createHash,
   randomUUID,

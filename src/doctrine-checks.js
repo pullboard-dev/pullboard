@@ -6,7 +6,7 @@
  * doctrine: accepted main's at submit, HEAD's for `pullboard doctrine check`, never a working-tree
  * edit.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   mkdtempSync,
   rmSync,

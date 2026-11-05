@@ -36,7 +36,7 @@ import {
 } from '../view-session.js';
 import {
   spawn,
-} from 'node:child_process';
+} from '../windows-child-process.js';
 import {
   existsSync,
 } from 'node:fs';

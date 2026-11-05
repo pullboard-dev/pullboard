@@ -1,7 +1,7 @@
 /** Read this execution user's Darwin GUI-domain availability without environment guesses. */
 import {
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 
 /**
  * Return a fresh GUI-domain observation: true, known absent false, or unknown null.

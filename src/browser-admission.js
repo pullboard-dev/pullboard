@@ -63,6 +63,7 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
   ['src/git.js', 'runs Git commands for repository inspection'],
   ['src/module-imports.js', 'runs the Node parser in an isolated child'],
   ['src/resources.js', 'reads process identity with /bin/ps'],
+  ['src/windows-child-process.js', 'delegates child calls with hidden Windows consoles; importing it starts nothing'],
 ]);
 /** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
 const REVIEWED_EXECUTORS = new Map([
@@ -592,6 +593,12 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
             ? committedTarget(committed, paths[index], request)
             : await localTarget(root, paths[index], request);
           if (!target) return browserFallback(onFallback, paths[index], `import ${request} is missing or ambiguous`);
+          if (target === 'src/windows-child-process.js') {
+            if (byLaunch) starts[index] = true;
+            else if (!SAFE_CHILD_PROCESS_MODULES.has(paths[index])) {
+              return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
+            }
+          }
           if (target === FIXTURE_CHILD && !safeFixtureChildImport(sources[index], request)) {
             if (byLaunch) starts[index] = true;
             else return browserFallback(onFallback, paths[index], 'fixture-child import exposes a generic caller-selected process target');

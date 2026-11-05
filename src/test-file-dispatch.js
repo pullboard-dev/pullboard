@@ -1,10 +1,10 @@
 /** Parent-controlled file admission and one structured result stream [C7]. */
 /** @pullboard-module-loads ** */
 // Native test files are caller-selected, just as in bin/run-tests.js.
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { devNull } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import { channel } from 'node:diagnostics_channel';
 import { performance } from 'node:perf_hooks';
 import { createWriteStream } from 'node:fs';

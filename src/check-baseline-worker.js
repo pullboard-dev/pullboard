@@ -1,5 +1,5 @@
 /** Detached baseline measurements and durable completion receipts use the ordered board engine [V2,H16]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   existsSync,
   mkdirSync,

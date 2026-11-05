@@ -1,3 +1,4 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 /** Owner-only machine metadata, authenticated device roster and one-use enrollment [H5,H15,H17]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -36,7 +37,7 @@ function directory() {
 /** Refuse symlinks, non-owner files or broader permissions before reading machine secrets. */
 function privateEntry(path, folder = false) {
   const stat = lstatSync(path);
-  if (stat.isSymbolicLink() || (folder ? !stat.isDirectory() : !stat.isFile()) || (stat.mode & 0o077) ||
+  if (stat.isSymbolicLink() || (folder ? !stat.isDirectory() : !stat.isFile()) || !hasPrivatePermissions(path, stat) ||
       (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
     throw new Refused('RELAY_MACHINE_STORAGE', 'Restore owner-only relay-machine storage: directory mode 700, files mode 600.');
   }
@@ -160,7 +161,7 @@ export function updateRelayMachine(mutate) {
     validate(state);
     temporary = join(folder, `state.${process.pid}.${randomUUID()}.tmp`);
     const fd = openSync(temporary, 'wx', 0o600);
-    try { writeFileSync(fd, JSON.stringify(state) + '\n'); fsyncSync(fd); }
+    try { writePrivateFileSync(Refused, fd, JSON.stringify(state) + '\n'); fsyncSync(fd); }
     finally { closeSync(fd); }
     renameSync(temporary, join(folder, 'state.json'));
     db.exec('COMMIT');

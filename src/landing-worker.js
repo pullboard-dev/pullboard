@@ -2,7 +2,7 @@
 import {
   spawn,
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './board.js';

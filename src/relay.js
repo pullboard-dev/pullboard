@@ -1,3 +1,4 @@
+import { hasPrivatePermissions, writePrivateFileSync } from './windows-private-storage.js';
 import { orderedMoveCommand } from './relay-command-order.js';
 import * as conflictRecords from './relay-conflict-record.js';
 import { withRelayExclusion } from './relay-exclusion-state.js';
@@ -236,7 +237,7 @@ function deletedLink(root) {
   const file = deletedLinkFile(root);
   if (!existsSync(file)) return null;
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 4096) throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status');
+  if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat) || stat.size > 4096) throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status');
   let value;
   try { value = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status'); }
   if (value?.version !== 1 || !/^[0-9a-f]{32}$/u.test(value.board ?? '') || typeof value.url !== 'string') throw new Refused('RELAY_STORAGE', 'restore the supported deleted-copy notice before reading relay status');
@@ -263,7 +264,7 @@ function saveDeletedLink(root, value) {
   const encoded = JSON.stringify(value) + '\n';
   if (Buffer.byteLength(encoded) > 4096) throw new Refused('RELAY_STORAGE', 'restore a bounded deleted-copy notice before retrying');
   try {
-    writeFileSync(temporary, encoded, { flag: 'wx', mode: 0o600 });
+    writePrivateFileSync(Refused, temporary, encoded, { flag: 'wx', mode: 0o600 });
     renameSync(temporary, marker);
   } finally { rmSync(temporary, { force: true }); }
 }
@@ -366,7 +367,7 @@ export function saveLink(file, state) {
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
     // The outbox summary is the outbox's own file; a link saved by the sender never overwrites a move's (#1013).
-    writeFileSync(temporary, JSON.stringify({ ...state, outbox: undefined }) + '\n', { flag: 'wx', mode: 0o600 });
+    writePrivateFileSync(Refused, temporary, JSON.stringify({ ...state, outbox: undefined }) + '\n', { flag: 'wx', mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
 }

@@ -13,7 +13,7 @@ export { mainPolicy, policyAt, trunkRef } from './trusted-policy-read.js';
 /** Coordinator policy and immutable submission checks cannot come from a builder's candidate [V4,V16,L3,M3]. */
 import { randomUUID } from 'node:crypto';
 import { environmentProblem } from './execution-environment.js';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   digestOf,
   writeTimingProfile,

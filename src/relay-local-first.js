@@ -3,7 +3,7 @@
  * the relay is a mailbox. A move applies here and returns at once; a read never syncs or takes a lock. One
  * background sender per machine pushes the queued moves and pulls other machines' moves, for every board on it.
  */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   createHash,
   randomUUID,

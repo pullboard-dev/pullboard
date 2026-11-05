@@ -4,7 +4,7 @@
  * a second agent finds it and rejects, and the rework is accepted. No model runs and nothing leaves
  * the machine; the repo stays behind to look around in.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   chmodSync,
   mkdirSync,

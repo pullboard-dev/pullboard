@@ -1,5 +1,5 @@
 /** Private runtime records that let an unattended CLI hand off its live view link. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { Refused } from './refused.js';
 import {
   chmodSync,

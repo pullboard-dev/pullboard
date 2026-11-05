@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import * as store from './board.js';
 import {
   git,

@@ -1,5 +1,5 @@
 /** Best-effort local pruning follows an ordered retirement receipt, never changes the board [R3,C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { randomUUID } from 'node:crypto';
 import {
   existsSync,

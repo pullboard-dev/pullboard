@@ -1,5 +1,5 @@
 /** Custody of a runner job's processes: who the job started, proven from its own record, and stopping them [C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   closeSync,
   existsSync,

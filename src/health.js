@@ -8,7 +8,7 @@ import { localDependencyIds } from './item-dependencies.js';
  * It reads the board through a read-only SQLite connection and asks git only questions that leave
  * every checkout alone: merge-tree writes a tree object and never an index or a working tree.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import { existsSync } from 'node:fs';
 import { missedJobFindings } from './recurring-jobs.js';
 import {

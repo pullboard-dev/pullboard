@@ -1,5 +1,5 @@
 /** Read pinned committed text files through one fresh Git batch, never a candidate's working bytes [N19,D1]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import { cleanGitEnvironment } from './git.js';
 import { Refused } from './refused.js';
 

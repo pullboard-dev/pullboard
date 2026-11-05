@@ -1,7 +1,7 @@
 /** Explicit test-file desktop requirements, independent of Chrome command-line flags [C7,V4]. */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { explicitCheckFiles } from './browser-admission.js';
 
 /** Only an explicit file annotation requests a GUI; --headless does not establish this capability. */

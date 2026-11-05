@@ -1,5 +1,5 @@
 /** One exact Git walk serves every ancestry and trailer question in a publication pass [B3,R3]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { cleanGitEnvironment } from './git.js';
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;

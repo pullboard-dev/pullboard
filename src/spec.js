@@ -9,7 +9,7 @@
  */
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   appendFileSync,
   existsSync,

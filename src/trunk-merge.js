@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 /** In-memory Git conflict computation without loading check execution or resource admission [V4,C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { cleanGitEnvironment } from './git.js';
 import { mainCheckout } from './git.js';
 import { trunkRef } from './trusted-policy-read.js';

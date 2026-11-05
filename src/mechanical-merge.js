@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from './git.js';
 

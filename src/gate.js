@@ -1,3 +1,4 @@
+import { commandShell } from './windows-shell.js';
 /**
  * The gate (V4, C3, Q1, Q2, V18): the repo's check command and shared queue for gates and item checks. A green
  * run over a committed tree, with nothing untracked and nothing changed while it ran, leaves that
@@ -12,7 +13,7 @@ import {
 import {
   spawn,
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import {
   createHash,
   randomUUID,
@@ -362,7 +363,7 @@ export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlo
   const runtimes = captureTestRuntimes({ ...gitChildEnv(root), ...inherited });
   const env = runtimes.env;
   const environment = executionEnvironment();
-  const child = spawn(`(\n${command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(`(\n${command}\n) 2>&1`, { cwd: root, env, shell: commandShell(), stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks = [];
   let bytes = 0;
   let overflow = false;

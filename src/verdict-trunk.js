@@ -4,7 +4,7 @@
  * `verify.unrelatedTrunkMoves` on, a move is kept when its commits change none of the item's files and none of the
  * files its check and affected tests read; anything else, or anything the selection cannot see, refuses as before.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './windows-child-process.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { explicitCheckFiles } from './browser-admission.js';
 

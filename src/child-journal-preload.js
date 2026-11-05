@@ -1,5 +1,5 @@
 /** The SSH runner's spawn-journal preload, built from its directory alone so its content proves what it is [C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -44,7 +44,7 @@ export function childJournalPreloadSource(directory) {
   const overflowPath = join(journalDirectory, 'overflow');
   return `
 import diagnostics from 'node:diagnostics_channel';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { closeSync, openSync, readFileSync, statSync, writeSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';

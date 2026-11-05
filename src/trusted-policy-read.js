@@ -1,5 +1,5 @@
 /** Read committed coordinator policy without loading check execution or resource admission [C7,V4]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { configFromSource } from './config.js';
 import {
   cleanGitEnvironment,

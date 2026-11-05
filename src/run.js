@@ -14,7 +14,7 @@ import { itemNotesText } from './item-notes.js';
 import {
   spawn,
   spawnSync,
-} from 'node:child_process';
+} from './windows-child-process.js';
 import {
   appendFileSync,
   existsSync,

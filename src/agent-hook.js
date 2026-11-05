@@ -1,5 +1,5 @@
 /** Native hooks provide bounded context and warnings, never a blocking decision [I6]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import { fileURLToPath } from 'node:url';
 import { AGENT_HOOK_EVENTS } from './agent-hooks.js';
 

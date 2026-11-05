@@ -1,5 +1,5 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import { fileURLToPath } from 'node:url';
 import { listProjects } from './projects.js';
 import { loadConfig } from './config.js';

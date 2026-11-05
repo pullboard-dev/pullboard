@@ -1,5 +1,5 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';

@@ -1,3 +1,4 @@
+import { hasPrivatePermissions } from './windows-private-storage.js';
 /** Read validated local link metadata without transport, token migration or a board write [C7,H5]. */
 import {
   existsSync,
@@ -11,7 +12,7 @@ import { relayOrigin } from './relay-origin.js';
 export function readRelayLink(file) {
   if (!existsSync(file)) return null;
   const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
+  if (!stat.isFile() || stat.isSymbolicLink() || !hasPrivatePermissions(file, stat)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before syncing this board'); }
   if (!state || typeof state !== 'object' || state.version !== 1 || !/^[0-9a-f]{32}$/.test(state.board) || !(state.token === undefined || state.personReauth && state.token === null || /^(ps_|pa_|pm_)[A-Za-z0-9_-]{43}$/.test(state.token)) ||

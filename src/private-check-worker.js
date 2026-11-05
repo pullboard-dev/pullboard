@@ -1,5 +1,5 @@
 /** Collect private command output through pipes; dependency files are never size-limited [V18,V2]. */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   captureTestRuntimes,
   executionEnvironment,

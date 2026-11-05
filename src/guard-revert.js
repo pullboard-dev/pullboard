@@ -6,7 +6,7 @@
  * Two forms: `guard: <path>:<from>-<to>` (lines of the submitted file, removed in the scratch tree) and
  * `guard: patch <path>` (a patch file in the submitted commit, applied in reverse).
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import {
   existsSync,
   readFileSync,

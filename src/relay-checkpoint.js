@@ -7,7 +7,7 @@
  * so moves took minutes and failed RELAY_BUSY. A burst of moves now coalesces into one upload, and the relay lock
  * keeps one upload in flight; moves during an upload are covered by the next one.
  */
-import { spawn } from 'node:child_process';
+import { spawn } from './windows-child-process.js';
 import {
   readFileSync,
   statSync,

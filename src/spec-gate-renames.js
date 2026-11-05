@@ -1,7 +1,7 @@
 /** Real Git rename hints for approved requirements whose gate disappeared [B23,N39]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { cleanGitEnvironment } from './git.js';
 
 /** Follow recorded renames in chronological order; never guess a replacement from similar names. */

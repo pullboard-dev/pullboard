@@ -9,7 +9,7 @@
  */
 import { PERSON } from './board.js';
 import { Refused } from './refused.js';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './windows-child-process.js';
 import { loadDoctrine } from './doctrine.js';
 import {
   loadSpec,
