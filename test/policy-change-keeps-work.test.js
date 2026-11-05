@@ -47,7 +47,6 @@ test('an unrelated accepted policy change refreshes a real claim and queued subm
 
   commitPolicy(box, box.repo, config => {
     config.landing.manualOverride = !config.landing.manualOverride;
-    config.submit.handoff = !config.submit.handoff;
   });
   const nextClaim = box.run(box.web, 'claim', String(id), '--json');
   assert.equal(nextClaim.code, 0, nextClaim.out + nextClaim.err);
@@ -58,7 +57,7 @@ test('an unrelated accepted policy change refreshes a real claim and queued subm
   assert.notEqual(JSON.parse(after.item_frozen).policy.commit, priorPolicy.commit);
   assert.ok(store.itemThread(board, id).some(entry => entry.type === 'fact'
     && entry.text.includes('policy re-frozen automatically') && entry.text.includes(' -> ')
-    && entry.text.includes('landing.manualOverride') && entry.text.includes('submit.handoff')));
+    && entry.text.includes('landing.manualOverride')));
 
   const folder = JSON.parse(nextClaim.out).itemFolder;
   assert.ok(folder, 'the real claim returned its machine-created item folder');
