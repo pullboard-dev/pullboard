@@ -1362,6 +1362,8 @@ async function main(args) {
         import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
+      const { timingSeat } = await import('../src/seat-timing.js');
+      const seat = timingSeat(process.cwd());
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
       const canShipRunner = runnerPath && runnerPath !== '..' && !runnerPath.startsWith(`..${sep}`);
@@ -1378,7 +1380,9 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
+        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
+        kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
           recordRunnerWait(state);
