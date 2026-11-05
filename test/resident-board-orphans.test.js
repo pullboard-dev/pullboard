@@ -20,6 +20,9 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 
 const identity = (path) => { const stat = statSync(path); return `${stat.dev}:${stat.ino}`; };
 
+/** Every resident this file starts, so the last case can prove none outlives the file. */
+const started = [];
+
 /** Start a resident at a socket path and resolve once it has exited, with its exit code and stderr. */
 function resident(socket, pid, env = {}) {
   const child = spawn(process.execPath, [ENTRY, socket, ENTRY, 'commit:test', pid],
@@ -29,6 +32,7 @@ function resident(socket, pid, env = {}) {
   child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
   const listening = new Promise((done) => { child.stdout.on('data', () => { if (stdout.includes('listening')) done(); }); });
   const exited = new Promise(done => child.on('exit', code => done({ code, stderr })));
+  started.push(exited);
   return { child, listening, exited };
 }
 
@@ -210,7 +214,7 @@ test('an owner retiring idle frees its own path and exits [C7,H24]', async () =>
   } finally { owner.child.kill('SIGKILL'); }
 });
 
-test('two residents starting at one stale path at once leave exactly one listening there [C7,H24]', async () => {
+test('clause 1: two residents starting at one stale path at once leave exactly one listening there [C7,H24]', async () => {
   const socket = join(dir, 'h.sock');
   const pid = join(dir, 'h.pid');
   writeFileSync(socket, '');
@@ -352,4 +356,9 @@ test('a response queued after retirement, by a command that ran long, gets its o
   assert.equal(flushesDue([{ at: 6_000 }], retiredAt, 6_001, 2_000), false);
   assert.equal(flushesDue([{ at: 6_000 }], retiredAt, 8_000, 2_000), true);
   assert.equal(flushesDue([{ at: 500 }, { at: 6_000 }], retiredAt, 7_000, 2_000), false, 'every pending response must be due');
+});
+
+test('clause 2: every resident this file started has exited, so the file finishes within its time limit [C7,H24]', async () => {
+  assert.ok(started.length > 0);
+  await within(Promise.all(started), 5_000, 'every resident started here exits');
 });
