@@ -193,7 +193,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.equal(clearClaimed.code, 0, clearClaimed.err || clearClaimed.out);
   assert.deepEqual(store.pendingRefreeze(board, claimed), []);
   const renewed = box.run(box.web, 'claim', String(claimed), '--json');
-  assert.equal(renewed.code, 0, renewed.err || renewed.out);
+  assert.equal(renewed.code, 0, `${renewed.out}\n${renewed.err}`);
   assert.equal(store.getItem(board, claimed).item_status, 'claimed');
   assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);
 });
