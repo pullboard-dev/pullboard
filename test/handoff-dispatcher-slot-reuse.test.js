@@ -62,7 +62,7 @@ async function queueJob(box, id) {
 /** Lines the stand-in dispatcher wrote, one per spawn. */
 function dispatcherSpawns(box) { return readFileSync(box.log, 'utf8').split('\n').filter(line => line.startsWith('dispatcher ')); }
 
-test('a SLOT_DB_LOCKED release at a worker exit is logged and retried, and the waiting ticket starts within 5 s [C7,#2996]', async () => {
+test('clause 1: a SLOT_DB_LOCKED release at a worker exit is logged and retried, and the waiting ticket starts within 5 s [C7,#2996]', async () => {
   const box = fixture();
   try {
     await queueJob(box, 'job1');
@@ -84,7 +84,7 @@ test('a SLOT_DB_LOCKED release at a worker exit is logged and retried, and the w
   } finally { box.cleanup(); }
 });
 
-test('ensureHandoffDispatcher replaces a receipt with an empty start time or a live pid when no dispatcher holds the lock [C7,#2996]', async t => {
+test('clause 2: ensureHandoffDispatcher replaces a receipt with an empty start time or a live pid when no dispatcher holds the lock [C7,#2996]', async t => {
   const box = fixture();
   try {
     mkdirSync(handoffQueueDirectory(), { recursive: true });
