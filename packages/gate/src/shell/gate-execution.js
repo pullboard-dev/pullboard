@@ -103,6 +103,7 @@ import {
   tapTests,
 } from './tap-tests.js';
 import { readTestOutcomes } from './test-outcomes.js';
+import { cacheProfile } from './test-cache-account.js';
 import { committedTestOutcomes } from './test-outcomes.js';
 import {
   frozenCheck,
@@ -253,7 +254,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
   if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
   const profile = writeTimingProfile(profilePath, {
-    ...runTiming(profiledRun, command, root), ...(testOutcomes ? { testOutcomes } : {}),
+    ...runTiming(profiledRun, command, root), ...(testOutcomes ? { testOutcomes } : {}), ...cacheProfile(run.output),
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
