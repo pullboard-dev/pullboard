@@ -3,9 +3,12 @@
  * instead of showing zeros [N26,N38]. The page embeds firstRunKit's source text, so the kit may use only its own
  * scope and the language's globals; tests call it directly.
  *
+ * `coordinate` says whether the CLI has the pullboard coordinate command (#2068); the copy line names it once it does.
+ *
+ * @param {{ coordinate?: boolean }} [options]
  * @returns {{ steps: Array<[number, string]>, dwell: (index: number) => number, model: Function, html: Function, paint: Function }}
  */
-export function firstRunKit() {
+export function firstRunKit({ coordinate = false } = {}) {
   /** Escape text and attribute values that come from a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   /** The diagram's boxes top to bottom: title, what it does, and its middle y on the 320-wide drawing. */
@@ -25,8 +28,8 @@ export function firstRunKit() {
     ['Rinse and repeat', 'Go get a coffee ☕', null],
     ['Map out the work', 'Plan releases in ', ['roadmap', 'Roadmap →']],
   ];
-  /** The line to copy until the coordinate command exists. */
-  const COPY = 'Use the pullboard-run skill: be this project\'s coordinator. Keep listening, run builder and verifier subagents, and help me add more agents.';
+  /** The approved line once the coordinate command exists (#2068), and the skill line until then. */
+  const COPY = coordinate ? 'Run pullboard coordinate' : 'Use the pullboard-run skill: be this project\'s coordinator. Keep listening, run builder and verifier subagents, and help me add more agents.';
   const SETUP = [['Runs on', 'Runs on:'], ['Hosting', 'Hosting:'], ['Sign-in', 'Sign-in:'], ['Done means', 'Done means:']];
   const ICONS = [
     '<path d="M5 4.5L2 8l3 3.5M11 4.5L14 8l-3 3.5"/>',
