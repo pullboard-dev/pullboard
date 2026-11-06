@@ -13,7 +13,7 @@
     "manualOverride": false,
     "publish": "separate",
     "perItem": false,
-    "parallel": true
+    "parallel": false
   },
   "submit": {
     "requireInfraNote": true,
