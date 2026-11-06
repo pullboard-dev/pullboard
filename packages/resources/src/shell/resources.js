@@ -4,6 +4,7 @@ import { isSeatTest } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -87,7 +88,6 @@ export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
-
 /** Mark child commands whose parent already owns a machine gate slot. */
 export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
@@ -537,13 +537,13 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
     // predates the name guard and has no runner column value.
-    const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const remoteHolders = db.prepare('SELECT browser, timing, since, landing, kind FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
       slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
-      browsers: remoteHolders.filter(holder => holder.browser === 1).length,
+      browsers: remoteHolders.filter(holder => holder.browser === 1).length, landingShards: remoteHolders.filter(holder => holder.kind === 'landing' || holder.landing === 1).length, // Spread a batch's shards across hosts [C7].
     }];
   }));
   const unavailable = unavailableRunnerHosts(db, now, runners);
@@ -1085,7 +1085,7 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
-    const result = await options.onWait?.(state);
+    const result = await renewWithBeat(file, token, table === 'waiter', () => options.onWait?.(state));
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
         throw new Refused('BAD_RESOURCE_METADATA', 'the waiting item renewal must return a valid leaseUntil timestamp');
