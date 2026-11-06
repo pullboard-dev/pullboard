@@ -24,7 +24,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     `\n- G1 [approved, must] The fixture builder's file parses. | gate: ${gate}\n\n## K · Constraints`);
   writeFileSync(specPath, spec);
   const added = await box.cli('add', buildLane, 'paused relay fixture task', '--specs', 'G1', '--criterion', 'the fixture agent completes this task',
-    '--check', gate);
+    '--brief', 'Files: src/relay-pause-fixture.js\nTest: the fixture source parses', '--check', gate);
   assert.equal(added.code, 0, `the fixture creates its task; result=${JSON.stringify(added.document)}`);
   const item = added.document.item.item_id;
   box.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'fixture refuses the initial baseline until repaired' });
@@ -443,7 +443,8 @@ test('a refused later checkpoint names its repair once on every native agent com
   const specPath = join(box.root, 'SPEC.md');
   writeFileSync(specPath, readFileSync(specPath, 'utf8').replace('\n## K · Constraints',
     `\n- G1 [approved, must] The checkpoint fixture parses. | gate: ${gate}\n\n## K · Constraints`));
-  const added = await box.cli('add', lane, 'accepted baseline work', '--specs', 'G1', '--criterion', 'the fixture source parses', '--check', gate);
+  const added = await box.cli('add', lane, 'accepted baseline work', '--specs', 'G1', '--criterion', 'the fixture source parses',
+    '--brief', 'Files: src/relay-checkpoint-fixture.js\nTest: the fixture source parses', '--check', gate);
   assert.equal(added.code, 0);
   const item = added.document.item.item_id;
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
