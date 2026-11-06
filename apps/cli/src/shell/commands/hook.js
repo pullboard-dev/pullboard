@@ -5,6 +5,19 @@ import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../../../../packages/landing/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
+/**
+ * Claims that may stamp trailers: the live ones, or the submitted item's own claim when only its gate handoff remains,
+ * so a fix commit still cites the item while the gate runs [C7,#2882].
+ *
+ * @param {any[]} claims - This seat's claimed items.
+ * @param {(item: any) => unknown} pending - Whether the item's submit handoff is queued or running.
+ * @returns {any[]}
+ */
+export function submittedClaimsFallback(claims, pending) {
+  const live = claims.filter(item => !pending(item));
+  return live.length ? live : claims;
+}
+
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
@@ -18,6 +31,7 @@ import { gitBoardDataPush } from '../../../../../packages/commits/src/core/board
 import * as store from '../../../../../packages/store/index.js';
 import { pendingCommitSignoffProblem } from '../../../../../packages/commits/index.js';
 import { prepareCommitMetadata } from '../../../../../packages/commits/index.js';
+import { landingBatchItemsAtRoot } from '../../../../../packages/landing/index.js';
 import { landingBatchOwnsRoot } from '../../../../../packages/landing/index.js';
 import { fixStagedImportBindings } from '../../../../../packages/commits/index.js';
 import { landingRows } from '../../../../../packages/commits/src/core/landing-rows.js';
@@ -35,6 +49,7 @@ import {
   headTree,
   headCommit,
   tryGit,
+  withGitCommandMemo,
   isClean,
   repoInfo,
   untracked,
@@ -107,7 +122,7 @@ export async function hookCommand(io, { first, second }) {
     }) ?? '' : '';
     const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
-    problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    problems = withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }));
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -118,8 +133,10 @@ export async function hookCommand(io, { first, second }) {
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem) && !pendingSubmitHandoff(board, item)),
-        landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
+        claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
+          item => pendingSubmitHandoff(board, item)),
+        landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
+          : landingBatchItemsAtRoot(store.landingBatches(board), info.root, items, item => store.checkedLandingCommit(board, item)),
       };
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
@@ -135,9 +152,7 @@ export async function hookCommand(io, { first, second }) {
         item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
     }) ?? []);
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
-    const rowlessLandings = hookRead(ctx, (board) => (info.isMain || store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root))
-      ? store.listItems(board, { all: true }).filter((item) => item.item_status === 'verified' && !item.item_merged_commit && !landingRows(item).length).map((item) => item.item_id)
-      : [])) ?? [];
+    const rowlessLandings = (metadataContext.landings ?? []).filter(item => !landingRows(item).length).map(item => item.item_id);
     problems = [...prepared.problems, ...commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine, claimedItems, rowlessLandings })];
     if (!problems.length && message !== originalMessage) writeFileSync(second, message);
   } else if (first === 'pre-push') {

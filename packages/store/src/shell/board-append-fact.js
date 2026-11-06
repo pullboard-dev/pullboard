@@ -1,3 +1,9 @@
+import { parseDiagnosis } from '../../../items/index.js';
+import { diagnosisBrief } from '../../../items/index.js';
+import { routeOf } from '../../../seats/index.js';
+import { checkRouted } from '../../../items/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import { setItem } from './board.js';
 import { requireFactKind } from "../../../items/index.js";
 import { barCheckFactFields } from "../../../verify/index.js";
 import { PERSON } from "./board-query.js";
@@ -30,6 +36,13 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId)) throw new Refused('NO_AGENT', `no registered agent ${agentId}; join a worktree before appending a fact`);
     requireFactKind(board, kind);
     if (typeof text !== 'string' || !text.trim()) throw new Refused('EMPTY_FACT', 'a fact needs nonempty text; supply the observation or judgement');
+    let diagnosis = null;
+    if (kind === 'diagnosis') {
+      if (routeOf(board, agentId) === 'light') throw new Refused('DIAGNOSIS_ROUTE', 'a mid or strong seat records the diagnosis; release with --reason DIAGNOSIS_WRONG if it is wrong');
+      if (!['open', 'claimed'].includes(item.item_status) || isHeld(board, item) && item.item_owner !== agentId && agentId !== COORDINATOR) throw new Refused('DIAGNOSIS_HELD', 'diagnose open work or your own claim; ask the holder to release other work first');
+      diagnosis = parseDiagnosis(text);
+      checkRouted({ brief: diagnosisBrief(diagnosis), route: 'light', criterion: item.item_criterion, check: item.item_check }, board.executionEngineVersion ?? ENGINE_VERSION);
+    }
     const urgency = kind === 'urgent';
     if (urgency && (!asPerson || agentId !== COORDINATOR)) throw new Refused('B26_PERSON_APPROVAL', 'only the person marks urgent work: pullboard fact <id> urgent on --as person');
     if (urgency && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'urgent marks use the person terminal or authenticated view');
@@ -49,6 +62,11 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     if (urgency) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
       .run(`item_urgent:${id}`, text);
     const trigger = board.lastEvent;
+    if (diagnosis) {
+      board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+        .run(`item_diagnosis:${id}`, JSON.stringify({ ...diagnosis, factId, by: agentId, criterion: item.item_criterion, check: item.item_check }));
+      setItem(board, id, { item_route: 'light', item_brief: diagnosisBrief(diagnosis) });
+    }
     const result = tellFactImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), factFromEvent(trigger), { id, implies, supersedes });
     if (neverAgain) postRigorNotices(board, trigger);
     return result;

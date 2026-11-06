@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/serve.js apps/view/src/shell/view.css apps/view/src/shell/view/item-panel.css src/view/page-render.js src/view/page-script-2.js src/view/page-script-4.js src/view/timeline-render.js */
+/** @pullboard-test-input src/serve.js apps/view/src/shell/view.css apps/view/src/shell/view/item-panel.css apps/view/src/shell/view/page-render.js apps/view/src/shell/view/page-script-2.js apps/view/src/shell/view/page-script-4.js apps/view/src/core/view/timeline-render.js */
 /** @pullboard-test-gui */
 /** Approved item-panel presentation over native item, verdict, baseline and history records [N26,B23]. */
 import assert from 'node:assert/strict';

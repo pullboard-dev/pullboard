@@ -2,6 +2,8 @@ import { requireExitActive } from "../core/exit-rules-state.js";
 /** The native command prepares external work before its final ordered writer [B2,C7]. */
 import * as store from "./board.js";
 import { measureBoardWritePhase } from './board-write-lock.js';
+import { prepareReserveNextReview } from "./board-reserve-next-review.js";
+import { prepareReserveReview } from "./board-reserve-review.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 import { requireAgentGrant } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
@@ -10,7 +12,23 @@ import { Refused } from "../../../kernel/index.js";
 const PREPARE_ATTEMPTS = 4;
 
 // Like the writer dispatch, each preparation belongs to its exact native operation, never the wire.
-const PREPARATIONS = Object.freeze({ claim: store.prepareClaim, queueSubmitHandoff: store.prepareQueueSubmitHandoff });
+// Each returns the writer's arguments: item moves prepare their options; next --verify prepares its selection and a
+// named reservation its witness, so no candidate scan or witness build runs in the writer's transaction (#3156).
+const PREPARATIONS = Object.freeze({
+  claim: (board, args) => [args[0], store.prepareClaim(board, args[0], args[1])],
+  queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
+  reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
+  reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
+  // Gate-run and flake writes read every earlier run; read them here so the writer reads only the runs since (#2294).
+  recordGateRun: (board, args) => { warmHistories(board); return args; },
+  recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
+});
+
+/** Read the shared gate-run and flake histories with no lock held. */
+function warmHistories(board) {
+  board.enginePorts.store.gateRuns(board);
+  board.enginePorts.store.flakeLedger(board);
+}
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock.
@@ -32,7 +50,7 @@ export function writeBoardCommand(board, operation, args, actor, { prepareInWrit
     let preparing = true;
     let rollbackPrepared;
     try {
-      const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
+      const prepared = prepare ? prepare(board, args) : args;
       preparing = false;
       return store.atomic(board, () => {
         const writerResult = prepareInWriter ? prepareInWriter(board) : null;

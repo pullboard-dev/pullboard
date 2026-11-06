@@ -1,3 +1,4 @@
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../src/two-tier-diagnosis-engine.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../../src/queue-preempt-engine.js';
 import { ITEM_NOTES_ENGINE } from "../../../../../src/item-notes-engine.js";
 import { ITEM_NOTE_KINDS } from "../../../../items/core.js";
@@ -12,7 +13,7 @@ import { BAR_CHECK_ENGINE } from "../../../../../src/bar-check-engine.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
-  const floor = Math.max(args[1]?.kind === 'urgent' ? QUEUE_PREEMPT_ENGINE : 1, ['bar-check', 'bar-answer'].includes(args[1]?.kind) ? BAR_CHECK_ENGINE : 1,
+  const floor = Math.max(args[1]?.kind === 'diagnosis' ? TWO_TIER_DIAGNOSIS_ENGINE : 1, args[1]?.kind === 'urgent' ? QUEUE_PREEMPT_ENGINE : 1, ['bar-check', 'bar-answer'].includes(args[1]?.kind) ? BAR_CHECK_ENGINE : 1,
     ITEM_NOTE_KINDS.includes(args[1]?.kind) ? ITEM_NOTES_ENGINE : 1);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return Math.max(floor, RIGOR_AUTO_ENGINE);
   if (args[0]?.landingFence !== undefined) return Math.max(floor, LANDING_LEASE_ENGINE);
