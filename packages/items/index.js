@@ -28,7 +28,7 @@ export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, ite
 export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem } from './src/shell/item-patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/shell/item-receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/shell/item-rehome.js';
-export { checkRouted, checkRoute } from './src/core/item-routing.js';
+export { checkRouted, checkRoute, checkTestFiles } from './src/core/item-routing.js';
 export { requireLedger, recordItemSession, refuseSelfSession } from './src/shell/item-sessions.js';
 export { requireOutsideReceipt } from './src/shell/outside-proof.js';
 export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, planSensitivePaths, outsideSensitivePaths, outsideSensitivity } from './src/core/outside-sensitive.js';
