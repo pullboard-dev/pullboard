@@ -66,6 +66,8 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
+  const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+  values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   // Select once, on the read snapshot; the write runs only the chosen item's own guards (#2978).
   const { me, ...looked } = withBoardRead(ctx, board => ({ ...takeSelection.selected(ctx, board, values, services), me: whoAmI(ctx, board) }));
   if (looked.releaseRequest) {
