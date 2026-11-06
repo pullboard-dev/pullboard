@@ -28,5 +28,5 @@ export function installFileWatchdog(file) {
     };
   }
   worker.unref();
-  return (id, name) => worker.postMessage({ type: 'test', id, name });
+  return (id, name, timeoutMs) => worker.postMessage({ type: 'test', id, name, timeoutMs });
 }
