@@ -8,6 +8,7 @@ import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
+import { proofReceipts } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
@@ -159,7 +160,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id)) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit) }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -215,4 +216,11 @@ export function submit(board, id, options) {
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
   if (autoMainReds) return { mainRedRepairs };
+}
+
+
+/** The test files every green proof of this exact commit ran, so a tick naming one of them is already proven. */
+function greenProofFiles(board, id, commit) {
+  return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
+    .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
 }
