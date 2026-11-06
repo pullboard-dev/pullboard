@@ -228,7 +228,7 @@ function repoWithGate(gate, check = '') {
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  const added = run('add', 'coordinator', 'Work', '--route', 'mid', '--brief', 'Files: WORK. Test: the fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
+  const added = run('add', 'coordinator', 'Work', '--route', 'mid', '--brief', 'Files:\n- WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   assert.equal(run('claim', '1').status, 0);
   // Submissions need their own committed delta; main itself is not an item change.
@@ -827,7 +827,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   const ran = () => existsSync(box.env.DEFER_MARKER) ? readFileSync(box.env.DEFER_MARKER, 'utf8').trim().split('\n').filter(Boolean) : [];
   /** Add, claim, change the shared source and submit one item, returning its receipt and what ran. */
   const submitChange = (value, { cwd = box.web, files = [] } = {}) => {
-    const added = box.run(box.repo, 'add', 'web', `Set the value to ${value}`, '--route', 'mid', '--brief', 'Files: web/core.js. Test: the source exists.', '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
+    const added = box.run(box.repo, 'add', 'web', `Set the value to ${value}`, '--route', 'mid', '--brief', 'Files:\n- web/core.js\n\nTest:\nthe source exists.', '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
     assert.equal(box.run(cwd, 'claim', String(id)).code, 0);
