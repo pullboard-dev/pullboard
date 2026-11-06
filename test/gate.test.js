@@ -224,18 +224,20 @@ function repoWithGate(gate, check = '') {
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}` }));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `echo run >> ../runs.log; ${gate}`, lanes: { build: { owns: ['WORK', 'RED', 'fixtures/'] } } }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: a spec');
-  const added = run('add', 'coordinator', 'Work', '--route', 'mid', '--brief', 'Files:\n- fixtures/WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
+  const added = run('add', 'build', 'Work', '--route', 'mid', '--brief', 'Files:\n- fixtures/WORK\n\nTest:\nthe fixture gate behaves as asserted.', '--criterion', 'The gate behaves as asserted.', ...(check ? ['--check', check, '--wait'] : ['--check', 'true']));
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
-  assert.equal(run('claim', '1').status, 0);
-  // Submissions need their own committed delta; main itself is not an item change.
-  git('switch', '-q', '-c', 'coordinator/item-1');
-  writeFileSync(join(repo, 'WORK'), 'item change\n');
-  git('add', 'WORK');
-  git('commit', '-q', '-m', 'chore: make the fixture item change');
+  // Submissions need their own committed delta; main itself is not an item change. Accepted main is the primary
+  // checkout's HEAD, so the item work lives in a linked worktree and the primary checkout stays on main.
+  const work = join(dir, 'work');
+  git('worktree', 'add', '-q', '-b', 'coordinator/item-1', work);
+  const workGit = (...args) => runFixtureGit(args, { cwd: work, env });
+  writeFileSync(join(work, 'WORK'), 'item change\n');
+  workGit('add', 'WORK');
+  workGit('commit', '-q', '-m', 'chore: make the fixture item change');
   const runs = () => {
     try {
       return readFileSync(join(dir, 'runs.log'), 'utf8').split('\n').filter(Boolean).length;
@@ -243,7 +245,12 @@ function repoWithGate(gate, check = '') {
       return 0;
     }
   };
-  return { dir, repo, env, git, run, runs };
+  const runAt = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: work, env, encoding: 'utf8' });
+  const joined = runAt('join', 'build', '--model', 'Test Agent');
+  assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
+  const claimed = runAt('claim', '1');
+  assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
+  return { dir, repo: work, primary: repo, env, git: workGit, primaryGit: git, run: runAt, runs };
 }
 
 test('pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
@@ -372,7 +379,7 @@ test('gate before the first commit names the uncommitted config [I1,C7]', () => 
   assert.match(firstRefusal.message, /git add pullboard\.json/u, 'the refusal gives the concrete staging command');
 
   const committed = repoWithGate('true');
-  committed.git('switch', '--detach', 'HEAD');
+  committed.primaryGit('switch', '--detach', 'HEAD');
   const missingCoordinator = committed.run('gate', '--json');
   assert.equal(missingCoordinator.status, 1);
   const missingRefusal = JSON.parse(missingCoordinator.stdout).error;
@@ -504,7 +511,7 @@ test('submit runs the gate itself: a stamp written by hand never stands in for a
   writeFileSync(join(box.repo, 'RED'), 'red\n');
   box.git('add', 'RED');
   box.git('commit', '-q', '-m', 'chore: turn the gate red');
-  writeFileSync(join(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
+  writeFileSync(resolve(box.repo, box.git('rev-parse', '--git-path', 'pullboard-gate-green')), `${box.git('rev-parse', 'HEAD^{tree}')}\n`);
   const refused = box.run('submit', '1');
   assert.equal(refused.status, 1, refused.stdout);
   assert.match(refused.stderr, /GATE_RED/);
@@ -519,7 +526,7 @@ test('submit runs the gate even on a tree an earlier run passed, which a plain g
   assert.equal(box.runs(), 1, 'outside submit, the stamp still saves a run');
   const submitted = box.run('submit', '1');
   assert.equal(submitted.status, 0, submitted.stderr);
-  assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; no item check; full gate: /mu);
+  assert.match(submitted.stdout, /^submitted #1 at [0-9a-f]{12}; item check green; full gate: /mu);
   assert.equal(box.runs(), 2, 'submit ran the gate itself, stamp or no stamp');
 });
 
