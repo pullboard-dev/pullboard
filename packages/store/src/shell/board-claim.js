@@ -54,6 +54,7 @@ import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { claimProblem } from "../../../seats/index.js";
+import { randomUUID } from 'node:crypto';
 import {
   atomic,
   logEvent,
@@ -78,6 +79,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
   let reworkRouting = null;
   let frozen = null;
+  let policyRefreeze = null;
   let prepared = false;
   const how = {
     checks: {
@@ -189,6 +191,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (found.item_frozen_digest !== null && !adopts && !refreshes) return null;
         try {
           if (!prepared) { frozen = freeze(found); prepared = true; }
+          policyRefreeze = frozen?.policyRefreeze ?? null;
           return null;
         } catch (error) {
           if (error instanceof Refused) return error;
@@ -203,7 +206,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen, reworkRouting: () => reworkRouting };
+  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -288,6 +292,12 @@ export function claim(board, id, options, ports) {
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    const policyRefreeze = plan.policyRefreeze();
+    if (!renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
+      id: randomUUID(), kind: 'note',
+      text: `policy re-frozen automatically: ${policyRefreeze.before} -> ${policyRefreeze.after}; only ${policyRefreeze.changed.join(', ')} changed`,
+      ref: null, supersedes: null,
+    });
     const route = plan.reworkRouting();
     if (!renewed && route?.applies && route.mode === 'fallback') {
       const factId = prepared.reworkRoutingPolicy?.factId;
