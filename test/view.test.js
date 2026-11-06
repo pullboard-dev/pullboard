@@ -216,7 +216,7 @@ test('sign-offs show as signed, stale or not signed [S5, S7]', () => {
   assert.ok(html.includes('<b>1/2</b><span>approved must-rows signed</span>'));
 });
 
-test('row text is escaped, so a row cannot inject markup', () => {
+test('row text is escaped, so a row cannot inject markup [S7]', () => {
   const html = page();
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));

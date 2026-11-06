@@ -1,5 +1,6 @@
 import { installPostMoveHandoffCases } from './post-move-handoff-cases.js';
 import './next-take-review-cases.js';
+import './next-wait-race-cases.js';
 import { cli } from './next-take-fixture.js';
 import { fixture } from './next-take-fixture.js';
 import { assertFreeMainRedRouting, assertNewestMainRedRouting, assertMainRedCLI } from './main-red-build-routing-fixture.js';
@@ -188,20 +189,18 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
 });
 
 
-test('an explicit heartbeat and the installed native stop hook dispatch free seats [N2,I6]', async t => {
+test('an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
   const box = await fixture(t);
-  const id = box.add('A heartbeat assigns work');
-  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
-  const another = box.add('A busy heartbeat cannot claim twice');
-  await cli(box, box.seats.actor.path, ['heartbeat']);
-  assert.equal(store.getItem(box.board, another).item_owner, null);
-  store.release(box.board, id, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
+  const id = box.add('A heartbeat leaves work for next --take');
+  const beat = await cli(box, box.seats.actor.path, ['heartbeat']);
+  assert.equal(beat.code, 0, beat.out + beat.err);
+  assert.equal(store.getItem(box.board, id).item_owner, null);
   const hook = await cli(box, box.seats.actor.path, ['hook', 'Stop']);
   assert.equal(hook.code, 0, hook.out + hook.err);
-  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id, hook.out + hook.err);
-  assert.equal(store.getItem(box.board, another).item_owner, null);
+  assert.equal(store.getItem(box.board, id).item_owner, null, hook.out + hook.err);
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
 });
 
 test('an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
@@ -275,12 +274,12 @@ test('health matches two free seats to distinct eligible work instead of hiding 
   assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
 });
 
-test('an expired claim is reclaimed through board eligibility on the next heartbeat [N2,B3]', async t => {
+test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
   const box = await fixture(t);
   const id = box.add('Expired work remains dispatchable');
   box.claim(id, box.seats.actor);
   box.advance(3600001);
-  const taken = await cli(box, box.seats.actor.path, ['heartbeat']);
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   const current = store.getItem(box.board, id);
   assert.equal(current.item_owner, box.seats.actor.id);

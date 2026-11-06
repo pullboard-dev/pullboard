@@ -56,7 +56,7 @@ function fixture(t, lanes) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride: false } };
+  const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride: false } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   for (const lane of ['web', 'api']) mkdirSync(join(box.repo, lane), { recursive: true });
   writeFileSync(join(box.repo, 'web/result.txt'), 'base\n');
