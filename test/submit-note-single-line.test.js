@@ -42,7 +42,7 @@ test('deferred suite and cross-lane mechanical edit submit both notices on one l
   box.git(builder, 'mv', 'web/old.js', 'web/new.js');
   writeFileSync(join(builder, 'api/consumer.js'), "import { value } from '../web/new.js';\nexport const result = value;\n");
   commit(box, builder, 'refactor(web): repoint consumer import [G1]');
-  json(box, builder, 'fact', String(item), 'note', 'clause 1 [test]: test/import.test.js :: the consumer import resolves to the renamed module');
+  json(box, builder, 'fact', String(item), 'note', 'clause 1 [test]: test/import.test.js proves clause 1: the consumer import resolves to the renamed module');
   const submitted = json(box, builder, 'submit', String(item), '--no-next');
   assert.equal(submitted.gate.deferred, true);
   assert.match(submitted.gate.report, /cross-lane mechanical edits: api\/consumer\.js/u);
