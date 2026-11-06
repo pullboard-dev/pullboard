@@ -6,7 +6,7 @@ import { apiBoardOpeners } from './board-fixture.js';
 
 import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureGit } from './fixture-child.js';
 import { existsSync } from 'node:fs';
@@ -48,12 +48,15 @@ function fixture(t) {
     else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   });
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
+  // The disk board lives in a real repository with a committed policy, so submit seals it instead of refusing NO_POLICY [C7,V4].
+  const boardFile = repositoryBoardFile(root);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
+  runFixtureGit(['add', 'pullboard.json', 'PRACTICE.md'], { cwd: root, stdio: 'pipe' });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture lanes'], { cwd: root, stdio: 'pipe' });
   let now = new Date('2026-10-08T12:00:00.000Z');
   const clock = { now: () => now };
-  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(boardFile, clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: join(root, 'web') });
@@ -123,8 +126,8 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /2 submissions · 1 rejections · 50\.0% sent back/u);
   assert.match(text.stdout, /1 items merged · 0 merged without an accept/u);
-  assert.match(text.stdout, /3 agents · 1 family buckets: unknown \(3 agents,/u);
-  assert.match(text.stdout, /agents: coordinator \(unknown\) \(unknown; \d+ moves\), review-1 \(unknown\) \(unknown; \d+ moves\), web-1 \(unknown\) \(unknown; \d+ moves\)/u);
+  assert.match(text.stdout, /2 agents · 1 family buckets: unknown \(2 agents,/u);
+  assert.match(text.stdout, /agents: review-1 \(unknown\) \(unknown; \d+ moves\), web-1 \(unknown\) \(unknown; \d+ moves\)/u);
   assert.ok(text.stdout.includes(expected.firstEventAt));
   assert.ok(text.stdout.includes(expected.lastEventAt));
   assert.match(text.stdout, /build: average 0 min · median 0 min · 1 measured/u);
