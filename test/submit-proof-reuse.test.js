@@ -51,7 +51,7 @@ async function nativeProofScenario(t, moveMain) {
   const box = helpers.project('true', sandbox);
   const marker = join(box.dir, 'check-count');
   const check = `printf x >> '${marker}'`;
-  const added = box.run(box.repo, 'add', 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check);
+  const added = box.run(box.repo, 'add', 'web', 'Proof reuse', '--specs', 'G1', '--criterion', 'the check is green', '--check', check, '--route', 'strong');
   assert.equal(added.code, 0, added.err || added.out);
   const claimed = box.run(box.web, 'claim', '1'); assert.equal(claimed.code, 0, claimed.err || claimed.out);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
