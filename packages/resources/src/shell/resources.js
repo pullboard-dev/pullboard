@@ -88,7 +88,6 @@ export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
-
 /** Mark child commands whose parent already owns a machine gate slot. */
 export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
