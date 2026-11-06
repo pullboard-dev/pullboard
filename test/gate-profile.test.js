@@ -201,7 +201,7 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   assert.ok(queued, 'the gate joined the real private machine queue');
   const elapsedMs = Date.now() - started;
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /timing \(node\): wall/);
+  assert.match(result.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const profilePath = /timing profile: ([^\n]+)/.exec(result.stdout)?.[1];
   assert.ok(profilePath, result.stdout);
   assert.ok(profilePath.endsWith('pullboard-gate.log.profile.json'), 'the full gate profile is paired with its canonical raw log');
@@ -259,7 +259,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   const direct = box.run(box.web, 'check', '--yes');
   assert.equal(direct.status, 0, direct.stderr);
-  assert.match(direct.stdout, /timing \(node\): wall/);
+  assert.match(direct.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const directPath = /timing profile: ([^\n]+)/.exec(direct.stdout)?.[1];
   assert.ok(directPath, direct.stdout);
   assert.equal(statSync(directPath).mode & 0o777, 0o600);
@@ -288,7 +288,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
   assert.match(accepted.stdout, /submit proof not reused:/u, 'main advancement creates a new accepted composition and executes its check');
-  assert.match(accepted.stdout, /timing \(node\): wall/);
+  assert.match(accepted.stdout, /timing \(node(?: on runner [^)]*)?\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
   assert.ok(verifyPath.endsWith('.log.profile.json'), accepted.stdout);
@@ -519,7 +519,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const trace = join(box.dir, `${scenario.name.replaceAll(' ', '-')}.trace`);
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false, runnersOnly: false } }));
     const checkCommand = 'node bin/run-tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
     const gateCommand = 'node bin/run-tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
