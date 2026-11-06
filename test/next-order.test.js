@@ -388,7 +388,7 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   assert.doesNotMatch(JSON.stringify(beginner.overview ?? beginner), /milestone order|rank the queue/iu, 'newcomer help does not gain scheduling words');
 });
 
-test('pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
+test('clause 1: pullboard queue lists releases as breakpoints and items in pull order [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('queue-holder', 'web', box.session);
   const oldest = box.add('web', 'Oldest unranked strong work');
