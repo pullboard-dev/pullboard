@@ -77,8 +77,30 @@ async function terminal(box, id) {
   return read(box, id);
 }
 
+/**
+ * Put the placement refusal past its trial in the fixture's own ledger, so the next unplaced source is refused and
+ * not only reported. Why: machinery refusals start in report mode on a fresh repository (#2611) under an identity
+ * bound to the rule's content, so a real probe submit records that identity first and the ledger is then aged.
+ */
+async function enforcePlacement(box) {
+  const probe = document(box.run(box.repo, 'add', 'web', 'Cells cut: placement trial probe', '--specs', 'G1',
+    '--route', 'strong', '--criterion', 'Cells cut: probe the placement trial [test]', '--check', 'true', '--wait', '--json')).item.item_id;
+  box.ids.push(probe);
+  const folder = document(box.run(box.web, 'claim', String(probe), '--json')).itemFolder;
+  assert.equal(box.helpers.commitFile(box, folder, 'src/probe.js', 'export const probe = true;\n', 'feat(web): probe source [G1]').status, 0);
+  assert.equal(document(box.run(folder, 'submit', String(probe), '--no-next', '--json')).queued, true);
+  await terminal(box, probe);
+  const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+  const ledger = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(ledger.codes.CELLS_PLAN_UNPLACED, 'the probe recorded the placement trial');
+  ledger.gates = 20;
+  ledger.codes.CELLS_PLAN_UNPLACED.start = 0;
+  writeFileSync(file, JSON.stringify(ledger) + '\n');
+}
+
 test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, survives idle maintenance, and opens only after its lease (clause 1) [V4,H16,N2,R2,B4,C7]', async t => {
   const box = fixture(t);
+  await enforcePlacement(box);
   const [refused, green, later] = box.ids;
   const first = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
   const second = document(box.run(box.web, 'claim', String(green), '--json')).itemFolder;
@@ -139,6 +161,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
 
 test('a returned red claim left untouched is freed by maintenance once its fresh lease lapses (clause 1) [V4,H16,B4,C7]', async t => {
   const box = fixture(t);
+  await enforcePlacement(box);
   const [refused] = box.ids;
   const folder = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'src/unplaced.js', 'export const unplaced = true;\n', 'feat(web): unplaced source [G1]').status, 0);
