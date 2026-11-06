@@ -79,9 +79,15 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const resumed = await box.cliAt(agentRoot, 'status');
   assert.equal(resumed.code, 0);
   assert.doesNotMatch((resumed.document.diagnostics ?? []).join('\n'), /relay paused/u, 'a fitting snapshot clears the pause');
-  { const k = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim()); const L = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-    for (const r of box.moveAcks) console.error('DBG', new TextDecoder().decode(await unseal(k, Buffer.from(r.sealed, 'base64url'), { boardId: L.board, kind: r.kind, sequence: r.event_id })).slice(0, 600)); }
-  assert.equal(box.moveAcks.length, 0, 'no paused local move was sent before its baseline existed');
+  // Submit records a background review comparison fact (499990d401); that one native move queues while paused and may follow the baseline.
+  const sentOperations = async () => {
+    const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+    const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+    return Promise.all(box.moveAcks.map(async row => JSON.parse(new TextDecoder().decode(
+      await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: board, kind: row.kind, sequence: row.event_id }))).operation));
+  };
+  assert.deepEqual((await sentOperations()).filter(operation => operation !== 'appendFact'), [],
+    'no paused local move was sent before its baseline existed');
   const baseline = await uploadedState(box);
   assert.equal(baseline.sequence, 0);
   assert.equal(baseline.document.tables.item.find(row => row.item_id === item).item_status, 'submitted',
@@ -93,10 +99,12 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const ordered = await box.cliAt(agentRoot, 'shout', 'all', 'The relay baseline has resumed');
   assert.equal(ordered.code, 0);
   assert.doesNotMatch((ordered.document.diagnostics ?? []).join('\n'), /relay paused/u);
-  assert.deepEqual(box.moveAcks.map(row => row.event_id), [1],
+  const operations = await sentOperations();
+  assert.deepEqual(operations.slice(-1), ['shout']);
+  assert.deepEqual(box.moveAcks.map(row => row.event_id), operations.map((operation, index) => index + 1),
     'the real relay ACK places the first post-recovery native move immediately after its baseline');
   const final = await uploadedState(box);
-  assert.equal(final.sequence, 1, 'the native checkpoint covers the post-recovery move');
+  assert.equal(final.sequence, operations.length, 'the native checkpoint covers the post-recovery move');
   assert.ok(final.document.tables.shout.some(row => row.shout_text === 'The relay baseline has resumed'));
 
 
