@@ -52,7 +52,7 @@ function fixture(t) {
   // Strong authoring accepts a new item before a capable seat records any light-route diagnosis.
   const add = (title, criterion = `${title} passes its gate.`) => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
     '--route', 'strong', '--criterion', criterion, '--check', 'true', '--wait', '--json')).item.item_id;
-  const ids = [add('Refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
+  const ids = [add('Cells cut: refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
   t.after(async () => {
     for (const id of ids) {
       const job = read(box, id).job;
@@ -101,7 +101,7 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   assert.equal(read(box, green).item.item_status, 'submitted', 'the seat\'s other submission is untouched');
 
   const expected = [
-    `red queued gate on #${refused} Refused queued build: CELLS_PLAN_UNPLACED: ${red.job.error.message}`,
+    `red queued gate on #${refused} Cells cut: refused queued build: CELLS_PLAN_UNPLACED: ${red.job.error.message}`,
     `next: ${red.job.error.next}`,
   ];
   // next, inbox and claim from that seat print the red first, before any other work.
