@@ -22,15 +22,19 @@ function replaySeat(box, name, family, { clockFile, wakeLog } = {}) {
     const mainUrl = new URL('./native-cli-fixture.js', import.meta.url).href;
     writeFileSync(executable, `#!${process.execPath}
 import { appendFileSync, readFileSync } from 'node:fs';
-import { main } from ${JSON.stringify(mainUrl)};
 const at = readFileSync(${JSON.stringify(clockFile)}, 'utf8').trim();
-let out = '', err = '';
 const command = ['next', '--verify', process.argv[2], '--json'];
-const code = await main(command, { cwd: ${JSON.stringify(path)}, clock: { now: () => new Date(at) },
-  stdout: { isTTY: false, write: text => { out += text; } }, stderr: { write: text => { err += text; } } });
+const record = row => appendFileSync(${JSON.stringify(wakeLog)}, JSON.stringify({ fixture: ${JSON.stringify(name)}, at, command, ...row }) + String.fromCharCode(10));
+record({ started: true });
+let out = '', err = '', code = 1;
+try {
+  const { main } = await import(${JSON.stringify(mainUrl)});
+  code = await main(command, { cwd: ${JSON.stringify(path)}, clock: { now: () => new Date(at) },
+    stdout: { isTTY: false, write: text => { out += text; } }, stderr: { write: text => { err += text; } } });
+} catch (error) { err += String(error?.stack ?? error); }
 let result;
 try { result = JSON.parse(out); } catch { result = { output: out }; }
-appendFileSync(${JSON.stringify(wakeLog)}, JSON.stringify({ fixture: ${JSON.stringify(name)}, at, command, code, result, err }) + String.fromCharCode(10));
+record({ code, result, err });
 process.exitCode = code;
 `);
     chmodSync(executable, 0o755);
@@ -79,7 +83,7 @@ test('clause 4: recorded Nov3 green submissions get an automatic independent wak
   }
   const wakes = existsSync(wakeLog) ? readFileSync(wakeLog, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
   assert.ok(wakes.length, 'an actual registered executable ran');
-  const first = wakes.find(row => row.code === 0 && row.result.item?.item_id === firstId);
+  const first = wakes.find(row => row.code === 0 && row.result?.item?.item_id === firstId);
   assert.ok(first, JSON.stringify(wakes));
   assert.equal(first.fixture, 'Haiku', 'the other vendor receives the OpenAI submission');
   assert.deepEqual(first.command, ['next', '--verify', String(firstId), '--json']);

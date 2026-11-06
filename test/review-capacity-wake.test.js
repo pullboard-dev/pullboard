@@ -105,7 +105,7 @@ test('clause 1: missing or failed eligible reviewer wake commands ask the person
       }
       assert.equal(box.wakes().length, options.fails ? 1 : 0);
       assert.equal(box.requests().length, 1);
-      assert.match(box.requests()[0].shout_text, /required reviewer family: Independent Fixture Vendor/u);
+      assert.match(box.requests()[0].shout_text, /required reviewer family: independent fixture vendor/u);
     });
   }
 });
