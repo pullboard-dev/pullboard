@@ -17,21 +17,21 @@ function gating(t, id) {
 }
 
 for (const [step, code] of [['merge', 'LAND_MERGE'], ['gate', 'GATE_RED'], ['diagnose', 'LAND_DIAGNOSE'], ['trunk', 'LAND_TRUNK'], ['publish', 'LAND_PUBLISH']]) {
-  test(`a ${step} refusal ends the batch blocked with its code [C7]`, async t => {
+  test(`clause 1: a ${step} refusal ends the batch blocked with its code [C7]`, async t => {
     const { state, latest } = gating(t, `refuse-${step}`);
     await blockAfterRefusal(state, new Refused(code, `${step} refused`));
     assert.equal(latest().state, 'blocked');
   });
 }
 
-test('a lost lease and a board-busy fault keep the batch for adoption [C7]', async t => {
+test('clause 1: a lost lease and a board-busy fault keep the batch for adoption [C7]', async t => {
   const { state, latest } = gating(t, 'keep-faults');
   await blockAfterRefusal(state, new Refused('LAND_LEASE_LOST', 'lost'));
   await blockAfterRefusal(state, new Refused('BOARD_BUSY', 'busy'));
   assert.equal(latest().state, 'gating');
 });
 
-test('a non-refusal crash is recorded blocked as LAND_WORKER_CRASH with its stack, once [C7]', async t => {
+test('clause 2: a non-refusal crash is recorded blocked as LAND_WORKER_CRASH with its stack, once [C7]', async t => {
   const { state, latest } = gating(t, 'crash-once');
   const error = new TypeError('boom');
   const refusal = crashRefusal(error);
