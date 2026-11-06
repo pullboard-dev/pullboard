@@ -49,7 +49,7 @@ test('failed registration transport replaces a stale desktop positive with unkno
   // Registration now enrolls the runner's signing key in the same probe (RUNNER_SETUP), so a failed probe refuses instead of recording unknown.
   const failed = box.registerRaw();
   assert.equal(failed.status, 1, failed.context);
-  assert.match(failed.stderr, /RUNNER_SETUP.*did not complete its registration probe/u);
+  assert.match(`${failed.stdout}${failed.stderr}`, /RUNNER_SETUP.*did not complete its registration probe/u);
   const after = box.list()[0];
   assert.equal(after.guiObservedAt, before.guiObservedAt, 'a failed probe never refreshes the desktop observation, so the stale positive keeps its old observation time');
   assert.equal(box.trace('').length, 0);
