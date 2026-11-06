@@ -31,7 +31,7 @@ export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, c
 export { companionPlan, applyCompanionRequest } from './src/shell/companion.js';
 export { dispatchWork } from './src/shell/dispatch-eligibility.js';
 export { heldClaim } from './src/shell/held-claim.js';
-export { nextWithReleaseCooldown, recentlyReleased } from './src/shell/next-release-cooldown.js';
+export { ineligibleReleaseIds, nextWithReleaseCooldown, recentlyReleased } from './src/shell/next-release-cooldown.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/shell/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/shell/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline } from './src/shell/item-check-baseline.js';

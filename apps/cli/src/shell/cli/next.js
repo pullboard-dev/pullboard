@@ -82,6 +82,10 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!(values.verify && values.verifyId !== undefined)) {
+    const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+    values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
+  }
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
