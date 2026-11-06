@@ -47,15 +47,20 @@ function moveState(file) {
   }));
 }
 
+/** Give the commit hooks a private Pullboard wrapper on the fixture PATH, once. */
+function installPullboardWrapper(box) {
+  const pullboard = join(box.env.PATH, 'pullboard');
+  if (existsSync(pullboard)) return;
+  const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
+  writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
+}
+
 /** Enable the linked fixture's real local-first setting before testing acknowledged re-home moves. */
 function enableRehomeOutbox(box, root) {
   const file = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
   writeFileSync(file, JSON.stringify({ ...config, relay: { ...(config.relay ?? {}), outbox: true } }, null, 2) + '\n');
-  const pullboard = join(box.env.PATH, 'pullboard');
-  assert.equal(existsSync(pullboard), false, 'the fixture has no preexisting private Pullboard wrapper to overwrite');
-  const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-  writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
+  installPullboardWrapper(box);
   runFixtureGit(['add', 'pullboard.json'], { cwd: root, env: box.env });
   runFixtureGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: root, env: box.env });
 }
@@ -80,6 +85,7 @@ async function moveRepository(box, name, owner) {
   assert.equal(initialized.code, 0, JSON.stringify(initialized.document?.error));
   // init writes the repository's policy uncommitted; a sealed submit reads it from main's commit [V4,C7].
   if (runFixtureGit(['ls-files', 'pullboard.json'], { cwd: root, env: box.env }) === '') {
+    installPullboardWrapper(box);
     runFixtureGit(['add', 'pullboard.json'], { cwd: root, env: box.env });
     runFixtureGit(['commit', '-q', '-m', 'chore(config): commit the generated policy'], { cwd: root, env: box.env });
   }
