@@ -55,8 +55,12 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   assert.equal(result.culprits[0].tests[0].file, FILES[2]);
   assert.match(result.culprits[0].tests[0].name, /keeps the landed behavior/u);
   assert.ok(json(box, box.repo, 'show', String(entries[2].item)).thread.some((entry) => entry.type === 'fact' && entry.text.includes(FILES[2])));
-  assert.deepEqual(calls(box).slice(beforeCalls), [[], ['--alone', FILES[2]], [], [], []],
-    'one red batch, one diagnostic, two bisection gates, then the final tree: returning its culprit changes badge counts, so that different tree needs its own gate');
+  // A bisection round now runs only the failed file (the './' form), so the rounds are single-file runs between the two full trees.
+  const ran = calls(box).slice(beforeCalls);
+  assert.deepEqual([ran[0], ran.at(-1)], [[], []], 'the red batch and the final tree run whole: returning its culprit changes badge counts, so that different tree needs its own gate');
+  const alone = ran.slice(1, -1);
+  assert.ok(alone.length > 0 && alone.every(call => call[0] === '--alone' && [FILES[2], `./${FILES[2]}`].includes(call[1])), `only the failed file ran between the two full trees: ${JSON.stringify(alone)}`);
+  assert.equal(alone.filter(call => call[1] === FILES[2]).length, 1, 'exactly one whole-file diagnostic; the other runs are failed-case rounds');
   assert.equal(json(box, box.repo, 'show', String(entries[0].item)).item_merged_commit, result.batch.tip);
   for (const entry of entries.slice(1)) assert.equal(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
