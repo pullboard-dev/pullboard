@@ -1,6 +1,6 @@
 /** Stable seat destinations use existing sealed relay grants and preserve inbox isolation [H2,H16,N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync, symlinkSync } from 'node:fs';
+import { readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -28,12 +28,17 @@ async function seat(box, root, environment, name, cli) {
 
 test("a message sent to a seat address lands in that seat's inbox and nowhere else [H2,H16,N26]", async t => {
   const box = await relayClientFixture(t);
+  const policy = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  policy.lease = '4m';
+  writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify(policy) + '\n');
   // Install the actual CLI in this private PATH so project commits exercise its normal hooks.
   symlinkSync(fileURLToPath(new URL('../bin/pullboard.js', import.meta.url)), join(box.env.PATH, 'pullboard'));
   runFixtureGit(['add', '-A'], { cwd: box.root, env: box.env });
   runFixtureGit(['commit', '-m', 'chore: commit private seat-address policy'], { cwd: box.root, env: box.env });
   const recipient = await seat(box, box.root, box.env, 'recipient', box.cliAt);
   const initial = document(await box.cliAt(recipient.path, 'whoami'));
+  const initialItemId = box.before.tables.item.find(row => row.item_status === 'open')?.item_id;
+  assert.ok(Number.isSafeInteger(initialItemId), 'the fixture starts with an open private item for a native claim-lapsing interrupt');
   assert.match(initial.address, /^pullboard:[0-9a-f]{32}:[A-Za-z0-9_-]+$/u, 'each real joined seat exposes its stable board-bound address');
 
   await box.link();
@@ -54,6 +59,8 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
   assert.notEqual(ungranted.code, 0);
   assert.equal(ungranted.document.error.code, 'SEAT_ADDRESS_BOARD');
+  const question = document(await second.cliAt(sender.path, 'shout', 'coordinator', 'Confirm the local delivery fixture.', '--kind', 'question', '--decision'));
+  document(await second.cliAt(sender.path, 'claim', String(initialItemId)));
 
   const link = JSON.parse(readFileSync(join(second.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
   const tokenId = link.agentTokens[sender.id].id;
@@ -79,16 +86,26 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   const denied = await second.cliAt(sender.path, 'shout', initial.address, 'After known revocation');
   assert.notEqual(denied.code, 0, 'a known revoked grant cannot queue another message');
   assert.equal(denied.document.error.code, 'TOKEN_REVOKED');
+  const pending = document(await second.cli('shout', sender.id, 'Unread message before revocation'));
+  document(await second.cli('answer', String(question.id), 'Confirmed by the local coordinator'));
+  document(await second.cliAt(second.root, 'shout', sender.id, 'Fresh local interrupt'));
+  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  const deliveriesBefore = replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count;
+  const senderDeliveriesBefore = replicaEventCount(second.root, sender.id);
   const senderInbox = await second.cliAt(sender.path, 'inbox');
   assert.notEqual(senderInbox.code, 0, 'a revoked seat cannot record native inbox delivery');
   assert.equal(senderInbox.document.error.code, 'TOKEN_REVOKED');
-  const replica = new DatabaseSync(join(second.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  assert.equal(replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivery'").get().count, deliveriesBefore,
+    'the revoked seat cannot append an activity-delivery event');
+  assert.equal(replicaEventCount(second.root, sender.id), senderDeliveriesBefore,
+    'the revoked seat appends no activity-delivery event');
   let localInbox;
   try {
     // Inspect the real sender replica with the inbox's canonical audience query without recording a delivery.
     const agent = replica.prepare('SELECT * FROM agent WHERE agent_id=?').get(sender.id);
     localInbox = replica.prepare(`SELECT * ${UNREAD_SHOUT_SQL}`).all(...unreadShoutBindings(0, sender.id, agent.agent_lane));
   } finally { replica.close(); }
+  assert.ok(localInbox.some(row => row.shout_id === pending.id), 'the revoked inbox write leaves its pending message unread');
   for (const rows of [document(await box.cliAt(recipient.path, 'inbox')).shouts,
     document(await box.cli('inbox')).shouts, localInbox]) {
     assert.ok(!rows.some(row => row.shout_id === queued.id
@@ -96,3 +113,11 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
     'neither revoked message reaches a genuine recipient, coordinator or sender inbox');
   }
 });
+
+/** Count native delivery events attributed to one seat on its private replica. */
+function replicaEventCount(root, agentId) {
+  const replica = new DatabaseSync(join(root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    return replica.prepare("SELECT COUNT(*) AS count FROM event WHERE event_kind='activity-delivered' AND event_by=?").get(agentId).count;
+  } finally { replica.close(); }
+}

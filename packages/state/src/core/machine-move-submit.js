@@ -12,6 +12,15 @@ export const MOVES = [
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
     alsoRefuses: [
+      { code: 'SUBMIT_RED_LOOP', rule: 'two red test gates that still match the item code stop another unchanged submit', next: 'change the failing code before another submit' },
+      { code: 'AGENT_APPROVAL_REQUIRED', rule: 'cited rows satisfy the accepted person approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
+      { code: 'CLAUSE_EVIDENCE_REQUIRED', rule: 'each frozen clause declares its evidence kind', next: 'ask the coordinator to declare the missing clause evidence kind' },
+      { code: 'EMPTY_SUBMIT', rule: 'the submitted source changes accepted main', next: 'commit the item work in its native item folder, then submit' },
+      { code: 'KERNEL_EXPORT_APPROVAL', rule: 'the person approved the exact Kernel front-door change', next: 'ask the coordinator to bring the exact export decision to the person' },
+      { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },
+      { code: 'SEAL_REVISION', rule: 'test selection reads an existing committed seal revision', next: 'restore the named Git revision and objects' },
+      { code: 'SEAL_STALE', rule: 'every skipped package retains its current native seal receipt', next: 'run tests of unsealed packages and derive a fresh selection' },
+      { code: 'UNKNOWN_SPEC', rule: 'the submitted criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },
       { code: 'TEST_SELECTION_INCOMPLETE', rule: 'the supplied changed paths exactly match the committed Git diff', next: 'derive test selection from the complete committed diff' },

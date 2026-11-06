@@ -1,5 +1,6 @@
 import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
+import { heldClaim } from "./held-claim.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -17,7 +18,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId);
+  const claim = heldClaim(board, agentId);
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
 
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
