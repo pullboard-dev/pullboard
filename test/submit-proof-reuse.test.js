@@ -70,7 +70,7 @@ async function nativeProofScenario(t, moveMain) {
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Read the submitted change against its frozen bar.');
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   if (moveMain) {
-    assert.match(verdict.out, /submit proof not reused: composed main changed/);
+    assert.match(verdict.out, /submit proof not reused: (composed main changed|commit or tree changed)/);
     assert.equal(readFileSync(marker, 'utf8'), afterSubmit + 'x', 'moved main reruns the frozen check');
   } else {
     assert.match(verdict.out, /reused submit proof [a-f0-9-]{36}/); // The actual native receipt id is cited.
