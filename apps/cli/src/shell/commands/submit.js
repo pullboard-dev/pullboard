@@ -186,7 +186,7 @@ import {
   idArg,
   ordered,
   queuedItemLease,
-  refuseUnverifiedStack,
+  refuseUnsubmittableStack,
   reportSubmission,
   resourceAgent,
   whoAmI,
@@ -322,7 +322,7 @@ export async function submitHere(ctx, id, infra) {
       if (barReadySetting(board).enabled && (recovered.args[1].policyCommit !== trunk.commit || !contains(root, trunk.commit, recovered.args[1].commit))) {
         throw new Refused('MAIN_NOT_COMPOSED', 'the unrecorded recovered submission has no proof for current main; run pullboard inbox to synchronize its original receipt, or ask the coordinator to resolve the pending move before a fresh submit; the original request is retained');
       }
-      refuseUnverifiedStack(root, board, item, recovered.args[1].commit, trunk);
+      refuseUnsubmittableStack(root, board, item, recovered.args[1].commit, trunk);
       return { me, recorded: false };
     });
     if (preflight) {
@@ -462,7 +462,7 @@ export async function submitHere(ctx, id, infra) {
     () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
-  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
+  withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
@@ -803,7 +803,7 @@ export async function submitHere(ctx, id, infra) {
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
   await withBoard(ctx, async (board) => {
-    refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
+    refuseUnsubmittableStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
     if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
