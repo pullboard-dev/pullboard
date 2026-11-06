@@ -1,3 +1,4 @@
+import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
@@ -324,7 +325,7 @@ export function nativeBoardPorts() {
   });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile }),
+    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile }),
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
