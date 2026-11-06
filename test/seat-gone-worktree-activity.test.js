@@ -56,6 +56,14 @@ for (const lapsedOnly of [true, false]) {
     f.git(f.itemRoot, 'commit', '-q', '--allow-empty', '-m', 'actual empty commit');
     assert.equal(f.capture(lapsedOnly)?.claims.some(row => row.id === f.id) ?? false, false);
   });
+  test(`a seat whose own board event is under two minutes old keeps its claim on ${lapsedOnly ? 'ordinary' : 'background'} maintenance [B4,C7]`, t => {
+    // Its presence heartbeat is stale (no hook, or a busy presence file), but the board shows it running commands.
+    const f = fixture(t);
+    store.logEvent(f.board, f.holder, 'fact', f.id, { id: 'still-working', kind: 'note', text: 'running the tests', ref: null, supersedes: null });
+    const snapshot = f.capture(lapsedOnly);
+    assert.equal(snapshot?.claims.some(row => row.id === f.id && row.idle === 'seat-gone') ?? false, false);
+    assert.equal(store.getItem(f.board, f.id).item_owner, f.holder);
+  });
   test(`a silent seat with no item-folder change for fifteen minutes is reclaimed on ${lapsedOnly ? 'ordinary' : 'background'} maintenance [B4,C7]`, t => {
     const f = fixture(t);
     const snapshot = f.capture(lapsedOnly);
