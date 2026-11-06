@@ -29,6 +29,25 @@ export function recentlyReleased(board, agentId, minutes, now = Date.now()) {
 }
 
 /**
+ * Build items explicitly marked INELIGIBLE are never offered automatically to that releasing seat.
+ * Only that seat's own release events count, so coordinator maintenance and releases of another holder stay local.
+ * @param {any} board
+ * @param {string} agentId
+ * @returns {number[]}
+ */
+export function ineligibleReleaseIds(board, agentId) {
+  const rows = board.db.prepare(`SELECT item_id, event_detail FROM event WHERE event_by = ? AND event_kind = 'release' ORDER BY event_id`).all(agentId);
+  const ids = new Set();
+  for (const row of rows) {
+    let detail = {};
+    try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
+    if (detail?.reasonCode !== 'INELIGIBLE' || detail.review === true) continue;
+    ids.add(row.item_id);
+  }
+  return [...ids];
+}
+
+/**
  * Pick the next build with the cooldown applied: first with this seat's recent releases left out, and only when
  * that finds nothing, the ordinary pick, so a seat with nothing else open still gets its released item back.
  * @param {any} board
@@ -40,7 +59,8 @@ export function recentlyReleased(board, agentId, minutes, now = Date.now()) {
  */
 export function nextWithReleaseCooldown(board, selection, minutes, nextFor, now = Date.now()) {
   // An item the lane and route said they cannot build is never offered back, not even when nothing else is open (#3014).
-  const scoped = { ...selection, omitIds: [...(selection.omitIds ?? []), ...scopedOutFor(board, selection.agentId).map(row => row.id)] };
+  const omitted = new Set([...(selection.omitIds ?? []), ...ineligibleReleaseIds(board, selection.agentId), ...scopedOutFor(board, selection.agentId).map(row => row.id)]);
+  const scoped = { ...selection, omitIds: [...omitted] };
   const cooled = recentlyReleased(board, selection.agentId, minutes, now);
   if (!cooled.length) return nextFor(board, scoped);
   const other = nextFor(board, { ...scoped, omitIds: [...scoped.omitIds, ...cooled] });
