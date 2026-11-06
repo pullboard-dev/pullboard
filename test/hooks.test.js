@@ -180,7 +180,7 @@ test('hook wiring checks the configured path and accepts pullboard delegation [L
   assert.deepEqual(unwiredHookProblems(box.root), []);
 });
 
-test('a clean header citing a live id passes [C1, C2]', () => {
+test('clause 1: a clean header citing a live id passes [C1, C2]', () => {
   assert.deepEqual(check('feat(web): add the page [G1]'), []);
   assert.deepEqual(check('docs: explain lanes'), []);
   assert.deepEqual(check('feat(web)!: drop the old page [G1]\n\nThe old page is gone.'), []);
