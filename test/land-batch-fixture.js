@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { calls, events, mergeSubjects } from './land-board-fixture.js';
+import { PHASE_LINE } from '../packages/landing/src/shell/landing-phase-timing.js';
 
 /** The waiting queue a batch must take whole; the criterion asks for at least sixteen seen. */
 export const WAITING = 16;
@@ -23,6 +24,25 @@ function timed(phases, name, work) {
   console.log(`# phase ${name}: ${(elapsed / 1000).toFixed(1)} s`);
   assert.ok(elapsed <= PHASE_BUDGET_MS, `phase "${name}" took ${(elapsed / 1000).toFixed(1)} s, past the ${PHASE_BUDGET_MS / 1000} s budget`); // budget: declared 240 s ceiling per phase from the item criterion, under the 300 s hang ceiling.
   return value;
+}
+
+/**
+ * Print each landing phase's elapsed time as the landing said it (merge, gate, guardian lease check, push) and fail naming
+ * the phase that passed the budget; a phase the landing never said is a missing measurement and fails too [C7].
+ */
+function landingPhases(phases, output) {
+  const totals = new Map();
+  for (const line of output.split('\n')) {
+    const found = PHASE_LINE.exec(line.trim());
+    if (found) totals.set(found[1], (totals.get(found[1]) ?? 0) + Number(found[2]));
+  }
+  for (const name of ['merge', 'gate', 'lease check', 'push']) {
+    assert.ok(totals.has(name), `the landing reported no "${name}" phase time`);
+    const elapsed = totals.get(name);
+    phases.push([name, elapsed]);
+    console.log(`# phase ${name}: ${(elapsed / 1000).toFixed(1)} s`);
+    assert.ok(elapsed <= PHASE_BUDGET_MS, `phase "${name}" took ${(elapsed / 1000).toFixed(1)} s, past the ${PHASE_BUDGET_MS / 1000} s budget`); // budget: declared 240 s ceiling per phase from the item criterion, under the 300 s hang ceiling
+  }
 }
 
 /** Read the gate fixture's own trace of the files each full (non-diagnostic) run tested. */
@@ -62,7 +82,10 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const allBefore = allRuns(box).length;
   const callsBefore = calls(box).length;
 
-  const result = timed(phases, 'land (merge, gate, lease check, push)', () => json(box, box.repo, 'land'));
+  const landed = timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
+  assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
+  const result = JSON.parse(landed.out);
+  landingPhases(phases, `${landed.err}\n${landed.out}`);
 
   const ids = entries.map(entry => entry.item);
   const culprit = entries[red].item;

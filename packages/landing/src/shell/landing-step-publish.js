@@ -1,4 +1,5 @@
 import { requireLandingCompanions } from './landing-composition-guards.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { quarantineBatchGates } from '../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
@@ -148,14 +149,14 @@ export async function publish(state) {
     batch = await save(state, { proof: { ...batch.proof, failures } });
   }
   if (batch.state !== 'pushed') {
-    await state.checkLease();
+    await timedPhase(state.say, 'lease check', () => state.checkLease());
     batch = await prepareFlakeLanding(state);
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
     if (!alreadyPushed) {
-      state.checkLeaseNow();
-      const pushed = tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]);
+      await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
+      const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));
       if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
     }
     await save(state, { state: 'pushed' });
