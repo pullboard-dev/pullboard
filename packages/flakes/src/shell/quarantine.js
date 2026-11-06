@@ -158,6 +158,11 @@ function structuredRun(run) {
     && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode));
 }
 
+/** A Submit diagnostic belongs to its admission, so the general quarantine path cannot count it as a separate run. */
+function submitDiagnostic(run) {
+  return run.kind === 'check' && run.proof?.submitPhase === 'diagnostic' && run.proof.frozenDigest === null;
+}
+
 /** Count one identity's actual consecutive verdicts; missing, skipped and duplicate runs add nothing. */
 function cleanRunRelease(runs, entry) {
   let count = 0;
@@ -446,7 +451,7 @@ export function warmFlakeHistory(board) {
 
 /** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
 function recordStructuredQuarantines(board, agentId, value, lane, owners) {
-  const all = gateRuns(board), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
+  const all = gateRuns(board).filter(run => !submitDiagnostic(run)), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
   if (structuredRun(value)) {
     const runs = all.filter(run => run.tree === value.tree && structuredRun(run));
     for (const outcome of value.testOutcomes) {

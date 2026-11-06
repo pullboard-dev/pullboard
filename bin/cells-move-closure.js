@@ -1,9 +1,9 @@
 /** Prove the actual move declarations' bounded literal import closure without evaluating them [C7,H16]. */
 import { isBuiltin } from 'node:module';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
+import { cellReaddirSync as readdirSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { discovered } from '../packages/kernel/index.js';
