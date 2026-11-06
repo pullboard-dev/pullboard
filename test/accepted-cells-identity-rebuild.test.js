@@ -93,7 +93,8 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   const child = await nudgeAcceptedCells(root, pathToFileURL(join(copy, 'bin/main-audit.js')), commit);
   assert.ok(child, 'a producer was started from the copy');
   const record = await published(child, join(identity.directory, `${key}.ready.json`));
-  assert.ok(record, 'the producer published a ready record');
+  const failure = join(identity.directory, `${key}.failure.json`);
+  assert.ok(record, `the producer published a ready record: ${existsSync(failure) ? readFileSync(failure, 'utf8') : 'no failure recorded'}`);
   assert.equal(record.checker, identity.checker, 'the recorded checker is the pinned commit\'s, not the copy\'s');
   assert.equal(record.preloads, identity.preloads);
   assert.equal(readAcceptedCells(root, commit).descriptor?.checker, identity.checker);
