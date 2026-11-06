@@ -154,8 +154,8 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
       assert.match(raw, /controlled intermittent assertion/);
     }
   }
-  const health = box.cli('health');
-  assert.ok(health.document.autoQuarantines.some(value => value.item === entry.item));
+  // f562d717d8: the Submit backfill files an ordinary nativeCore quarantine, not an autoSubmit one, so health lists none.
+  assert.deepEqual(box.cli('health').document.autoQuarantines, []);
   const cleanIds = new Set();
   for (let index = 0; index < 20; index += 1) {
     writeFileSync(box.counter, 'run\n'); // The real next controlled body passes.
