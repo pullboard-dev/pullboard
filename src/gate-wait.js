@@ -8,7 +8,9 @@ export function gateWaitReporter(io) {
   let last = '';
   let warned = false;
   let held = false;
-  return ({ holders, position, memory, runnerUnavailable }) => {
+  return ({ holders = [], position, memory, runnerUnavailable, admitted }) => {
+    // An inherited gate slot is admitted at once: there is no queue to describe.
+    if (admitted) return;
     if (runnerUnavailable) {
       io.say(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run`);
       return;
