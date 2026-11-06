@@ -24,6 +24,7 @@ test('the view shows every fit proposal with its reason and source [N26,S1]', as
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    await page.click({ tab: 'spec' }); // a person opens Spec first: pages open on the Dashboard and the fit panel draws only there.
     const fit = [
       proposal({ target: 'G1', decision: 'keep', recorder: 'builder-1' }),
       proposal({ target: 'G2', decision: 'adapt', text: 'Each card names its owner.', recorder: 'builder-1' }),

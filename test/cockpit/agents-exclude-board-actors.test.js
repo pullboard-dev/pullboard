@@ -9,7 +9,7 @@ import { boardOf, chromeExecutable, closeSnapshotChrome, earlier, machine, openS
 
 test('Rigor drafts and executed sentinels do not create agent rows or increase agent counts [N26]', { timeout: 90_000 }, async () => {
   const box = machine(), alpha = project(box, 'agents-board-actors');
-  box.run(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1',
+  box.run(alpha.repo, 'add', 'web', 'Keep the real seat visible', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The real seat stays visible.', '--check', 'true', '--wait');
   box.run(alpha.web, 'claim', '1');
   const view = await startView(box);
