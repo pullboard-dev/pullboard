@@ -6,6 +6,7 @@ export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPat
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/shell/bar-readiness.js';
 export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/shell/evidence.js';
+export { frozenRowGates } from './src/core/frozen-clause.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/core/next-review.js';
 export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
@@ -25,7 +26,7 @@ export { appendRuleProof } from './src/shell/rule-proof-index.js';
 export { advancedVerdict, effectiveItemHead, requireSourceAdvanceReview, sourceAdvanceChain, sourceAdvanceEpisode, sourceAdvanceFloor, sourceAdvanceReviewEpisode } from './src/core/source-advance-state.js';
 export { composeReview, composesAtAdmission } from './src/shell/verdict-admission.js';
 export { recordVerdict, reviewAssurance, verdictAssurance } from './src/core/verdict-assurance.js';
-export { cachedVerdictStates, captureVerdictReview, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/shell/verdict-freshness.js';
+export { cachedVerdictStates, captureVerdictReview, composesUnchanged, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/shell/verdict-freshness.js';
 export { retryReviewCommit } from './src/core/verdict-retry.js';
 export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/core/verdict-reviews.js';
 export { judgeTrunkMove } from './src/shell/verdict-trunk.js';
@@ -40,7 +41,7 @@ export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarant
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
 
 export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
-export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung } from './src/core/file-watchdog-policy.js';
+export { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung, wallLoadFactor } from './src/core/file-watchdog-policy.js';
 export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
