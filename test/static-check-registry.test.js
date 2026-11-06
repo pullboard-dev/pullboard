@@ -1,12 +1,11 @@
 /** @pullboard-test-input source-tree */
 /** Submit's static checks are one registry list, each class run by a function on a tree [C7]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { STATIC_CHECKS } from '../packages/gate/index.js';
-import { runStaticRegistry } from '../packages/gate/index.js';
-import { changedStaticFailures } from '../packages/gate/index.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -17,13 +16,21 @@ test('clause 1: one registry lists every static check class with a function that
     assert.ok(names.includes(expected), expected);
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
-  const context = { root: ROOT, files: [], staged: false, text: () => '', previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
-  assert.deepEqual(runStaticRegistry(context), [], 'an empty change is clean');
-  const bad = { ...context, sources: [{ file: 'src/x.js', source: "import { a, b } from './y.js';\n" }] };
-  const failures = runStaticRegistry(bad);
-  assert.equal(failures.length, 1);
-  assert.match(failures[0], /src\/x\.js:1: one import binding per line \(2 bindings\)/u);
-  assert.deepEqual(changedStaticFailures(ROOT, ['packages/gate/src/shell/static-check-registry.js']), [], 'the registry file itself is clean');
+  // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
+  const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+const root = ${JSON.stringify(ROOT)};
+const context = { root, files: [], staged: false, text: () => '', previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
+const bad = { ...context, sources: [{ file: 'src/x.js', source: "import { a, b } from './y.js';\\n" }] };
+process.stdout.write(JSON.stringify({ empty: runStaticRegistry(context), bad: runStaticRegistry(bad),
+  self: changedStaticFailures(root, ['packages/gate/src/shell/static-check-registry.js']) }));`;
+  const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program],
+    { encoding: 'utf8', timeout: 60_000 });
+  assert.equal(child.status, 0, child.stderr);
+  const result = JSON.parse(child.stdout);
+  assert.deepEqual(result.empty, [], 'an empty change is clean');
+  assert.equal(result.bad.length, 1);
+  assert.match(result.bad[0], /src\/x\.js:1: one import binding per line \(2 bindings\)/u);
+  assert.deepEqual(result.self, [], 'the registry file itself is clean');
   const reader = readFileSync(new URL('../packages/gate/src/shell/changed-static.js', import.meta.url), 'utf8');
   assert.match(reader, /runStaticRegistry\(/u);
   assert.doesNotMatch(reader, /relayBoundaryProblems|importStyleViolations|emptyCatchProblems/u, 'the inline list is gone');
