@@ -432,7 +432,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
-        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+        }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+        // A comparison a landing waits for is a landing-class run; a diagnostic slot refuses the landing flag [C7].
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
         try { return await measure(pinned ? executor.kind === 'ssh' : true); }
         catch (error) {
