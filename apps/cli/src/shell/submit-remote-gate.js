@@ -151,13 +151,13 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const directory = mkdtempSync(join(parent, 'remote-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
     runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-    metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log') });
+    metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
-    privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
+    toolingSource: { kind: 'pinned-main', commit: main }, privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
     executionAdmission: result.executionAdmission ?? null, privateCheck: receipt ?? null }) + '\n', { mode: 0o600 });
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
     || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256
@@ -278,7 +278,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
       try {
         result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
           runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
+          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
       } catch (error) {
         writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
           code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });

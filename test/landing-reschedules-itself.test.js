@@ -14,7 +14,7 @@ test('a blocked or partly landed batch with verified items waiting wakes again o
     new Date(NOW + LANDING_RETRY_MS).toISOString());
   assert.equal(landingRetryAt({ landed: [], blocked: [], waiting: true, retryMs: 600_000 }, NOW), new Date(NOW + 600_000).toISOString(),
     'a configured cadence sets the interval for a run that moved nothing');
-  assert.equal(LANDING_RETRY_MS, 300_000, 'the default retry is five minutes, the shortest landing cadence');
+  assert.equal(LANDING_RETRY_MS, 30_000, 'the default retry is thirty seconds: a blocked batch never idles the lander for minutes');
 });
 
 test('a recorded cadence deferral keeps its own wake time [C7,#2898]', () => {
@@ -32,7 +32,7 @@ test('releasing a verified item hold wakes landing the way an accept does [C7,#2
   assert.match(source, /landAfterAcceptance\(released\)/u);
 });
 
-test('a run that landed or reopened items while others wait starts the next batch within seconds [C7]', () => {
+test('clause 1: a run that landed or reopened items while others wait starts the next batch within seconds [C7]', () => {
   for (const result of [{ landed: [1, 2], waiting: true }, { landed: [], conflicts: [{ id: 3 }], waiting: true }, { landed: [4], waiting: true, retryMs: 600_000 },
     { landed: [], culprits: [{ id: 5 }], waiting: true }, { batch: null, landed: [], reopened: 1, waiting: true }]) {
     assert.equal(landingRetryAt(result, NOW), new Date(NOW + LANDING_NEXT_BATCH_MS).toISOString(), JSON.stringify(result));
@@ -80,5 +80,13 @@ test('progress always wins over a deferral; with nothing moved the deferral stan
     assert.equal(landingRetryAt({ ...moved, deferredUntil, waiting: true }, NOW), next, JSON.stringify(moved));
   }
   assert.equal(landingRetryAt({ landed: [], culprits: [], conflicts: [], reopened: 0, deferredUntil, waiting: true }, NOW), deferredUntil);
-  assert.equal(landingRetryAt({ landed: [], deferredUntil, waiting: false }, NOW), deferredUntil, 'a recorded deferral keeps its wake');
+  assert.equal(landingRetryAt({ landed: [], deferredUntil, waiting: false }, NOW), null, 'a deferral has no wake when nothing waits');
+});
+
+test('clause 2: a deferral schedules no wake when nothing waits, whether the run moved work or not [C7]', () => {
+  const deferredUntil = '2026-11-04T07:03:00.000Z';
+  for (const moved of [{ landed: [], culprits: [], conflicts: [], reopened: 0 }, { landed: [1] },
+    { landed: [], culprits: [{ id: 2 }] }, { landed: [], conflicts: [{ id: 3 }] }, { landed: [], reopened: 1 }]) {
+    assert.equal(landingRetryAt({ ...moved, deferredUntil, waiting: false }, NOW), null, JSON.stringify(moved));
+  }
 });
