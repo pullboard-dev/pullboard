@@ -17,7 +17,7 @@ export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/shell/cpu-load-admission.js";
 export { detectGate, settingCommand, missingGate, setHere } from "./src/shell/gate-config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/shell/gate-control.js";
-export { committedTree, isStampedGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/shell/gate-execution.js";
+export { committedTree, isStampedGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/shell/gate-execution.js";
 export { digestOf, writeTimingProfile } from "./src/shell/gate-output.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-policy-load.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";

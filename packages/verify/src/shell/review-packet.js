@@ -17,6 +17,7 @@ import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
+import { frozenRowGates } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 import { criterionClauses } from '../../../state/index.js';
 
@@ -102,9 +103,10 @@ function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
   const numbered = criterionClauses(item.item_criterion ?? criterion);
-  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text }))
+  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text, ...(clause.kind ? { kind: clause.kind } : {}) }))
     : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
-  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}` }))]
+  const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
+  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
     .map((clause, index) => ({ n: index + 1, ...clause }));
 }
 
@@ -210,15 +212,20 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
   // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
-  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file)));
+  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
   const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
     .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    // A frozen spec row is proved by the named, executed cases of the gate test its row names, which submit runs with
+    // the proof [V4]. A file-level run proves nothing here: a skipped run has no executed cases, and a zero-case file
+    // reports only a pseudo-case named for the file itself.
+    if (clause.gate) evidence.push(...executed.filter(run => run.file === clause.gate && run.test.replace(/^\.\//u, '') !== clause.gate)
+      .map(run => ({ ...run, why: "the row's gate test" })));
     for (const run of executed) {
-      if (clause.text.includes(run.file)) continue;
+      if (clause.text.includes(run.file) || run.file === clause.gate) continue;
       const cited = [...run.test.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
         || (clause.id && [...run.test.matchAll(/\[([^\]]+)\]/gu)].some(match => match[1].split(',').map(part => part.trim()).includes(clause.id)));
       const testWords = words(run.test);
@@ -266,7 +273,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   lines.push('clauses:');
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
-    if (!clause.runs.length) lines.push(`     ${clause.gap}: rerun this clause`);
+    if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
     for (const run of clause.runs) {
       lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
@@ -281,7 +288,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   const metrics = [...new Set([...Object.keys(packet.lints.before), ...Object.keys(packet.lints.after)])].sort();
   lines.push(`lints: ${metrics.map(metric => `${metric} ${packet.lints.before[metric] ?? 0} -> ${packet.lints.after[metric] ?? 0}`).join(', ') || 'no cell lint baselines'}`);
   const rerun = reviewRerunClauses(packet);
-  lines.push(`review rule: rerun only clauses marked no recorded run (${rerun.join(', ') || 'none'}); accept with --read <clauses you read>`);
+  lines.push(`review rule: read every clause marked no recorded run (${rerun.join(', ') || 'none'}) and name it in --read; accept with --read <clauses you read> records the verdict at once, and the frozen check reruns only for a clause you did not read`);
   lines.push('diff stat:', ...packet.diff.stat.split('\n').map(line => `  ${line}`));
   if (hunks) lines.push('diff:', packet.diff.patch.trimEnd(), ...(packet.diff.truncated ? ['(diff truncated at 4 MiB)'] : []));
   return lines;
@@ -331,7 +338,10 @@ export async function showReviewPacket(ctx, id, readBoard, { json = false } = {}
 export async function reviewPacketLines(ctx, id, readBoard) {
   const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
   const packet = loadReviewPacket(ctx.info.root, ctx.info.commonDir, inputs);
-  return packet ? renderReviewPacket(packet) : [`review packet: none; the gate is not green at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}, so review it the usual way`];
+  // The offer prints the packet without its hunks: the CLI caps output near 8 KB, so a full diff was cut off and every
+  // reviewer fetched it again with git. The summary fits; the diff is one named command away [V4,C7].
+  return packet ? [...renderReviewPacket(packet, { hunks: false }), `diff: git diff ${packet.base.slice(0, 12)} ${packet.head.slice(0, 12)} (or pullboard show ${id} --review for the hunks)`]
+    : [`review packet: none; the gate is not green at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}, so review it the usual way`];
 }
 
 /**
@@ -363,5 +373,8 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
 export function reviewPacketRerun(commonDir, item) {
   const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
   if (!packet) return null;
-  return { head: packet.head, rerun: reviewRerunClauses(packet), failures: packet.failures?.length ?? 0 };
+  // A reasoning clause has no run to record: the reviewer's reading is its evidence, so an accept that read it
+  // need not rerun the frozen check for it. Why: #3089's clause 3 [reasoning] cost a 200 s rerun on 6 Nov [V4,C7].
+  const reasoning = packet.clauses.filter(clause => !clause.runs.length && clause.kind === 'reasoning').map(clause => clause.n);
+  return { head: packet.head, rerun: reviewRerunClauses(packet), reasoning, failures: packet.failures?.length ?? 0 };
 }

@@ -19,7 +19,16 @@ const PREPARATIONS = Object.freeze({
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
   reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
+  // Gate-run and flake writes read every earlier run; read them here so the writer reads only the runs since (#2294).
+  recordGateRun: (board, args) => { warmHistories(board); return args; },
+  recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
 });
+
+/** Read the shared gate-run and flake histories with no lock held. */
+function warmHistories(board) {
+  board.enginePorts.store.gateRuns(board);
+  board.enginePorts.store.flakeLedger(board);
+}
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock.
