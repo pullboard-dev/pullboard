@@ -25,3 +25,16 @@ export function exitRulesDecision(policy, usage, receipts = []) {
   const failure = repeatedExitFailure(receipts);
   return failure ? { code: 'EXIT_REPEAT_FAILURE', failure } : null;
 }
+
+/** The prompt size at which a session ends: exitRules.contextCeiling, else 100000 for a Haiku model and 200000 otherwise. */
+export function contextCeiling(policy, model) {
+  if (Number.isSafeInteger(policy?.contextCeiling) && policy.contextCeiling > 0) return policy.contextCeiling;
+  return /haiku/iu.test(String(model ?? '')) ? 100_000 : 200_000;
+}
+
+/** A seat whose last call's prompt reached the ceiling ends after its claim settles; unknown usage never ends a session [C7]. */
+export function exitContextDecision(policy, last) {
+  if (policy?.enabled !== true || !last || !Number.isSafeInteger(last.tokens) || last.tokens < 0) return null;
+  const ceiling = contextCeiling(policy, last.model);
+  return last.tokens >= ceiling ? { code: 'EXIT_CONTEXT', context: last.tokens, ceiling } : null;
+}
