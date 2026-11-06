@@ -33,6 +33,20 @@ function sourceKey(source, path = '') {
   return `${path}\0${createHash('sha256').update(source).digest('hex')}`;
 }
 
+/**
+ * Bind a parser's `parse` to the files whose sources a caller passes first, so the process cache key is the
+ * real path plus content hash. The probe variants an import scan appends after those sources key on the whole
+ * path set, so they never fall back to the empty path; correctness still rests on the content hash.
+ *
+ * @param {(sources: string[], paths?: string[]) => Array<{compiles: boolean, imports: string[]}>} parse
+ * @param {string[]} files - One path per leading source, in order.
+ * @returns {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>}
+ */
+export function parseWithPaths(parse, files) {
+  const variantPath = `${files.join('\n')}#probe`;
+  return sources => parse(sources, sources.map((_source, index) => files[index] ?? variantPath));
+}
+
 /** Read exact owned compiler bytes; a symlink or unbounded entry cannot become a trusted parser. */
 function compilerBytes(file) {
   const stat = lstatSync(file);

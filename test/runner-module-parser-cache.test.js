@@ -2,8 +2,11 @@
 /** @pullboard-test-loads packages/runners/src/shell/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js */
 /** The runner module parser keeps a process-lifetime cache [C7]. */
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createRunnerModuleParser, runnerModuleParserCompileCount } from '../packages/runners/src/shell/runner-module-parser.js';
+import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
+import { captureRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
 
 test('clause 1: a second parser in one process parses nothing again and a changed file is re-parsed [C7]', () => {
   const source = `import { a } from './cache-probe-${process.pid}.js';\nexport const b = a;\n`;
@@ -41,4 +44,17 @@ test('clause 1: a second parser in one process parses nothing again and a change
   fifth.parse([`${source}export const d = 1;\n`], ['a.js']);
   fifth.close();
   assert.equal(runnerModuleParserCompileCount(), before + 3, 'the same path with changed content is re-parsed');
+});
+
+test('clause 1: the production importsIn call sites pass real paths, so a second pass over the real tree parses nothing [C7]', () => {
+  const root = resolve(import.meta.dirname, '..');
+  const first = runnerPackage(root);
+  const afterPackage = runnerModuleParserCompileCount();
+  assert.deepEqual(runnerPackage(root).files, first.files);
+  assert.equal(runnerModuleParserCompileCount(), afterPackage, 'runner-package.js importsIn: a second pass parses nothing');
+
+  captureRunnerTooling(root);
+  const afterSnapshot = runnerModuleParserCompileCount();
+  captureRunnerTooling(root);
+  assert.equal(runnerModuleParserCompileCount(), afterSnapshot, 'runner-tooling-snapshot.js importsIn: a second pass parses nothing');
 });
