@@ -18,7 +18,7 @@ function commitAppChange(worktree, filename, env) {
   mkdirSync(join(worktree.path, 'app'), { recursive: true });
   writeFileSync(join(worktree.path, 'app', filename), 'export const fixture = true;\n');
   runFixtureGit(['add', '--', `app/${filename}`], { cwd: worktree.path, env, stdio: 'pipe' });
-  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [A2]`], { cwd: worktree.path, env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [G1]`], { cwd: worktree.path, env, stdio: 'pipe' });
 }
 
 /** Serve a registered private fixture through the actual person's view adapter. */
@@ -140,6 +140,7 @@ test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', a
   const check = completedCheck(firstMarker);
   const added = await box.call(box.path + '/moves', { verb: 'add', args: {
     lane: 'app', title: 'Blocking API check', check, wait: true,
+    brief: 'Files: app/blocking.js\nTest: the blocking check observation is returned.',
   } });
   assert.equal(added.status, 200, JSON.stringify(added.document));
   const item = added.document.result.item;

@@ -35,7 +35,7 @@ function commitAppChange(worktree, filename, env) {
   mkdirSync(join(worktree.path, 'app'), { recursive: true });
   writeFileSync(join(worktree.path, 'app', filename), 'export const fixture = true;\n');
   runFixtureGit(['add', '--', `app/${filename}`], { cwd: worktree.path, env, stdio: 'pipe' });
-  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [A2]`], { cwd: worktree.path, env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat(test): add ${filename} [G1]`], { cwd: worktree.path, env, stdio: 'pipe' });
 }
 
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
@@ -605,7 +605,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     return moved.document.result;
   }
   const accepted = (await move({ verb: 'add', args: {
-    lane: 'app', title: 'Accepted summary item', criterion: 'Every list reads the Zebra marker', brief: 'A brief only the detail carries',
+    lane: 'app', title: 'Accepted summary item', criterion: 'Every list reads the Zebra marker', brief: 'Files: app/accepted.js\nTest: A brief only the detail carries.',
     specs: 'G1', check: 'true', wait: true,
   } })).item.item_id;
   await move({ verb: 'claim', item: accepted, agent: builder.agent });
