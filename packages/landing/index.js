@@ -17,6 +17,7 @@ export * from "./src/core/landing-failure-report.js";
 export * from "./src/shell/landing-host.js";
 export * from "./src/core/landing-main-notices.js";
 export * from "./src/core/landing-message.js";
+export * from "./src/shell/landing-replay.js";
 export * from "./src/shell/landing-resource.js";
 export { takeLandingResource } from "./src/shell/landing-resource.js";
 export * from "./src/shell/landing-shards.js";
