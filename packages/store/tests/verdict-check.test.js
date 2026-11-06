@@ -292,7 +292,8 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
-  const landing = `git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'`;
+  // The landing changes the item's own file: an empty or unrelated landing no longer voids a verdict (61b93a7c77).
+  const landing = `mkdir -p '${repo}/web' && printf 'export const complete = false;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit -q -m 'feat: land during the check [G1]'`;
   const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
   const reviewer = join(box.dir, 'moving-check-reviewer');
