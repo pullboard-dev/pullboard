@@ -24,6 +24,18 @@ export function dirtyFiles(root) {
 }
 
 /**
+ * The test files the gate will run for this item: test files committed since the claim plus the files its brief lists
+ * under "Test:" that exist at HEAD. A [test] clause naming one is ticked by the gate run, not by a builder fact [C7].
+ */
+export function gateTestFiles(root, item) {
+  const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
+  const listed = /(?:^|\n)Test:\s*\n?((?:\s*-?\s*\S+\.test\.js\s*\n?)+)/u.exec(item.item_brief ?? '')?.[1] ?? '';
+  const declared = listed.split('\n').map(line => line.replace(/^\s*-?\s*/u, '').trim()).filter(Boolean)
+    .filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
+  return new Set([...changed.filter(file => /\.test\.js$/u.test(file)), ...declared]);
+}
+
+/**
  * The files an item's own commits changed since its claim (N21). First parents only, so main merged
  * into a lane branch is not counted as the item's work; and nothing another item submitted, such as
  * a verified dependency fast-forwarded in, which merges no commit to skip.
