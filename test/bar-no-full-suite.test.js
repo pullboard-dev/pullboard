@@ -8,7 +8,7 @@ import { checkPerItemCriterion } from '../packages/items/index.js';
 import { PER_ITEM_FULL_SUITE_ENGINE } from '../src/per-item-full-suite-engine.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, LIGHT_BRIEF } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -26,7 +26,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox, { withWorktree: false });
   const existing = box.run(box.repo, 'add', 'web', 'Scoped check item', '--criterion', 'The page renders. [test]',
-    '--check', 'true', '--json');
+    '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
   assert.equal(existing.code, 0, existing.err || existing.out);
   const id = JSON.parse(existing.out).item.item_id;
   const original = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_criterion;
@@ -37,7 +37,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
     'CI passes before this item is done. [test]',
     'CI is green before this item is complete. [test]',
   ]) {
-    refusal(box, box.repo, 'add', 'web', 'Out-of-scope gate criterion', '--criterion', criterion, '--check', 'true');
+    refusal(box, box.repo, 'add', 'web', 'Out-of-scope gate criterion', '--criterion', criterion, '--brief', LIGHT_BRIEF, '--check', 'true');
     refusal(box, box.repo, 'edit', String(id), '--criterion', criterion);
     const after = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
     assert.equal(after.item_criterion, original, 'a rejected edit leaves the stored item bar unchanged');
@@ -55,7 +55,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
     'CI runs the gate on every push; this item is complete when its named test passes. [test]',
   ]) {
     const added = box.run(box.repo, 'add', 'web', 'Scoped check item', '--criterion', criterion,
-      '--check', 'true', '--json');
+      '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
     assert.equal(added.code, 0, added.err || added.out);
   }
 });
@@ -67,7 +67,7 @@ test('the coordinator sweep edits open, claimed, and submitted legacy bars while
   const ids = [];
   for (const label of ['Open', 'Claimed', 'Submitted']) {
     const added = box.run(box.repo, 'add', 'web', `${label} legacy bar`, '--criterion', 'The named test passes. [test]',
-      '--check', 'true', '--json');
+      '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
     assert.equal(added.code, 0, added.err || added.out);
     ids.push(JSON.parse(added.out).item.item_id);
   }
