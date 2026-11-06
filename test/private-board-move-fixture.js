@@ -78,6 +78,11 @@ async function moveRepository(box, name, owner) {
   runFixtureGit(['remote', 'add', 'origin', `git@github.com:${owner}/web.git`], { cwd: root, env: box.env });
   const initialized = await box.cliAt(root, 'init', '--model', 'fixture-model');
   assert.equal(initialized.code, 0, JSON.stringify(initialized.document?.error));
+  // init writes the repository's policy uncommitted; a sealed submit reads it from main's commit [V4,C7].
+  if (runFixtureGit(['ls-files', 'pullboard.json'], { cwd: root, env: box.env }) === '') {
+    runFixtureGit(['add', 'pullboard.json'], { cwd: root, env: box.env });
+    runFixtureGit(['commit', '-q', '-m', 'chore(config): commit the generated policy'], { cwd: root, env: box.env });
+  }
   return root;
 }
 
