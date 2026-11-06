@@ -132,7 +132,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n') });
+    const settled = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), ...(job.leaseMs ? { busyBudgetMs: job.leaseMs } : {}) });
     busyWaits.push(...settled.busyWaits);
     const lockWaits = settled.lockWaits;
     const completed = await retryBusyHandoffWrite(() => withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,

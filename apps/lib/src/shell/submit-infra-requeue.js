@@ -11,13 +11,10 @@ import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { probeRunnerTransport } from '../../../../packages/runners/index.js';
 import { withAvoidedRunners } from '../../../../packages/gate/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { INFRASTRUCTURE_CODES } from '../../../../packages/store/index.js';
 
-/** Refusal codes that name the machinery, never the candidate: a rerun of the same source can go green. */
-export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
-  'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
-  'RUNNER_BUSY', 'RUNNER_BROWSER_SLOT_REQUIRED', 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED', 'BOARD_BUSY',
-  'MERGE_CHECK_FAILED',
-]));
+/** Refusal codes that name the machinery, never the candidate: the board's own set, so both sides agree [C7]. */
+export { INFRASTRUCTURE_CODES };
 const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
 const PAUSE_MS = 5_000;
 const NO_RUNNER_PAUSE_MS = 30_000;
@@ -82,11 +79,12 @@ function pause(ms) {
  * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
  *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number, busyBudgetMs?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], busyWaits: Array<{ code: string, seconds: number }>, lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS, busyBudgetMs = 2 * 60 * 60 * 1000 } = {}) {
   const attempts = [];
+  let busySpent = 0;
   const busyWaits = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
@@ -101,8 +99,10 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
       }
       const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
-      if (LOCK_CODES.has(code)) {
-        const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs);
+      // Busy waits are bounded by one lease period; past it the failure counts as an infrastructure attempt (#3086).
+      if (LOCK_CODES.has(code) && busySpent < busyBudgetMs) {
+        const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs, busyBudgetMs - busySpent);
+        busySpent += ms;
         lockWaits.count += 1;
         lockWaits.totalMs += ms;
         lockWaits.codes[code] = (lockWaits.codes[code] ?? 0) + 1;

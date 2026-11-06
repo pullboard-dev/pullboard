@@ -64,3 +64,13 @@ for (const remote of [false, true]) {
     } finally { for (const lease of held) lease.release(); }
   });
 }
+
+for (const remote of [false, true]) {
+  test(`a seat test still runs on a single-slot ${remote ? 'runner' : 'machine'}: there is no spare slot to reserve [C7,#3169]`, async t => {
+    const box = fixture(t);
+    const base = { name: 'gate', scope: 'machine', root: box.repo, capacity: remote ? 0 : 1,
+      ...(remote ? { remote: true, runnerOnly: true, runnerProvider: () => [{ host: 'fixture-runner', slots: 1, browser: 0 }] } : {}) };
+    const lease = await takeResource({ ...base, agent: 'seat-a', kind: 'seat-test', onWait: () => { throw new Error('a seat test waited on an idle single-slot executor'); } });
+    try { assert.equal(Boolean(lease.runner), remote); } finally { lease.release(); }
+  });
+}
