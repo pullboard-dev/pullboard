@@ -42,6 +42,8 @@ test('a checkout or trunk moving during verification cannot acquire proof [E8]',
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\n', 'feat(web): moving review feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   run(box, box.web, 'submit', '1');
+  // Main moving after the submit makes its proof unreusable, so the review runs the frozen check itself.
+  box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: main moves after the submit');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   run(box, reviewer, 'join', 'web');
   writeFileSync(moveHead, 'armed');
