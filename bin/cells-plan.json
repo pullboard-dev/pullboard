@@ -1412,6 +1412,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/static-tree-registry.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/main-red-failure-lines-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },

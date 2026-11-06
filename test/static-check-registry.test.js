@@ -16,6 +16,13 @@ test('clause 1: one registry lists every static check class with a function that
     assert.ok(names.includes(expected), expected);
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
+  const tree = readFileSync(new URL('../bin/checks/static-tree-registry.js', import.meta.url), 'utf8');
+  for (const expected of ['test-waits', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
+    assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
+  }
+  const entry = readFileSync(new URL('../bin/static-style-checks.js', import.meta.url), 'utf8');
+  assert.match(entry, /runStaticTreeRegistry\(/u);
+  assert.doesNotMatch(entry, /doctrineReport|viewPureGate|boardWriteIoProblems/u, 'the submit static command reads the registry, not an inline list');
   // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
   const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 const root = ${JSON.stringify(ROOT)};
