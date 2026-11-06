@@ -79,7 +79,8 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const resumed = await box.cliAt(agentRoot, 'status');
   assert.equal(resumed.code, 0);
   assert.doesNotMatch((resumed.document.diagnostics ?? []).join('\n'), /relay paused/u, 'a fitting snapshot clears the pause');
-  console.error('DBG', JSON.stringify(box.moveAcks.map(r=>({k:r.kind,id:r.event_id}))), JSON.stringify(box.calls.slice(-12).map(c=>c.method+' '+c.path)));
+  { const k = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim()); const L = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+    for (const r of box.moveAcks) console.error('DBG', new TextDecoder().decode(await unseal(k, Buffer.from(r.sealed, 'base64url'), { boardId: L.board, kind: r.kind, sequence: r.event_id })).slice(0, 600)); }
   assert.equal(box.moveAcks.length, 0, 'no paused local move was sent before its baseline existed');
   const baseline = await uploadedState(box);
   assert.equal(baseline.sequence, 0);
