@@ -44,7 +44,7 @@ function assertStackRefusal(result, itemId, commit) {
   assert.match(error.message, /rebuild without/iu);
 }
 
-test('[V17] submit refuses a candidate stacked on another item until it is accepted', () => {
+test('clause 1, clause 2: [V17] submit refuses a candidate stacked on another item until it is accepted', () => {
   const box = e2e.project('true');
   const first = add(box, 'web', 'First submission');
   assert.equal(box.run(box.web, 'claim', String(first)).code, 0);

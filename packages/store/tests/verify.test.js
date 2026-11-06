@@ -29,7 +29,7 @@ function refused(box, board, cwd, args, expected) {
   assert.equal(store.getItem(board, 1).item_review_by, null);
 }
 
-test('a reviewer is refused for any item its session ever built [V1,B3,C7]', (t) => {
+test('clause 1, clause 2: a reviewer is refused for any item its session ever built [V1,B3,C7]', (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
