@@ -96,10 +96,19 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // is among the item's own commits past base. Why: two merge-base walks per pending item per submission (850 Git
   // processes for 85 waiting items) cost 4 minutes of every selection and left the lander idle between batches.
   const unverified = store.unverifiedSubmissions(board).filter((other) => tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+  let staleProbes = 0;
   for (const original of pending) {
     // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
-    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7].
-    if (ready.length >= maximum) break;
+    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7]. A few items behind
+    // the batch still get their verdict projected, so a stale one returns to its lane this wake instead of waiting
+    // behind every fresh accept: #2466, #2711 and #2988 sat 30 h that way on 5 Nov [B3,C7].
+    if (ready.length >= maximum) {
+      if (staleProbes >= 8 || original.item_hold_at) continue;
+      staleProbes++;
+      const behind = projector.state({ ...original, item_landing_commit: store.checkedLandingCommit(board, original) });
+      if (behind?.code === 'STALE_VERDICT') blocked.push({ id: original.item_id, ...behind });
+      continue;
+    }
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
