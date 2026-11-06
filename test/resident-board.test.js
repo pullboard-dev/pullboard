@@ -162,7 +162,8 @@ before(() => {
   }
   const worktree = join(dir, 'core-1');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/one', worktree], { cwd: repo, env });
-  const joined = runIn(worktree, ['join', 'core', '--model', 'test-model']);
+  // A known strong model, so the seat's route covers the strong items the fixture claims; an unknown label joins on mid and claim is refused ROUTE.
+  const joined = runIn(worktree, ['join', 'core', '--model', 'claude-opus-5-5']);
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   seedBoardScale(join(repo, '.git', 'pullboard', 'board.sqlite'));
   fx = { dir, code, repo, worktree, env, runIn, residentPid, alive, awaitResident,
