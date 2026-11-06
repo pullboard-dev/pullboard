@@ -214,7 +214,7 @@ async function noteRegression(read, write, item, text) {
   if (!present) await write('appendFact', [item, { agentId: 'coordinator', kind: 'measurement', text }]);
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead) {
+async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead, collectCellsBacklog) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
@@ -252,6 +252,14 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
       const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices), openBoardForRead);
+      const cellsBacklog = typeof collectCellsBacklog === 'function' ? await collectCellsBacklog(source, job) : null;
+      if (cellsBacklog !== null && cellsBacklog !== undefined) {
+        if (cellsBacklog.version !== 1 || cellsBacklog.tip !== job.tip || cellsBacklog.tree !== job.tree
+          || !Array.isArray(cellsBacklog.cells) || !Number.isSafeInteger(cellsBacklog.count)) {
+          throw new Error('main audit cell cuts backlog is not bound to its exact source');
+        }
+        saveMainAudit(join(directory, key, 'cells-backlog.json'), cellsBacklog);
+      }
       if (!plan.run.length) {
         const previous = lastGreenAudit(root, directory);
         if (!previous) throw new Error('all-reused plan lost its complete green origin');
@@ -347,7 +355,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices, openBoardForRead); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices, openBoardForRead, services.cellsBacklog); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;

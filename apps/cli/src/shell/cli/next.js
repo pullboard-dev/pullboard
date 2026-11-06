@@ -115,6 +115,11 @@ export async function nextOnce(ctx, values) {
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
+    if (held) {
+      const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+      return { item, held, shared, reviewSkipped, reasons,
+        ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
+    }
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);

@@ -11,3 +11,5 @@ export { captureLapsedClaims, pinClaimHandoff } from './src/shell/stale-state-ca
 export { sweepClaims } from './src/shell/claim-sweep.js';
 export { landingFailureFindings, landingFailureObservation } from './src/shell/landing-failure.js';
 export { reviewFamilyCover, reviewFamilyBuildPause, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG } from './src/shell/review-family-cover.js';
+
+export { claimHealthProjection, claimHealthSnapshot } from './src/shell/claim-health-projection.js';
