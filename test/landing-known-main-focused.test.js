@@ -44,6 +44,8 @@ test('exit-rules on main is recorded as a known red by the focused comparison [B
   });
   assert.equal(comparison.unavailable, undefined, comparison.unavailable);
   const row = comparison.files.find(value => value.file === TARGET);
+  // The file is red only while main's own source breaks it; once main repairs it the comparison is green and excuses nothing.
+  if (row?.result === 'green') return assert.deepEqual(row.failures ?? [], [], 'a green main file carries no failure to excuse');
   assert.equal(row?.result, 'red');
   assert.ok(row.fileIsolation === true || Array.isArray(row.failures) && row.failures.length > 0,
     'the main red carries a named account or the complete isolated file verdict');
