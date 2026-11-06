@@ -1572,6 +1572,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/stranded-dependency-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/ledger-quarantine-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1601,6 +1606,30 @@
     },
     {
       "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/234.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/235.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/236.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/237.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/238.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/239.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
