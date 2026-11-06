@@ -1174,6 +1174,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/clause-inspection-engine.js",
       "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
     },
