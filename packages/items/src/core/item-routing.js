@@ -40,12 +40,21 @@ export function stripPerItemFullSuiteCriterion(criterion) {
  *
  * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
-/** Fill absent low-route file and test sections from literal test paths, bare or quoted, in the item's check. */
+/**
+ * The literal test files a check command names, in order and without repeats.
+ *
+ * @param {string} check
+ * @returns {string[]}
+ */
+export function checkTestFiles(check) {
+  return [...new Set([...String(check ?? '').matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))\1(?=\s|$)/gu)].map(match => match[2]))];
+}
+
+/** Fill absent low-route file and test sections from literal test paths, bare or quoted, in the item's check (#3120). */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };
   const sections = briefSections(brief, referenceOptions);
-  // A shell-quoted path ('test/x.test.js' or "test/x.test.js") names the same test as a bare one (#3120).
-  const files = [...new Set([...check.matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))\1(?=\s|$)/gu)].map(match => match[2]))];
+  const files = checkTestFiles(check);
   if (!files.length) return brief;
   const add = [];
   if (!briefFiles(brief, referenceOptions).length) add.push(`Files:\n${files.map(file => `- ${file}`).join('\n')}`);
