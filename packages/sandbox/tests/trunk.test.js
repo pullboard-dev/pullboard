@@ -63,13 +63,18 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'trunk@example.invalid',
     PATH: `${bin}:${process.env.PATH}`,
   });
+  /** The environment for one checkout: coordinator, builder and reviewer checkouts are three agent sessions. */
+  function sessionEnv(cwd) {
+    const name = String(cwd).includes('merge-review') ? 'reviewer' : /\/(web-worktree|merge-web)/.test(String(cwd)) ? 'builder' : 'coordinator';
+    return { ...env, CODEX_THREAD_ID: `trunk-${name}-session` };
+  }
   /** Run isolated Git commands. */
   function git(cwd, ...args) {
-    return runFixtureGit(args, { cwd, env });
+    return runFixtureGit(args, { cwd, env: sessionEnv(cwd) });
   }
   /** Run a real Pullboard CLI process in the fixture environment. */
   function run(cwd, ...args) {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: sessionEnv(cwd), encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   }
   return { dir, env, git, run };
@@ -163,8 +168,10 @@ test('[B34,P2] add --check reports an unavailable baseline for a detached coordi
 function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
+  // Claim opens the item folder from a branch named main, whatever the primary branch is called.
+  if (branch !== 'main') box.git(box.repo, 'branch', 'main');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(box.run(web, 'join', 'web', '--family', 'builder-fixture', '--model', 'Fixture Model').code, 0);
+  assert.equal(box.run(web, 'join', 'web', '--family', 'builder-fixture', '--model', 'claude-opus-4').code, 0);
   const added = box.run(box.repo, 'add', 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -199,7 +206,7 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(box.run(review, 'join', 'review', '--family', 'reviewer-fixture', '--model', 'Fixture Model').code, 0);
+  assert.equal(box.run(review, 'join', 'review', '--family', 'reviewer-fixture', '--model', 'claude-opus-4').code, 0);
   return review;
 }
 
