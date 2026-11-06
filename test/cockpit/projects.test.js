@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads src/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
 import { viewApiPorts } from '../../apps/view/index.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -824,7 +824,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   box.git(primary, 'add', '-A');
   box.git(primary, 'commit', '-q', '-m', 'chore: retain migration fixture source');
   box.git(primary, 'worktree', 'add', '-q', '-b', 'view/future', linked, 'main');
-  const boardSource = join(linked, 'src/board-schema-source.js');
+  const boardSource = join(linked, 'packages/store/src/shell/board-schema-source.js');
   const original = readFileSync(boardSource, 'utf8');
   const future = original.replace('export const SCHEMA_VERSION = 3;', 'export const SCHEMA_VERSION = 4;');
   assert.notEqual(future, original, 'only the linked running code expects the future schema');
@@ -840,7 +840,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
     finally { db.close(); }
     assert.equal(createHash('sha256').update(readFileSync(file)).digest('hex'), before, 'refused board file is byte-identical');
   };
-  const projection = await import(pathToFileURL(join(linked, 'src/cli/view-state.js')).href);
+  const projection = await import(pathToFileURL(join(linked, 'apps/cli/src/shell/cli/view-state.js')).href);
   assert.throws(() => projection.projectState(refused.repo), error => error.code === 'UNMERGED_SCHEMA',
     'the view projector uses the running linked-source guard');
   unchanged();
