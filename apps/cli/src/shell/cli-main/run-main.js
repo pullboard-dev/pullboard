@@ -3,6 +3,9 @@
  * command when there is any, and dispatch through the lazy command table. It loads a module only when the command
  * in hand needs it, so --version and a read pay for nothing they do not run [C7].
  */
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { commandOutput } from '../../../../../packages/config/core.js';
 import { Refused } from '../../../../../packages/kernel/core.js';
@@ -232,7 +235,11 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (automaticLandingAfterCommand) {
-      try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(automaticLandingAfterCommand.info.root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
+      // A release run from an item folder removes that folder before this wake; the pending record names the
+      // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
+      const { info } = automaticLandingAfterCommand;
+      const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
+      try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
     if (maintenanceAfterCommand) {
@@ -269,4 +276,10 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
+}
+
+/** The trunk checkout the pending landing record names, or null when there is no readable record. */
+function landingJobRoot(commonDir) {
+  try { return JSON.parse(readFileSync(join(commonDir, 'pullboard', 'automatic-landing', 'pending.json'), 'utf8')).root ?? null; }
+  catch { return null; }
 }
