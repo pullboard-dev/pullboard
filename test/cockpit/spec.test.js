@@ -214,7 +214,7 @@ async function watchSpecFilter(chrome) {
 }
 
 
-test('spec rows read across a phone [N26,D1]', async () => {
+test('clause 1: spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });
   // Its own house rules follow the doctrine file named by this repo's config.
@@ -237,7 +237,7 @@ test('spec rows read across a phone [N26,D1]', async () => {
       const drawn = rows(page.show(kind + '-list'));
       assert.ok(drawn.length > 0, kind + ' has rows');
       for (const row of drawn) {
-        assert.match(row, /^ row s-[^"]*"[^]*?<span class="dot [^"]+">(?:[✓×✎]|<svg[^]*?<\/svg>)?<\/span><div><div class="t srow-text"><span class="row-id">[^<]+<\/span>/, kind + ' shares the dot and primary line');
+        assert.match(row, /^ row s-[^"]*"[^]*?<span class="dot [^"]+"(?: aria-hidden="true")?>(?:[✓×✎]|<svg[^]*?<\/svg>)?<\/span><div><div class="t srow-text"><span class="row-id">[^<]+<\/span>/, kind + ' shares the dot and primary line');
         assert.match(row, /<div class="meta"><span class="(?:rule-source|rule-source-chip)/, kind + ' names its source on the secondary line');
       }
     }
@@ -370,7 +370,7 @@ test('Spec and Doctrine line up, open on a row and decide with filled and outlin
   }
 });
 
-test('spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 }, async (t) => {
+test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec list checks.');
 
@@ -501,7 +501,7 @@ test('spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 
           await filter(kind, 'all');
           r = await read(kind);
           const all = Object.fromEntries(r.rows.map((row) => [row.id, row.chip]));
-          assert.deepEqual([all[first], all[second]], kind === 'spec' ? ['must', 'must'] : ['approved, pending apply', 'declined, pending apply'], `${tab}: Spec retains tiers while Doctrine shows recorded decision status`);
+          assert.deepEqual([all[first], all[second]], ['must', 'must'], `${tab}: Spec and Doctrine both keep the tier in the row; the recorded decision shows in the detail, not the row`);
           if (kind === 'spec') assert.deepEqual([all.S2, all.S3], [null, 'must'], `${tab}: Spec never replaces the tier slot with pending or approved status`);
           else assert.deepEqual([all.PB1, all.PB7], ['must', 'To review'], `${tab}: standard rules keep their tier or explicit review state`);
         }
@@ -1089,7 +1089,7 @@ test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { 
 // Hang ceiling: four three-tab layouts, native input and real Git/SQLite setup; two 120s journey budgets plus setup headroom.
 
 /** Compare real Items, Spec and Doctrine rendering and native selection across four viewport/theme layouts. */
-test('doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, async (t) => {
+test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for shared-row checks.');
 
@@ -1242,7 +1242,8 @@ test('doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, a
         for (const row of [pb1,pb2,pb3,local]) {
           assert.match(row.className, /(?:^|\s)srow(?:\s|$)/u);
           assert.match(row.className, /(?:^|\s)row(?:\s|$)/u);
-          assert.deepEqual(row.rowStyle, item.rowStyle, `${width}px ${theme}: every doctrine record shares Items geometry and type`);
+          assert.deepEqual(row.rowStyle, g1.rowStyle, `${width}px ${theme}: every doctrine record shares the Spec record geometry and type`);
+          assert.equal(row.rowStyle.fontFamily, item.rowStyle.fontFamily, `${width}px ${theme}: and the Items row font`);
           assert.ok(row.dot && !row.count && !row.overflow, `${width}px ${theme}: uncited rules have a dot, no zero-count marker, and no horizontal overflow`);
         }
         assert.ok(pb2.sourceBox.y > pb2.titleBox.y && Math.abs(pb2.sourceBox.x - pb2.titleBox.x) < 1);
