@@ -58,15 +58,16 @@ function timerState(owner) {
 /** The accepted primary checkout and committed main policy are reread in a new Git fact scope. */
 async function canonical(ctx) {
   return withGitFacts(() => {
-    const info = repoInfo(ctx.info.root), common = realpathSync(info.commonDir);
+    // An inherited GIT_DIR (hooks, agent shells) must not make the primary checkout look like a linked worktree.
+    const info = repoInfo(ctx.info.root, { env: cleanGitEnvironment() }), common = realpathSync(info.commonDir);
     if (common !== realpathSync(ctx.info.commonDir)) throw new Error('maintenance timer repository changed');
     const policy = mainPolicy(info.root);
     if (policy.config.worktreeMaintenance?.enabled !== true) return null;
-    const first = git(info.root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')[0].split('\0');
+    const first = git(info.root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() }).split('\0\0')[0].split('\0');
     if (!first[0]?.startsWith('worktree ') || first.includes('bare')) throw new Error('maintenance needs the primary checkout');
     const root = first[0].slice('worktree '.length);
     if (!isAbsolute(root)) throw new Error('invalid primary maintenance checkout');
-    const primary = repoInfo(root);
+    const primary = repoInfo(root, { env: cleanGitEnvironment() });
     if (!primary.isMain || realpathSync(primary.commonDir) !== common) throw new Error('maintenance primary repository changed');
     return { root: realpathSync(root), common, everyMs: maintenanceDurations(policy.config.worktreeMaintenance).everyMs };
   });
@@ -178,6 +179,8 @@ export async function scheduleWorktreeMaintenance(ctx) {
       } finally { child?.unref(); closeSync(logFd); }
     });
   } catch (error) {
+    // The primary checkout owns the timer and reports a real failure once; a linked worktree stays quiet [#2909].
+    if (ctx.info.isMain === false) return { scheduled: false, reason: 'linked-worktree-unavailable' };
     error.maintenanceStage ??= stage;
     throw error;
   }
