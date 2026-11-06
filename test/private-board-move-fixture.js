@@ -293,6 +293,7 @@ export async function privateBoardMoves(box, privateFile) {
   assert.equal(owner.code, 0);
   assert.deepEqual(owner.document, { account: '7', login: 'alice' }, 'the numeric account stays separate from its authenticated login');
   const addHeartbeat = agePrivateHeartbeat(privateFile, box.root);
+  await settleRelayCalls(box);
   const callsBeforePrivateAdd = box.calls.length;
   const linkedPrivate = await box.cli('add', box.lane, 'private item delivered through the relay', '--private');
   assert.equal(linkedPrivate.code, 0);
@@ -665,4 +666,15 @@ export async function privateBoardMoves(box, privateFile) {
   assert.ok(fresh.document.item.item_id > reverseId);
   withMoveBoard(localFile, board => assert.equal(store.itemRedirect(board, 3).moveId, moved.document.moveId,
     'the old source ID keeps its permanent redirect after later adds'));
+}
+
+/**
+ * Wait until the fixture relay's call count holds still for two seconds.
+ * The previous command's background sender may still be talking to the relay, and a baseline taken mid-send miscounts [E11].
+ */
+export async function settleRelayCalls(box) {
+  for (let steady = 0, seen = -1; steady < 20; await new Promise(done => { const probe = setTimeout(done, 100); probe.unref?.(); })) {
+    steady = box.calls.length === seen ? steady + 1 : 0;
+    seen = box.calls.length;
+  }
 }

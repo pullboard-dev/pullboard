@@ -16,6 +16,7 @@ import {
   teamBoard,
   test,
 } from './team-scenarios.fixture.js';
+import { settleRelayCalls } from './private-board-move-fixture.js';
 import { checkoutSessionFile } from '../packages/seats/index.js';
 import { repoInfo } from '../src/git.js';
 import { readFileSync } from 'node:fs';
@@ -26,6 +27,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const shared = await box.cli('add', box.lane, 'repo item');
   assert.equal(shared.code, 0, 'ordinary add stays on the linked repo board');
   const repoBoardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
+  await settleRelayCalls(box); // the shared add's background sender may still be talking to the relay
   const callsBeforePrivate = box.calls.length;
   const local = await box.cli('add', box.lane, 'private item', '--private');
   assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
