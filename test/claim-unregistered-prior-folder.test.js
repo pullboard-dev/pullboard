@@ -1,6 +1,7 @@
 /** A claim whose item branch sits in a folder with no registered holder reports one line, never a stack trace [C7]. */
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
@@ -23,7 +24,13 @@ function claimWithStrayFolder() {
   const released = box.run(box.web, 'release', id, '--reason', 'BLOCKED', '--note', 'fixture');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
   const stray = join(box.dir, `nobody-item-${id}`);
-  box.git(box.repo, 'worktree', 'move', folder, stray);
+  // The release may already have removed the folder: check the item branch out at the stray path either way.
+  if (existsSync(folder)) {
+    try { box.git(box.repo, 'worktree', 'unlock', folder); } catch { /* not locked */ }
+    box.git(box.repo, 'worktree', 'move', folder, stray);
+  } else {
+    box.git(box.repo, 'worktree', 'add', '-q', stray, `web/item-${id}`);
+  }
   const web2 = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', web2, '-b', 'web/two');
   const joined = joinFixtureSeat(box, web2, 'web', { model: 'Fixture' });
