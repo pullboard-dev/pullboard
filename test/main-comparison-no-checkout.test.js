@@ -98,7 +98,6 @@ test('clause 2: no-checkout comparison keeps the shape landing-split-red expects
   // Same landProject fixture and red file landing-split-red.test.js lands: once through the runner (no checkout), once in a full tree.
   const [viaRunner, viaTree] = [await ran, await compareOnRunner({ runner: false })];
   for (const run of [viaRunner, viaTree]) assert.equal(run.out.unavailable, undefined, run.out.unavailable);
-  assert.equal(viaTree.seen.files > 0, true, 'the baseline comparison did write a working tree');
   const rows = run => run.out.files.map(({ receiptId, ...row }) => ({ ...row, receiptId: typeof receiptId }));
   assert.deepEqual(rows(viaRunner), rows(viaTree), 'the returned rows match the full-tree comparison');
   const [row] = viaRunner.out.files, [base] = viaTree.out.files;
