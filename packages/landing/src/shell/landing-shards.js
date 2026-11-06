@@ -186,6 +186,24 @@ export function planLandingShards(files, count, times = {}, root = null) {
 }
 
 /**
+ * Split a build, submit or review run's test files across the runner slots that are free right now: at most one shard per
+ * free slot and per distinct file, balanced by recorded file times through the landing planner. One free slot, or none,
+ * gives one shard holding every file, so such a run executes as it does today (#3228).
+ *
+ * @param {string[]} files
+ * @param {number} freeSlots - Runner slots the caller found free; fractions and negatives count as none.
+ * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
+ * @returns {{ shards: { files: string[], weight: number }[], balance: 'history'|'history and average'|'file count', slots: number }}
+ */
+export function planFreeSlotShards(files, freeSlots, times = {}, root = null) {
+  const distinct = new Set(files.map(file => fileKey(file, root))).size;
+  const slots = Math.max(1, Math.min(Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 1, distinct));
+  const shards = planLandingShards(files, slots, times, root);
+  return { shards, balance: landingBalance(files.map(file => fileKey(file, root)), times), slots: shards.length };
+}
+
+/**
  * Name how a plan was balanced: by the last measured per-file wall times when every file has one,
  * by those times with new files at their average when some do, and by file count when none do.
  *
