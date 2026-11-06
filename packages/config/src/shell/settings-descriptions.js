@@ -117,6 +117,7 @@ const ROWS = [
   ['submitDeferAbove', 'Defer large selections', 'A submit whose selection names more test files than this runs only its check and invariants, and landing runs the rest.', 'Landing', 'count'],
   ['landingShards', 'Landing test shards', 'How many shards the landing gate splits its test files into.', 'Landing', 'count'],
   ['landing.publish', 'Publish separately', 'Landing happens locally and the push goes out through pullboard publish.', 'Landing', 'choice'],
+  ['landing.perItem', 'Per-item landing', 'Landing takes one verified item at a time in accept order and runs only that item\'s plan; a red item goes back to open alone and the next item lands.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
@@ -145,7 +146,7 @@ const ROWS = [
   ['line.bar.sharpenToPerson', 'Send vague criteria to the person', 'A rejected criterion that is unclear goes to the person to sharpen.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
   ['line.collisionFreeBatch', 'Collision-free landing batches', 'Items that change the same files are kept out of the same landing batch.', 'Line', 'on/off'],
-  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds when replaying board flow.', 'Line', 'count'],
+  ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds, in real landing and when replaying board flow; unset, automatic landing sizes batches from recorded redness.', 'Line', 'count'],
   ['line.landingCadenceMinutes', 'Landing interval', 'The time between landing batches when replaying board flow.', 'Line', 'minutes'],
 ];
 

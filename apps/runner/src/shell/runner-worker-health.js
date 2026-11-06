@@ -34,6 +34,13 @@ function readRequest(encodedRequest) {
   return { request, root: request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner') };
 }
 
+/** A holder's process still exists (or cannot be checked); a pid the kernel no longer knows is a dead holder. */
+function holderProcessAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return true;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return error.code !== 'ESRCH'; }
+}
+
 /** Preserve the exact failing observation instead of treating unknown custody as an empty runner. */
 function unknown(diagnostic, reason, error) {
   diagnostic.reason = reason + (error?.code ? ' [' + error.code + ']' : '') + (error?.message ? ': ' + error.message : '');
@@ -140,8 +147,9 @@ function idleWorkerSnapshot(root, diagnostic) {
     try {
       const db = new DatabaseSync(resourceFile, { readOnly: true });
       try {
-        if (db.prepare("SELECT 1 FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%' LIMIT 1").get())
-          return unknown(diagnostic, 'runner resource lease is active');
+        // A dead holder is a leak for the machine's next write to reclaim, never proof of work in progress [C7].
+        const holders = db.prepare("SELECT pid FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
+        if (holders.some(holder => holderProcessAlive(holder.pid))) return unknown(diagnostic, 'runner resource lease is active');
       } finally { db.close(); }
     } catch (error) { return unknown(diagnostic, 'resource SQLite idle query failed', error); }
   }
