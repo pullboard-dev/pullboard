@@ -26,13 +26,13 @@ function fixture(t) {
   return { board, item, offer };
 }
 
-test('clause 1: next --verify skips a reviewer seat whose session is an author session of the item', (t) => {
+test('clause 1: next --verify skips a reviewer seat whose session is an author session of the item [C7]', (t) => {
   const f = fixture(t);
   assert.equal(f.offer('core-2').item, null, 'the seat sharing the builder session is never offered the item');
   assert.equal(f.offer('core-4').item?.item_id, f.item, 'a seat from another session is offered it');
 });
 
-test('clause 2: next-idle names the item and REVIEWER_SAME_SESSION when every awake reviewer shares the author session', (t) => {
+test('clause 2: next-idle names the item and REVIEWER_SAME_SESSION when every awake reviewer shares the author session [C7]', (t) => {
   const f = fixture(t);
   const idle = f.offer('core-2');
   assert.equal(idle.item, null);
