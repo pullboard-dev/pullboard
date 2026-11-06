@@ -49,7 +49,7 @@ function content(box, cwd, value, message) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
-test('a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
+test('clause 1: a merge-only resubmission keeps its accept and records the resolution diff [V1,V4,H16]', async () => {
   const box = e2e.project();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
