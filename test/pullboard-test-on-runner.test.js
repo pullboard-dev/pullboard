@@ -3,7 +3,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -54,7 +56,7 @@ function runnerProject() {
 }
 
 test('pullboard test runs the folder commit on a free runner and prints pass/fail and failing cases [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling for a stand-in runner run plus its main comparison; not a speed target.
-  const { box, requests } = runnerProject();
+  const { box } = runnerProject();
   const head = box.git(box.web, 'rev-parse', 'HEAD').trim();
   const ran = box.run(box.web, 'test', 'test/mixed.test.js');
   assert.equal(ran.code, 1, `a failing case makes the run red: ${ran.err}`);
@@ -62,9 +64,10 @@ test('pullboard test runs the folder commit on a free runner and prints pass/fai
   assert.match(ran.out, /^1 passed, 1 failed, 0 skipped$/mu, 'the pass/fail line prints');
   assert.match(ran.out, /^test\/mixed\.test\.js: breaks on purpose: .+$/mu, 'the failing case prints with its error');
   assert.doesNotMatch(ran.out, /keeps passing: /u, 'a passing case is not listed as a failure');
-  const calls = readFileSync(requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.ok(calls.length >= 1 && calls.every(call => call.host === HOST), 'every run went to the runner');
-  assert.ok(readFileSync(requests, 'utf8').includes(head), 'the runner was sent the folder commit');
+  // The frame carrying the commit travels on stdin now, so the stand-in's request log no longer holds it; the runner's own repo keeps a candidate ref per received commit.
+  const repos = join(box.dir, 'runner-home', '.pullboard-runner', 'repos');
+  const received = readdirSync(repos).filter(name => name.endsWith('.git')).some(name => existsSync(join(repos, name, 'refs', 'pullboard', 'candidates', head)));
+  assert.ok(received, 'the runner was sent the folder commit');
 });
 
 test('pullboard test on a free runner returns within the file run time plus 10 seconds [C7]', { timeout: 240_000 }, () => { // budget: hang ceiling; the speed bar is the assertion below.
