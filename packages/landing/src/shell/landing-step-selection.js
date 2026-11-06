@@ -114,7 +114,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
-    if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
+    const waitsOn = dependencies.filter((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id));
+    // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
+    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
     const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {
