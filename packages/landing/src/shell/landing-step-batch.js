@@ -460,6 +460,9 @@ async function releaseClearedRepeatHolds(root, board, trunk, write, onWait) {
           { commit: trunk.commit, detailed: true });
       } catch { comparison = null; }
     }
-    if (repeatedLandingHoldCleared(hold, item, trunk.commit, comparison)) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
+    /** The refusal's own condition, read from the worktree the refusal named; a vanished worktree is no longer dirty. */
+    const facts = hold.kind === 'refusal' && hold.root
+      ? { worktreeDirty: existsSync(hold.root) && (!isClean(hold.root) || untracked(hold.root).length > 0) } : null;
+    if (repeatedLandingHoldCleared(hold, item, trunk.commit, comparison, facts)) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
   }
 }

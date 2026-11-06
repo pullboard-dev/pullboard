@@ -230,7 +230,8 @@ export async function parkRepeatedItem(state, item) {
   const batches = store.landingBatches(state.board).map(batch => batch.id === state.batch.id ? { ...batch, state: 'blocked' } : batch);
   const cause = repeatedBlockedCause(batches, { item_id: item.id, item_commit: item.commit });
   if (!cause) return false;
-  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ kind: cause.kind, key: cause.key, base: cause.base, commit: cause.commit })} ${cause.detail}`;
+  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ kind: cause.kind, key: cause.key, base: cause.base, commit: cause.commit,
+    ...(cause.kind === 'refusal' && state.batch.root ? { root: state.batch.root } : {}) })} ${cause.detail}`;
   await state.write('holdItem', [item.id, { agentId: 'coordinator', reason }]);
   const text = repeatedLandingNotice(item.id, cause);
   await state.write('shout', [{ from: 'coordinator', to: 'all', text, lanes: [] }]);

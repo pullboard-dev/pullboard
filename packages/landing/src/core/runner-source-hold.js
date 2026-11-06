@@ -14,14 +14,26 @@ export function repeatedLandingHold(reason) {
   try {
     const value = JSON.parse(reason.slice(REPEATED_LANDING_HOLD.length, end));
     if (!['case', 'refusal'].includes(value.kind) || typeof value.key !== 'string'
-      || !/^[0-9a-f]{40}$/u.test(value.base ?? '') || !/^[0-9a-f]{40}$/u.test(value.commit ?? '')) return null;
+      || !/^[0-9a-f]{40}$/u.test(value.base ?? '') || !/^[0-9a-f]{40}$/u.test(value.commit ?? '')
+      || (value.root !== undefined && typeof value.root !== 'string')) return null;
     return value;
   } catch { return null; }
 }
 
+/**
+ * Whether a refusal's own condition still holds at an unchanged head and base.
+ * Why: a LAND_DIRTY hold must lift once its landing worktree is clean again, though neither commit moved; a code with no
+ * probe keeps holding until the head or the base changes [C7].
+ */
+export function refusalConditionHolds(hold, facts) {
+  if (hold.key === 'LAND_DIRTY' && facts && typeof facts.worktreeDirty === 'boolean') return facts.worktreeDirty;
+  return true;
+}
+
 /** Decide whether an automatic repeat hold's original refusal or failing case has cleared. */
-export function repeatedLandingHoldCleared(hold, item, base, comparison) {
+export function repeatedLandingHoldCleared(hold, item, base, comparison, facts = null) {
   if (item.item_commit !== hold.commit || base !== hold.base) return true;
+  if (hold.kind === 'refusal') return !refusalConditionHolds(hold, facts);
   if (hold.kind !== 'case') return false;
   const [file, ...rest] = hold.key.split('::');
   const name = rest.join('::');

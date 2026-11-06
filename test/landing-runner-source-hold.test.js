@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause, repeatedLandingHoldCleared, repeatedLandingNotice } from '../packages/landing/src/core/runner-source-hold.js';
+import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, REPEATED_LANDING_HOLD } from '../packages/landing/src/core/runner-source-hold.js';
 import { applyItemHold, applyItemHoldRelease } from '../packages/items/src/core/item-holds.js';
 import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
 
@@ -107,6 +107,11 @@ test('clause 2: a repeated refusal hold clears when its item head or main base c
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), true);
   assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: true }), false, 'the worktree is still dirty');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), true, 'cleaned at the same head and base, the refusal no longer holds');
+  assert.equal(repeatedLandingHoldCleared({ ...hold, key: 'LAND_ADOPT' }, ITEM, BASE, null, { worktreeDirty: false }), false, 'a code with no probe waits for a new head or base');
+  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ ...hold, root: '/tmp/landing-batch' })} the landing worktree has uncommitted changes`;
+  assert.equal(repeatedLandingHold(reason).root, '/tmp/landing-batch', 'the hold remembers the worktree it named');
 });
 
 test('clause 2: a repeated named-case hold clears only when main no longer reproduces that exact case [C7]', () => {
