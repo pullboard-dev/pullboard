@@ -154,7 +154,7 @@ function submitTestOutcomes(profiles) {
  * @returns {Promise<any>}
  */
 export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
-  planners = { plan: submitGatePlan, admission: submitGateAdmission } }) {
+  planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
@@ -207,10 +207,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const proofWait = check ? 0 : lease.waitMs;
     /** Launch final proof under its own phase context while preserving its full-gate stamping rules. */
     const prove = async () => {
-      if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit' });
+      if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
       const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
-      const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true }), isCached: false, log: proofLog };
+      const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal }), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
       if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
@@ -219,7 +219,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     /** Retain completed check evidence even when the later proof refuses its runner. */
     const criterionRun = async () => {
       const run = check
-        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal })
         : { isGreen: true, output: '', seconds: 0 };
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
@@ -288,6 +288,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
-  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, ...runnerAdmission });
+  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission });
 }
 
