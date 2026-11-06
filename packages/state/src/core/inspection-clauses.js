@@ -42,8 +42,13 @@ export function clauseTicks(thread, owner) {
   return ticks;
 }
 
-/** A refusal naming every clause that is unticked or ticked with evidence of the wrong kind; null when all are met. */
-export function clauseInspectionProblem(item, thread) {
+/**
+ * A refusal naming every clause that is unticked or ticked with evidence of the wrong kind; null when all are met.
+ * A test tick names a case that cites its clause, or a test file among `greenFiles`: the files a green proof of this
+ * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
+ * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
+ */
+export function clauseInspectionProblem(item, thread, { greenFiles = new Set() } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner);
@@ -51,11 +56,12 @@ export function clauseInspectionProblem(item, thread) {
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
+    const proven = () => [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick) problems.push(`${label} has no evidence`);
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
-    } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence)) {
-      problems.push(`${label} needs a named test case citing clause ${clause.number}`);
+    } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence) && !proven()) {
+      problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
     }
   }
   if (!problems.length) return null;
