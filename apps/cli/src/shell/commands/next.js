@@ -110,10 +110,14 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoard(ctx, board => {
+  // Read first: an idle poll has no queued red to record, so it opens no writer (#3206).
+  /** Queued reds this agent has not yet been told about. */
+  const undeliveredReds = (board, me) => store.queuedReds(board, me.id).filter(red =>
+    !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  const hasReds = withBoardRead(ctx, board => undeliveredReds(board, whoAmI(ctx, board)).length > 0);
+  if (hasReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
-    const reds = store.queuedReds(board, me.id).filter(red =>
-      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    const reds = undeliveredReds(board, me);
     if (reds.length) {
       const activity = store.activityDeliveryState(board, me.id);
       store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
