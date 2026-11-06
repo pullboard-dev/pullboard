@@ -179,7 +179,7 @@ function machineSlots(settings) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false, signal } = {}) {
   const browserByLaunch = browserByLaunchEnabled();
   const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
@@ -188,7 +188,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
   const timed = lease => {
     Object.defineProperty(lease, 'executionServices', { value: executionServices });
-    return Object.assign(lease, { tracker, receiptKind, browserByLaunch,
+    return Object.assign(lease, { tracker, receiptKind, browserByLaunch, ...(signal ? { signal } : {}),
     ...(!lease.runner ? { startLoad: lease.startLoad ?? sampleRunnerLoad(),
       localDescriptor: localRunnerDescriptor(lease.capacity ?? null, loadMachineSettings().browserSlots > 0) } : {}),
     slot: slotOf(lease, { browserFree: browserFreeChecksEnabled() }) });
