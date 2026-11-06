@@ -180,9 +180,12 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     assert.equal(error.code, 'STALE_VERDICT');
     assert.ok(error.message.includes('web/feature.js') && error.message.includes(movingCommit), error.message);
   }
-  box.git(box.repo, 'revert', '-m', '1', '--no-edit', movingCommit);
+  // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
+  box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 2\n', 'feat(web): move main caller again [G1]').status, 0);
+  box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): move main caller again [G1]');
   syncTrunk();
-  assert.ok(items().every(item => item.item_verdict_state?.commit === movingCommit), 'a revert cannot turn an old review into a new review');
+  assert.ok(items().every(item => item.item_verdict_state?.code === 'STALE_VERDICT'), 'a later move keeps an old review stale');
   const priorChecks = readCheckedHeads();
   const oldHead = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Trying the old candidate is insufficient.');
   assert.equal(oldHead.code, 1);
