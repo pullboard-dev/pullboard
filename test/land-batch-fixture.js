@@ -85,7 +85,7 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const landed = timed(phases, 'land', () => box.run(box.repo, 'land', '--json'));
   assert.equal(landed.code, 0, `${landed.err}\n${landed.out}`);
   const result = JSON.parse(landed.out);
-  landingPhases(phases, `${landed.err}\n${landed.out}`);
+  landingPhases(phases, `${landed.err}\n${(result.diagnostics ?? []).join('\n')}`);
 
   const ids = entries.map(entry => entry.item);
   const culprit = entries[red].item;
