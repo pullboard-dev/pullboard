@@ -61,5 +61,6 @@ export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildP
 
 export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
 
+export { claimedItemRoot } from './src/shell/item-patch-submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/core/dependency-progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/core/diagnosis.js';

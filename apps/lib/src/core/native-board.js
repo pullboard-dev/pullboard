@@ -1,5 +1,5 @@
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
-import { claimedItemRoot } from '../../../cli/index.js';
+import { claimedItemRoot } from '../../../../packages/items/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
