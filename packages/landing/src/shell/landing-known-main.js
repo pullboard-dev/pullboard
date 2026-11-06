@@ -131,7 +131,7 @@ export function redOnMainUntouched(failure, comparison, changed) {
 }
 
 /** The files the batch's merged tree changed against its base, or null when Git cannot say. */
-function changedFiles(state) {
+export function changedFiles(state) {
   const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
   return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
 }
