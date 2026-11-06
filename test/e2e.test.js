@@ -213,21 +213,21 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
   assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
-test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
+test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
   const box = project();
   const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
   assert.equal(added[0], '#1');
-  assert.match(added.at(-1), /^next: pullboard next --wait \d+$/u);
+  assert.match(added.at(-1), /^next: pullboard next --(?:wait \d+|take)$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/);
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(Test Model\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/, 'and the first stays itself');
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });
@@ -260,7 +260,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.equal(commitFile(box, box.repo, 'api/b.js', 'b', 'feat(api): an api file [G2]').status, 0);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
   mkdirSync(join(second, 'web'), { recursive: true });
   box.git(second, 'mv', 'api/b.js', 'web/b.js');
   const taken = box.tryGit(second, 'commit', '-q', '-m', 'refactor(web): take the api file');
