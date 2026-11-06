@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 export function makeLandProjectFixtures({ sandbox, project, commitFile }) {
   const FILES = [1, 2, 3, 4].map(n => `web/land-${n}.test.js`);
@@ -54,11 +55,10 @@ function landProject({ withWorktree = true } = {}) {
 function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web', '--model', 'Fixture Model').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`, '--brief', `Files: ${file}\nTest: land fixture ${number}\n`,
-    '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
-  assert.equal(added.code, 0, added.err);
-  const item = JSON.parse(added.out).item.item_id;
+  assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
+  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
+    criterion: `land fixture ${number} remains valid`, check: `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`,
+    args: ['--specs', 'G1', ...(afterIds.length ? ['--after', afterIds.join(',')] : [])] }).item_id;
   assert.equal(box.run(path, 'claim', String(item)).code, 0);
   return { path, item, file };
 }
