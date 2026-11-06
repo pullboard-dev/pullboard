@@ -1,9 +1,13 @@
 import { execFileSync } from 'node:child_process';
 /** Durable automatic landing wakes reuse native timer custody, never a foreground board connection [B35,B3,R3]. */
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { repoInfo } from '../../../git/index.js';
 import { readMainAudit } from '../../../gate/index.js';
@@ -40,6 +44,22 @@ export function automaticLandingDirectory(root) { return join(repoInfo(root).com
 function withPending(directory, work) { return withFileLock(join(directory, 'pending.guard.sqlite'), work); }
 
 /**
+ * The lander entry in the main checkout when the repository carries its own, else the caller's.
+ * Why: a seat's worktree or an item folder holds unlanded code, and the command that woke landing ran the lander from
+ * its own copy, so unreviewed landing code decided what reached main. A project using an installed CLI has one copy.
+ *
+ * @param {string} root - Any checkout of the repository.
+ * @param {URL} workerUrl - The calling CLI's own lander entry.
+ * @returns {URL}
+ */
+export function mainLandingWorker(root, workerUrl) {
+  const commonDir = repoInfo(root).commonDir;
+  if (basename(commonDir) !== '.git') return workerUrl;
+  const main = join(dirname(commonDir), 'bin', 'automatic-landing.js');
+  return existsSync(main) ? pathToFileURL(main) : workerUrl;
+}
+
+/**
  * Persist the obligation before starting its authenticated detached timer. A landing already running keeps its
  * custody: the newer record carries it, and that run lands the new work when it finishes instead of a second
  * landing racing it (#2541).
@@ -47,6 +67,7 @@ function withPending(directory, work) { return withFileLock(join(directory, 'pen
 export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now } = {}) {
   if (!Number.isFinite(Date.parse(dueAt))) throw new TypeError('automatic landing needs its native deferred time');
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('automatic landing needs its actual worker entry');
+  workerUrl = mainLandingWorker(root, workerUrl);
   const directory = automaticLandingDirectory(root);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const at = new Date(Math.max(Date.parse(dueAt), now() + 1000)).toISOString();

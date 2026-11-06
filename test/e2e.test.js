@@ -3,7 +3,7 @@
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, runFixtureChildAsync } from './fixture-child.js';
 import {
   chmodSync,
   existsSync,
@@ -125,8 +125,10 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const repo = join(fresh.dir, 'fresh');
   mkdirSync(repo);
   fresh.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = fresh.run(repo, 'init', '--verbose');
-  assert.match(initialized.out, /^Next: ask your agent to set up Pullboard here; in Claude Code, start a new session first so it loads the Pullboard skills\.$/m, 'init gives one setup instruction and preserves Claude Code skill loading');
+  fresh.git(repo, 'config', 'user.name', 'Test Agent');
+  fresh.git(repo, 'config', 'user.email', 'agent@example.com');
+  const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
+  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);
@@ -140,7 +142,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const freshView = await startView(fresh, repo);
   await freshView.stop();
-  assert.match(next(fresh, repo), /^build #1, commit, then pullboard submit 1/, 'after setup the coordinator’s claim comes first');
+  assert.match(next(fresh, repo), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
@@ -211,19 +213,21 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
   assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
-test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
+test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
   const box = project();
-  assert.equal(box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim(), '#1');
+  const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
+  assert.equal(added[0], '#1');
+  assert.match(added.at(-1), /^next: pullboard next --(?:wait \d+|take)$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/);
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(Test Model\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/, 'and the first stays itself');
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });
@@ -256,7 +260,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.equal(commitFile(box, box.repo, 'api/b.js', 'b', 'feat(api): an api file [G2]').status, 0);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
   mkdirSync(join(second, 'web'), { recursive: true });
   box.git(second, 'mv', 'api/b.js', 'web/b.js');
   const taken = box.tryGit(second, 'commit', '-q', '-m', 'refactor(web): take the api file');
@@ -306,7 +310,9 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   rmSync(join(box.web, 'web', 'stray.txt'));
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project; gate green in \d+s/);
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
+  assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');
+  assert.match(submitted.out, /pinned as refs\/pullboard\/items\/1\/[0-9a-f]{12}/u);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
@@ -324,7 +330,7 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   try {
     const submitted = launch(projectBox, projectBox.web, process.execPath, [BIN, 'submit', '1']);
     children.push(submitted);
-    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource');
+    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource', 40_000); // budget: measured submit prep took 18 s under load; ceiling is a hang bound
     const competitor = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
     children.push(competitor);
     await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit');
@@ -484,16 +490,18 @@ test('a second tour replaces the first demo and links nothing to the relay [N10]
   assert.deepEqual(state.approvals, [], 'no relay link request or approval was made for either demo');
 });
 
-test('the tour finishes when an agent session runs it [N10]', () => {
+test('the tour finishes when an agent session runs it [N10]', async () => {
   // A caller in Claude Code or Codex runs the tour; the scripted seats must not inherit the caller's session, so the
   // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
-  for (const [name, value] of [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']]) {
+  const runs = [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']].map(([name, value]) => {
     const box = sandbox();
     const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value };
     delete callerEnv.PULLBOARD_MODEL;
     delete callerEnv.NO_COLOR;
     delete callerEnv.FORCE_COLOR;
-    const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv, encoding: 'utf8' });
+    return { name, value, shown: runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv }) };
+  });
+  for (const { name, value, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
     assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
     assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
     assert.match(shown.stdout, /verified #1: CRITERION_MET/);
