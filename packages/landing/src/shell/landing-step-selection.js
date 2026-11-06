@@ -53,7 +53,9 @@ export function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [] } = {}) {
+  // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
+  const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
@@ -70,6 +72,12 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
       if (!failed.has(left.item_id)) return -1;
       if (!failed.has(right.item_id)) return 1;
       if (failed.get(left.item_id) !== failed.get(right.item_id)) return failed.get(left.item_id) - failed.get(right.item_id);
+    }
+    const leftPin = pinned.get(left.item_id), rightPin = pinned.get(right.item_id);
+    if (leftPin !== undefined || rightPin !== undefined) {
+      if (leftPin === undefined) return 1;
+      if (rightPin === undefined) return -1;
+      if (leftPin !== rightPin) return leftPin - rightPin;
     }
     const leftPriority = priorities.get(left.item_id);
     const rightPriority = priorities.get(right.item_id);
@@ -106,7 +114,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
-    if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
+    const waitsOn = dependencies.filter((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id));
+    // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
+    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
     const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {

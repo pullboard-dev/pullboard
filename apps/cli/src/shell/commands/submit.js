@@ -571,11 +571,16 @@ export async function submitHere(ctx, id, infra) {
     .map(item => { const baseline = itemCheckBaseline(board, item); return baseline ? { ...item, item_check_baseline: baseline } : item; }));
   if (criterionCases && !criterionMatched) {
     try {
-      const mainRed = mainRedCheckCases(root, criterionCases, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, criterionCases, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        criterionMatched = { main: mainFailureBase, failures: criterionCases };
-        criterionMainRed = mainRed.owned;
-        criterionProblem = '';
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          criterionMatched = { main: mainFailureBase, failures: criterionCases };
+          criterionMainRed = mainRed.owned;
+          criterionKnown = linked;
+          criterionProblem = '';
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red frozen check. */ }
   }
@@ -638,10 +643,15 @@ export async function submitHere(ctx, id, infra) {
   let proofMainRed = [];
   if (failures && mainFailureBase && !proofMatched && !companion) {
     try {
-      const mainRed = mainRedCheckCases(root, failures, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        proofMatched = { main: mainFailureBase, failures };
-        proofMainRed = mainRed.owned;
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          proofMatched = { main: mainFailureBase, failures };
+          proofMainRed = mainRed.owned;
+          proofKnown = linked;
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }

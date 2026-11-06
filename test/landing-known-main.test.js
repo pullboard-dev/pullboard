@@ -170,6 +170,7 @@ test('a per-item landing red only in a case red on main reruns it at base main a
   box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
   assert.equal(result.error, null, JSON.stringify(result.lines));
+  assert.ok(!result.lines.some(line => line.startsWith('main comparison unavailable')), `main is compared, not refused a slot: ${JSON.stringify(result.lines)}`);
   assert.ok(result.merged, `the item lands: ${JSON.stringify(result.lines)}`);
   assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
   assert.ok(!(result.batch.culprits ?? []).length, 'no culprit is recorded');
