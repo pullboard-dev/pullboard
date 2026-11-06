@@ -161,7 +161,7 @@ test('foreign changes before claiming and cross-lane renames cannot hide from su
 
 test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', () => {
   const box = project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Exact check', '--specs', 'G1', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Exact check', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
@@ -184,7 +184,7 @@ test('accept reruns the frozen check at the submission even when the reviewer re
 
 test('accept independently refuses a historically unchecked foreign submission [L3,M3]', () => {
   const box = project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Foreign receipt', '--specs', 'G1', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Foreign receipt', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized');
   const commit = attackCommit(box, box.web);
@@ -201,7 +201,7 @@ test('accept independently refuses a historically unchecked foreign submission [
 
 test('replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3]', () => {
   const box = project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Replacement probe', '--specs', 'G1', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Replacement probe', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   writeFileSync(join(box.web, 'coordinator.txt'), 'underlying unauthorized object');
