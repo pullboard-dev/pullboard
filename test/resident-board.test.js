@@ -200,6 +200,26 @@ test('on a board our size, show, inbox, claim and next run through a warm reside
   assert.match(shown.stdout, /#1 {2}claimed core-1/u, 'the claim made through the resident process is on the board');
 });
 
+test('clause 1: pullboard heartbeat on a warm board costs under 0.2 s wall, from a client of under 20 modules [C7,#3250]', () => {
+  fx.awaitResident();
+  const warm = fx.runIn(fx.worktree, ['heartbeat'], { modules: true });
+  assert.equal(warm.status, 0, `${warm.stdout}${warm.stderr}`);
+  assert.ok(warm.loaded.length < 20, `heartbeat loaded ${warm.loaded.length} modules in the client: ${warm.loaded.join(', ')}`);
+  const ms = median(fx.worktree, ['heartbeat']);
+  assert.ok(ms < BUDGET_MS, `heartbeat took a median ${Math.round(ms)} ms through the warm resident process`); // budget: approved row H24 bar, every warm board command under 200 ms
+});
+
+test('clause 2: hook pre-commit does not load the gate run, runner, landing-service or flake graphs [C7,#3250]', () => {
+  const hook = readFileSync(join(fx.code, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
+  const topLevel = hook.split('\n').filter(line => !line.startsWith(' ') || /^ {2}\w+,$/u.test(line)).join('\n');
+  for (const heavy of ['packages/runners/index.js', 'packages/flakes/index.js']) {
+    assert.ok(!topLevel.includes(heavy), `${heavy} is imported only inside the pre-push branch`);
+  }
+  for (const name of ['runGate', 'gateReport', 'runnerExecutionServices', 'landingExecutionServices', 'quarantineWaivers']) {
+    assert.ok(!new RegExp(`^(?:import \\{ ${name}\\b|  ${name},$)`, 'mu').test(hook), `${name} is not a static import of the hook module`);
+  }
+});
+
 test('the resident process holds the board open: reads reuse its connection, and concurrent commands each own one [H24]', async () => {
   fx.awaitResident();
   fx.runIn(fx.repo, ['show', '2']);
