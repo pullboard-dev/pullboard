@@ -232,7 +232,7 @@ function repoWithGate(gate, check = '') {
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   assert.equal(run('claim', '1').status, 0);
   // Submissions need their own committed delta; main itself is not an item change.
-  git('switch', '-q', '-c', 'gate-item');
+  git('switch', '-q', '-c', 'coordinator/item-1');
   writeFileSync(join(repo, 'WORK'), 'item change\n');
   git('add', 'WORK');
   git('commit', '-q', '-m', 'chore: make the fixture item change');
