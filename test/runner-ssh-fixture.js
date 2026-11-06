@@ -83,14 +83,21 @@ if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.
 if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {
-    let frame = Buffer.alloc(0);
+    // stdin carries the tooling capsule record, then the work frame record; keep each for an exact replay.
+    let frame = Buffer.alloc(0), capsule = null;
     process.stdin.on('data', part => {
       frame = Buffer.concat([frame, part]);
-      const newline = frame.indexOf(10);
-      if (newline < 0) return;
-      const size = Number(frame.subarray(0,newline).toString('ascii'));
-      if (!Number.isSafeInteger(size) || size < 1 || size > 1048576) process.exit(255);
-      if (frame.length >= newline+1+size) { writeFileSync(${JSON.stringify(deferredFrame)},frame.subarray(0,newline+1+size)); resolve(); }
+      for (;;) {
+        const newline = frame.indexOf(10);
+        if (newline < 0) return;
+        const size = Number(frame.subarray(0,newline).toString('ascii'));
+        if (!Number.isSafeInteger(size) || size < 1 || size > (capsule ? 1048576 : 4194304)) process.exit(255);
+        if (frame.length < newline+1+size) return;
+        const record = frame.subarray(0,newline+1+size);
+        frame = frame.subarray(newline+1+size);
+        if (!capsule) { capsule = record; writeFileSync(${JSON.stringify(deferFirstWorker)} + '.capsule', capsule); continue; }
+        writeFileSync(${JSON.stringify(deferredFrame)},record); resolve(); return;
+      }
     });
     process.stdin.resume();
   });
@@ -131,9 +138,21 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
     }
   });
 ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
-    child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    // Forward the tooling capsule record unchanged, then replace the work frame with an invalid one.
+    let buffered = Buffer.alloc(0), forwarded = false;
+    process.stdin.on('data', part => {
+      if (forwarded) return;
+      buffered = Buffer.concat([buffered, part]);
+      const newline = buffered.indexOf(10);
+      if (newline < 0) return;
+      const size = Number(buffered.subarray(0, newline).toString('ascii'));
+      if (buffered.length < newline + 1 + size) return;
+      forwarded = true;
+      child.stdin.write(buffered.subarray(0, newline + 1 + size));
+      child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    });
     process.stdin.resume();
-  } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
+  } else process.stdin.pipe(child.stdin); // Health and registration probes carry their capsule on stdin too.` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);

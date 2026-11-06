@@ -4,6 +4,7 @@ export { runtimeUrls } from "./src/core/runner-runtime-urls.js";
 export { sampleRunnerLoad, localRunnerDescriptor } from "./src/shell/runner-load.js";
 export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk } from "./src/shell/runner-policy.js";
 export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/shell/runner-overhead.js";
+export { runnerPublicKeyProblem, runnerSigningKeyPath, readRunnerSigningKey, runnerReceiptPayload, signRunnerReceipt, verifyRunnerReceipt } from "./src/core/runner-signature.js";
 export { probeRunnerTransport, claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker, recordRunnerCompletion, runnerJobReply, runnerHealthReply, recordRunnerOwner, runnerWorkerMatcher, runnerProcessesIdle, runnerIdleReply } from "./src/shell/runner-transport.js";
 export { SOURCE_CACHE_CANDIDATES, pinSourceCacheJob, pruneSourceCache, restoreSourceTree, rememberSourceTree, checkSourceTagNames } from "./src/shell/runner-source-cache.js";
 export { runnerDeadlineRuns } from "./src/shell/runner-wait.js";
@@ -17,7 +18,7 @@ export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protect
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
 export { requestFor } from "./src/shell/runner-request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
-export { pinRunnerTooling, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerCommand } from "./src/shell/runner-remote-tooling.js";
+export { pinRunnerTooling, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
 export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";

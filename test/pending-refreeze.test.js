@@ -104,7 +104,7 @@ test("the coordinator corrects a claimed item's criterion without release [V2]",
   assert.equal(JSON.parse(finalItem.item_frozen).criterion, 'the corrected criterion');
   assert.equal(finalItem.item_commit, box.git(box.web, 'rev-parse', 'HEAD'));
 
-  const checkAdd = box.run(box.repo, 'add', 'web', 'Correct only a check', '--specs', 'G1', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
+  const checkAdd = box.run(box.repo, 'add', 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
   assert.equal(checkAdd.code, 0, checkAdd.err || checkAdd.out);
   const checkId = JSON.parse(checkAdd.out).item.item_id;
   const checkClaim = box.run(box.web, 'claim', String(checkId), '--json');
@@ -133,8 +133,9 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
-  const add = (title) => {
-    const result = box.run(box.repo, 'add', 'web', title, '--criterion', title, '--json');
+  const add = (title, route = 'mid') => {
+    const result = box.run(box.repo, 'add', 'web', title, '--route', route, '--criterion', title,
+      '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;
   };
@@ -166,6 +167,9 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.equal(store.getItem(board, second).item_after, '', 'a refused cycle leaves the edge unchanged');
 
   const claimed = add('Claimed dependency target');
+  const diagnosis = box.run(box.repo, 'fact', String(claimed), 'diagnosis',
+    'Files: web/dependencies.js Change: correct dependency edges without changing the frozen bar Test case: edit adds and clears an item\'s dependencies');
+  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
   const claim = box.run(box.web, 'claim', String(claimed), '--json');
   assert.equal(claim.code, 0, claim.err || claim.out);
   const beforeCorrection = store.getItem(board, claimed);
@@ -189,7 +193,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   assert.equal(clearClaimed.code, 0, clearClaimed.err || clearClaimed.out);
   assert.deepEqual(store.pendingRefreeze(board, claimed), []);
   const renewed = box.run(box.web, 'claim', String(claimed), '--json');
-  assert.equal(renewed.code, 0, renewed.err || renewed.out);
+  assert.equal(renewed.code, 0, `${renewed.out}\n${renewed.err}`);
   assert.equal(store.getItem(board, claimed).item_status, 'claimed');
   assert.equal(store.getItem(board, claimed).item_owner, beforeCorrection.item_owner);
 });
