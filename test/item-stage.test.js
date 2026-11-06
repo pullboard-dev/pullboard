@@ -12,7 +12,7 @@ function handoff(board, id, job) {
     .run(`submit_handoff:${id}`, JSON.stringify({ commit: 'a'.repeat(40), agentId: 'web-1', digest: 'stage-fixture', ...job }));
 }
 
-test('clause 1: show, list and the board read name building, in the gate, back with builder, in review, accepted and landed', t => {
+test('clause 1: show, list and the board read name building, in the gate, back with builder, in review, accepted and landed [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [building, gated, running, red, review, accepted, landed] = ['b', 'g', 'r', 'x', 'v', 'a', 'l'].map(make);
@@ -34,7 +34,7 @@ test('clause 1: show, list and the board read name building, in the gate, back w
   }
 });
 
-test('clause 2: status counts items per stage, not per raw status', t => {
+test('clause 2: status counts items per stage, not per raw status [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [a, b, c] = ['a', 'b', 'c'].map(make);
