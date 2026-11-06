@@ -26,7 +26,7 @@ function scratch() {
   return { box, id };
 }
 
-test('clause 1: every pullboard run appends one trace line with who, where, what, outcome and refusal', () => {
+test('clause 1: every pullboard run appends one trace line with who, where, what, outcome and refusal [C7]', () => {
   const { box, id } = scratch();
   const before = existsCount(box.repo);
   assert.equal(box.run(box.web, 'show', String(id), '--json').code, 0);
@@ -62,7 +62,7 @@ function existsCount(repo) {
   try { return traceLines(repo).length; } catch { return 0; }
 }
 
-test('clause 2: an unwritable trace folder keeps the command exit code and the append costs under 5 ms', () => {
+test('clause 2: an unwritable trace folder keeps the command exit code and the append costs under 5 ms [C7]', () => {
   const { box, id } = scratch();
   // A plain file where the trace folder belongs makes every append fail, as an unwritable folder does.
   const trace = join(box.repo, '.git', 'pullboard', 'trace');
