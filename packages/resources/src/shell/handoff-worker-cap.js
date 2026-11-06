@@ -38,24 +38,61 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
 
 /**
- * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
- * one worker per five registered runner slots, or to every runner slot when gate.runnersOnly is on. Why: a handoff
- * worker mostly waits on a remote runner, so on 3 Nov a cap of 4 left 69 submits queued while 42 of 54 runner
- * slots sat idle, and on 4 Nov 51-60 gates queued behind 12 workers while 63 runner slots existed.
+ * Count of handoff workers allowed at once, with where the number came from: the override when set, else the cores up
+ * to a default of 4, raised to one worker per five registered runner slots, or to every runner slot when
+ * gate.runnersOnly is on. Why: a handoff worker mostly waits on a remote runner, so on 3 Nov a cap of 4 left 69
+ * submits queued while 42 of 54 runner slots sat idle, and on 4 Nov 51-60 gates queued behind 12 workers while 63
+ * runner slots existed.
  *
  * @param {{ env?: object, cores?: number, runnerSlots?: number, runnersOnly?: boolean }} [options] - Environment, core count, total registered runner slots and whether checks run only on runners.
- * @returns {number} A positive whole number.
+ * @returns {{ cap: number, source: string }} A positive whole number and its origin, for the status line.
  */
-export function handoffWorkerCapacity({ env = process.env, cores = availableParallelism(), runnerSlots = 0, runnersOnly = false } = {}) {
+export function handoffWorkerCapacityDetail({ env = process.env, cores = availableParallelism(), runnerSlots = 0, runnersOnly = false } = {}) {
   const raw = env[HANDOFF_WORKER_CAP_ENV];
   if (raw !== undefined && raw !== '') {
     const value = Number(raw);
     if (!Number.isSafeInteger(value) || value < 1) throw new Refused('BAD_HANDOFF_WORKER_CAP', `${HANDOFF_WORKER_CAP_ENV} must be a whole number of 1 or more; unset it for the default`);
-    return value;
+    return { cap: value, source: `${HANDOFF_WORKER_CAP_ENV} override` };
   }
   const local = Math.max(1, Math.min(4, cores));
-  if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return local;
-  return Math.max(local, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5));
+  if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return { cap: local, source: `local cores (${cores})` };
+  const shared = runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5);
+  if (shared > local) return { cap: shared, source: runnersOnly ? `every runner slot (${runnerSlots}, gate.runnersOnly)` : `one per five runner slots (${runnerSlots})` };
+  return { cap: local, source: `local cores (${cores})` };
+}
+
+/** Count of handoff workers allowed at once; see handoffWorkerCapacityDetail for the rule and its origin. */
+export function handoffWorkerCapacity(options = {}) { return handoffWorkerCapacityDetail(options).cap; }
+
+/** The file in which the running dispatcher records its live cap and where it came from. */
+function handoffCapFile() { return join(handoffQueueDirectory(), 'worker-cap.json'); }
+
+/**
+ * Record the dispatcher's live cap and source for pullboard status; written only when it changes. Why: on 6 Nov
+ * a dispatcher ran for six hours on a cap inherited from a seat's environment and nothing showed it.
+ *
+ * @param {{ cap: number, source: string }} detail - The cap and its origin.
+ * @param {number} [pid] - The dispatcher process.
+ */
+export function recordHandoffCap(detail, pid = process.pid) {
+  try {
+    const file = handoffCapFile();
+    try { const last = JSON.parse(readFileSync(file, 'utf8')); if (last.cap === detail.cap && last.source === detail.source && last.pid === pid) return; } catch { /* no usable record yet */ }
+    mkdirSync(handoffQueueDirectory(), { recursive: true, mode: 0o700 });
+    writeFileSync(file, JSON.stringify({ version: 1, cap: detail.cap, source: detail.source, pid, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+  } catch { /* a status record never stops the dispatcher */ }
+}
+
+/**
+ * The status line for the dispatcher's recorded worker cap, or null when none has run.
+ *
+ * @returns {string | null} For example `handoff workers: cap 66 (every runner slot (66, gate.runnersOnly))`.
+ */
+export function handoffCapLine() {
+  try {
+    const recorded = JSON.parse(readFileSync(handoffCapFile(), 'utf8'));
+    return Number.isSafeInteger(recorded.cap) ? `handoff workers: cap ${recorded.cap} (${recorded.source})` : null;
+  } catch { return null; }
 }
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
