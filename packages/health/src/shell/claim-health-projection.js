@@ -12,10 +12,10 @@ export function claimHealthProjection(snapshot) {
   }]));
 }
 
-/** Capture claim health using status's release blockers, seat evidence and observation time. */
-export function claimHealthSnapshot(board, config, now = board.clock.now()) {
+/** Capture claim health using status's release blockers, seat evidence and observation time; `options.workObservation` supplies actual work evidence. */
+export function claimHealthSnapshot(board, config, now = board.clock.now(), options = {}) {
   const blockers = releaseBlockingItems(board);
   return claimHealthProjection(staleStateSnapshot(board, config, {
-    now, blocker: item => blockers.has(item.item_id) ? true : null,
+    ...options, now, blocker: item => blockers.has(item.item_id) ? true : null,
   }));
 }
