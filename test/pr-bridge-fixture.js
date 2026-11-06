@@ -97,7 +97,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
     const id = JSON.parse(add.out).item.item_id;
     assert.equal(box.run(path, 'claim', String(id)).code, 0);
     const file = `web/${name}.js`;
-    assert.equal(box.commitFile(box, path, file, 'PASS\n', `feat(web): bridge ${name} [G1]`).status, 0);
+    assert.equal(box.commitFile(box, path, file, "export const result = 'PASS';\n", `feat(web): bridge ${name} [G1]`).status, 0);
     const commit = box.git(path, 'rev-parse', 'HEAD');
     const submitted = box.run(path, 'submit', String(id));
     assert.equal(submitted.code, 0, submitted.err);
@@ -220,7 +220,7 @@ export function landBridgeRepair(box, id, file, { independent = false } = {}) {
     '--check', 'test ! -f RED', '--brief', 'Change the named private web fixture and retain the linked finding.');
   assert.equal(edited.code, 0, edited.err);
   assert.equal(box.run(path, 'claim', String(id)).code, 0);
-  assert.equal(box.commitFile(box, path, file, 'PASS FIXED\n', 'fix(web): repair private CI finding [G1]').status, 0);
+  assert.equal(box.commitFile(box, path, file, "export const result = 'PASS FIXED';\n", 'fix(web): repair private CI finding [G1]').status, 0);
   const commit = box.git(path, 'rev-parse', 'HEAD');
   const submitted = box.run(path, 'submit', String(id));
   assert.equal(submitted.code, 0, submitted.err);
