@@ -74,10 +74,12 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
-      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--json'));
+      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json'));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
+    run(box, root, 'fact', String(id), 'diagnosis', `Files: ${file} Change: build the queued landing fixture file Test case: a suspended landing owner is fenced before the queued adopter runs`);
     run(box, root, 'claim', String(id));
     if (number === 2 && staleAfterFirst) {
       // The first-to-land item changes the lower id's checked path on an independent branch.
@@ -312,7 +314,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
   children.push(first);
-  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate');
+  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate', 60_000); // budget: ceiling for a loaded runner starting the first landing CLI; no speed target.
   assert.ok(existsSync(entered), first.failure ?? first.stderrText);
   const firstBatch = readBoard(box, board => store.landingBatches(board).at(-1));
   assert.equal(firstBatch.state, 'gating');
