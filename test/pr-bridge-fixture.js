@@ -81,7 +81,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
     const path = index === 0 ? box.web : join(box.dir, 'web-two');
     if (index) {
       box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', path, 'main');
-      assert.equal(box.run(path, 'join', 'web').code, 0);
+      assert.equal(box.run(path, 'join', 'web', '--model', 'fixture-model').code, 0);
     }
     if (independent) {
       const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -91,7 +91,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
       } finally { store.closeBoard(board); }
     }
     const add = box.run(box.repo, 'add', 'web', `private bridge ${name}`, '--specs', 'G1',
-      '--criterion', `private ${name} remains correct`, '--check', 'test ! -f RED',
+      '--criterion', `private ${name} remains correct`, '--check', 'test ! -f RED', '--route', 'strong',
       ...(briefs[index] === undefined ? [] : ['--brief', briefs[index]]), '--json');
     assert.equal(add.code, 0, add.err);
     const id = JSON.parse(add.out).item.item_id;
@@ -210,7 +210,7 @@ export async function bridgeProvider(t, box) {
 export function landBridgeRepair(box, id, file, { independent = false } = {}) {
   const path = join(box.dir, `repair-${id}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/repair-${id}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
+  assert.equal(box.run(path, 'join', 'web', '--model', 'fixture-model').code, 0);
   if (independent) {
     const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try { store.register(board, { lane: 'web', path, parent: 'fixture-pr-repair-builder' }); }

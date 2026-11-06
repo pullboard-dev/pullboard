@@ -174,10 +174,12 @@ test('publication modes are opt-in and invalid values refuse before a push [B3,R
   for (const mode of [false, 'release', 'item']) {
     assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: mode } })).publish.pullRequest, mode);
   }
-  for (const value of [true, 'auto-merge', null, { pullRequest: 'release', merge: true }]) {
+  for (const value of [true, 'auto-merge', null]) {
     const publish = value && typeof value === 'object' ? value : { pullRequest: value };
     assert.throws(() => configFromSource(JSON.stringify({ publish })), { code: 'BAD_CONFIG' });
   }
+  // An unknown publish key is ignored with a note, not refused, since the forward-compatible reader of N26 landed (21798c7218 lineage).
+  assert.equal(configFromSource(JSON.stringify({ publish: { pullRequest: 'release', merge: true } })).publish.pullRequest, 'release');
 });
 
 test('CI findings preserve the merged item and create one linked repair, then update the same PR [B2,R3]', async t => {
