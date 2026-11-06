@@ -1,5 +1,6 @@
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
+import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
@@ -54,9 +55,16 @@ export function register(board, who) {
         );
       }
       const locked = saveJoinedSession(board, existing.agent_id, who);
-      if (family !== undefined && family !== reviewRouting.seatFamily(board, existing.agent_id) && !locked) {
+      const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
+      const storedBlank = typeof stored !== 'string' || stored.trim() === '';
+      // The stored column is compared, not the derived value: a seat whose session already derived this family still
+      // gets the column written, so a join that names it is never a silent no-op (#2889).
+      if (family !== undefined && !locked && family !== reviewRouting.seatFamily(board, existing.agent_id)) {
         board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
         logEvent(board, existing.agent_id, 'family', null, { family });
+      } else if (locked && storedBlank && typeof family === 'string' && family.trim() !== '' && engine >= FAMILY_DECLARE_ENGINE) {
+        // The session already derived this vendor (saveJoinedSession refused any other); record it on the seat row too.
+        board.db.prepare('UPDATE agent SET agent_family = ? WHERE agent_id = ?').run(family, existing.agent_id);
       }
       if (model !== undefined && model !== existing.agent_model) {
         saveAgentModel(board, existing.agent_id, model);
@@ -75,9 +83,10 @@ export function register(board, who) {
     }
     const id = lane === COORDINATOR ? COORDINATOR
       : engine < VERIFIER_STANDING_ENGINE ? `${lane}-${total + 1}` : newSeatId(board, lane, total, named);
+    // Delivery cursors are local-only; a new inbox starts at this join's current shout high-water mark.
     board.db
       .prepare(
-        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at, agent_last_shout_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(shout_id), 0) FROM shout))',
       )
       .run(id, lane, path, route, family ?? null, now(board));
     const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });

@@ -12,7 +12,7 @@ import { anonymousOrigin } from './runner-history-pack.js';
 import { candidateTags } from './runner-history-pack.js';
 import { originAncestor } from './runner-history-pack.js';
 import { validRunnerTrunk } from './runner-policy.js';
-import { remoteWorkerCommand } from './runner-remote-tooling.js';
+import { remoteWorkerLaunch } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { protectHistory } from './runner-source-scan.js';
@@ -79,6 +79,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : landing ? 'land' : 'focused';
     const id = randomUUID();
     const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
+      ...(runner.publicKey ? { runnerPublicKey: runner.publicKey } : {}),
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
       ...(artifact ? { analysisArtifact: artifact.descriptor } : {}),
@@ -103,11 +104,11 @@ export async function requestFor(root, command, { runner, source, browser = fals
       encodedSpec = Buffer.from(JSON.stringify(spec));
     }
     if (encodedSpec.length > 1024 ** 2) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling request exceeds its safe transfer limit; keep this run local');
-    const remote = remoteWorkerCommand(runner, worker, tooling, runtime, '', spec.recovery);
+    const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime, '', spec.recovery);
     // These are transport hang ceilings, independent of the command's execution budget.
     return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
-      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
+      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([capsule, Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

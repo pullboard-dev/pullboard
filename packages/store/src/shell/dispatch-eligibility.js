@@ -1,5 +1,6 @@
 import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
+import { heldClaim } from "./held-claim.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -17,7 +18,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
-  const claim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === agentId);
+  const claim = heldClaim(board, agentId);
   if (claim) return { item: claim, review: false, held: true, reasons: [] };
 
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
@@ -31,5 +32,5 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
   const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles },
     releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
-  return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
+  return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { skips: [...(review.skips ?? []), ...(build.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3), idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }

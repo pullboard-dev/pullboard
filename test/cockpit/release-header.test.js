@@ -30,7 +30,7 @@ test('Dashboard and Roadmap share the approved release headline at desktop and p
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--items', '1,2,3,4,5', '--reason', 'the fixture places its own items');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-release-header-'));
   let chrome;
   try {

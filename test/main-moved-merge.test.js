@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/engine.js src/source-advance-engine.js src/landing-resource.js */
+/** @pullboard-test-loads src/engine.js src/source-advance-engine.js packages/landing/index.js */
 /** Actual automatic main movement retains assurance only after real nondeferred checks [C7,V4,H16]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
@@ -217,7 +217,7 @@ for (const red of [false, true]) test(`an in-flight ${red ? 'red return' : 'gree
   const box = await mainMovedFixture(t, { blocked: true, red });
   box.trigger();
   await observeCompletion(() => existsSync(box.gateEntered), 'the actual source-advance test body starts');
-  const { takeLandingResource } = await import(pathToFileURL(join(box.installed, 'src/landing-resource.js')));
+  const { takeLandingResource } = await import(pathToFileURL(join(box.installed, 'packages/landing/index.js')));
   // @pullboard-board-file journey: hold a real private landing lease while the separate source worker completes its real gate.
   const board = box.store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
   let lease;

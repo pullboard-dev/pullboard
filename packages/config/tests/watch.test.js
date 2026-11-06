@@ -74,7 +74,7 @@ function project() {
   const configFile = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', practice: 'DOCTRINE.md',
-    landing: { manualOverride: true },
+    landing: { perItem: false, manualOverride: true },
     lanes: { app: { owns: ['app/'], specs: ['G1'] }, docs: { owns: ['docs/'], specs: ['G1'] } }, shared: [] }, null, 2) + '\n');
   writeFileSync(join(root, 'SPEC.md'), '# Watch fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
   writeFileSync(join(root, 'DOCTRINE.md'), '');
@@ -286,7 +286,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   });
   const box = project();
   const builder = box.cli(box.root, 'worktree', 'app', '--model', 'watch-builder');
-  const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--wait').item;
+  const waiting = box.cli(box.root, 'add', 'app', 'Waits on another item', '--criterion', 'waits', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/waiting.txt\nChange: exercise waiting work in the watch fixture.\nTest: observe the claimable and rejection notices.\nOut of scope: product behavior.', '--wait').item;
   box.cli(box.root, 'check', 'accept', String(waiting.item_id)); // #728 holds a check already green on main until the person accepts it.
   const before = events(box).length;
   const watch = startWatch(box, ['--json', '--work', 'app', '--review-wait', '0.02']);
@@ -295,7 +296,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(watch.out.lines.length, 0, 'work already claimable when watch starts is its baseline, so it prints nothing');
 
   // A newly opened item in the lane is claimable.
-  const added = box.cli(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--wait').item;
+  const added = box.cli(box.root, 'add', 'app', 'Fresh app work', '--criterion', 'claimable', '--specs', 'G1', '--check', 'true', '--route', 'strong',
+    '--brief', 'Files: app/work.txt\nChange: exercise fresh work in the watch fixture.\nTest: observe the claimable and review-wait notices.\nOut of scope: product behavior.', '--wait').item;
   const notice = JSON.parse((await watch.line((line) => JSON.parse(line).kind === 'claimable', 5_000, 'claimable notice')).line); // budget: hang ceiling for one line, not a latency claim.
   assert.equal(notice.item, added.item_id);
   assert.equal(notice.notice, true);
@@ -304,7 +306,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(noticed.item_id, added.item_id, 'the notice follows its new item');
   assert.ok(['add', 'check-baseline'].includes(noticed.event_kind), 'the notice follows the add or its actual baseline observation');
   assert.equal(added.item_check_baseline.result, 'green', 'the baseline is finished before later move assertions');
-  const blocked = box.cli(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id)).item;
+  const blocked = box.cli(box.root, 'add', 'app', 'Waits for the fresh work', '--criterion', 'after', '--specs', 'G1', '--after', String(added.item_id), '--route', 'strong',
+    '--brief', 'Files: app/after.txt\nChange: exercise a dependency-blocked item in the watch fixture.\nTest: observe the item becoming claimable after acceptance.\nOut of scope: product behavior.').item;
 
   // A released claim makes the item claimable again.
   box.cli(builder.path, 'claim', String(waiting.item_id));
@@ -363,7 +366,10 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   await watch.line((line) => JSON.parse(line).sequence === submissionObserved && JSON.parse(line).kind === 'reserve',
     5_000, 'event after the submit work check'); // budget: hang ceiling for an exact event, not a latency claim.
   box.cli(reviewer, 'verify', String(waiting.item_id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', 'waits', '--note', 'the fixture sends it back');
-  const rejectSequence = lastSequence(box);
+  // Rejection can immediately create a later escalation, so match the reject's own event id.
+  const rejectEvent = events(box).findLast((event) => event.event_kind === 'reject' && event.item_id === waiting.item_id);
+  assert.ok(rejectEvent, 'the reviewer rejection was recorded');
+  const rejectSequence = rejectEvent.event_id;
   await watch.line((line) => JSON.parse(line).kind === 'reject' && JSON.parse(line).sequence === rejectSequence, 5_000, 'reject line'); // budget: hang ceiling for one line, not a latency claim.
   const again = await watch.line((line) => JSON.parse(line).kind === 'claimable' && JSON.parse(line).item === waiting.item_id
     && JSON.parse(line).sequence >= submissionObserved && JSON.parse(line).sequence <= rejectSequence,
@@ -385,11 +391,12 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
   const observations = new Set(['fact', 'usage', 'activity-delivered']);
+  // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'add', 'milestone_placed', 'claim', 'check_accept', 'release',
     'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
-    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject',
-  ], 'only the explicit moves, native placements, baseline and submit proofs were recorded');
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
+  ], 'only the explicit moves, rejection escalation, native placements, baseline and submit proofs were recorded');
   const facts = recorded.filter(event => event.event_kind === 'fact');
   assert.equal(facts.length, 4, 'each submission records exactly pending and completed comparison facts');
   for (const [item, source] of [[added.item_id, firstCommit], [waiting.item_id, secondCommit]]) {

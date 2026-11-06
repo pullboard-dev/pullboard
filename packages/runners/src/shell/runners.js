@@ -9,7 +9,6 @@ import { pinRunnerTooling } from './runner-remote-tooling.js';
 import { runOnRunner } from './runner-dispatch.js';
 import { runOnRunnerAsync as runOnRunnerAsyncStep } from './runner-dispatch.js';
 import { serveRunnerController as serveRunnerControllerStep } from './runner-dispatch.js';
-import { refuseLegacyControllerEntry } from './runner-dispatch.js';
 import { probeRunnerHealth as probeRunnerHealthStep } from './runner-health.js';
 import { probeRunnerJob as probeRunnerJobStep } from './runner-health.js';
 import { runnerExecutionServices as runnerExecutionServicesStep } from './runner-health.js';
@@ -44,4 +43,3 @@ export function runnerExecutionServices() {
   return runnerExecutionServicesStep({ runOnRunner, runOnRunnerAsync, probeRunnerHealth });
 }
 
-refuseLegacyControllerEntry(new URL('../../../../src/runners.js', import.meta.url));

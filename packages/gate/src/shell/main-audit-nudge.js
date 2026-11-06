@@ -3,16 +3,16 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { codeIsFromMain } from '../../../../src/git.js';
-import { gitChildEnv } from '../../../../src/git.js';
-import { repoInfo } from '../../../../src/git.js';
+import { codeIsFromMain } from '../../../git/index.js';
+import { git } from '../../../git/index.js';
+import { gitChildEnv } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
 import { mainAuditDirectory } from './main-audit-state.js';
 import { readMainAudit } from './main-audit-state.js';
 import {
   nudgeAcceptedCells,
   recordAcceptedCellsFailure,
 } from './accepted-cells-inventory.js';
-import { git } from '../../../git/index.js';
 
 /** Call only after foreground checkout/landing leases release; never await an audit or gate admission. */
 export async function nudgeMainAudit(root, workerUrl) {
@@ -36,4 +36,26 @@ export async function nudgeMainAudit(root, workerUrl) {
   await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
   child.unref();
   return child;
+}
+
+/**
+ * Whether an activated main checkout's tip differs from the last green audited tip.
+ *
+ * Why: a hand landing, a plain `merged` or a hotfix commit moves main with no landing command,
+ * so the sentinel sweep asks this and nudges the audit whatever moved main [C7].
+ */
+export function mainMovedSinceAudit(root) {
+  let info;
+  try { info = repoInfo(root); } catch { return false; } // Outside a repository there is no main to audit.
+  if (!info.isMain) return false;
+  const directory = mainAuditDirectory(info);
+  try { if (!readMainAudit(join(directory, 'activation.json'))) return false; }
+  catch { return true; } // Unreadable state goes to the worker, which records its own diagnosis.
+  let tip;
+  try { tip = git(info.root, ['rev-parse', '--verify', '-q', 'refs/heads/main^{commit}']); }
+  catch { return false; } // No main branch: nothing to audit.
+  let last;
+  try { last = readMainAudit(join(directory, 'last-green.json'))?.tip; }
+  catch { last = null; } // A malformed record never counts as audited.
+  return Boolean(tip) && tip !== last;
 }

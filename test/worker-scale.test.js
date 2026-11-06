@@ -28,7 +28,7 @@ function simulatedBoard({ budget, cycleHours = 0.5, worth = () => null, outside 
   const sim = { reviews: 0, builds: 0, seats: new Map(), next: 1, used: 0, log: [], outside };
   if (outside) sim.seats.set(outside.id, { managed: false, holding: true });
   sim.ports = {
-    observe: () => ({ budget, usedHours: sim.used, cycleHours, worth: worth(sim), reviews: sim.reviews, builds: sim.builds,
+    observe: () => ({ budget, usedHours: sim.used, cycleHours, hoursLeft: cycleHours, worth: worth(sim), reviews: sim.reviews, builds: sim.builds,
       workers: [...sim.seats].map(([id, seat]) => ({ id, busy: seat.holding, managed: seat.managed })) }),
     isIdle: id => !sim.seats.get(id).holding,
     stop: id => {
@@ -93,17 +93,17 @@ test('an empty queue lowers the count with budget left, and K binds below the bu
 
 test('held seats and seats started elsewhere are never chosen to stop, and reviews are assigned first [B26,C7]', async () => {
   const budget = parseWorkerBudget('10/day');
-  const held = planWorkerScale({ budget, usedHours: 10, cycleHours: 1, worth: 0, reviews: 0, builds: 0,
+  const held = planWorkerScale({ budget, usedHours: 10, cycleHours: 1, hoursLeft: 1, worth: 0, reviews: 0, builds: 0,
     workers: [{ id: 'a', busy: true, managed: true }, { id: 'b', busy: false, managed: false }, { id: 'c', busy: false, managed: true }] });
   assert.equal(held.affordable, 0, 'a spent budget pays for no seat');
   assert.deepEqual(held.stop, ['c'], 'only the scaler\'s own idle seat stops; held and outside seats keep running');
   assert.equal(held.launch, 0);
-  const first = planWorkerScale({ budget, usedHours: 0, cycleHours: 1, worth: null, reviews: 2, builds: 5, workers: [] });
-  assert.deepEqual(first.assign, { review: 2, build: 5 }, 'every waiting item gets a seat when the budget allows');
-  const tight = planWorkerScale({ budget: parseWorkerBudget('3/day'), usedHours: 0, cycleHours: 1, worth: null, reviews: 2, builds: 5, workers: [] });
+  const first = planWorkerScale({ budget, usedHours: 0, cycleHours: 1, hoursLeft: 1, worth: null, reviews: 2, builds: 5, workers: [] });
+  assert.deepEqual(first.assign, { review: 2, build: 2 }, 'unknown worth caps the fleet at four even when the budget pays for more');
+  const tight = planWorkerScale({ budget: parseWorkerBudget('3/day'), usedHours: 0, cycleHours: 1, hoursLeft: 1, worth: null, reviews: 2, builds: 5, workers: [] });
   assert.deepEqual(tight.assign, { review: 2, build: 1 }, 'with three affordable seats the waiting reviews are assigned before builds');
-  assert.equal(first.worthKnown, false, 'an unknown K is labelled, and the waiting work stands in for it');
-  const late = await scaleCycle({ observe: () => ({ budget, usedHours: 10, cycleHours: 1, worth: 0, reviews: 0, builds: 0, workers: [{ id: 'w9', busy: false, managed: true }] }),
+  assert.equal(first.worthKnown, false, 'an unknown K is labelled and capped at four');
+  const late = await scaleCycle({ observe: () => ({ budget, usedHours: 10, cycleHours: 1, hoursLeft: 1, worth: 0, reviews: 0, builds: 0, workers: [{ id: 'w9', busy: false, managed: true }] }),
     isIdle: () => false, stop: () => assert.fail('a seat that took work after the observation was stopped'), launch: () => assert.fail('nothing to launch') });
   assert.deepEqual(late.stopped, [], 'the re-check just before stopping keeps a seat that took work');
   assert.throws(() => parseWorkerBudget('4'), /seat-hours per day or week/u, 'a bare seat count is not a budget');
@@ -125,7 +125,7 @@ test('counterexample: an unobserved hour with one held seat spends a 1/day budge
   write({ window: 'day', start: DAY, usedHours: 0, sampledAt: at(12), seats: ['held'], spent: null });
   const used = ledger.record('day', at(13), ['held']);
   assert.equal(used.usedHours, 1, 'the full unobserved hour is charged for the seat live at both ends, never capped at two cycles');
-  const plan = planWorkerScale({ budget: parseWorkerBudget('1/day'), usedHours: used.usedHours, cycleHours: 1 / 60, worth: null,
+  const plan = planWorkerScale({ budget: parseWorkerBudget('1/day'), usedHours: used.usedHours, cycleHours: 1 / 60, hoursLeft: 1 / 60, worth: null,
     reviews: 1, builds: 2, workers: [{ id: 'held', busy: true, managed: false }] });
   assert.equal(plan.leftHours, 0);
   assert.equal(plan.launch, 0, 'a spent budget launches no new seat');
@@ -165,7 +165,7 @@ test('a clock that moves backwards treats the budget as spent for the window and
   assert.equal(back.usedHours, Infinity);
   assert.match(back.spent, /clock moved backwards/u);
   assert.equal(ledger.record('day', at(15), ['a']).usedHours, Infinity, 'the window stays spent after the clock recovers');
-  const plan = planWorkerScale({ budget: parseWorkerBudget('100/day'), usedHours: back.usedHours, spent: back.spent, cycleHours: 1, worth: 5, reviews: 3, builds: 3, workers: [] });
+  const plan = planWorkerScale({ budget: parseWorkerBudget('100/day'), usedHours: back.usedHours, spent: back.spent, cycleHours: 1, hoursLeft: 1, worth: 5, reviews: 3, builds: 3, workers: [] });
   assert.equal(plan.launch, 0, 'nothing launches in a spent window');
   assert.equal(ledger.record('day', at(25), ['a']).spent, null, 'the next day starts clean');
   const across = ledgerFixture(t);
