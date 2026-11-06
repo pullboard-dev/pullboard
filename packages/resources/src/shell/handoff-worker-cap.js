@@ -37,6 +37,8 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 
 /** The environment variable that overrides the worker cap. */
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
+/** The most hand-off workers this machine runs at once, whatever the runner fleet offers. */
+export const DISPATCH_WORKER_BOUND = 12;
 
 /**
  * Count of handoff workers allowed at once, with where the number came from: the override when set, else the cores up
@@ -57,8 +59,10 @@ export function handoffWorkerCapacityDetail({ env = process.env, cores = availab
   }
   const local = Math.max(1, Math.min(4, cores));
   if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return { cap: local, source: `local cores (${cores})` };
-  const shared = runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5);
-  if (shared > local) return { cap: shared, source: runnersOnly ? `every runner slot (${runnerSlots}, gate.runnersOnly)` : `one per five runner slots (${runnerSlots})` };
+  // Each worker holds a Node process, a tool-tree copy and an SSH controller on this machine for its gate's whole run, so the cap is bounded whatever the runner count [C7].
+  const wanted = runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5);
+  const shared = Math.min(DISPATCH_WORKER_BOUND, wanted);
+  if (shared > local) return { cap: shared, source: (runnersOnly ? `every runner slot (${runnerSlots}, gate.runnersOnly)` : `one per five runner slots (${runnerSlots})`) + (shared < wanted ? `, bounded at ${DISPATCH_WORKER_BOUND}` : '') };
   return { cap: local, source: `local cores (${cores})` };
 }
 
