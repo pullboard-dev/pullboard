@@ -21,13 +21,9 @@ function idsOf(entries) {
  * @returns {object}
  */
 export function landWhy(board, now = new Date()) {
-  const latest = new Map();
-  for (const row of board.db.prepare("SELECT event_detail FROM event WHERE event_kind='landing_batch' ORDER BY event_id").all()) {
-    const { batch } = detailOf(row);
-    if (batch?.id) latest.set(batch.id, batch);
-  }
-  const batches = [...latest.values()];
-  const batch = batches.at(-1) ?? null;
+  // Only the newest landing_batch event describes the train now, so one indexed read replaces a scan of all history.
+  const newest = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='landing_batch' ORDER BY event_id DESC LIMIT 1").get();
+  const batch = newest ? detailOf(newest).batch ?? null : null;
   const merged = board.db.prepare("SELECT item_id,event_at FROM event WHERE event_kind='merged' ORDER BY event_id DESC LIMIT 1").get();
   const since = new Date(now.getTime() - HOUR_MS).toISOString();
   const count = kind => board.db.prepare('SELECT COUNT(*) AS n FROM event WHERE event_kind=? AND event_at>=?').get(kind, since).n;

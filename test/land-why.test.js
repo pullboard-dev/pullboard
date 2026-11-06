@@ -69,3 +69,23 @@ test('clause 3: an empty board and a landed batch read cleanly, from events alon
   assert.equal(landWhy(board, NOW).topBlocker, null);
   assert.match(landingLine(landWhy(board, NOW)), /top blocker: none/u);
 });
+
+test('clause 1: land --why on a 20000-event landing history answers in under 1 s [C7]', (t) => {
+  const board = openBoard(':memory:', { now: () => NOW });
+  t.after(() => store.closeBoard(board));
+  const insert = board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES(?,?,?,?,?)');
+  board.db.exec('BEGIN');
+  for (let index = 0; index < 20_000; index++) {
+    insert.run(NOW.toISOString(), 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: `h${index}`, state: 'blocked', items: [{ id: index }], gateResults: [{ failures: [{ file: 'test/x.test.js', name: `case ${index}` }] }] } }));
+  }
+  board.db.exec('COMMIT');
+  insert.run(NOW.toISOString(), 'coordinator', 'merged', 7, '{}');
+  const started = performance.now();
+  const why = landWhy(board, NOW);
+  const lines = landWhyLines(why);
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 1000, `land --why took ${Math.round(elapsed)} ms`); // budget: declared by the item's bar, under 1 s
+  assert.equal(why.batch.id, 'h19999');
+  assert.equal(why.lastLanded.item, 7);
+  assert.match(lines.join('\n'), /case 19999 \(unknown\)/u);
+});
