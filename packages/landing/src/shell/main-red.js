@@ -219,6 +219,17 @@ function committedNeedsGui(root, commit, path) {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
+/**
+ * Write the files of a checkout made with `tree: false`.
+ * Why: the slot is known only after the checkout exists, and a slot that lands on this machine runs the files in place.
+ */
+function writeMainTree(checkout) {
+  const env = cleanGitEnvironment();
+  gitCall(checkout, ['config', 'core.sparseCheckout', 'false'], env);
+  const written = gitCall(checkout, ['checkout', '--quiet', '--force', 'HEAD', '--', '.'], env);
+  if (written.status !== 0) throw new Error('the temporary main checkout could not write its files');
+}
+
 /** Hold the repo cache only for synchronous metadata access, never a checkout or a proof run. */
 async function withComparisonCache(root, onWait, action) {
   const lease = await takeResource({
@@ -444,6 +455,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         return withGateSlot(checkout, async lease => {
           // The runner is known only now: tell the caller before the run starts [C7,#3268].
           onStart?.({ file: path, runner: lease.runner?.host ?? null });
+          // A slot taken on this machine runs in the checkout, so it gets its files now; a runner never needs them [C7].
+          if (remote && !lease.runner) writeMainTree(checkout);
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
