@@ -70,7 +70,7 @@ test('the leaf matches accepted main [G1]', () => {
   writeCellLintBaseline(main.root, baseline, { initialize: true });
   commitAll(main);
   const box = builderRepo(main, ['packages/', 'bin/', 'apps/']);
-  assert.equal(box.coordinator('add', 'build', 'Recorded tool change', '--check', 'node --test test/work.test.js').code, 0);
+  assert.equal(box.coordinator('add', 'build', 'Recorded tool change', '--criterion', 'the leaf moves behind its door [test]', '--specs', 'G1', '--check', 'node --test test/work.test.js').code, 0);
   assert.equal(box.run('claim', '1').code, 0);
   return { main, box, marker };
 }
