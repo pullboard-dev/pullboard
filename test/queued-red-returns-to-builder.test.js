@@ -133,9 +133,9 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   assert.match(shown, new RegExp(`queued gate: red at ${red.job.executionCommit}\\nCELLS_PLAN_UNPLACED: ${red.job.error.message.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\nnext: `, 'u'));
   assert.deepEqual(lines(box.run(box.web, 'claim', String(later))).slice(0, 2), expected);
 
-  // Idle maintenance at 41 minutes, inside the fresh lease, leaves the claim with its builder.
+  // Idle maintenance at 39 minutes, inside the 40-minute idle limit counted from the red return (#2640), leaves the claim with its builder.
   for (const id of [refused, green]) await cleaned(box, id);
-  const idle = { now: () => new Date(Date.parse(red.job.completedAt) + 41 * 60_000) };
+  const idle = { now: () => new Date(Date.parse(red.job.completedAt) + 39 * 60_000) };
   const returned = read(box, refused).item;
   assert.ok(idle.now().getTime() < Date.parse(returned.item_lease_until), 'maintenance runs before the fresh lease ends');
   const maintained = openBoard(box.boardFile, idle);
