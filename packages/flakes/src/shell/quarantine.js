@@ -389,7 +389,11 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
     logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
-    if (autoSubmit) return { run: value, quarantined: recordSubmitQuarantines(board, agentId, value) };
+    if (autoSubmit) {
+      const filed = recordSubmitQuarantines(board, agentId, value);
+      // A seat's Submit pair is a pair the landing ratchet counts; file it now, or landing stops until a coordinator run.
+      return { run: value, quarantined: backfillRatchetQuarantines(board, agentId, file => ownerLane(owners?.[file] ?? lane), filed) };
+    }
     if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
@@ -448,10 +452,25 @@ function recordStructuredQuarantines(board, agentId, value, lane, owners) {
     }
   }
   // Backfill: a flake proven on a tree that never runs again would otherwise stay unfiled while the ratchet counts it.
-  for (const pair of backfillPairs(board, all, flakeLedger(board))) {
+  return backfillRatchetQuarantines(board, agentId, file => owners?.[file] ?? lane, filed, all, known);
+}
+
+/** A lane a repair can be filed in; a Submit names its seat's lane, so fall back to core rather than refuse the run. */
+function ownerLane(lane) {
+  return typeof lane === 'string' && /^[a-z][a-z0-9-]*$/u.test(lane) ? lane : 'core';
+}
+
+/**
+ * File one repair and quarantine for every same-tree pair the landing ratchet counts and no quarantine answers.
+ * Why: the ratchet counts pairs from every recorded run, Submit included, but only coordinator runs filed them, so one
+ * flaky Submit stopped every landing until a coordinator gate ran (5 Nov: FLAKE_RATCHET on a seat's Submit pair) [C7].
+ */
+export function backfillRatchetQuarantines(board, agentId, laneFor, filed = [], runs = gateRuns(board),
+  known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]))) {
+  for (const pair of backfillPairs(board, runs, flakeLedger(board))) {
     const key = testKey(pair.file, pair.name), prior = known.get(key);
     if (prior?.status === 'quarantined' || prior?.since >= pair.lastEventId) continue;
-    fileStructuredQuarantine(board, agentId, { ...pair, red: pair.red.id, green: pair.green.id, lane: owners?.[pair.file] ?? lane }, known, filed);
+    fileStructuredQuarantine(board, agentId, { ...pair, red: pair.red.id, green: pair.green.id, lane: laneFor(pair.file) }, known, filed);
   }
   return filed;
 }

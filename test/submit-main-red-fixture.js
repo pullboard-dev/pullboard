@@ -42,7 +42,7 @@ export function source(name = 'shared failure [G1]', expected = 2) {
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
-export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', mainRed = true, handoff = false } = {}) {
+export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', affectedTests = 'node test/runner.js', mainRed = true, handoff = false, waitMainRedBaseline = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -68,7 +68,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js' + gateSuffix,
-    affectedTests: 'node test/runner.js', submit: { handoff }, lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
+    affectedTests, submit: { handoff }, lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The unrelated change works. | gate: test/inherited.test.js\n');
   put(root, 'test/inherited.test.js', source());
   put(root, 'test/runner.js', [
@@ -90,15 +90,16 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
   put(box.builder, 'change.txt', 'Unrelated change.\n');
   put(box.builder, 'test/inherited.test.js', candidate);
   box.head = commit(box, box.builder);
-  if (mainRed) box.rework = fileMainRed(box);
+  if (mainRed) box.rework = fileMainRed(box, { wait: waitMainRedBaseline });
   return box;
 }
 
 /** File a still-open repair with the exact failing test in its declared check. */
-export function fileMainRed(box) {
+export function fileMainRed(box, { wait = false } = {}) {
   return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
     criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
-    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
+    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', wait,
+    run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
 }
 
 /** Read the canonical submitted receipt rather than trusting a successful shell exit alone. */
