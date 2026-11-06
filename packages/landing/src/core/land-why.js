@@ -28,11 +28,20 @@ export function landWhy(board, now = new Date()) {
   const since = new Date(now.getTime() - HOUR_MS).toISOString();
   const count = kind => board.db.prepare('SELECT COUNT(*) AS n FROM event WHERE event_kind=? AND event_at>=?').get(kind, since).n;
   const failures = [];
+  // The landing writer saves the main comparison on the batch (knownMain, or proof.knownMain); a gate row may carry its own.
+  const batchKnown = batch?.knownMain ?? batch?.proof?.knownMain ?? null;
+  const seen = new Set();
+  const add = (failure, scope) => {
+    const key = `${failure.file}\0${failure.name}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope });
+  };
   for (const result of batch?.gateResults ?? []) {
-    const known = result.knownMain ?? result.knownMainProof?.knownMain ?? null;
-    for (const failure of known ?? []) failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope: 'also red on main' });
+    const known = result.knownMain ?? result.knownMainProof?.knownMain ?? batchKnown;
+    for (const failure of known ?? []) add(failure, 'also red on main');
     // Only a recorded main comparison can call a remaining case batch-only; without one the scope is unknown.
-    for (const failure of result.failures ?? []) failures.push({ file: failure.file, name: failure.name, assertion: failure.assertion ?? null, scope: known ? 'batch only' : 'unknown' });
+    for (const failure of result.failures ?? []) add(failure, known ? 'batch only' : 'unknown');
   }
   const blocked = (batch?.blocked ?? []).map(entry => ({ id: entry.id, code: entry.code ?? 'BLOCKED' }));
   const tally = new Map();

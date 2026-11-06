@@ -89,3 +89,15 @@ test('clause 1: land --why on a 20000-event landing history answers in under 1 s
   assert.equal(why.lastLanded.item, 7);
   assert.match(lines.join('\n'), /case 19999 \(unknown\)/u);
 });
+
+test('clause 1: a failure is also red on main when the batch itself records the main comparison, as the landing writer saves it [C7]', (t) => {
+  const board = openBoard(':memory:', { now: () => NOW });
+  t.after(() => store.closeBoard(board));
+  const insert = board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES(?,?,?,?,?)');
+  // The production shape: gate rows carry tree, failures and accounting; knownMain sits on the batch.
+  insert.run(NOW.toISOString(), 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: 'real', state: 'blocked', items: [{ id: 5 }],
+    knownMain: [{ file: 'test/machine.test.js', name: 'boots' }],
+    gateResults: [{ tree: 't', isGreen: false, accounted: [], complete: true, failures: [{ file: 'test/machine.test.js', name: 'boots' }, { file: 'test/mine.test.js', name: 'only here' }] }] } }));
+  assert.deepEqual(landWhy(board, NOW).failures.map(entry => [entry.file, entry.scope]),
+    [['test/machine.test.js', 'also red on main'], ['test/mine.test.js', 'batch only']]);
+});
