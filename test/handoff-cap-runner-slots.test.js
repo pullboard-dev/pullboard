@@ -59,10 +59,10 @@ async function fixture(t, count) {
 /** How many workers have started so far, read from the real workers' shared log. */
 function startedCount(log) { return readFileSync(log, 'utf8').split('\n').filter(line => line.startsWith('start ')).length; }
 
-test('with runnersOnly the worker cap follows the runner slots up to the machine bound: 9 for one runner, 12 for 7 runners of 9 [C7,#3061]', () => {
-  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 9, runnersOnly: true }), 9);
-  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63, runnersOnly: true }), 12, 'each worker holds a process pair on this machine for its gate, so the fleet never raises it past the bound');
-  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63 }), 12, 'without runnersOnly one per five slots still applies');
+test('with runnersOnly the worker cap follows the runner slots up to the machine bound: 8 for one runner of 9 and for 7 of them [C7,#3061]', () => {
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 9, runnersOnly: true }), 8);
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63, runnersOnly: true }), 8, 'each worker holds a process pair on this machine for its gate, so the fleet never raises it past the bound');
+  assert.equal(handoffWorkerCapacity({ env: {}, cores: 10, runnerSlots: 63 }), 8, 'without runnersOnly one per five slots, bounded, still applies');
   assert.equal(handoffWorkerCapacity({ env: {}, cores: 4, runnerSlots: 0, runnersOnly: true }), 4, 'no runners leaves the local cap');
   assert.equal(handoffWorkerCapacity({ env: { PULLBOARD_HANDOFF_WORKERS: '5' }, cores: 10, runnerSlots: 63, runnersOnly: true }), 5, 'the override still wins');
 });
