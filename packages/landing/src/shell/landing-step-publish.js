@@ -24,6 +24,7 @@ import { isStampedGreen } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
+import { refreshMainRedComparisons } from './main-red.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -42,6 +43,18 @@ export function landingRemote(root, branch) {
 /** Build the one LAND_PUSH refusal every landing push failure reports, real or previewed [B3]. */
 function pushRefused(reason, next = 'inspect the remote and hooks, then run pullboard land --adopt') {
   return new Refused('LAND_PUSH', `the landing push failed: ${reason}; ${next}`);
+}
+
+/** Start comparisons for the previous main's named red files after publication, without holding up the landing. */
+function refreshPublishedMainReds(state, previousMain) {
+  const publishedMain = mainCheckout(state.root)?.commit;
+  if (!publishedMain || publishedMain === previousMain) return;
+  void refreshMainRedComparisons(state.root, previousMain, publishedMain, state.onWait).then(results => {
+    const unavailable = results.filter(result => result.unavailable);
+    if (unavailable.length) state.say(`background main-red refresh incomplete for ${unavailable.length} file(s) at ${publishedMain.slice(0, 12)}`);
+  }).catch(error => {
+    state.say(`background main-red refresh unavailable: ${String(error?.message ?? error).slice(0, 180)}`);
+  });
 }
 
 /**
@@ -147,6 +160,7 @@ export async function publish(state) {
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  refreshPublishedMainReds(state, batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
@@ -178,6 +192,7 @@ export async function finishTrunk(state) {
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  refreshPublishedMainReds(state, state.batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
