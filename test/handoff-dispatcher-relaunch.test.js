@@ -6,8 +6,10 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { exactStart } from '../packages/gate/index.js';
+import { HANDOFF_DISPATCHER_RESOURCE, takeResource } from '../packages/resources/index.js';
 import { queueHandoffLaunch } from '../packages/resources/index.js';
 import { reserveHandoffTicket } from '../packages/resources/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -23,9 +25,10 @@ function document(result) {
 /** Prepare a real held seat and a private captured dispatcher process with observable lifetime. */
 async function fixture(t, state) {
   const helpers = createE2eHelpers();
-  let marker, stop;
+  let marker, stop, held;
   t.after(async () => {
     try {
+      if (held) held.release();
       if (stop) writeFileSync(stop, 'stop');
       if (marker && existsSync(marker)) {
         const pids = readFileSync(marker, 'utf8').trim().split('\n').map(Number);
@@ -43,12 +46,18 @@ async function fixture(t, state) {
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'handoff-queue');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   mkdirSync(queue, { recursive: true });
+  // A working dispatcher is whoever holds the machine's dispatcher lock, so the captured stub takes it and keeps it until told to stop.
+  const resourcesUrl = pathToFileURL(join(import.meta.dirname, '..', 'packages', 'resources', 'index.js')).href;
   writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), [
     "const fs = require('node:fs');",
     `const stop = ${JSON.stringify(stop)};`,
-    `const watcher = fs.watch(${JSON.stringify(box.dir)}, () => { if (fs.existsSync(stop)) watcher.close(); });`,
-    `fs.appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');`,
-    'if (fs.existsSync(stop)) watcher.close();',
+    '(async () => {',
+    `  const { takeResource, HANDOFF_DISPATCHER_RESOURCE } = await import(${JSON.stringify(resourcesUrl)});`,
+    "  const lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'fixture-dispatcher', onWait() { process.exit(0); } });",
+    `  fs.appendFileSync(${JSON.stringify(marker)}, process.pid + '\\n');`,
+    `  await new Promise(done => { const watcher = fs.watch(${JSON.stringify(box.dir)}, () => { if (fs.existsSync(stop)) { watcher.close(); done(); } }); if (fs.existsSync(stop)) { watcher.close(); done(); } });`,
+    '  lock.release();',
+    '})();',
   ].join('\n'));
   if (state !== 'empty') {
     const prior = process.env.PULLBOARD_MACHINE_HOME;
@@ -57,6 +66,7 @@ async function fixture(t, state) {
       const job = randomUUID();
       const reservation = await reserveHandoffTicket(job, { startOf: exactStart });
       queueHandoffLaunch({ directory: box.dir, tools, commonDir: join(box.repo, '.git'), job }, reservation);
+      if (state === 'alive') held = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'alive-fixture-dispatcher' });
     } finally {
       if (prior === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
       else process.env.PULLBOARD_MACHINE_HOME = prior;
