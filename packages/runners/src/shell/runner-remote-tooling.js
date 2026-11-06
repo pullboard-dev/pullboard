@@ -28,12 +28,18 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
 
+/** True in the commit-time hooks, which are short-lived and never dispatch or serve a runner (#2505). */
+const COMMIT_HOOK = process.argv[2] === 'hook' && ['pre-commit', 'commit-msg'].includes(process.argv[3]);
+
 /** Whether any runners.js instance has pinned the loaded tooling in this process. */
 export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
 
 /** Pin one runners.js instance's controller generation on its first runner operation, before that dispatch. */
 export function pinRunnerTooling() {
-  const generation = { loaded: loadedTooling() };
+  let captured;
+  const generation = COMMIT_HOOK
+    ? { get loaded() { return captured ??= loadedTooling(); } }
+    : { loaded: loadedTooling() };
   LOADED_TOOLING ??= generation;
   return generation;
 }
