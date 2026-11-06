@@ -46,6 +46,14 @@ test('native add and edit refuse missing clause kinds atomically and name the fi
   refused(() => store.addItem(board, item('1. ambiguous [test] [command]')), 'CLAUSE_EVIDENCE_KIND');
 });
 
+test('out-of-order numbered prose stays free text during native admission [C7]', t => {
+  const board = fixture(t);
+  const criterion = 'out of order\n2. b\n1. a';
+  assert.deepEqual(requireCriterionEvidence(criterion), []);
+  const id = store.addItem(board, item(criterion));
+  assert.equal(store.getItem(board, id).item_criterion, criterion);
+});
+
 test('all five kinds are accepted and native add/edit events flag reasoning [C7]', t => {
   const board = fixture(t);
   const criterion = '1. the case passes [test]\n2. the command prints OK [command]\n3. visual layout [screenshot]\n4. latency distribution [measurement]\n5. explain the design tradeoff [reasoning]';
