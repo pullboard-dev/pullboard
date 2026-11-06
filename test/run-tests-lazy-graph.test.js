@@ -1,7 +1,8 @@
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { posix } from 'node:path';
+import { dirname, posix, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { scanSource } from '../packages/codemap/index.js';
 
@@ -34,6 +35,54 @@ async function policy() { return import('../core/gate-policy-load.js'); }
     ['packages/gate/src/shell/gate.js', 'packages/gate/src/shell/gate-execution.js']);
 });
 
+/** Read one repository source file as UTF-8 for static graph assertions. */
+function source(path) {
+  return readFileSync(new URL(path, import.meta.url), 'utf8');
+}
+
+/** Collect literal module specifiers declared by static import and re-export statements. */
+function staticSpecifiers(text) {
+  return [...text.matchAll(/(?:\bimport\s+(?:[^;'"()]*?\s+from\s+)?|\bexport\s+(?:\*|\{[^}]*\})\s+from\s+)["']([^"']+)["']/gu)]
+    .map(match => match[1]);
+}
+
+/** Walk repository-relative static imports, ignoring built-ins and package names. */
+function staticGraph(entry) {
+  const pending = [fileURLToPath(new URL(entry, import.meta.url))], visited = new Set();
+  while (pending.length) {
+    const file = pending.pop();
+    if (visited.has(file)) continue;
+    visited.add(file);
+    for (const specifier of staticSpecifiers(readFileSync(file, 'utf8'))) {
+      if (!specifier.startsWith('.')) continue;
+      const target = resolve(dirname(file), specifier);
+      pending.push(target); // An unreadable local module fails closed when visited.
+    }
+  }
+  return visited;
+}
+
+test('runner static graph avoids landing and legacy selection routes into the gate [C7]', () => {
+  const graph = staticGraph('../bin/run-tests.js');
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const paths = new Set([...graph].map(file => relative(root, file).split(sep).join('/')));
+  const gate = resolve(root, 'packages/gate/src/shell/gate.js');
+
+  assert.ok(paths.has('src/landing-worker-identity.js'));
+  assert.ok(paths.has('packages/landing/src/core/landing-worker-identity.js'));
+  assert.ok(paths.has('packages/gate/src/shell/test-selection.js'));
+  assert.ok(!paths.has('packages/landing/index.js'), 'runner must not load landing through its gate-owning front door');
+  assert.ok(!paths.has('src/test-selection.js'), 'runner must not use the removed selection compatibility shim');
+  assert.ok(!staticGraph('../src/landing-worker-identity.js').has(gate), 'clause 1: the landing identity entry stays gate-free');
+  assert.ok(!staticGraph('../packages/gate/src/shell/test-selection.js').has(gate), 'clause 1: the selection entry stays gate-free');
+});
+
+test('clause 2: the gate-free landing identity entry is placed in the cells plan as a sanctioned re-export [C7]', () => {
+  const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/30-landing.json', import.meta.url), 'utf8'));
+  assert.ok(plan.reexports.includes('src/landing-worker-identity.js'), 'pre-commit accepts the entry as a placed re-export, not a stray shim');
+  assert.ok(plan.paths.some(move => move[0] === 'src/landing-worker-identity.js'), 'the plan places it with its moved implementation');
+});
+
 const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
 const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
 
@@ -41,7 +90,7 @@ const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
  * Walk the literal static import graph from one entry file, recording each file's parent.
  * Dynamic imports are skipped; nothing is imported or executed.
  */
-function staticGraph(entry) {
+function importParents(entry) {
   const parent = new Map();
   const queue = [[entry, null]];
   while (queue.length) {
@@ -56,10 +105,10 @@ function staticGraph(entry) {
 }
 
 test('clause 1: bin/run-tests.js static graph does not reach src/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
-  const runner = staticGraph('bin/run-tests.js');
+  const runner = importParents('bin/run-tests.js');
   for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {
-    const graph = staticGraph(barrel);
+    const graph = importParents(barrel);
     for (const target of RUNNER_TARGETS) assert.ok(!graph.has(target) || !runner.has(barrel), `${barrel} reaches ${target}`);
   }
 });

@@ -47,15 +47,20 @@ function moveState(file) {
   }));
 }
 
+/** Give the commit hooks a private Pullboard wrapper on the fixture PATH, once. */
+function installPullboardWrapper(box) {
+  const pullboard = join(box.env.PATH, 'pullboard');
+  if (existsSync(pullboard)) return;
+  const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
+  writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
+}
+
 /** Enable the linked fixture's real local-first setting before testing acknowledged re-home moves. */
 function enableRehomeOutbox(box, root) {
   const file = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
   writeFileSync(file, JSON.stringify({ ...config, relay: { ...(config.relay ?? {}), outbox: true } }, null, 2) + '\n');
-  const pullboard = join(box.env.PATH, 'pullboard');
-  assert.equal(existsSync(pullboard), false, 'the fixture has no preexisting private Pullboard wrapper to overwrite');
-  const cli = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-  writeFileSync(pullboard, `#!/bin/sh\nexec node "${cli}" "$@"\n`, { mode: 0o700 });
+  installPullboardWrapper(box);
   runFixtureGit(['add', 'pullboard.json'], { cwd: root, env: box.env });
   runFixtureGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: root, env: box.env });
 }
@@ -78,12 +83,19 @@ async function moveRepository(box, name, owner) {
   runFixtureGit(['remote', 'add', 'origin', `git@github.com:${owner}/web.git`], { cwd: root, env: box.env });
   const initialized = await box.cliAt(root, 'init', '--model', 'fixture-model');
   assert.equal(initialized.code, 0, JSON.stringify(initialized.document?.error));
+  // init writes the repository's policy uncommitted; a sealed submit reads it from main's commit [V4,C7].
+  if (runFixtureGit(['ls-files', 'pullboard.json'], { cwd: root, env: box.env }) === '') {
+    installPullboardWrapper(box);
+    runFixtureGit(['add', 'pullboard.json'], { cwd: root, env: box.env });
+    runFixtureGit(['commit', '-q', '-m', 'chore(config): commit the generated policy'], { cwd: root, env: box.env });
+  }
   return root;
 }
 
 /** Seed genuine native lifecycle records; this synthetic acceptance does not claim a gate or review ran. */
 function privateMoveStatus(file, id, status, root, lane, commit) {
   return withMoveBoard(file, board => {
+    board.gitRoot = root; // a private board lives outside .git, so name its repository for the sealed submit policy [V4,C7]
     const builder = store.register(board, { lane, path: join(root, `builder-${id}`), model: 'fixture-builder' });
     const reviewer = store.register(board, { lane, path: join(root, `reviewer-${id}`), model: 'fixture-reviewer' });
     const digest = `private-move-${id}`;
@@ -293,6 +305,7 @@ export async function privateBoardMoves(box, privateFile) {
   assert.equal(owner.code, 0);
   assert.deepEqual(owner.document, { account: '7', login: 'alice' }, 'the numeric account stays separate from its authenticated login');
   const addHeartbeat = agePrivateHeartbeat(privateFile, box.root);
+  await settleRelayCalls(box);
   const callsBeforePrivateAdd = box.calls.length;
   const linkedPrivate = await box.cli('add', box.lane, 'private item delivered through the relay', '--private');
   assert.equal(linkedPrivate.code, 0);
@@ -665,4 +678,15 @@ export async function privateBoardMoves(box, privateFile) {
   assert.ok(fresh.document.item.item_id > reverseId);
   withMoveBoard(localFile, board => assert.equal(store.itemRedirect(board, 3).moveId, moved.document.moveId,
     'the old source ID keeps its permanent redirect after later adds'));
+}
+
+/**
+ * Wait until the fixture relay's call count holds still for two seconds.
+ * The previous command's background sender may still be talking to the relay, and a baseline taken mid-send miscounts [E11].
+ */
+export async function settleRelayCalls(box) {
+  for (let steady = 0, seen = -1; steady < 20; await new Promise(done => { const probe = setTimeout(done, 100); probe.unref?.(); })) {
+    steady = box.calls.length === seen ? steady + 1 : 0;
+    seen = box.calls.length;
+  }
 }
