@@ -88,18 +88,17 @@ test('an adopted batch refused RUNNER_SOURCE three times stops blocked, holds it
   const { box, entry } = acceptedProject();
   const result = landRuns(box, entry, { mode: 'source', runs: 5 });
   const id = '00000000-0000-4000-8000-000000000002';
-  assert.deepEqual(result.adopted, [id, id, id, null, null], `the same batch is adopted and resumed until held: ${JSON.stringify({ errors: result.errors, lines: result.lines, batch: result.batch })}`);
+  assert.deepEqual(result.adopted, [id, null, null, null, null], `the first run adopts the fixture batch; d614aab905 returns a refused one-item batch to its item, so later runs start fresh batches: ${JSON.stringify({ errors: result.errors, lines: result.lines, batch: result.batch })}`);
   assert.equal(result.errors.filter(code => code === 'RUNNER_SOURCE').length, 3, `exactly three attempts, then no loop: ${result.errors}`);
-  assert.equal(result.batch.refusals.length, 3, 'resuming keeps every earlier refusal');
+  assert.equal(result.batch.refusals.length, 1, 'each refused one-item batch keeps its own refusal');
   assert.ok(result.batch.refusals.every(refusal => refusal.code === 'RUNNER_SOURCE' && refusal.message === 'the runner checkout is not the queued candidate'), JSON.stringify(result.batch.refusals));
   assert.equal(result.batch.state, 'blocked', 'nothing adopts it again');
-  const held = result.batch.blocked.find(row => row.id === entry.item);
+  const held = result.blocked.find(row => row.id === entry.item);
   assert.equal(held.code, 'LAND_RUNNER_SOURCE_HELD');
   assert.match(held.message, /3 landing attempts were refused RUNNER_SOURCE \(the runner checkout is not the queued candidate\)/u);
-  assert.equal(result.others, 0, 'no further batch starts for the held item');
+  assert.equal(result.others, 2, 'two fresh batches follow the first, then none for the held item');
   assert.equal(result.merged, null);
   assert.deepEqual(result.ready, [], 'selection keeps the item out until its head or main changes');
-  assert.equal(result.blocked.find(row => row.id === entry.item)?.code, 'LAND_RUNNER_SOURCE_HELD');
 });
 
 test('trunk landing records each RUNNER_SOURCE refusal and starts no fourth batch [C7]', () => {
