@@ -1,6 +1,7 @@
 /** At most N submit-handoff workers run on the machine at once; the rest wait unspawned in submit order [C7]. */
 import { availableParallelism } from 'node:os';
 import {
+  appendFileSync,
   closeSync,
   mkdirSync,
   openSync,
@@ -119,6 +120,38 @@ export function queueHandoffLaunch(launch, reservation) {
   return name;
 }
 
+/** The dispatcher's own log: its stderr and every slot release it had to retry. */
+export function handoffDispatcherLog() { return join(handoffQueueDirectory(), 'dispatcher.log'); }
+
+/**
+ * Append one timestamped line to the dispatcher log.
+ * Why: the dispatcher runs detached, so a failure it survives is otherwise invisible.
+ *
+ * @param {string} line - What happened, without a trailing newline.
+ */
+function logDispatcher(line) {
+  try { appendFileSync(handoffDispatcherLog(), `${new Date().toISOString()} ${line}\n`, { mode: 0o600 }); }
+  catch { /* A log that cannot be written must not stop dispatch; the retry itself still happens. */ }
+}
+
+/** Release one exited worker's slot with a single lock attempt; the dispatcher retries on its next pass. */
+function releaseOnce(slot) { slot.release({ retryMs: 0 }); }
+
+/**
+ * Release the slot of every worker that has exited, keeping a worker whose release failed for the next pass.
+ * Why: on 4 Nov a SLOT_DB_LOCKED thrown inside the worker's exit handler killed the dispatcher at its first exit.
+ *
+ * @param {Map<object, { slot: object, job: string, exited: boolean }>} running - Live and exited workers by process.
+ * @param {(slot: object) => void} releaseSlot - Frees one slot or throws.
+ */
+function releaseExited(running, releaseSlot) {
+  for (const [worker, entry] of running) {
+    if (!entry.exited) continue;
+    try { releaseSlot(entry.slot); running.delete(worker); }
+    catch (error) { logDispatcher(`slot release for ${entry.job} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; retrying on the next pass`); }
+  }
+}
+
 /** The name mark of a ticket whose item is urgent. */
 const URGENT_MARK = '.urgent';
 
@@ -197,11 +230,12 @@ function endUnstarted(file, name, launch, error) {
  * Each running worker holds one slot of the machine resource pool, so the count is the pool's own.
  * Returns at once when another dispatcher already holds the machine.
  *
- * @param {{ capacity?: number | (() => number), pollMs?: number }} [options] - The cap, or a function read again on every
- *   pass so a running dispatcher picks up a raised cap without a restart, and how often new tickets are noticed.
+ * @param {{ capacity?: number | (() => number), pollMs?: number, releaseSlot?: (slot: object) => void }} [options] - The cap, or a
+ *   function read again on every pass so a running dispatcher picks up a raised cap without a restart, how often new tickets
+ *   are noticed, and how an exited worker's slot is freed (a throw is logged and retried on the next pass).
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce } = {}) {
   const started = [];
   for (;;) {
     let lock;
@@ -212,7 +246,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs); }
+    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -246,10 +280,11 @@ function boundAfterResult(entry, now, graceMs) {
 }
 
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot) {
   const running = new Map();
   let wake = () => {};
   while (waitingTickets().length || running.size) {
+    releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = typeof capacity === 'function' ? capacity() : capacity;
     for (const name of waitingTickets()) {
@@ -273,40 +308,43 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
       started.push(launch.job);
-      running.set(worker, { worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 });
-      worker.once('close', () => { running.delete(worker); slot.release(); wake(); });
+      const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
+      running.set(worker, entry);
+      // The exit handler only marks and wakes: the release runs in the loop, where a failure is caught and retried.
+      worker.once('close', () => { entry.exited = true; wake(); });
     }
     await new Promise(done => { wake = done; setTimeout(done, pollMs); });
   }
 }
 
+/** Whether a live dispatcher holds the machine's dispatcher lock. */
+function dispatcherHeld() {
+  return Boolean(listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders?.length);
+}
+
 /**
- * Make sure a dispatcher is running; spawn one from the captured tooling only when none holds the machine.
+ * Make sure a dispatcher is running; spawn one from the captured tooling whenever none holds the machine's lock.
+ * Why: the lock holder is the only proof of a working dispatcher. On 4 Nov a receipt with a live pid and an empty
+ * start time kept a wedged dispatcher trusted while the queue sat; an extra spawn only exits when the lock is held.
  *
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
  */
 export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' } = {}) {
-  const held = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE);
-  if (held?.holders?.length) return;
+  if (dispatcherHeld()) return;
   const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch' });
   try {
+    if (dispatcherHeld()) return;
     const queue = handoffQueueDirectory();
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
-    let previous;
-    try { previous = JSON.parse(readFileSync(receipt, 'utf8')); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
-    if (previous?.pid) {
-      try {
-        process.kill(previous.pid, 0);
-        const observed = startOf(previous.pid);
-        if (!previous.started || !observed || previous.started === observed) return;
-      } catch (error) { if (error.code !== 'ESRCH') throw error; }
-    }
     const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
-    const dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: 'ignore', env: handoffProcessEnvironment() });
-    await once(dispatcher, 'spawn');
+    const log = openSync(handoffDispatcherLog(), 'a', 0o600);
+    let dispatcher;
+    try {
+      dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
+      await once(dispatcher, 'spawn');
+    } finally { closeSync(log); }
     try { writeFileSync(receipt, JSON.stringify({ pid: dispatcher.pid, started: startOf(dispatcher.pid) }) + '\n', { mode: 0o600 }); }
     catch (error) { const closed = once(dispatcher, 'close'); dispatcher.kill('SIGTERM'); await closed; throw error; }
     dispatcher.unref();
