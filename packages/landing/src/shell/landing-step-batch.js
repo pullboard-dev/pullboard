@@ -122,7 +122,7 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
@@ -232,6 +232,31 @@ async function recordRefusal(state, error) {
   for (const entry of held) state.say(`${entry.code} #${entry.id}: ${entry.message}`);
 }
 
+/**
+ * Reopen each candidate whose verdict a concrete main change made stale: the accept is withdrawn, the item reopens
+ * with no owner and the changed file named, and its blocked entry becomes STALE_REOPENED. A moved landing, a legacy
+ * unsealed review or unreadable history keeps the refusal, since those are not a plain main change [B3,C7].
+ */
+export async function returnStaleVerdicts(board, selected, write, say) {
+  const kept = [];
+  for (const entry of selected.blocked) {
+    const plain = entry.code === 'STALE_VERDICT' && entry.file && entry.commit && !entry.landingCode && !entry.legacy;
+    const item = plain ? store.getItem(board, entry.id) : null;
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit) { kept.push(entry); continue; }
+    const where = `${entry.file} changed on main in ${entry.commit.slice(0, 12)}`;
+    const note = `verdict stale: ${where}, so the reviewed change no longer composes unchanged; merge current main, commit and resubmit`;
+    try {
+      await write('reopen', [entry.id, { agentId: 'coordinator', withdrawVerdict: true, note }]);
+      say(`STALE_VERDICT #${entry.id} reopened to its lane: ${where}`);
+      kept.push({ ...entry, code: 'STALE_REOPENED', message: note });
+    } catch (error) {
+      say(`STALE_VERDICT #${entry.id} could not be reopened: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`);
+      kept.push(entry);
+    }
+  }
+  selected.blocked = kept;
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
@@ -262,9 +287,12 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts });
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
+  // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
+  // 5 Nov seven accepted items sat up to 30 h with this refusal logged every wake and no seat told [B3,C7].
+  if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
   if (dryRun) {
@@ -298,6 +326,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     batch = null;
   }
   if (batch && await retireHeldBatch(root, board, write, say, batch)) batch = null;
+  // An acceptance that adopts an interrupted batch joins the ready work selected at this same main snapshot.
+  if (batch && interrupted && selected.ready.length) {
+    const candidates = batch.candidates ?? batch.items ?? [];
+    const known = new Set(candidates.map(entry => entry.id));
+    const arrivals = selected.ready.filter(item => !known.has(item.item_id)).map(landingEntry);
+    if (arrivals.length) batch = await write('recordLandingBatch', [{ agentId: 'coordinator',
+      batch: { ...batch, candidates: [...candidates, ...arrivals] }, revision: batch.revision }]);
+  }
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
