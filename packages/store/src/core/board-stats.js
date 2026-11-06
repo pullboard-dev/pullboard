@@ -21,21 +21,23 @@ export function stats(board) {
 }
 
 /** Record the authenticated seat's actual empty-next observation, never eligibility or claim authority [R2,N2]. */
-export function recordNextIdle(board, { agentId, reason }, { atomic, logEvent, agentById }) {
+export function recordNextIdle(board, { agentId, reason, skips = [] }, { atomic, logEvent, agentById }) {
   return atomic(board, () => {
     if (!agentById(board, agentId)) throw new Refused('NOT_JOINED', 'join a lane before recording next idle');
     if (!['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'].includes(reason)) {
       throw new Refused('BAD_IDLE_REASON', 'record the structured reason returned by next, not guessed historical eligibility');
     }
-    const unchanged = nextIdleUnchanged(board, { agentId, reason });
+    if (!Array.isArray(skips) || skips.length > 3 || skips.some(row => !Number.isSafeInteger(row?.item) || row.item <= 0 || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(row.code))
+      || new Set(skips.map(row => row.item)).size !== skips.length) throw new Refused('BAD_IDLE_SKIPS', 'record up to three distinct candidate ids and their first native skip codes');
+    const unchanged = nextIdleUnchanged(board, { agentId, reason, skips });
     if (unchanged) return unchanged;
-    logEvent(board, agentId, 'next-idle', null, { version: 1, engine: NEXT_IDLE_ENGINE, reason });
+    logEvent(board, agentId, 'next-idle', null, { version: 1, engine: NEXT_IDLE_ENGINE, reason, ...(skips.length ? { skips } : {}) });
     return { recorded: true };
   });
 }
 
 /** Read whether the persisted idle interval already describes this seat, without taking a writer. */
-function nextIdleUnchanged(board, { agentId, reason }) {
+function nextIdleUnchanged(board, { agentId, reason, skips = [] }) {
   const now = board.clock.now().toISOString();
   const working = board.db.prepare(`SELECT 1 FROM item WHERE
     (item_status='claimed' AND item_owner=? AND item_lease_until>?) OR
@@ -44,7 +46,7 @@ function nextIdleUnchanged(board, { agentId, reason }) {
   const latest = board.db.prepare('SELECT event_kind,event_detail FROM event WHERE event_by=? ORDER BY event_id DESC LIMIT 1').get(agentId);
   if (latest?.event_kind === 'next-idle') {
     const detail = JSON.parse(latest.event_detail);
-    if (detail.version === 1 && detail.engine === NEXT_IDLE_ENGINE && detail.reason === reason) return { recorded: true, unchanged: true };
+    if (detail.version === 1 && detail.engine === NEXT_IDLE_ENGINE && detail.reason === reason && JSON.stringify(detail.skips ?? []) === JSON.stringify(skips)) return { recorded: true, unchanged: true };
   }
   return null;
 }

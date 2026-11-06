@@ -326,7 +326,10 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
   }
   if (process.platform !== 'darwin') return false;
   const observed = spawnSync('/usr/sbin/lsof', ['-nP', '-a', '-u', String(process.getuid()), '-d', 'cwd', '-Fpn'], options);
-  if (observed.error || observed.status !== 0 || observed.signal || observed.stderr.trim()) return false;
+  // lsof warns on stderr about a file system it cannot stat (an NFS volume on vanilla) and still lists every cwd;
+  // only a line outside such a WARNING block is an error. The warning alone kept the largest runner "unverifiable" [C7].
+  const errors = observed.stderr.split('\n').filter(line => line.trim() && !/^lsof: WARNING:/u.test(line) && !/^\s/u.test(line));
+  if (observed.error || observed.status !== 0 || observed.signal || errors.length) return false;
   let pid = null, ownSeen = false, complete = false;
   for (const line of observed.stdout.trim().split('\n')) {
     if (/^p[1-9][0-9]*$/u.test(line)) {
@@ -339,6 +342,13 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
     } else return false;
   }
   return ownSeen && complete;
+}
+
+/** A holder's process still exists (or cannot be checked); a pid the kernel no longer knows is a dead holder. */
+export function holderProcessAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return true;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return error.code !== 'ESRCH'; }
 }
 
 /** Attest an idle pinned worker and writable root without guessing a missing job's identity. */
@@ -372,8 +382,11 @@ export function runnerIdleReply(root, request, processCensus) {
       if (!resourceFile.isFile()) return { ...base, reason: 'runner resource location is not a file' };
       const db = openPoolReadOnly(file, 1_000);
       try {
-        if (db.prepare("SELECT 1 FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%' LIMIT 1").get())
-          return { ...base, reason: 'runner resource lease is active' };
+        // A holder whose process is gone is a leak the machine reclaims on its next write; it must not keep the
+        // runner "busy" forever, which idled the largest runner for a day on three dead pids [C7].
+        // Every column, since an older or minimal holder table may lack pid; a holder without one still counts as active.
+        const holders = db.prepare("SELECT * FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
+        if (holders.some(holder => holderProcessAlive(holder.pid))) return { ...base, reason: 'runner resource lease is active' };
       } finally { db.close(); }
     }
     const marker = join(root, `.idle-probe-${request.nonce}`);
