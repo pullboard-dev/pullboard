@@ -211,7 +211,7 @@ export async function nudgeAcceptedCells(root, workerUrl, commit) {
 /** Retain a bounded diagnostic when a detached producer cannot finish. */
 export function recordAcceptedCellsFailure(root, commit, error) {
   let identity, key;
-  try { identity = acceptedCellsIdentity(root, commit); key = acceptedInventoryKey(identity); }
+  try { identity = acceptedCellsIdentity(root, commit, { pinned: true }); key = acceptedInventoryKey(identity); }
   catch { identity = { directory: join(machineHome(), 'cells-cache', 'accepted'), tree: null }; key = HASH.test(commit ?? '') ? commit : 'unknown'; }
   save(join(identity.directory, `${key}.failure.json`), { version: 1, tree: identity.tree, at: new Date().toISOString(), message: String(error?.message ?? error).slice(0, 2048) });
 }
