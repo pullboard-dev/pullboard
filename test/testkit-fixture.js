@@ -11,8 +11,8 @@ export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', rout
   return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, '--json'));
 }
 
-/** Add a fixture item with a complete route-specific build brief and return its parsed item. */
-export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixture item is valid.', check = 'true', route = 'strong', brief, diagnosis, args = [], wait = false, run = box.run } = {}) {
+/** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */
+export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixture item is valid.', check = 'true', route = 'strong', brief, diagnosis, diagnose = true, args = [], wait = false, run = box.run } = {}) {
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
   const addArgs = ['add', lane, title, '--route', route, '--criterion', criterion];
   if (check !== null) addArgs.push('--check', check);
@@ -21,7 +21,7 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   const result = fixtureResult(run(root, ...addArgs));
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
   const item = JSON.parse(result.out).item;
-  if (check !== null) {
+  if (check !== null && diagnose) {
     const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
     assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
   }
