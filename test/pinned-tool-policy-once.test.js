@@ -13,7 +13,7 @@ function run(cwd, command, args) {
   return execFileSync(command, args, { cwd, encoding: 'utf8' }).trim();
 }
 
-test('clause 1: selectedToolEntry reads the toolBuild policy with one git show per command', async () => {
+test('clause 1: selectedToolEntry reads the toolBuild policy with one git show per command [C7]', async () => {
   const box = realpathSync(mkdtempSync(join(tmpdir(), 'policy-once-')));
   try {
     const repo = join(box, 'repo');
