@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -13,7 +14,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { writeBoardCommand } from '../packages/store/index.js';
 import { randomUUID } from 'node:crypto';
 import { INFRASTRUCTURE_CODES } from '../apps/lib/index.js';
-import { SUBMIT_INFRASTRUCTURE_CODES } from '../packages/state/index.js';
+import { INFRASTRUCTURE_CODES as boardCodes } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { endedSubmitHandoff } from '../packages/store/index.js';
@@ -223,7 +224,8 @@ test('an infrastructure-stopped candidate waits for health, retries twice, and n
 });
 
 test('board and worker share infrastructure codes, including runner retry exhaustion which never returns builder red [C7,V4]', t => {
-  assert.equal(INFRASTRUCTURE_CODES, SUBMIT_INFRASTRUCTURE_CODES);
+  assert.deepEqual([...INFRASTRUCTURE_CODES].sort(), [...boardCodes].sort());
+  assert.ok(boardCodes.has('RUNNER_INFRA_RETRY_EXHAUSTED'));
   const box = fixture(t);
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'ready\n', 'feat(web): infrastructure fixture candidate [G1]').status, 0);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
@@ -239,5 +241,27 @@ test('board and worker share infrastructure codes, including runner retry exhaus
     assert.equal(done.state, 'infrastructure');
     assert.equal(state(box, box.id).returns, 0);
     assert.equal(getItem(board, box.id).item_status, 'claimed');
+  } finally { board.db.close(); }
+});
+
+test('clause 1: a stopped job whose captured tools are gone spends its retries and notifies the coordinator once [C7,V4]', async t => {
+  const box = fixture(t);
+  const job = await killedRunningHandoff(box);
+  const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  try {
+    writeBoardCommand(board, 'completeSubmitHandoff', [box.id, { agentId: job.agentId, job: job.id,
+      result: { code: 1, error: { code: 'SUBMIT_HANDOFF_DEAD', message: 'fixture worker died', next: 'restore the executor' } } }], job.agentId);
+    const request = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'request.json'), 'utf8'));
+    rmSync(request.tools, { recursive: true, force: true });
+    const ctx = { file: box.boardFile, info: { root: box.repo, commonDir: join(box.repo, '.git'), isMain: true },
+      config: loadConfig(box.repo), clock: { now: () => new Date() }, nativeBoard, io: { err() {} } };
+    for (let sweeps = 0; sweeps < 3; sweeps++) await recoverInfrastructureHandoffs(ctx, { healthy: async () => true, launch: async () => assert.fail('no tools, no launch') });
+    const after = state(box, box.id);
+    assert.equal(after.job.id, job.id);
+    assert.equal(after.job.infrastructureRetries, 2);
+    assert.equal(after.returns, 0);
+    const notices = board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all()
+      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted two healthy-executor recovery retries`));
+    assert.equal(notices.length, 1);
   } finally { board.db.close(); }
 });

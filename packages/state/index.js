@@ -1,4 +1,3 @@
-export { SUBMIT_INFRASTRUCTURE_CODES } from './src/core/submit-infrastructure-codes.js';
 /** Shared state definitions without later-cell runtime imports [C7,H16]. */
 export { RIGOR_INSTRUCTIONS_ENGINE } from '../../src/rigor-instructions-engine.js';
 export { decisionFields } from './src/core/fact-projection.js';
