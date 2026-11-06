@@ -5,6 +5,7 @@ import { logEvent } from './board-event-log.js';
 import { hasAgent } from './board-query.js';
 import { itemById } from './board-query.js';
 import { insertItem } from './board-add-item.js';
+import { setItem } from './board.js';
 import { validateItemAddition } from './board-add-item.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { ITEM_SLICE_ENGINE } from '../../../../src/item-slice-engine.js';
@@ -32,7 +33,7 @@ export function createItemSlice(board, { agentId, parentId, parentDigest, title,
     if (check !== undefined && check !== frozen.check) { delete childBar.sourceCheck; delete childBar.barCoverage; delete childBar.barRevision; }
     const text = JSON.stringify(childBar);
     const digest = createHash('sha256').update(text).digest('hex');
-    board.db.prepare('UPDATE item SET item_frozen=?, item_frozen_digest=? WHERE item_id=?').run(text, digest, id);
+    setItem(board, id, { item_frozen: text, item_frozen_digest: digest });
     const detail = { parentId, parentDigest, frozenBar: parent.item_frozen, files, lane: item.lane };
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`item-slice:${id}`, JSON.stringify(detail));
     logEvent(board, agentId, 'item-slice', id, detail);
