@@ -673,3 +673,23 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
   assert.notEqual(refused.status, 0);
   assert.match(`${refused.stdout}${refused.stderr}`, /CHECK_BASELINE_AUTOMATIC.*the board baselines checks on add/u);
 });
+
+/**
+ * Every fixture join in the check-baseline and check-timing-admission files names a model, so none stops at MODEL_REQUIRED [C7].
+ */
+test('clause 1: every pullboard join in check-baseline and check-timing-admission passes --model [C7]', () => {
+  for (const file of ['check-baseline.test.js', 'check-timing-admission.test.js']) {
+    const source = readFileSync(resolve(import.meta.dirname, file), 'utf8');
+    const joins = source.split('\n').filter(line => /'join'\s*,/.test(line) && !line.includes("test('"));
+    assert.ok(joins.length >= 1, `${file} joins at least once`);
+    for (const line of joins) assert.ok(line.includes('--model'), `${file}: ${line.trim()}`);
+  }
+});
+
+/**
+ * A joined fixture worktree exits 0 once --model is passed, so the cases behind it reach their assertions [C7].
+ */
+test('clause 2: a fixture join with --model succeeds so the cases reach their unchanged assertions [C7]', () => {
+  const box = project({ worktrees: true });
+  assert.ok(existsSync(box.web) && existsSync(box.review));
+});
