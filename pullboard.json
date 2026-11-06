@@ -13,14 +13,21 @@
     "manualOverride": false,
     "publish": "separate",
     "perItem": false,
-    "parallel": false,
+    "parallel": true,
     "first": [
+      2535,
+      2711,
+      3266,
+      3258,
+      3259,
+      3256,
       3175,
       3176
     ],
     "auditOnly": [
       "test/machine.test.js",
-      "test/refusal-next-steps.test.js"
+      "test/refusal-next-steps.test.js",
+      "test/e2e.test.js"
     ]
   },
   "submit": {
