@@ -88,3 +88,28 @@ test('a change to this item lane policy refuses its real re-claim with the chang
   assert.match(result.out + result.err, /lanes\.web\.owns/u);
   assert.equal(store.getItem(board, id).item_status, 'open');
 });
+
+test('clause 2: a submit already queued survives an unrelated accepted policy change and a lane change still refuses with its key [B4,V2,V4]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const board = boardFor(t, box.repo);
+  const id = addPolicyItem(board, 'Queued before policy change');
+  const claim = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(claim.code, 0, claim.out + claim.err);
+  const folder = JSON.parse(claim.out).itemFolder;
+  const committed = helpers.commitFile(box, folder, 'web/feature.js', 'export const ready = true;\n', 'feat(web): queued before policy change [G1]');
+  assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
+  const item = store.getItem(board, id);
+  const commit = box.git(folder, 'rev-parse', 'HEAD');
+  const tree = box.git(folder, 'rev-parse', 'HEAD^{tree}');
+  const queued = writeBoardCommand(board, 'queueSubmitHandoff', [id, { agentId: item.item_owner, job: randomUUID(),
+    main: box.git(box.repo, 'rev-parse', 'main'), commit, tree, executionCommit: commit, executionTree: tree,
+    digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], item.item_owner);
+  commitPolicy(box, box.repo, config => { config.landing.manualOverride = !config.landing.manualOverride; });
+  const started = writeBoardCommand(board, 'startSubmitHandoff', [id, { agentId: item.item_owner, job: queued.job.id }], item.item_owner);
+  assert.equal(started.job.id, queued.job.id, 'the already queued job is still the board\'s job after the policy change');
+  assert.notEqual(started.job.state, 'red');
+  assert.equal(store.getItem(board, id).item_status, 'claimed');
+  assert.equal(store.getItem(board, id).item_frozen_digest, item.item_frozen_digest, 'the bar did not bounce');
+});
