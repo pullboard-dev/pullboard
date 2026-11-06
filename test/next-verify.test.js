@@ -114,7 +114,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
   assert.equal(initialized.code, 0, initialized.err);
   const added = box.run(box.repo, 'add', 'web', 'Ready for review', '--specs', 'G1',
-    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready');
+    '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready',
+    '--brief', 'Files: web/ready\nTest: the readiness marker file exists.');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/ready', 'ready\n', 'feat(web): readiness marker [G1]');
