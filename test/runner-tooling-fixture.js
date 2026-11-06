@@ -57,7 +57,7 @@ export function cleanupToolingSnapshots() {
       process.stderr.write(`retained runner tooling snapshot at ${record.directory}\n`);
       continue;
     }
-    rmSync(record.directory, { recursive: true, force: true });
+    rmSync(record.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
   TOOLING_SNAPSHOTS.clear();
 }
