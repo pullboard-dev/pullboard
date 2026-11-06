@@ -31,8 +31,10 @@ test('waived failures are dropped before bisect, so a waived red never blocks a 
   assert.equal(bisectableFailures(opened, [waived], PORTS), null, 'nothing left to bisect when every red is waived');
 });
 
-test('an unnamed failure still needs a person to read the gate [C7,#2900]', t => {
-  assert.equal(bisectableFailures(board(t), [own, { file: null, name: 'This operation was aborted' }], PORTS), null);
+test('only unnamed failures still need a person; named reds bisect beside an unnamed one [C7,#2900]', t => {
+  assert.equal(bisectableFailures(board(t), [{ file: null, name: 'This operation was aborted' }], PORTS), null);
+  // An unnamed row rides along: the named reds split the batch and the rebuilt green set's whole-plan run catches the rest.
+  assert.deepEqual(bisectableFailures(board(t), [own, { file: null, name: 'This operation was aborted' }], PORTS), [own]);
 });
 
 test('bisect compares only unwaived reds with base main; a live-waived red file is never compared [C7,#2900]', async t => {
