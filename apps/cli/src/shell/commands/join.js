@@ -33,6 +33,7 @@ import {
   requiredModel,
   shellWord,
   withBoard,
+  withBoardRead,
   primaryCheckoutRoot,
 } from '../cli.js';
 
@@ -74,7 +75,21 @@ export async function run(io, { first, values }) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
-  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
+  const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
+  const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
+  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
+  // Explicit registration updates must reach the board even when the seat identity is unchanged.
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
+    const displayName = displayAgentName(existing, ctx.config.agents.names);
+    io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
+      model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
+    io.say(`already joined as ${displayName}${existing.agent_family ? ` (family ${existing.agent_family})` : ''}; run pullboard next`);
+    return 0;
+  }
+  if (existing && !sameSeat) {
+    throw new Refused('ALREADY_JOINED',
+      `this worktree is already joined as ${existing.agent_id}; retry with lane ${existing.agent_lane} and model ${JSON.stringify(existing.agent_model)}`);
+  }
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
@@ -86,7 +101,9 @@ export async function run(io, { first, values }) {
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
-  io.say(`joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
+  io.say(sameSeat
+    ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
   return 0;
 }
