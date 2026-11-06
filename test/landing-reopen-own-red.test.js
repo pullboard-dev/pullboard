@@ -10,6 +10,8 @@ import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { returnCulprit, returnRefusedItem } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import { itemRefusal } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import { oneItemBatch, singleItemLanding } from '../packages/landing/src/shell/landing-step-selection.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -90,6 +92,18 @@ test('a landing infrastructure or diagnostic refusal reopens no item [C7,#2967]'
   }
   assert.equal(status(), 'verified');
   assert.deepEqual(writes, [], 'nothing is written');
+});
+
+test('a red static check on a one-item batch is the item\'s own and returns it whatever the trunk policy [C7,#2901,#2967]', async t => {
+  const { close, state, status } = landing();
+  t.after(close);
+  const red = new Refused('GATE_RED', 'static checks are red; fix the named source before running proof:\nsrc/cockpit.js:1: prose command declaration differs from the CLI help catalog');
+  assert.equal(itemRefusal(red), true, 'a static red names the candidate\'s source');
+  const withPolicy = { ...state, config: { landing: { perItem: false } } };
+  assert.equal(singleItemLanding(withPolicy), false, 'per-item is off for this batch');
+  assert.equal(oneItemBatch(withPolicy), true, 'the batch still holds exactly one item');
+  assert.equal(await returnRefusedItem(withPolicy, red), true);
+  assert.equal(status(), 'open', 'the item goes back to its builder instead of being adopted again next wake');
 });
 
 test('a refusal of the item\'s own content still reopens it [C7,#2967]', async t => {
