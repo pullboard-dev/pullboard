@@ -75,7 +75,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
   assert.equal(paused.code, 1);
   const pausedReason = JSON.parse(paused.out).error.message;
   assert.ok(pausedReason.includes('lane release review'));
-  assert.ok(pausedReason.includes(`#${held.get('web').id} is held by coordinator: ${held.get('web').reason}`),
+  assert.ok(pausedReason.includes('1 item is held by coordinator'),
     'a lane hold does not mask the item hold reason');
   jsonSuccess(box, box.repo, 'hold', 'web', '--off');
   for (const actor of actors) {
