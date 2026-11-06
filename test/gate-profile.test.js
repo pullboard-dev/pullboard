@@ -247,6 +247,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   assert.equal(box.run(box.repo, 'add', 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
+  box.env.CODEX_THREAD_ID = 'profile-builder-session';
   assert.equal(box.run(box.web, 'claim', '1').status, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
@@ -278,6 +279,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance unrelated review context');
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
+  box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
   assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
