@@ -289,6 +289,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     batch = null;
   }
   if (batch && await retireHeldBatch(root, board, write, say, batch)) batch = null;
+  // An acceptance that adopts an interrupted batch joins the ready work selected at this same main snapshot.
+  if (batch && interrupted && selected.ready.length) {
+    const candidates = batch.candidates ?? batch.items ?? [];
+    const known = new Set(candidates.map(entry => entry.id));
+    const arrivals = selected.ready.filter(item => !known.has(item.item_id)).map(landingEntry);
+    if (arrivals.length) batch = await write('recordLandingBatch', [{ agentId: 'coordinator',
+      batch: { ...batch, candidates: [...candidates, ...arrivals] }, revision: batch.revision }]);
+  }
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
@@ -332,7 +340,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         let proof = gate.isGreen ? null : waivedProof(state, gate);
         if (!gate.isGreen && !proof && singleItemLanding(state)) {
           // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
-          await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+          await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
           await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
           gate = null;
         } else if (!gate.isGreen && !proof) {

@@ -91,8 +91,16 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     .all(now, now).filter(row => configured.has(row.host));
   const results = await Promise.all(rows.map(async row => {
     const token = randomUUID();
-    const claimed = db.prepare(`UPDATE runner_unavailable SET probe_token=?,probe_until=? WHERE host=? AND since=?
-      AND probe_until<=? AND probe_after<=?`).run(token, now + 10_000, row.host, row.since, now, now).changes;
+    let claimed;
+    try {
+      claimed = db.prepare(`UPDATE runner_unavailable SET probe_token=?,probe_until=? WHERE host=? AND since=?
+        AND probe_until<=? AND probe_after<=?`).run(token, now + 10_000, row.host, row.since, now, now).changes;
+    } catch (error) {
+      // Recovery is best effort: a locked slot database skips this round with the row unchanged, and the next pass
+      // retries. A thrown lock ended the landing worker mid-gate three times in 30 minutes on 5 Nov [C7].
+      if (/database is locked|SQLITE_BUSY/u.test(String(error?.message ?? error))) return false;
+      throw error;
+    }
     if (!claimed) return false;
     let retained;
     try { retained = JSON.parse(row.failure); } catch { retained = { original: null }; }

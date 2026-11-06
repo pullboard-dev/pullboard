@@ -146,3 +146,31 @@ export function platformIdentity(pid) {
   } catch { /* Unreadable: the live PID stays authoritative. */ }
   return null;
 }
+
+/** The heartbeat every holder row carries for older readers: later than any clock, so no age ever looks stale. */
+export const PINNED_HEARTBEAT = 8_640_000_000_000_000;
+
+/**
+ * Blind every older pullboard's time-based reclaimer, from inside the shared slot database. The real heartbeat moves to
+ * `beat`; `heartbeat` stays pinned in the future and `terminating` at 0, kept so by triggers that fire for every client,
+ * old code included. Why: worktrees running a CLI from before #3154 still SIGTERMed live gate and verify holders whose
+ * `heartbeat` was past their 120 s window (33 kills on 4 Nov); old code reads only those two columns before signalling,
+ * so it now frees only holders whose process is gone, which is correct [C7,#3164].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The slot database inside the opener's write transaction.
+ */
+export function pinLegacyReclaimInputs(db) {
+  if (!db.prepare('PRAGMA table_info(holder)').all().some(({ name }) => name === 'beat')) {
+    db.exec('ALTER TABLE holder ADD COLUMN beat INTEGER NOT NULL DEFAULT 0');
+  }
+  const pin = PINNED_HEARTBEAT;
+  // Rows an older client wrote before the triggers existed carry their real beat in heartbeat.
+  db.exec(`UPDATE holder SET beat = heartbeat WHERE heartbeat <> ${pin};
+    UPDATE holder SET heartbeat = ${pin}, terminating = 0 WHERE heartbeat <> ${pin} OR terminating <> 0;`);
+  const body = `BEGIN UPDATE holder SET beat = CASE WHEN NEW.heartbeat <> ${pin} THEN NEW.heartbeat ELSE beat END,
+    heartbeat = ${pin}, terminating = 0 WHERE token = NEW.token; END`;
+  db.exec(`CREATE TRIGGER IF NOT EXISTS holder_pin_insert AFTER INSERT ON holder
+      WHEN NEW.heartbeat <> ${pin} OR NEW.terminating <> 0 ${body};
+    CREATE TRIGGER IF NOT EXISTS holder_pin_update AFTER UPDATE OF heartbeat, terminating ON holder
+      WHEN NEW.heartbeat <> ${pin} OR NEW.terminating <> 0 ${body};`);
+}
