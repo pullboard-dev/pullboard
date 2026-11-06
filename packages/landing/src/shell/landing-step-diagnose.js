@@ -77,10 +77,10 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
       const kept = state.mainComparisons?.get(file);
       // A file the batch did not change keeps main's newest cached outcome: re-measuring it cost 11 and 6 minutes on 6 Nov [C7,#3268].
       const carried = !kept && changed && !changed.has(file) ? carry(file) : null;
-      if (!kept && !carried) state.say?.(`base split: comparing ${file} on main ${state.batch.base.slice(0, 12)} started`);
       result = kept && (kept.carried || kept.main === state.batch.base) ? kept
         : carried ?? await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
-          { commit: state.batch.base, detailed: true, allowCancelled: true, runnerAdmission: { landing: true } });
+          { commit: state.batch.base, detailed: true, allowCancelled: true, runnerAdmission: { landing: true },
+          onStart: ({ runner }) => state.say?.(`base split: comparing ${file} on main ${state.batch.base.slice(0, 12)} started${runner ? ` on runner ${runner}` : ''}`) });
     } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return; }
     const runner = result?.runner ?? result?.files?.find(entry => entry.file === file)?.runner;
     const row = (result?.carried || result?.main === state.batch.base) && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;

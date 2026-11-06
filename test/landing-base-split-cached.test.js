@@ -60,8 +60,9 @@ test('clause 3: two files\' comparisons start within 5 s and each logs file, run
   let release;
   const released = new Promise(resolve => { release = resolve; });
   const state = { batch: { root, base }, say: line => said.push(line) };
-  const compare = async (_root, profile) => {
+  const compare = async (_root, profile, _wait, _out, options) => {
     const file = profile.tests[0].file;
+    options.onStart({ file, runner: `runner-${file[0]}` });
     starts.set(file, Date.now());
     // Neither comparison finishes until both have started, so serial comparisons would never get here.
     if (starts.size === 2) release(); else await released;
@@ -74,7 +75,7 @@ test('clause 3: two files\' comparisons start within 5 s and each logs file, run
   assert.equal(split.known.length, 2);
   assert.ok(Math.abs(starts.get('a.test.js') - starts.get('b.test.js')) < 5000);
   for (const file of ['a.test.js', 'b.test.js']) {
-    assert.ok(said.some(line => line.includes(`comparing ${file}`)), `start line for ${file}`);
+    assert.ok(said.some(line => line.includes(`comparing ${file}`) && line.includes(`started on runner runner-${file[0]}`)), `start line for ${file}`);
     assert.ok(said.some(line => line.includes(file) && line.includes(`runner-${file[0]}`) && /\(\d+ ms\)/u.test(line)), `end line for ${file}`);
   }
 });
