@@ -476,6 +476,31 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
+/** Refresh named red files cached for the prior main at the published main in parallel; later landings reuse per-file cases. */
+export async function refreshMainRedComparisons(root, previousMain, publishedMain, onWait, compare = compareMainFailures) {
+  if (!previousMain || !publishedMain || previousMain === publishedMain) return [];
+  const file = cacheFile(root);
+  const cache = await withComparisonCache(root, onWait, () => readCache(file));
+  const refreshed = cache.entries[publishedMain] ?? {};
+  // A red entry that names no failing case is unusable for known-main accounting, so every submit red in that file is
+  // charged to its item; on 6 Nov 14 of 17 recent red entries were such, and the filter below never refreshed them.
+  // Those are refreshed too, fresh and detailed, so the next comparison names its cases [C7].
+  const knownRedFiles = Object.entries(cache.entries[previousMain] ?? {})
+    .filter(([, outcome]) => outcome?.result === 'red')
+    .filter(([path]) => !(['red', 'green'].includes(refreshed[path]?.result)
+      && refreshed[path].signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(refreshed[path].failures)))
+    .map(([path]) => path);
+  return Promise.all(knownRedFiles.map(async path => {
+    try {
+      return await compare(root, { tests: [{ file: path, passed: false }] }, onWait, '', {
+        commit: publishedMain, detailed: true, fresh: true, allowCancelled: true, contentCache: false,
+      });
+    } catch (error) {
+      return { main: publishedMain, files: [], unavailable: error?.message ?? String(error) };
+    }
+  }));
+}
+
 /** Map one or more main-red file results only when the row and its open owner are unambiguous. */
 export function mainRedAttribution(root, board, comparison) {
   const redFiles = comparison.files.filter(entry => entry.result === 'red').map(entry => entry.file);

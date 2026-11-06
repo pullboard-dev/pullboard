@@ -228,17 +228,19 @@ async function nextWithProgress(io, values, progress) {
       return 0;
     }
     const idleReason = found.idleReason ?? 'unknown';
-    if (!found.retry && idleReason !== lastIdleReason) {
+    const idleObservation = { reason: idleReason, skips: found.skips ?? [] };
+    const idleKey = JSON.stringify(idleObservation);
+    if (!found.retry && idleKey !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
-          { agentId: whoAmI(ctx, board).id, reason: idleReason }));
-        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+          { agentId: whoAmI(ctx, board).id, ...idleObservation }));
+        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
         io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
       }
-      lastIdleReason = idleReason;
+      lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {

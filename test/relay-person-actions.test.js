@@ -16,6 +16,7 @@ import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture, legacyRelayClientFixture } from './relay-client-fixture.js';
+import { press, stableChrome } from './cockpit/stable.js';
 
 /** Record the real phase and wait budget for a late-snapshot failure without changing either wait. */
 function lateSnapshotTiming(t) {
@@ -85,12 +86,13 @@ async function pairedTransport(chrome, box, title, timing = null) {
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + key);
   timing?.finish();
   timing?.begin('page readiness', relayWorkBudgetMs());
-  await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
+  await press(chrome, "document.querySelector('[data-tab=items]')");
+  await chrome.waitFor("document.querySelector('[data-pane=items]') && !document.querySelector('[data-pane=items]').hidden && document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(title) + ')');
   timing?.finish();
   timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
-  assert.equal(await chrome.evaluate(`(() => { window.__personActionTransport = transport;
-    return window.__personActionTransport === transport; })()`, 'use real paired person transport'), true,
+  assert.equal(await chrome.stable(`(() => { window.__personActionTransport = transport;
+    return window.__personActionTransport === transport; })()`), true,
     'fixture commands use the page-owned transport and its single stream queue');
   timing?.finish();
   return link;
@@ -141,7 +143,7 @@ test('real paired person adds, answers a person decision, and holds then release
   const decision = asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
   await box.link();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   const link = await pairedTransport(chrome, box, 'PERSON_ACTION_BROWSER_READY');
 
@@ -228,7 +230,7 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
     await box.link();
     timing.finish();
     timing.begin('Chrome startup', relayWorkBudgetMs(2));
-    const chrome = await startChrome();
+    const chrome = await stableChrome(await startChrome());
     t.after(() => chrome.close());
     timing.finish();
     const link = await pairedTransport(chrome, box, title, timing);
