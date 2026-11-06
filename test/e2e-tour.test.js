@@ -46,7 +46,7 @@ test('a second tour replaces the first demo and links nothing to the relay [N10]
   assert.deepEqual(state.approvals, [], 'no relay link request or approval was made for either demo');
 });
 
-test('the tour finishes when an agent session runs it [N10]', async () => {
+test('clause 1: the tour finishes when an agent session runs it [N10]', async () => {
   // A caller in Claude Code or Codex runs the tour; the scripted seats must not inherit the caller's session, so the
   // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
   const runs = [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']].map(([name, value]) => {
