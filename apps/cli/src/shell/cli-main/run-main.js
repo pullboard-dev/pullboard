@@ -17,6 +17,9 @@ import { parseCommandArgs } from './options.js';
 
 let startupMainTraced = false;
 
+/** Commands that start no worktree-maintenance timer after they run; the timer's git reads cost every call about 190 ms [C7]. */
+const QUIET_COMMANDS = new Set(['next', 'show', 'claim']);
+
 /** Retain the primary branch on every command without creating a board for global help. */
 async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   let info;
@@ -220,7 +223,8 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
-    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance'
+      && !QUIET_COMMANDS.has(parsed?.positionals[0])) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
       automaticLandingAfterCommand = io.automaticLandingContext;
@@ -239,7 +243,11 @@ async function runMain(argv, streams) {
       // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
       const { info } = automaticLandingAfterCommand;
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
-      try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
+      try {
+        const worker = await import('../../../../../packages/landing/index.js');
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot);
+      }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
     if (maintenanceAfterCommand) {
