@@ -34,6 +34,8 @@ function fixture() {
     PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;
+  // The fixture is a shell with no agent session: an inherited session id would make the builder's session judge its own work.
+  for (const name of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[name];
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   /** Run Git in this private fixture with its isolated identity. */
@@ -123,7 +125,7 @@ function integrationEvidence(box, cwd, id, kind, outcome, commitId, text) {
   return JSON.parse(result.out).id;
 }
 
-test("the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3]", () => {
+test("clause 1: the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3,C7]", () => {
   const box = fixture();
   const cleanBuilder = box.web;
   const cleanId = addAndClaim(box, cleanBuilder, 'Clean item', 'G1');

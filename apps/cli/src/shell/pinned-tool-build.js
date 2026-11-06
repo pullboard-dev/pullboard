@@ -14,17 +14,8 @@ import {
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createRequire } from 'node:module';
-
-/**
- * The refusal type, loaded when a refusal is first built. The entry loads this module on every command, so the kernel's
- * dozen modules stay out of the warm resident client's load; a refusal is rare [H24].
- */
-let refusedType;
-function Refused(code, message, ...rest) {
-  refusedType ??= createRequire(import.meta.url)('../../../../packages/kernel/index.js').Refused;
-  return new refusedType(code, message, ...rest);
-}
+// Straight to the one module: the kernel front door would load 13 modules into every thin resident client.
+import { Refused } from '../../../../packages/kernel/src/core/refused.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -34,7 +25,7 @@ function git(root, args, binary = false) {
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   const result = spawnSync('git', ['--no-replace-objects', ...args], { cwd: root, env,
     encoding: binary ? undefined : 'utf8', maxBuffer: 128 * 1024 * 1024 });
-  if (result.status !== 0) throw Refused('TOOL_BUILD_UNAVAILABLE', 'restore the published tool build Git objects, or ask the coordinator to promote a gated build');
+  if (result.status !== 0) throw new Refused('TOOL_BUILD_UNAVAILABLE', 'restore the published tool build Git objects, or ask the coordinator to promote a gated build');
   return binary ? result.stdout : result.stdout.trim();
 }
 
@@ -57,7 +48,7 @@ export function toolBuildPolicy(location) {
   if (value === undefined) return { enabled: false, refreshMs: 3_600_000 };
   if (!value || typeof value.enabled !== 'boolean' || value.refreshMs !== undefined
     && (!Number.isSafeInteger(value.refreshMs) || value.refreshMs < 1)) {
-    throw Refused('BAD_CONFIG', 'toolBuild needs enabled true|false and an optional positive refreshMs');
+    throw new Refused('BAD_CONFIG', 'toolBuild needs enabled true|false and an optional positive refreshMs');
   }
   return { enabled: value.enabled, refreshMs: value.refreshMs ?? 3_600_000 };
 }
@@ -70,7 +61,7 @@ export function readToolBuild(location) {
   try { value = JSON.parse(readFileSync(path, 'utf8')); } catch { value = null; }
   if (value?.version !== 1 || !OID.test(value.commit ?? '') || !OID.test(value.tree ?? '')
     || !Number.isFinite(Date.parse(value.promotedAt)) || typeof value.receipt !== 'string') {
-    throw Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool build is malformed; ask the coordinator to promote a gated build');
+    throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool build is malformed; ask the coordinator to promote a gated build');
   }
   return value;
 }
@@ -83,12 +74,12 @@ export function installToolBuild(location, build) {
   const temporary = mkdtempSync(join(location.directory, '.install-'));
   try {
     if (git(location.root, ['rev-parse', `${build.commit}^{tree}`]) !== build.tree) {
-      throw Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool tree does not match its commit; promote a gated build');
+      throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool tree does not match its commit; promote a gated build');
     }
     const archive = git(location.root, ['archive', '--format=tar', build.commit], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', temporary], { input: archive, encoding: 'utf8' });
     if (unpacked.status !== 0 || !existsSync(join(temporary, 'bin', 'pullboard.js'))) {
-      throw Refused('TOOL_BUILD_UNAVAILABLE', 'the gated commit is not an installable Pullboard build; promote a Pullboard commit');
+      throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the gated commit is not an installable Pullboard build; promote a Pullboard commit');
     }
     try { renameSync(temporary, target); }
     catch (error) { if (!existsSync(target)) throw error; }
@@ -117,7 +108,7 @@ export async function selectedToolEntry(cwd, entry, { now = Date.now() } = {}) {
     const { refreshToolBuild } = await import('./pinned-tool-publish.js');
     build = refreshToolBuild(location, { now }) ?? build;
   }
-  if (!build) throw Refused('TOOL_BUILD_REQUIRED', 'pinned tools are enabled but no gated build is published; coordinator: run pullboard tool-build promote <commit> --gate-receipt <gate-id>');
+  if (!build) throw new Refused('TOOL_BUILD_REQUIRED', 'pinned tools are enabled but no gated build is published; coordinator: run pullboard tool-build promote <commit> --gate-receipt <gate-id>');
   const selected = join(installToolBuild(location, build), 'bin', 'pullboard.js');
   return resolve(selected) === resolve(entry) ? null : selected;
 }
