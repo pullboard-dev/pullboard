@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { currentCapacity, liveCapacity } from '../bin/handoff-worker-dispatcher.js';
 import { handoffCapLine, handoffWorkerCapacityDetail } from '../packages/resources/index.js';
+import { DISPATCH_WORKER_BOUND } from '../packages/resources/src/shell/handoff-worker-cap.js';
 
 /** Run work with the machine home pointed at a fresh folder and an inherited cap of 1. */
 function withMachine(work) {
@@ -31,7 +32,7 @@ test('clause 2: status shows the dispatcher live worker cap and where it came fr
     assert.equal(handoffCapLine(), null, 'no dispatcher has run yet');
     const live = liveCapacity();
     assert.match(handoffCapLine(), new RegExp(`^handoff workers: cap ${live} \\(.+\\)$`, 'u'));
-    assert.deepEqual(handoffWorkerCapacityDetail({ env: {}, cores: 8, runnerSlots: 66, runnersOnly: true }), { cap: 12, source: 'every runner slot (66, gate.runnersOnly), bounded at 12' });
+    assert.deepEqual(handoffWorkerCapacityDetail({ env: {}, cores: 8, runnerSlots: 66, runnersOnly: true }), { cap: DISPATCH_WORKER_BOUND, source: `every runner slot (66, gate.runnersOnly), bounded at ${DISPATCH_WORKER_BOUND}` });
     assert.equal(liveCapacity({ PULLBOARD_HANDOFF_WORKERS: '3' }), 3);
     assert.equal(handoffCapLine(), 'handoff workers: cap 3 (PULLBOARD_HANDOFF_WORKERS override)', 'a changed cap replaces the record');
   });
