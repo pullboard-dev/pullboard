@@ -123,7 +123,7 @@ test('done --wait preserves gate JSON independently of the later accepted verdic
 });
 
 /** A withdrawn acceptance must never turn an old attached submission into a successful result. */
-test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
+test('clause 1: a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
   const box = await waitingVerdict(t, 'ACCEPT');
   const { item_id: id, item_commit: commit } = onBoard(box, board => store.getItem(board, 1));
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
@@ -135,7 +135,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
 });
 
 /** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
-test('a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
+test('clause 1: a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
@@ -267,7 +267,7 @@ test('a reclaimed reject refuses both stale and retargeted health observations [
 });
 
 /** The existing public coordinator scan, rather than a direct test-only move, performs the handback. */
-test('the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
+test('clause 1: the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
   const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
   assert.ok(onBoard(box, board => firstRefusal(board, 1)), 'the original reservation is still live');
   const ran = box.run(box.repo, 'sentinel', 'run', '--health-only', '--json');
