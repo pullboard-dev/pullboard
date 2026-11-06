@@ -1375,7 +1375,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
 });
 
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
-  const inDispatch = editedSource('../apps/cli/src/shell/cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
+  const inDispatch = editedSource('../apps/cli/src/shell/cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args(?:, \{ prepareInWriter \} = \{\})?\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',

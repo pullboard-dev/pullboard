@@ -121,7 +121,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   } finally { LAPSE_MAINTENANCE.delete(board); }
 }
 
-export async function ordered(ctx, board, operation, args) {
+export async function ordered(ctx, board, operation, args, { prepareInWriter } = {}) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
@@ -158,7 +158,8 @@ export async function ordered(ctx, board, operation, args) {
       await (await import('../../../../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.board_ensureCoordinator });
-    const write = () => writeBoardCommand(board, operation, args, actor);
+    const write = (localWriter = true) => writeBoardCommand(board, operation, args, actor,
+      localWriter && prepareInWriter ? { prepareInWriter } : undefined);
     if (initialBaseline && actor) await recordBaseline(actor);
     await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
@@ -171,23 +172,40 @@ export async function ordered(ctx, board, operation, args) {
       heartbeat(ctx.io, { ctx, board });
     };
     /** Called only for this requested operation, after its store transaction commits, never for bootstrap. */
-    const applyRequested = () => {
+    const applyRequested = ({ localWriter = true } = {}) => {
       const before = board.lastEvent;
       const firstEvent = board.emittedEvents?.length ?? 0;
-      const result = write();
+      const result = write(localWriter);
       if (requested && board.lastEvent !== before) observeRequested();
       ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
     // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
     const gitLinked = !ctx.privateBoard && await gitSyncOn(ctx, board);
+    const relayLinkedHere = !ctx.privateBoard && (relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io));
+    const throughLinkedTransport = async () => {
+      for (let attempt = 0; ; attempt++) {
+        let candidate;
+        try {
+          if (prepareInWriter) {
+            candidate = prepareInWriter(board);
+            args.splice(0, args.length, ...candidate.args);
+          }
+          return gitLinked
+            ? await (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
+            : await relayOperation(ctx.info.root, operation, args, ctx.io, command, () => applyRequested({ localWriter: false }),
+              requested ? observeRequested : undefined);
+        } catch (error) {
+          candidate?.rollback?.();
+          if (!prepareInWriter || error?.code !== 'STALE_ROW_DECISION' || attempt >= 2) throw error;
+        }
+      }
+    };
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
-      : gitLinked
-        ? (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
-        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
-          ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
-            requested ? observeRequested : undefined) : applyRequested());
+      : gitLinked || relayLinkedHere
+        ? throughLinkedTransport()
+        : applyRequested());
     if (requested && gitLinked) ctx.io.recordedMove = true;
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
