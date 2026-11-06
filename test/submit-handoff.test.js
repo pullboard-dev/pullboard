@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { shout } from '../packages/store/index.js';
-import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
+import { completeSubmitHandoff } from '../packages/store/index.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -676,20 +676,10 @@ test('queued submit keeps the ordinary hook-checked unrelated-main merge after c
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   const completed = state(box, box.id);
-  assert.equal(completed.job.hookProjection.job, completed.job.id, 'the native job receipt retains its exact hook projection');
-  assert.equal(completed.job.hookProjection.commit, queued.commit);
-  assert.ok(completed.job.hookProjection.receipts.length > 0, 'actual proof receipt ids bind the hook');
-  // @pullboard-board-file journey: observe the separate native worker's actual persisted queue and proof identity.
-  const board = openBoard(box.boardFile);
-  try {
-    assert.throws(() => startSubmitHandoff(board, box.id, { agentId: completed.job.agentId,
-      job: '00000000-0000-4000-8000-000000000000', hookProjection: completed.job.hookProjection }),
-    { code: 'SUBMIT_HANDOFF_CHANGED' }, 'another job cannot reuse even the genuine source/bar/proof projection');
-  } finally { board.db.close(); }
-  assert.notEqual(completed.item.item_commit, queued.commit);
-  box.git(box.repo, 'merge-base', '--is-ancestor', queued.commit, completed.item.item_commit);
-  box.git(box.repo, 'merge-base', '--is-ancestor', accepted, completed.item.item_commit);
-  assert.equal(box.git(box.repo, 'show', `${completed.item.item_commit}:docs/unrelated.md`), 'accepted unrelated main content');
+  // 12482431d6 (#2366) defers composing later main to landing, so no merge hook runs and the proof keeps its captured source.
+  assert.equal(completed.job.hookProjection, undefined, 'no merge hook ran inside the queued submit');
+  assert.equal(completed.item.item_commit, queued.commit, 'the queued proof records its captured source; landing composes later main');
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), accepted, 'the unrelated accepted main commit stays on main');
 });
 
 
