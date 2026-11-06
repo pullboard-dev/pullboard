@@ -1574,6 +1574,10 @@
     {
       "path": "bin/main-red-refresh.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
