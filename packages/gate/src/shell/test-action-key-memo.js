@@ -12,8 +12,12 @@ import {
   statSync,
   utimesSync,
   writeFileSync,
+  openSync,
+  closeSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { userInfo } from 'node:os';
+import { gateMachineHome } from '../core/preload-policy.js';
 
 /** Name a selector without making its path part of a cache filesystem path. */
 function name(file) { return createHash('sha256').update(file).digest('hex'); }
@@ -33,6 +37,40 @@ function publish(path, value) {
 const MEMO_MAX_AGE_MS = 2 * 3_600_000;
 const PRUNE_EVERY_MS = 600_000;
 
+/** The one directory every repository and checkout on this machine shares; tests isolate it with their machine home. */
+function pruneMarkerDirectory() {
+  const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
+  return join(gateMachineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir }), 'key-memo-prune');
+}
+
+/**
+ * Claim this machine's prune turn, or report that another caller holds it.
+ * Why: the marker is one file named `prune-<last prune time>` in a machine-wide folder. A claim renames it to
+ * `prune-<now>`; a rename needs its source, so when callers race for the same stale marker the filesystem lets exactly
+ * one rename succeed and the rest see ENOENT. There is no check-then-write, no lock file and no remove-then-create.
+ *
+ * @param {string} directory
+ * @param {number} now
+ * @returns {boolean} true for the single winner.
+ */
+function claimPruneTurn(directory, now) {
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  /** The newest recorded prune time, or null when no marker exists yet. */
+  const latest = () => {
+    const times = readdirSync(directory).map(entry => /^prune-(\d+)$/u.exec(entry)).filter(Boolean).map(match => Number(match[1]));
+    return times.length ? Math.max(...times) : null;
+  };
+  let last = latest();
+  if (last === null) {
+    // First use on this machine: the exclusive create decides one creator; a loser just reads the winner's marker.
+    try { closeSync(openSync(join(directory, 'prune-0'), 'wx')); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+    last = latest();
+  }
+  if (last === null || now - last < PRUNE_EVERY_MS) return false;
+  try { renameSync(join(directory, `prune-${last}`), join(directory, `prune-${now}`)); } catch { return false; }
+  return true;
+}
+
 /**
  * Remove key memo folders not read or written for 2 hours, at most once per 10 minutes per machine, the way
  * pruneRuns ages out run folders. A pruned memo simply rebuilds on its next use. Why: one ~4 MB memo per tested
@@ -40,16 +78,12 @@ const PRUNE_EVERY_MS = 600_000;
  *
  * @param {string} store
  * @param {number} [now]
+ * @returns {boolean} whether this call won the machine's prune turn and pruned.
  */
-function pruneKeyMemos(store, now = Date.now()) {
-  const keys = join(store, 'keys');
-  const marker = join(keys, '.pruned');
-  try { if (now - statSync(marker).mtimeMs < PRUNE_EVERY_MS) return; } catch { /* Never pruned: go on. */ }
-  try { mkdirSync(keys, { recursive: true, mode: 0o700 }); } catch { return; }
-  // No lock: removing an old folder is idempotent, so two callers that both see a stale marker only repeat harmless work.
-  // Stamping the marker first keeps later callers out for the window.
-  try { writeFileSync(marker, ''); utimesSync(marker, new Date(now), new Date(now)); } catch { return; }
-  removeOldMemos(keys, now);
+export function pruneKeyMemos(store, now = Date.now()) {
+  try { if (!claimPruneTurn(pruneMarkerDirectory(), now)) return false; } catch { return false; }
+  removeOldMemos(join(store, 'keys'), now);
+  return true;
 }
 
 /**
