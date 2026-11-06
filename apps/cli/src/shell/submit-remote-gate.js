@@ -157,7 +157,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
-    privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
+    toolingSource: { kind: 'pinned-main', commit: main }, privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
     executionAdmission: result.executionAdmission ?? null, privateCheck: receipt ?? null }) + '\n', { mode: 0o600 });
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
     || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256

@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -40,7 +41,7 @@ export function record(root, step, url) { appendFileSync(join(root, '.git', 'tru
  * Build a controller repository whose main holds recording tooling and whose candidate replaces every tool with a bomb,
  * plus a separate runner clone checked out at the candidate.
  */
-function fixture(t, { red = false, flaky = 0 } = {}) {
+function fixture(t, { red = false, flaky = 0, brokenMain = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'submit-remote-gate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const env = gitEnv();
@@ -77,7 +78,7 @@ export function submitGatePlan(root, config, options) {
 export async function submitGateAdmission(root) { record(root, 'admission', import.meta.url); return { browser: false, gui: false }; }
 `);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
-  put('bin/cells-submit-checks.js', `import { record } from './record.js';
+  put('bin/cells-submit-checks.js', `${brokenMain ? "import { transferredCellsInventories } from './record.js';\n" : ''}import { record } from './record.js';
 export async function requireSubmitCells(root, main, source, item, services) {
   record(root, 'cells', import.meta.url);
   if (JSON.parse(item.item_frozen).criterion !== 'fixture criterion' || services.readCutItems()[0].item_id !== 7) throw new Error('lost authority');
@@ -209,4 +210,24 @@ test('independent trusted analysis parts run only their named work [C7]', async 
   assert.deepEqual(selection.plan.proofFiles, ['test/a.test.js']);
   const statics = await select('static');
   assert.deepEqual(Object.keys(statics.steps), ['static']);
+});
+
+test('analysis loads main\'s own tooling and never an installed copy that imports a name main dropped; the receipt names main [C7]', async t => {
+  const box = fixture(t);
+  // An installed Pullboard copy on the runner whose module imports a name pinned main no longer exports.
+  const installed = join(box.runner, 'node_modules', 'pullboard', 'bin');
+  mkdirSync(installed, { recursive: true });
+  writeFileSync(join(installed, 'cells-submit-checks.js'), "import { transferredCellsInventories } from './cells-inventory-cache.js';\nexport const requireSubmitCells = transferredCellsInventories;\n");
+  writeFileSync(join(installed, 'cells-inventory-cache.js'), 'export const inventoryCache = 1;\n');
+  const artifacts = join(box.dir, 'artifacts');
+  const { value } = await controllerSpawns(() => remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), artifacts));
+  assert.deepEqual(value.cells.cells, ['trusted-main']);
+  const [directory] = readdirSync(join(artifacts, 'analysis'));
+  const observation = JSON.parse(readFileSync(join(artifacts, 'analysis', directory, 'observation.json'), 'utf8'));
+  assert.deepEqual(observation.toolingSource, { kind: 'pinned-main', commit: box.main });
+});
+
+test('a real import failure in pinned main\'s own tooling still refuses RUNNER_RESULT_INVALID [C7]', async t => {
+  const box = fixture(t, { brokenMain: true });
+  await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_RESULT_INVALID' });
 });
