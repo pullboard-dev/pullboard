@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
 import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
-import { SETUP_REFUSALS } from './machine-not-moves.fixture.js';
+import { NOT_MOVES } from './machine-not-moves.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -47,75 +47,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
-/**
- * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
- * registration and machine-wide settings are checked before any item move.
- */
-const NOT_MOVES = {
-  ...SETUP_REFUSALS,
-  USAGE: 'how a command was typed',
-  NO_FILE: 'how a command was typed: a --note-file that does not exist',
-  ALREADY_JOINED: 'registering who is asking, before any move',
-  BAD_PARENT: 'validating optional parent/session declarations at join, before any move',
-  PARENT_SESSION_CHANGED: 'preserving the joined seat’s immutable parent/session identity, before any move',
-  FAMILY_DECLARED: 'a seat\u2019s declared vendor family is final, checked at join before any move',
-  BAD_ROUTE: 'registering who is asking, before any move',
-  ONE_COORDINATOR: 'registering who is asking, before any move',
-  BAD_SEAT_ID: 'registering who is asking, before any move; only a creator naming a new worktree seat raises it',
-  MACHINE_HOME_NOT_WRITABLE: 'machine-wide storage must be writable before a command runs',
-  SANDBOX_BLOCKED: 'the command environment must allow the gate or check operation',
-  BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
-  BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
-  BAD_BROWSER_SLOTS: 'machine-wide browser capacity checked before a command runs',
-  BAD_SHORT_SLOTS: 'machine-wide short gate slot count checked before a command runs',
-  BAD_SHORT_SLOT_REQUEST: 'only a machine gate run that names its test files may ask for a short slot, checked before admission',
-  BAD_RESOURCE_NAME: 'machine resource names are validated before admission',
-  RESERVED_RUNNER_RESOURCE: 'runner resource rows are managed by machine admission rather than item moves',
-  BAD_RESOURCE_CAPACITY: 'machine resource capacity is validated before admission',
-  BAD_BROWSER_RESOURCE: 'browser capability must be acquired together with the machine gate',
-  BAD_REMOTE_RESOURCE: 'remote executor capability must be acquired together with the machine gate',
-  BAD_RUNNER_POOL: 'configured remote executors are validated before admission',
-  BAD_RESOURCE_METADATA: 'resource queue metadata is validated before admission',
-  BAD_RESOURCE_PRIORITY: 'resource queue priority classes must be mutually exclusive before admission',
-  RESOURCE_CAPACITY_MISMATCH: 'resource capacity cannot change underneath active machine leases',
-  RESOURCE_LEASE_LOST: 'a machine resource lease must remain live while its admitted command runs',
-  LOCAL_RUNNER_REQUEUE: 'only remote executor leases can return to the runner queue',
-  BOARD_SCOPE_UNAVAILABLE: 'board resource admission requires the relay before an item move',
-  BAD_RESOURCE_SCOPE: 'resource pool scope is validated before admission',
-  RUNNER_CAPACITY_MISMATCH: 'configured remote capacity cannot drop below active runner leases',
-  REMOTE_GATE_SLOT_NOT_INHERITABLE: 'a remote executor lease cannot become a local child gate capability',
-  BAD_RUNNER: 'machine-wide SSH runner settings checked before remote execution',
-  RUNNER_OUTPUT_LIMIT: 'remote execution output is bounded before accepting its result',
-  RUNNER_CLEANUP_TIMEOUT: 'remote cleanup must report a bounded failure before returning capacity',
-  RUNNER_SETUP_REFUSED: 'a runner whose own resource pool refuses setup fails the run by name instead of hanging',
-  RUNNER_SOURCE_CHANGED: 'remote execution requires the exact admitted committed source',
-  RUNNER_SECRET: 'source and command transfer is refused before private content leaves the machine',
-  RUNNER_REQUEST_LIMIT: 'remote tooling requests are bounded before transport starts',
-  RUNNER_SOURCE: 'the committed source is readable before remote transport starts',
-  RUNNER_SCAN_LIMIT: 'remote source objects must fit the transfer scan budget',
-  RUNNER_TOOLING_SECRET: 'runner tooling is scanned before transfer',
-  RUNNER_TOOLING_IDENTITY: 'runner tooling comes from an identified Pullboard installation',
-  RUNNER_TOOLING_CHANGED: 'runner tooling matches its selected committed revision',
-  NOT_A_REPO: 'the remote source root must be a Git repository before transport starts',
-  GATE_SLOT_LEASE_REQUIRED: 'a child process or nested runner must receive its live machine gate lease before starting',
-  GATE_SLOT_MARKER_INVALID: 'an inherited machine gate capability is validated before nested work starts',
-  GATE_SLOT_TOKEN_REQUIRED: 'an inherited machine gate capability needs its exact lease token',
-  GATE_SLOT_LEASE_LOST: 'the exact machine gate lease must still be live before nested work starts',
-  SHORT_SLOT_FULL_SUITE: 'a short gate lease is reused only by nested work that names its test files',
-  BROWSER_SLOT_REQUIRED: 'browser capacity must be held before a nested browser command can run',
-  NO_AGENT: 'a linked coordinator must already be registered before an item move',
-  REMOTE_COORDINATOR_MODEL: 'a linked replica cannot redeclare the coordinator model; use the coordinator checkout',
-  EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
-  BOARD_BUSY: 'the board connection is opened or read before an item move can begin',
-  NO_ELIGIBLE_REVIEWER: 'the submit command checks, before any item move, that some active seat could review a strict item; the move itself decides nothing new',
-  BOARD_NOT_WRITABLE: 'the board folder must be writable before a command opens it for an item move',
-  NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
-  CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
-  CHECKOUT_BUSY: 'a hook gives up waiting for a checkout another command holds, before any item move',
-  UNMERGED_SCHEMA: 'shared-board schema compatibility checked before a command opens the database',
-  PERSON_SIGNED: 'a person-only move on a board that signs person moves needs a passkey; no item move is person-only',
-  PERSON_SIGNING_CORRUPT: 'the stored relay key is read when a command fetches the relay\'s authority, before any move; it is no item lifecycle rule',
-};
+
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
  * they answer for its refusals together.
@@ -167,7 +99,7 @@ const CAUGHT = {
   // The same catches as reached at the CLI's moved source (#2886).
   '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
@@ -522,8 +454,11 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
-  assert.deepEqual(codeProblems(machineRules.MACHINE), []);
+test('clause 1: every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+  const problems = codeProblems(machineRules.MACHINE);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
+    'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
@@ -543,7 +478,7 @@ test('every refusal a move raises today is declared on that move, and every decl
   }
 });
 
-test('a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
   for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
@@ -571,6 +506,15 @@ test('a broken copy of the declaration fails the check against the code, both wa
     move.guards = move.guards.filter((id) => id !== 'routeAllows');
   }
   assert.deepEqual(codeProblems(noRouteOnVerdicts), ['ROUTE is raised by accept and reject but not declared there']);
+
+  const noVerdictRefusals = copy();
+  const verdictCodes = ['AGENT_APPROVAL_REQUIRED', 'SUBMISSION_PROOF', 'UNKNOWN_SPEC'];
+  for (const verb of ['accept', 'reject']) {
+    const move = moveOf(noVerdictRefusals, verb);
+    move.alsoRefuses = move.alsoRefuses.filter(entry => !verdictCodes.includes(entry.code));
+  }
+  assert.deepEqual(codeProblems(noVerdictRefusals).sort(), verdictCodes.map(code => `${code} is raised by accept and reject but not declared there`),
+    'clause 1: verdict refusals stay declared rather than hidden by the setup exemptions');
 
   const invented = copy();
   invented.guards.push({ id: 'moonPhase', refuse: 'WRONG_MOON', rule: 'the moon is full', next: 'wait', source: 'board' });
@@ -619,6 +563,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
 
   const inFreeze = editedSource('../packages/spec/src/shell/spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
+    'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
     'MOON_PHASE is raised by submit but not declared there',
@@ -1254,7 +1199,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
   }
 });
 
-test('next --verify looks and reserves in one transaction, so no other verifier takes the review in between [V15]', () => {
+test('next --verify looks outside the lock and rechecks inside it, so no other verifier takes the review in between [V15]', () => {
   const lab = boardOnDisk();
   const others = [];
   try {
@@ -1268,13 +1213,13 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     let armed = false;
     let rivalSaw = null;
     // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
-    // and the first time the look reads it, a rival verifier on another connection tries to
-    // reserve the same review.
+    // and the first time the look reads it, a rival verifier on another connection reserves the
+    // same review. The look holds no write lock (#3156), so the rival's write lands mid-look.
     const looking = openBoard(lab.file, {
       now: () => {
         if (armed && rivalSaw === null) {
           try {
-            store.reserveReview(rival, id, { agentId: third, leaseMs: 60_000, policy: 'any' });
+            store.reserveReview(rival, id, { agentId: third, leaseMs: 600_000, policy: 'any' });
             rivalSaw = 'reserved';
           } catch (error) {
             rivalSaw = error;
@@ -1286,9 +1231,12 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     others.push(rival, looking);
     armed = true;
     const found = store.reserveNextReview(looking, { agentId: 'web-2', lane: 'web', leaseMs: 60_000, policy: 'any' });
-    assert.equal(found.item?.item_review_by, 'web-2');
     assert.ok(rivalSaw !== null, 'the look read the clock, so the rival had its chance mid-look');
-    assert.equal(rivalSaw.code, 'BOARD_BUSY', 'the rival could not write while the look held the board');
+    assert.equal(rivalSaw, 'reserved', 'the look held no write lock, so the rival reserved mid-look');
+    // The in-lock recheck sees the rival's live reservation and refuses: the looker never takes the review.
+    assert.notEqual(found.item?.item_id, id, 'the looker did not take the review the rival holds');
+    const held = store.getItem(lab.board, id);
+    assert.equal(held.item_review_by, third, 'exactly one verifier holds the review: the rival');
   } finally {
     for (const board of others) store.closeBoard(board);
     lab.done();
