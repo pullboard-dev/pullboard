@@ -16,3 +16,9 @@ test('clause 1: testkit fixture consumers keep browser-free admission when no br
 test('clause 2: a real Chrome fixture consumer retains browser admission [C7,O5]', async () => {
   assert.equal(await testsNeedBrowser(join(import.meta.dirname, '..'), ['test/chrome-fixture.test.js'], { byLaunch: true }), true);
 });
+
+test('clause 3: the three fixture consumers together stay browser-free while the matrix assertions hold [C7]', async () => {
+  const root = join(import.meta.dirname, '..');
+  const files = ['packages/blueprints/tests/blueprint.test.js', 'test/board-link.test.js', 'test/team-people.test.js'];
+  assert.equal(await testsNeedBrowser(root, files, { byLaunch: true }), false);
+});
