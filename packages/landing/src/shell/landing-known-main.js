@@ -14,7 +14,7 @@ import { listItems } from '../../../store/index.js';
  * Why: the same exact-main comparison submit uses decides, case by case, so a case is known-main only when main fails it
  * with the same failure details; cancelled children are not independent failures, but interrupted or unaccounted runs stay red.
  *
- * @param {{ root: string, batch: { root: string, base: string }, onWait?: Function }} state
+ * @param {{ root: string, batch: { root: string, base: string }, onWait?: Function, compareMainFailures?: Function }} state - `compareMainFailures` is the port that compares one failing file with main; tests inject it to observe the calls [C7].
  * @param {object} gate - The batch's complete gate result.
  * @returns {Promise<{ main: string, known: Array<{file:string,name:string,signature:string}>, remaining: Array<object> }|null>}
  */
@@ -35,7 +35,7 @@ export async function knownMainAccount(state, gate) {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
       // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
       const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
-      const comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
+      const comparison = await (state.compareMainFailures ?? compareMainFailures)(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         // A landing's comparison waits as a landing, ahead of seat submits in the slot line; as a plain diagnostic it
         // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
