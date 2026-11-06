@@ -3,7 +3,6 @@ import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { repoInfo } from '../../../git/src/shell/git.js';
 import { Refused } from '../../../kernel/core.js';
 
 const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
@@ -13,8 +12,11 @@ function pullboardHome() {
   return process.env.PULLBOARD_HOME || join(homedir(), '.pullboard');
 }
 
-/** Decide whether sync preflight has local inputs that may cause work. */
-export function syncMayAct(cwd) {
+/**
+ * Decide whether sync preflight has local inputs that may cause work.
+ * The caller passes the git cell's repoInfo as a port, so store takes no import past git's front door.
+ */
+export function syncMayAct(cwd, repoInfo) {
   if (process.env.PULLBOARD_RELAY_TOKEN !== undefined && process.env.PULLBOARD_RELAY_KEY !== undefined) return true;
   if (existsSync(join(pullboardHome(), 'relay-machine')) || existsSync(join(pullboardHome(), 'relay-keys'))) return true;
   let info;

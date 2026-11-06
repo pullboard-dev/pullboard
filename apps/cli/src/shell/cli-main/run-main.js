@@ -198,7 +198,9 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
-      if (!sync || !(await import('../../../../../packages/store/src/shell/sync-may-act.js')).syncMayAct(io.cwd)) return null;
+      if (!sync) return null;
+      const { repoInfo } = git ?? await import('../../../../../packages/git/src/shell/git.js');
+      if (!(await import('../../../../../packages/store/src/shell/sync-may-act.js')).syncMayAct(io.cwd, repoInfo)) return null;
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('../cli-sync.js');
