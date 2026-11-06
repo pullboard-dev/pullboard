@@ -3,6 +3,8 @@ import { itemRefusalText } from './item-refusal.js';
 
 /** The size the first batch gets, and the bounds the adaptive size never leaves. */
 export const START_BATCH_SIZE = 4;
+/** Landed batches in a row before the size doubles. */
+export const GREENS_TO_GROW = 3;
 export const MIN_BATCH_SIZE = 1;
 export const MAX_BATCH_SIZE = 16;
 
@@ -30,7 +32,7 @@ export function batchOutcome(batch) {
 
 /**
  * The most items the next landing batch holds. It starts at 4, halves after a blocked or bisected batch and doubles
- * after a landed one, never below 1 or above 16, folding every recorded batch in order, so the size never resets
+ * after three landed ones in a row, never below 1 or above 16, folding every recorded batch in order, so the size never resets
  * to a recent window. A set `line.landingBatchSize` overrides the adaptive size.
  *
  * Why: 4 Nov batches carried 12-23 items while main had hundreds of failing cases, so nearly every batch held a red
@@ -46,7 +48,7 @@ export function landingBatchSize(batches, override) {
 }
 
 /** The last fold over a settled prefix, so each selection folds only the batches recorded since it. */
-let settled = { revisions: [], size: START_BATCH_SIZE };
+let settled = { revisions: [], size: START_BATCH_SIZE, greens: 0 };
 
 /** Whether a batch can no longer change its outcome: it landed or ended blocked. */
 function final(batch) { return batch.state === 'landed' || batch.state === 'blocked'; }
@@ -88,12 +90,18 @@ function settle(batches, kept, from, step) {
 function foldBatchSize(batches) {
   const from = resumable(batches, settled.revisions);
   let size = from ? settled.size : START_BATCH_SIZE;
+  let greens = from ? settled.greens : 0;
+  // Step down on the first red; step up only after GREENS_TO_GROW landed batches in a row at the current size. Why:
+  // one green after a red said little about main, and the cap climbed straight back into the next red pair [C7].
   const step = batch => {
     const result = batchOutcome(batch);
-    if (result !== null) size = result ? Math.min(MAX_BATCH_SIZE, size * 2) : Math.max(MIN_BATCH_SIZE, Math.floor(size / 2));
+    if (result === null) return;
+    if (!result) { size = Math.max(MIN_BATCH_SIZE, Math.floor(size / 2)); greens = 0; return; }
+    greens += 1;
+    if (greens >= GREENS_TO_GROW) { size = Math.min(MAX_BATCH_SIZE, size * 2); greens = 0; }
   };
   const { revisions, index } = settle(batches, settled.revisions, from, step);
-  settled = { revisions, size };
+  settled = { revisions, size, greens };
   for (let rest = index; rest < batches.length; rest += 1) step(batches[rest]);
   return size;
 }
