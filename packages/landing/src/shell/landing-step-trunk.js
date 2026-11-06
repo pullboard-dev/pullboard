@@ -202,7 +202,9 @@ export async function landOnTrunk(state) {
   gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  state.say('trunk: gate proved; binding the flake ratchet');
   if (!await flakeRatchetOrBlock(state)) return;
+  state.say('trunk: ratchet bound; recording trunk and finishing');
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
