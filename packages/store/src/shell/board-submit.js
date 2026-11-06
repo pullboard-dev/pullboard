@@ -1,6 +1,7 @@
 import { boardWriteSnapshot } from './board-write-preparation.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
 import { gateJudgmentPath } from '../../../verify/index.js';
 import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
@@ -52,7 +53,10 @@ export function sealStrictRenames(board, id, options) {
   if (!board.gitRoot) return options;
   const base = getItem(board, id)?.item_claim_head;
   if (!base || !options.commit) return options;
-  const fields = git(board.gitRoot, ['diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, options.commit]).split('\0');
+  // An unavailable or mismatched source has no rename evidence to seal; it gets ordinary review, never a Git error [V4,H16].
+  const diff = tryGit(board.gitRoot, ['diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, options.commit]);
+  if (diff.status !== 0) return options;
+  const fields = diff.stdout.split('\0');
   const policy = options.clausePolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, options.clausePolicyCommit)
     : board.enginePorts.sandboxPolicyReads.mainPolicy(board.gitRoot);
