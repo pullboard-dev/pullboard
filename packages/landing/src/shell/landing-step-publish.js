@@ -24,6 +24,8 @@ import { isStampedGreen } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -42,6 +44,26 @@ export function landingRemote(root, branch) {
 /** Build the one LAND_PUSH refusal every landing push failure reports, real or previewed [B3]. */
 function pushRefused(reason, next = 'inspect the remote and hooks, then run pullboard land --adopt') {
   return new Refused('LAND_PUSH', `the landing push failed: ${reason}; ${next}`);
+}
+
+/**
+ * Start comparisons for the previous main's named red files after publication in a detached child, so the landing
+ * worker exits the moment it has landed. Why: run in this process, a 9-minute comparison kept the worker alive and the
+ * scheduler held the next batch behind it on 6 Nov; the child logs to automatic-landing/main-red-refresh.log [C7].
+ */
+export function refreshPublishedMainReds(state, previousMain, { launch = spawnDetachedRefresh } = {}) {
+  const publishedMain = mainCheckout(state.root)?.commit;
+  if (!publishedMain || publishedMain === previousMain) return null;
+  try { launch(state.root, previousMain, publishedMain); }
+  catch (error) { state.say(`background main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
+  return { previousMain, publishedMain };
+}
+
+/** The detached refresh child: its own process group, no inherited stdio, never awaited. */
+function spawnDetachedRefresh(root, previousMain, publishedMain) {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../../../../bin/main-red-refresh.js', import.meta.url)), root, previousMain, publishedMain],
+    { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env } });
+  child.unref();
 }
 
 /**
@@ -156,6 +178,7 @@ export async function publish(state) {
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  refreshPublishedMainReds(state, batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
@@ -190,6 +213,7 @@ export async function finishTrunk(state) {
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
   state.say?.('finish: main fast-forwarded; refreshing the code map');
+  refreshPublishedMainReds(state, state.batch.base);
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
