@@ -874,7 +874,7 @@ for (const mode of ['topic parent', 'merge commit']) {
   });
 }
 
-test('a computed-import test joins the selection only when it declares what it loads, and undeclared forces full [V4,C7]', (t) => {
+test('clause 1: a computed-import test joins the selection only when it declares what it loads, and undeclared forces full [V4,C7]', (t) => {
   const box = privateRepo(t);
   const original = seedGraph(box);
   put(box.root, 'test/c.test.js', "export const load = path => import(path);\n");
@@ -1370,7 +1370,7 @@ test('nested TAP child denials require bounded matching fatal details [C7,B26]',
 });
 
 /** Project-declared static guards reject unchanged-gate import regressions before costly proof. */
-test('a submit runs the static style checks first [C7]', t => {
+test('clause 1: a submit runs the static style checks first [C7]', t => {
   // Source under src/, packages/ and apps/ has its multi-binding imports split at commit (776212f0fc), so the violation lives in a .jsx file the splitter skips.
   let box = privateRepo(t);
   const marker = join(box.dir, 'item-check-ran');
