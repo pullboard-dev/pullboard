@@ -1,5 +1,4 @@
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
-import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
@@ -111,7 +110,19 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  withBoard(ctx, board => {
+    const me = whoAmI(ctx, board);
+    const reds = store.queuedReds(board, me.id).filter(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    if (reds.length) {
+      const activity = store.activityDeliveryState(board, me.id);
+      store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
+        observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
+          id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
+        })) });
+      for (const line of store.queuedRedLines(reds)) io.say(line);
+    }
+  });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -142,8 +153,13 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
-    const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
+    // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
+    const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
+    const selectionValues = redClaims.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+      : values;
+    const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -173,7 +189,7 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -188,6 +204,12 @@ async function nextWithProgress(io, values, progress) {
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
+        if (found.waitingOffer) {
+          io.say(`available #${item.item_id}: ${item.item_title}`);
+          for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
+          io.say(`claim it when ready: ${here} pullboard claim ${item.item_id}`);
+          return 0;
+        }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
@@ -206,17 +228,19 @@ async function nextWithProgress(io, values, progress) {
       return 0;
     }
     const idleReason = found.idleReason ?? 'unknown';
-    if (!found.retry && idleReason !== lastIdleReason) {
+    const idleObservation = { reason: idleReason, skips: found.skips ?? [] };
+    const idleKey = JSON.stringify(idleObservation);
+    if (!found.retry && idleKey !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
-          { agentId: whoAmI(ctx, board).id, reason: idleReason }));
-        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+          { agentId: whoAmI(ctx, board).id, ...idleObservation }));
+        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
         io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
       }
-      lastIdleReason = idleReason;
+      lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
@@ -231,7 +255,7 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
-    if (found.retry) await progress.retry(found);
+    if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
 }
