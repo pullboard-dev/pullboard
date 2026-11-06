@@ -17,7 +17,7 @@ export { createSshBoardLinkAuthority } from './src/shell/board-link-ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/shell/board-link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/shell/board-members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/shell/board-migrate.js';
-export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/shell/board-query.js';
+export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictsFor, rowDecisions } from './src/shell/board-query.js';
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/shell/board-read-auxiliary.js';
 export { readBoardSnapshot } from './src/shell/board-read-open.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/shell/board-rehome.js';
@@ -27,9 +27,10 @@ export { legacySigningMatchesStamp } from './src/shell/board-signing-recovery.js
 export { recordNextIdle } from './src/core/board-stats.js';
 export { guardStore, refreshStoreDeclarations, suspendStoreGuards } from './src/shell/board-store-guards.js';
 export { prepareBoardWriteIdentity, configureBoardJournal, beginBoardWrite, noteBoardWriteItem, finishBoardWrite, closeBoardWrites, boardWriteHolderText } from './src/shell/board-write-lock.js';
-export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordUsageBatch, recordSharedUsage, recordProofRun, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, EVIDENCE_KINDS, inbox, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/shell/board.js';
+export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordUsageBatch, recordSharedUsage, recordProofRun, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, EVIDENCE_KINDS, inbox, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, activityInterruptWasDelivered, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/shell/board.js';
 export { companionPlan, applyCompanionRequest } from './src/shell/companion.js';
 export { dispatchWork } from './src/shell/dispatch-eligibility.js';
+export { heldClaim } from './src/shell/held-claim.js';
 export { ineligibleReleaseIds, nextWithReleaseCooldown, recentlyReleased } from './src/shell/next-release-cooldown.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/shell/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/shell/history.js';
@@ -51,7 +52,7 @@ export { boardEnginePorts } from './src/shell/board-engine-ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from './src/shell/board-milestones.js';
 export { requireRuntimePorts, openBoardStore } from './src/shell/board-store.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/core/board-person-authority-schema.js';
-export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/core/board-activity-delivery-store.js';
+export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, activityInterruptWasDelivered as board_activity_delivery_store_activityInterruptWasDelivered, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/core/board-activity-delivery-store.js';
 export { itemActivity, activityEventDetail, activityInterests, isActivityNews, projectAgentActivity } from './src/core/board-activity-feed.js';
 export { activityNewsFlag } from './src/core/board-activity-news.js';
 export { LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/core/board-landing-lease.js';
@@ -79,11 +80,11 @@ export { reserveWithin } from './src/shell/board-reserve-review.js';
 export { insertShout, persistShout } from './src/shell/board-shout.js';
 export { RELEASE_REASONS, releaseReasonProblem } from './src/core/release-reasons.js';
 export { checkedSubmitOutcome } from './src/shell/submit-outcome.js';
-export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
+export { INFRASTRUCTURE_CODES, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
 export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
-export { itemPinned, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
+export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
@@ -96,7 +97,7 @@ export { createItemSlice } from "./src/shell/board-item-slice.js";
 
 export { nextIdleChanged } from './src/core/board-stats.js';
 
-export { sealStrictRenames } from './src/shell/board-submit.js';
+export { prepareSubmit, sealStrictRenames } from './src/shell/board-submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/shell/board-checkpoint.js';
 
 export { endedSubmitHandoff } from './src/shell/submit-handoff-read.js';
@@ -105,3 +106,7 @@ export {
   withBoardRepositoryPolicy,
   sealClauseInspection,
 } from './src/shell/board-repository.js';
+
+export { boardWriteLog } from './src/shell/board-write-lock.js';
+
+export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";

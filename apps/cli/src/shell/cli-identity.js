@@ -8,6 +8,6 @@ import { identifyCaller as readCaller } from './cli-read-context.js';
 export function identifyCaller(ctx, board, options) {
   const readers = { agentAt: (board, root) => submitHandoffActor(ctx, board) ?? store.agentAt(board, root) ?? itemFolderIdentity(board, root)?.agent, agentById: store.agentById,
     /** Registration remains a direct synchronous call on the real write path. */
-    ensureCoordinator: (opened, path) => store.ensureCoordinator(opened, path) };
+    ensureCoordinator: (opened, path) => store.board_ensureCoordinator(opened, path) };
   return readCaller(ctx, board, options, readers);
 }

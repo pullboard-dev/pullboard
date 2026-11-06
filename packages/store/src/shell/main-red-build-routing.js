@@ -6,7 +6,10 @@ import { ineligibleReleaseIds } from './next-release-cooldown.js';
 /** Plan main-red build offers without taking another seat's work or releasing a claim [C7,N2]. */
 import * as store from "./board.js";
 
-/** Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands. */
+/**
+ * Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands.
+ * workingFiles is a Map, or a function returning one that runs only when a repair needs routing.
+ */
 export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes, workingFiles = new Map() } = {}) {
   const items = store.listItems(board);
   const reviewing = new Set(items.filter(item => item.item_status === 'submitted').map(item => store.reviewHolder(board, item)).filter(Boolean));
@@ -16,6 +19,8 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
   const urgent = enabled ? board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length))) : [];
   const repairs = new Set([...priority, ...urgent].filter(id => items.some(item => item.item_id === id && item.item_status === 'open')));
   if (!repairs.size) return null;
+  // Observing every claim's worktree costs a Git status each; only a board with a repair to route reads them (#2511).
+  if (typeof workingFiles === 'function') workingFiles = workingFiles();
   const lanes = new Set(items.filter(item => repairs.has(item.item_id)).map(item => item.item_lane));
   const agents = store.listAgents(board).filter(seat => seat.agent_id !== 'coordinator'
     && lanes.has(seat.agent_lane) && ['live', 'idle'].includes(seat.presence));
