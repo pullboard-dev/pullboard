@@ -351,11 +351,11 @@ export function crossLaneFixture(t) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
     return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
-  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row. */
+  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {
     return fileFixtureItem(box, box.repo, { lane, title, route,
       criterion: 'The item can be built and checked from its brief.', check: 'true', diagnose: false,
-      brief: `Files: ${lane}/${route}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
+      brief: `Files: ${lane}/${route}-${title.toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
       args: ['--specs', lane === 'api' ? 'G2' : 'G1'] }).item_id;
   }
   /** Keep the test's queue order explicit without touching a production board. */
