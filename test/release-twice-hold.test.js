@@ -89,7 +89,7 @@ function routeBoard(t, route, prefix, seatRoute = route) {
 }
 
 for (const [from, to] of [['light', 'mid'], ['mid', 'strong']]) {
-  test(`a second quality release moves a ${from} item up to ${to} with no hold [C7]`, t => {
+  test(`clause 1: a second quality release moves a ${from} item up to ${to} with no hold [C7]`, t => {
     const { board, first, second, id, claim } = routeBoard(t, from, `pullboard-release-route-${from}-`, 'strong');
     claim(first); store.release(board, id, first, '', 'BLOCKED');
     assert.equal(store.getItem(board, id).item_route, from, 'one release leaves the route alone');
@@ -118,7 +118,7 @@ test('after the move the release count starts over [C7]', t => {
   assert.match(store.getItem(board, id).item_hold_reason, /Released twice/, 'two on the strong route hold');
 });
 
-test('a strong item still takes the Released-twice hold and shout [C7]', t => {
+test('clause 2: a strong item still takes the Released-twice hold and shout [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'strong', 'pullboard-release-route-strong-');
   claim(first); store.release(board, id, first, '', 'INELIGIBLE');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
@@ -128,7 +128,7 @@ test('a strong item still takes the Released-twice hold and shout [C7]', t => {
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 1);
 });
 
-test('before the route engine a mid item is still held [C7]', t => {
+test('clause 3: before the route engine a mid item is still held [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'mid', 'pullboard-release-route-old-', 'strong');
   board.executionEngineVersion = RELEASE_TWICE_ROUTE_ENGINE - 1;
   claim(first); store.release(board, id, first, '', 'INELIGIBLE');
