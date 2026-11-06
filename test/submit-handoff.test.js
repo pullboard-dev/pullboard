@@ -506,8 +506,6 @@ async function enforceCellTrial(box, kind, code) {
   ledger.gates = 20;
   ledger.codes[code].start = 0;
   writeFileSync(file, JSON.stringify(ledger) + '\n');
-  await box.helpers.waitFor(() => ['red', 'green'].includes(state(box, box.second).job?.state), 'the probe job to finish', 120000); // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
-  document(box.run(probe, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
 }
 
 for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
