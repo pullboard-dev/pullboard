@@ -16,7 +16,7 @@ export function runnerHolders(db, host) {
 
 /** How long a failed cleanup proof waits before the next try: short only when nothing holds the runner. */
 export function healDelay(db, row, leakProbe) {
-  return typeof leakProbe === 'function' && row.detail === 'CLEANUP_UNVERIFIED' ? HEAL_RETRY_MS : CLEANUP_RETRY_MS;
+  return typeof leakProbe === 'function' && ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail) ? HEAL_RETRY_MS : CLEANUP_RETRY_MS;
 }
 
 /**
