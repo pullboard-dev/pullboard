@@ -66,6 +66,7 @@ export { costFigure, costTabHtml, costTabModel, costTabScript, counterDelta } fr
 export { dashboardModel } from "./src/shell/view/dashboard-model.js";
 export { dashboardRuntime } from "./src/shell/view/dashboard-runtime.js";
 export { firstRunKit } from "./src/shell/view/first-run.js";
+export { tabTitle } from "./src/core/view/tab-title.js";
 export { heldChip, heldNote } from "./src/shell/view/held-items.js";
 export { historyLoadingScript, historyNote } from "./src/shell/view/history-loading.js";
 export { HOSTED_RELEASE, hostedReleaseDistance, hostedReleaseInfo, hostedReleaseNote, releaseVersionsThrough, shippedReleaseVersions } from "./src/shell/view/hosted-release.js";
