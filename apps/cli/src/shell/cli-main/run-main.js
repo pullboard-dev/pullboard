@@ -232,7 +232,7 @@ async function runMain(argv, streams) {
       automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/src/shell/blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/src/shell/person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
