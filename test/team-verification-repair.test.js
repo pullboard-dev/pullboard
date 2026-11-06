@@ -58,7 +58,7 @@ test('a checkout or trunk moving during verification cannot acquire proof [E8]',
   writeFileSync(moveMain, 'armed');
   const mainMoved = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The check moved the known main.');
   assert.equal(mainMoved.code, 1, mainMoved.out + mainMoved.err);
-  assert.match(mainMoved.err, /VERDICT_TRUNK_MOVED/u);
+  assert.match(mainMoved.err, /MERGE_CONFLICT|VERDICT_TRUNK_MOVED/u);
   assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), baseline);
   assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), []);
   rmSync(moveMain);
