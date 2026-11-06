@@ -60,5 +60,7 @@ export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/core/c
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/core/expected-build.js';
 
 export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
+export { handoffToolsAllowed } from './src/shell/submit-handoff-recovery.js';
+export { sharedHandoffTools } from './src/shell/submit-handoff-recovery.js';
 
 export { parseDiagnosis, diagnosisBrief } from './src/core/diagnosis.js';
