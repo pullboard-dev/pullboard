@@ -7,6 +7,7 @@ import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
+import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -84,6 +85,7 @@ import {
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
+  guardOf,
   guardRevertNote,
 } from '../../../../../packages/commits/index.js';
 import {
@@ -405,10 +407,14 @@ export async function verifyHere(ctx, id, { second, values }) {
         }
         const moved = currentTrunk.commit === trunk.commit ? null
           : itemTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, paths: review.paths });
-        if (moved?.overlap.length) throw new Refused('VERDICT_TRUNK_MOVED',
+        // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
+        // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
+        // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
           `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
         if (moved && !knownMain) {
-          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and its files are unchanged`;
+          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
           break;
         }
@@ -500,7 +506,8 @@ export async function verifyHere(ctx, id, { second, values }) {
  * reviewed tree, so they always take the full path.
  */
 function packetAcceptance(ctx, board, item, decision, reReview) {
-  if (decision !== 'ACCEPT' || reReview || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
+  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+    || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;
   if (packet.failures) {

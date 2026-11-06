@@ -106,6 +106,10 @@ export async function nextOnce(ctx, values) {
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
   // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
   const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  if (Number(values.wait) > 0 && !looked.held) {
+    const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
+    if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
+  }
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;

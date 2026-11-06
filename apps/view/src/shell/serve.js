@@ -85,9 +85,10 @@ import { viewLanAddress } from "./view/lan-address.js";
 import { publicSnapshot } from "../core/view/public-export.js";
 import { openBoardForRead } from "../../../../packages/store/index.js";
 import { loadMachineSettings } from "../../../../packages/config/index.js";
+import { composeViewStyles } from "./view-styles.js";
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
-const SHARED_VIEW_CSS = readFileSync(new URL("./view.css", import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL("./view/dashboard.css", import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL("./view/item-rows.css", import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL("./view/stage.css", import.meta.url), 'utf8').trimEnd());
+const SHARED_VIEW_CSS = composeViewStyles();
 const PRIVATE_COST_CSS = readFileSync(new URL("./view/cost.css", import.meta.url), 'utf8');
 const SHARED_DOCTRINE_CSS = readFileSync(new URL("./view/doctrine.css", import.meta.url), 'utf8');
 const SHARED_ITEM_PANEL_CSS = readFileSync(new URL("./view/item-panel.css", import.meta.url), 'utf8');
