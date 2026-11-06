@@ -59,6 +59,7 @@ export { personNeedsState } from "./src/shell/needs-state.js";
 export { HOSTED_ORIGIN, LOOPBACK, exportView, lastPort, portableSnapshot, projectState, serveView } from "./src/shell/serve.js";
 export { viewApiPorts } from "./src/shell/view-api-ports.js";
 export { busyViewPortRefusal, forgetView, portHolder, rememberView, runningView } from "./src/shell/view-session.js";
+export { composeViewStyles } from "./src/shell/view-styles.js";
 export { cockpitPage } from "./src/shell/view/cockpit-page.js";
 export { cockpitRoadmap } from "./src/shell/view/cockpit-roadmap.js";
 export { bindCostOverview, costOverviewHtml } from "./src/shell/view/cost-overview.js";
