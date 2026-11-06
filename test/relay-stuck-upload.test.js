@@ -55,7 +55,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   });
   assert.equal(worktree.status, 0, worktree.stderr);
 
-  const joined = await box.cliAt(agentRoot, 'join', buildLane);
+  const joined = await box.cliAt(agentRoot, 'join', buildLane, '--model', 'Test Agent');
   assert.equal(joined.code, 0);
   assertPaused(joined.document);
   const claimed = await box.cliAt(agentRoot, 'claim', String(item));
@@ -453,7 +453,7 @@ test('a refused later checkpoint names its repair once on every native agent com
   const agentRoot = join(box.root, '..', 'later-checkpoint-agent');
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '-b', 'fixture-later-checkpoint-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env }).status, 0);
   await box.link();
-  assert.equal((await box.cliAt(agentRoot, 'join', lane)).code, 0);
+  assert.equal((await box.cliAt(agentRoot, 'join', lane, '--model', 'Test Agent')).code, 0);
   assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted);
   box.rejectSnapshots({ status: 503, code: 'RELAY_UNAVAILABLE', message: 'temporary checkpoint refusal' });
   assert.equal((await box.cli('shout', 'all', 'private transient checkpoint change')).code, 0);
