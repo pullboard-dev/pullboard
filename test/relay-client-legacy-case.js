@@ -53,20 +53,22 @@ export async function legacyMirrorQueueFragment({
   assert.equal(resumed.relay.behind, 0, 'the next reachable command drains the queued legacy rows');
   assert.deepEqual(localEvents(boardFile), queuedRows, 'migration checkpoints existing rows instead of replaying them');
   const legacyUploads = relay.uploads.slice(initialUploadCount);
-  assert.deepEqual(legacyUploads.map((upload) => upload.sequence), [4, 5]);
+  const lastSequence = link.sequence + queuedEvents.length;
+  assert.deepEqual(legacyUploads.map((upload) => upload.sequence),
+    queuedEvents.map((_, index) => link.sequence + 1 + index), 'one ordered upload per queued legacy row');
   const openedLegacy = await Promise.all(legacyUploads.map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(
     key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence },
   )))));
   assert.equal(openedLegacy[0].presentation, undefined, 'the historical first move cannot attest the later row');
-  assert.equal(openedLegacy[1].presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
+  assert.equal(openedLegacy.at(-1).presentation.state.events[0].event_id, queuedEvents.at(-1).event_id, 'the final legacy move carries only its matching projection');
 
   const authorization = { 'x-pullboard-engine': String(ENGINE_VERSION), authorization: `Bearer ${currentMachineToken}` };
   const stateResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });
   assert.equal(stateResponse.status, 200);
   const stateDocument = await stateResponse.json();
-  assert.equal(stateDocument.state.sequence, 5, 'the native checkpoint covers the complete ordered prefix');
+  assert.equal(stateDocument.state.sequence, lastSequence, 'the native checkpoint covers the complete ordered prefix');
   const checkpoint = snapshotDocument(await unseal(
-    key, Buffer.from(stateDocument.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 5 },
+    key, Buffer.from(stateDocument.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: lastSequence },
   ));
   assert.deepEqual(checkpoint.tables.event.slice(priorRows.length), queuedEvents,
     'the source-native snapshot records both legacy rows in order');
@@ -75,7 +77,7 @@ export async function legacyMirrorQueueFragment({
   const repeated = await cli(root, relayEnv, 'status');
   assert.equal(repeated.relay.behind, 0);
   assert.deepEqual(localEvents(boardFile), queuedRows, 'a repeated sync does not execute legacy rows again');
-  assert.equal(relay.uploads.length, initialUploadCount + 2, 'a repeated sync does not append duplicate uploads');
+  assert.equal(relay.uploads.length, initialUploadCount + queuedEvents.length, 'a repeated sync does not append duplicate uploads');
   const unchangedResponse = await fetch(`${relay.origin}/api/v1/boards/${boardId}/state`, { headers: authorization });
   assert.equal((await unchangedResponse.json()).state.sealed, stateDocument.state.sealed,
     'a repeated sync leaves the acknowledged native checkpoint unchanged');
