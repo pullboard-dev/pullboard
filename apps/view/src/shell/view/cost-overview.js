@@ -33,7 +33,12 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false }
   const known = (data.days ?? []).filter(day => day.firstTimeMs != null && day.sentBackMs != null);
   const bars = (data.days ?? []).map((day, index) => {
     const x = left + slot * index + (slot - barW) / 2, center = x + barW / 2, label = '<text class="x" x="' + center + '" y="' + (plotH + 18) + '" text-anchor="middle">' + esc(weekday(day.date, { weekday: 'short' })) + '</text><text class="n" x="' + center + '" y="' + (plotH + 32) + '" text-anchor="middle">' + esc(day.items) + ' items</text>';
-    if (day.firstTimeMs == null || day.sentBackMs == null) return '<g class="cost-chart-day"><text class="unrecorded" x="' + center + '" y="' + (plotH - 8) + '" text-anchor="middle">time not recorded</text>' + label + '</g>';
+    // A day with items but no recorded time says so in its column, never an empty gap: two lines where the column
+    // is wide, upright along the column where it is narrow, so neighbouring labels never run together [N26].
+    const unrecorded = slot >= 70
+      ? '<text class="unrecorded" x="' + center + '" y="' + (plotH - 22) + '" text-anchor="middle"><tspan x="' + center + '">time not</tspan><tspan x="' + center + '" dy="13">recorded</tspan></text>'
+      : '<text class="unrecorded" x="' + center + '" y="' + (plotH - 6) + '" transform="rotate(-90 ' + center + ' ' + (plotH - 6) + ')" dominant-baseline="central">time not recorded</text>';
+    if (day.firstTimeMs == null || day.sentBackMs == null) return '<g class="cost-chart-day"><title>' + esc(weekday(day.date, { weekday: 'long', month: 'short', day: 'numeric' }) + '\n' + day.items + ' items landed\nTime not recorded') + '</title>' + unrecorded + label + '</g>';
     const first = day.firstTimeMs / 3600000 / top * plotH, sent = day.sentBackMs / 3600000 / top * plotH, base = plotH - first;
     const tooltip = weekday(day.date, { weekday: 'long', month: 'short', day: 'numeric' }) + '\n' + day.items + ' items landed\nRight first time ' + duration(day.firstTimeMs) + ' · Sent back ' + duration(day.sentBackMs);
     return '<g class="cost-chart-day"><title>' + esc(tooltip) + '</title><svg class="cost-chart-bar" x="' + x + '" y="0" width="' + barW + '" height="' + plotH + '" viewBox="0 0 ' + barW + ' ' + plotH + '" preserveAspectRatio="none"><rect class="right" x="0" y="' + base + '" width="' + barW + '" height="' + first + '"></rect><rect class="back" x="0" y="' + (base - sent) + '" width="' + barW + '" height="' + sent + '"></rect></svg><text class="v" x="' + center + '" y="' + Math.max(11, base - sent - 5) + '" text-anchor="middle">' + esc(duration(day.firstTimeMs + day.sentBackMs).replace(' min', ' min')) + '</text>' + label + '</g>';

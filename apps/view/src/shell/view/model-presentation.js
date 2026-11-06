@@ -5,9 +5,11 @@ export function modelPresentation(reported, family = '') {
   // A "/vendor" suffix is the declared family, not part of the model: "GPT-6/openai" is "GPT-6".
   const slash = named.indexOf('/'), raw = slash > 0 ? named.slice(0, slash).trim() : named;
   if (slash > 0 && !String(family).trim()) family = named.slice(slash + 1).trim();
-  // Aliases share one match key, so one display name is never two rows (same family as #2091) [N26].
+  // Spellings of one model share one match key, so one display name is never two rows (same family as #2091) [N26]:
+  // "gpt-6-codex" is Codex, and "sonnet-5.5" or "claude-sonnet-5.5" is claude-sonnet-5-5.
   const aliases = { 'gpt-6-codex': 'codex' };
-  const spelled = raw.toLowerCase().replace(/[\s_]+/gu, '-'), key = Object.hasOwn(aliases, spelled) ? aliases[spelled] : spelled;
+  const spelled = raw.toLowerCase().replace(/[\s_]+/gu, '-'), aliased = Object.hasOwn(aliases, spelled) ? aliases[spelled] : spelled;
+  const key = aliased.replace(/^(?:claude-)?(opus|sonnet|haiku)-(\d+)[.-](\d+)$/u, 'claude-$1-$2-$3');
   const known = {
     'claude-opus-5-5': ['Opus 5.5', 'Anthropic'],
     'claude-sonnet-5-5': ['Sonnet 5.5', 'Anthropic'],
