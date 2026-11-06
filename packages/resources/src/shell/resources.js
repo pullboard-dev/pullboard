@@ -44,6 +44,7 @@ import { capturedRequestOf } from './holder-liveness.js';
 import { dispatchRelaunch } from './holder-liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './holder-liveness.js';
 import { reclaimHolders } from './holder-liveness.js';
+import { pinLegacyReclaimInputs } from './holder-liveness.js';
 import {
   initializeRunnerRecovery,
   recordRunnerFailure,
@@ -198,7 +199,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
     }
-    // Older clients insert the default zero. A database trigger witnesses even short legacy
+    pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
     db.exec(`CREATE TABLE IF NOT EXISTS timing_client_observation (
       id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, pid INTEGER NOT NULL, started TEXT NOT NULL);`);
