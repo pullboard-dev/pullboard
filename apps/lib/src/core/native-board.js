@@ -1,5 +1,6 @@
 import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
+import { claimedItemRoot } from '../../../../packages/items/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
@@ -306,7 +307,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    conditionalHoldFloor,
+    conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
