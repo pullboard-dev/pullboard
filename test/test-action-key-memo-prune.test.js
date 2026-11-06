@@ -9,7 +9,7 @@ import { memoizedActionKeys } from '../packages/gate/src/shell/test-action-key-m
 const KEY = 'a'.repeat(64);
 const build = async () => new Map([['t.test.js', { key: KEY, reason: 'x' }]]);
 
-test('C7 criterion 2: an old memo folder is pruned, a fresh one kept, and the old tree still gets correct keys', async () => {
+test('C7 clause 2: an old memo folder is pruned, a fresh one kept, and the old tree still gets correct keys', async () => {
   const store = mkdtempSync(join(tmpdir(), 'memo-prune-'));
   await memoizedActionKeys(store, 'old-tree', ['t.test.js'], build);
   await memoizedActionKeys(store, 'fresh-tree', ['t.test.js'], build);
@@ -24,7 +24,7 @@ test('C7 criterion 2: an old memo folder is pruned, a fresh one kept, and the ol
   assert.equal(again.get('t.test.js').key, KEY);
 });
 
-test('C7 criterion 1: pruning runs at most once per 10 minutes', async () => {
+test('C7 clause 1: pruning runs at most once per 10 minutes', async () => {
   const store = mkdtempSync(join(tmpdir(), 'memo-prune-'));
   await memoizedActionKeys(store, 'old-tree', ['t.test.js'], build);
   const old = new Date(Date.now() - 3 * 3_600_000);
