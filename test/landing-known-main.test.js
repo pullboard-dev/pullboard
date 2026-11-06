@@ -98,7 +98,7 @@ function landBatch(box, itemId) {
   return JSON.parse(run.stdout.trim().split('\n').at(-1));
 }
 
-test('a batch red only in a case red on main lands and names that case as known-main [B3,C7]', () => {
+test('clause 1: a batch red only in a case red on main lands and refreshes that named comparison at the published main [B3,C7]', () => {
   const box = redMainProject();
   const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
@@ -109,6 +109,10 @@ test('a batch red only in a case red on main lands and names that case as known-
   assert.deepEqual(result.batch.proof.failures, [], 'no failure is waived or carried');
   assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
+  const mainRedCache = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'main-red.json'), 'utf8'));
+  const refreshed = mainRedCache.entries[result.batch.tip]?.[MAIN_RED];
+  assert.equal(refreshed?.result, 'red', 'the landing refresh targets the newly published main');
+  assert.ok(refreshed.failures?.some(row => row.name === 'main-red-case'), JSON.stringify(refreshed));
 });
 
 test('a batch holding a main red and a case passing on base fails only on the merged-only case [B3,C7]', () => {
