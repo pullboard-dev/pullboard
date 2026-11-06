@@ -7,12 +7,18 @@ import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('same lane and model rejoin exits 0; a different lane or model still refuses [C7]', () => {
+/** Join a fixture seat once and return the box and its worktree. */
+function joinedSeat() {
   const box = e2e.project('true', undefined, { withWorktree: false });
   const worktree = join(box.dir, 'joined-seat');
   box.git(box.repo, 'worktree', 'add', '-q', worktree, '-b', 'web/join-idempotent');
   const first = box.run(worktree, 'join', 'web', '--model', 'Fixture');
   assert.equal(first.code, 0, first.err);
+  return { box, worktree };
+}
+
+test('clause 1: rejoining the same lane and model exits 0 and points to next [C7]', () => {
+  const { box, worktree } = joinedSeat();
   const again = box.run(worktree, 'join', 'web', '--model', 'Fixture');
   assert.equal(again.code, 0, again.err);
   assert.match(again.out, /already joined as web-1 \(Fixture\); run pullboard next/u);
@@ -31,6 +37,10 @@ test('same lane and model rejoin exits 0; a different lane or model still refuse
   assert.equal(familyAgain.code, 0, familyAgain.err);
   assert.equal(JSON.parse(familyAgain.out).route, 'strong', 'a family-only update preserves the route');
 
+});
+
+test('clause 2: rejoining with a different lane or model still refuses [C7]', () => {
+  const { box, worktree } = joinedSeat();
   const otherLane = box.run(worktree, 'join', 'api', '--model', 'Fixture');
   assert.notEqual(otherLane.code, 0);
   assert.match(otherLane.err, /ALREADY_JOINED/u);
