@@ -39,13 +39,13 @@ const APPROVED_LINE = 'Run pullboard coordinate';
 const fresh = () => firstRunKit().model({ agents: [{ agent_id: 'coordinator', agent_lane: 'coordinator', model: null }] }, []);
 const copyLine = html => html.match(/<div class="first-run-line"><code>([^<]*)<\/code>/u)?.[1];
 
-test('clause 1: once the coordinate command exists, the first-run line reads Run pullboard coordinate (#2193)', () => {
+test('clause 1: once the coordinate command exists, the first-run line reads Run pullboard coordinate (#2193) [N26,N38]', () => {
   const coordinateKit = firstRunKit({ coordinate: true });
   assert.equal(copyLine(coordinateKit.html(fresh())), APPROVED_LINE, 'the approved line, word for word');
   assert.equal(coordinateKit.copy, APPROVED_LINE, 'the Copy button copies the approved line');
 });
 
-test('clause 2: until #2068 lands, the first-run line keeps the current skill text (#2193)', () => {
+test('clause 2: until #2068 lands, the first-run line keeps the current skill text (#2193) [N26,N38]', () => {
   assert.equal(copyLine(firstRunKit().html(fresh())), SKILL_LINE, 'the kit without the command keeps the skill line');
   const exists = commandPhrases().includes('coordinate');
   assert.match(cliCockpitPage(''), new RegExp('\\{ coordinate: ' + exists + ' \\}', 'u'), 'the served page follows the real CLI catalog, so it flips by itself when #2068 adds the command');
@@ -53,7 +53,7 @@ test('clause 2: until #2068 lands, the first-run line keeps the current skill te
   assert.match(without, /\{ coordinate: false \}/u, 'a catalog without coordinate keeps the skill line');
 });
 
-test('clause 3: the served page flips to the approved line as soon as the CLI catalog has coordinate, with no other change (#2193)', () => {
+test('clause 3: the served page flips to the approved line as soon as the CLI catalog has coordinate, with no other change (#2193) [N26,N38]', () => {
   const phrases = () => [...commandPhrases(), 'coordinate'];
   const page = cockpitPage('', { commandPhrases: phrases });
   const embedded = page.match(/kit: \((function firstRunKit[\s\S]*?\n\})\)\((\{ coordinate: (?:true|false) \})\)/u);
