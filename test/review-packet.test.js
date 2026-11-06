@@ -81,7 +81,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   commit(box, box.repo, 'chore: seed review packet fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  ok(box, builder, 'join', 'web');
+  ok(box, builder, 'join', 'web', '--model', 'fixture-builder');
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--criterion', CRITERION,
     '--check', `${RUN} web/packet.test.js`, '--json').out);
   const id = added.item.item_id;
@@ -112,12 +112,29 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const git = loggingGit(box);
   const path = box.env.PATH;
   box.env.PATH = `${git.bin}:${path}`;
-  const started = performance.now();
-  const review = ok(box, box.repo, 'show', String(id), '--review');
-  const elapsedMs = performance.now() - started;
+  const startupTrace = join(box.dir, 'review-startup.jsonl');
+  box.env.PULLBOARD_STARTUP_TRACE_FILE = startupTrace;
+  box.env.PULLBOARD_STARTUP_TRACE_ENTRY = helpers.BIN;
+  const traceSamples = [];
+  let review;
+  for (let run = 0; run < 3; run += 1) {
+    const traceOffset = existsSync(startupTrace) ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).length : 0;
+    const started = performance.now();
+    const current = ok(box, box.repo, 'show', String(id), '--review');
+    const elapsedMs = performance.now() - started;
+    review ??= current;
+    const traceRows = existsSync(startupTrace)
+      ? readFileSync(startupTrace, 'utf8').split('\n').filter(Boolean).slice(traceOffset).map(line => JSON.parse(line))
+      : [];
+    assert.ok(traceRows.length > 0, `startup trace is recorded for run ${run + 1}`);
+    traceSamples.push({ run: run + 1, processId: traceRows[0]?.processId ?? null,
+      phases: traceRows.map(({ phase, elapsedMs: phaseElapsedMs }) => ({ phase, elapsedMs: phaseElapsedMs })) });
+    assert.ok(elapsedMs < 2000, `show --review run ${run + 1} took ${Math.round(elapsedMs)} ms; startup samples ${JSON.stringify(traceSamples)}`); // budget: declared ceiling of the frozen bar
+  }
+  delete box.env.PULLBOARD_STARTUP_TRACE_FILE;
+  delete box.env.PULLBOARD_STARTUP_TRACE_ENTRY;
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
   box.env.PATH = path;
-  assert.ok(elapsedMs < 2000, `show --review took ${Math.round(elapsedMs)} ms`); // budget: declared ceiling of the frozen bar
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
   assert.deepEqual(calls.filter(call => /(?:^| )(?:checkout|switch|read-tree|clone|diff|cat-file|worktree add)(?: |$)/u.test(call)), [],
     'show --review reads the stored packet: no checkout and no diff');
@@ -145,19 +162,19 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
     `a full-suite clause cites the gate's own proof receipts: ${JSON.stringify({ proof: packet.proof, clause: packet.clauses[3] })}`);
   assert.deepEqual(packet.failures, []);
   assert.deepEqual(packet.cells, { before: 0, after: 0, added: [], removed: [], touched: [] });
-  assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no recorded run: rerun this clause$/mu, 'the uncovered clause is named');
+  assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no recorded run: read this clause and name it in --read$/mu, 'the uncovered clause is named');
   assert.match(review.out, /^failures at head: none$/mu);
   const rerun = packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n);
   assert.ok(rerun.includes(3) && !rerun.includes(1) && !rerun.includes(2) && !rerun.includes(5));
-  assert.match(review.out, new RegExp(`^review rule: rerun only clauses marked no recorded run \\(${rerun.join(', ')}\\)`, 'mu'));
+  assert.match(review.out, new RegExp(`^review rule: read every clause marked no recorded run \\(${rerun.join(', ')}\\) and name it in --read`, 'mu'));
 
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  ok(box, reviewer, 'join', 'api');
+  ok(box, reviewer, 'join', 'api', '--model', 'fixture-reviewer');
   const offer = ok(box, reviewer, 'next', '--verify', String(id));
   assert.match(offer.out, /^next to verify: #\d+ Greet the visitor/mu);
   assert.match(offer.out, new RegExp(`^review packet #${id} at ${head.slice(0, 12)}`, 'mu'), 'next --verify prints the packet with the offer');
-  assert.match(offer.out, /^ {5}no recorded run: rerun this clause$/mu);
+  assert.match(offer.out, /^ {5}no recorded run: read this clause and name it in --read$/mu);
 
   const refused = box.run(reviewer, 'verify', String(id), 'accept', '--read', '9', '--note', 'read the packet');
   assert.notEqual(refused.code, 0, 'a clause number outside the packet is refused');

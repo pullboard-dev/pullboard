@@ -1,5 +1,6 @@
 import { auditAdapterEnvironment } from '../../../kernel/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
+import { landingShardCount } from './test-concurrency.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
@@ -12,6 +13,7 @@ import { sourcePreparationFields } from '../../core.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { invalidateGitFacts } from '../../../../src/git.js';
+import { keepHeartbeatWhileBlocked } from '../../../resources/index.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
   TIMING_RUN_ID_ENV,
@@ -200,7 +202,7 @@ export function safeLog(output) {
  * @param {string} command
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
  */
-function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
   const timingSourceBefore = stages ? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
@@ -230,10 +232,10 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = yield { root, command, remoteCommand, gateLease,
-    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
+    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
-    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) } };
+    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
     gateLease.environment = run.environment ?? null;
@@ -369,9 +371,14 @@ export function runProfiledShell(root, command, options) {
   try {
     const { value: plan } = execution.next();
     const { gateLease } = plan;
-    const run = gateLease?.runner
-      ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
-      : runShell(root, command, plan.localOptions);
+    // The blocked loop cannot fire the lease's heartbeat timer; a helper keeps it until the run's own timeout (#3130).
+    const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease, { timeoutMs: plan.localOptions?.timeoutMs });
+    let run;
+    try {
+      run = gateLease?.runner
+        ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
+        : runShell(root, command, plan.localOptions);
+    } finally { stopHeartbeat(); }
     return execution.next(run).value;
   } finally { execution.return(); }
 }
@@ -429,6 +436,24 @@ export async function withLandingGateSlot(root, action, options = {}) {
   const constrained = executionServices.landing.constrainedLandingHost(root);
   if (constrained && requiredExecutorOf(options.requiredExecutor)?.kind === 'ssh') throw new Refused('LAND_ENVIRONMENT', 'the required SSH executor conflicts with this board’s constrained local landing policy');
   return withGateSlot(root, action, { ...options, executionServices, landing: true, ...(constrained ? { remote: false } : {}) });
+}
+
+/**
+ * Where a landing gate's own command runs. A sharded landing runs its controller here, so run-tests fans one shard out
+ * to each runner; placed whole on a runner, it was already inside a runner slot and never sharded, so every landing ran
+ * its selection serially on one runner (about 30 minutes) [C7,#3158].
+ *
+ * @param {string} root
+ * @param {{ required?: unknown }} [facts]
+ * @returns {{ remote?: false, runnerOnly?: false, runnerWaitMs?: undefined, runnerDeadlineAt?: undefined }}
+ */
+export function landingControllerPlacement(root, { required } = {}) {
+  // Only a gate's own controller calls this; its shards keep their runner placement and read runners-only themselves
+  // (runLandingShards' own gateRunnerAdmission), so a runners-only machine still runs no shard here. The controller runs
+  // no test file itself, so it stays here even on a runners-only machine; sent to a runner it could never fan out.
+  if (required) return {};
+  // Dropping runners-only drops its captured wait and deadline too, which the slot refuses without it.
+  return landingShardCount(root) > 1 ? { remote: false, runnerOnly: false, runnerWaitMs: undefined, runnerDeadlineAt: undefined } : {};
 }
 
 /** Carry a failure observer's pinned main on the lease, so a remote runner's receipt names the main this run used (#925). */
@@ -489,6 +514,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
     browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
+    ...(landing && !runnerOnly ? landingControllerPlacement(root, { required: releaseRequest }) : {}),
   });
 }
 
@@ -579,10 +605,10 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate' } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined }];
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).

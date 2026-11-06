@@ -1,3 +1,4 @@
+import { REJECT_OPEN_ENGINE } from '../packages/state/index.js';
 /** Reopened work follows its native builder and family activity, with ordinary fallback [H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -20,6 +21,8 @@ const COMMIT = 'a'.repeat(40);
 function fixture(t, { enabled = true, builderFamily = 'OpenAI' } = {}) {
   let at = Date.parse('2026-01-01T00:00:00.000Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
+  // These controls prove replay of the former first-refusal policy, not the current rejection rule.
+  board.executionEngineVersion = REJECT_OPEN_ENGINE - 1;
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid', family: builderFamily });
   const peer = store.register(board, { lane: 'core', path: '/peer', route: 'mid', family: 'OpenAI' });
@@ -100,7 +103,7 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
     reworkRoutingPolicy: routingPolicy,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'fixture-bar' }) }]);
   assert.equal(move.args[1].reworkSameFamily, true, 'the native engine marks only the captured new policy');
-  assert.equal(applyEngineMove(f.board, move, { sequence: 1, at: f.board.clock.now().toISOString() }).error, undefined);
+  assert.equal(applyEngineMove(f.board, { ...move, engine: REJECT_OPEN_ENGINE - 1 }, { sequence: 1, at: f.board.clock.now().toISOString() }).error, undefined);
   const fact = store.itemThread(f.board, id).find(row => row.type === 'fact' && row.id === routingPolicy.factId);
   assert.ok(fact, 'the sealed fact identity is used for fallback');
   assert.match(fact.text, /checked families: anthropic, openai/u);

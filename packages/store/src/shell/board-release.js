@@ -8,6 +8,7 @@ import { moveItem } from "./board.js";
 import { setItem } from "./board.js";
 import { reviewReleaseNoteProblem } from "./board-review-release-note.js";
 import { insertShout } from "./board-shout.js";
+import { escalate } from "../core/board-escalate.js";
 
 /**
  * Hand a claimed item back, or free the caller's live review reservation on a submitted item.
@@ -22,5 +23,5 @@ import { insertShout } from "./board-shout.js";
  */
 export function release(board, id, agentId, note = '', goneSeat, reasonCode) {
   return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
-    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies }, reasonCode);
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies, escalate }, reasonCode);
 }

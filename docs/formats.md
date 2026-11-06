@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `224` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `233` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -378,6 +378,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 <!-- board-indexes:start -->
 | Index | Table | Columns | Unique |
 | --- | --- | --- | --- |
+| `board_meta_agent_session_value_v1` | `board_meta` | `meta_value` | no |
 | `board_meta_grant_activation_unsafe_v1` | `board_meta` | `meta_key` | no |
 | `board_meta_grant_activation_v2` | `board_meta` | `(expression)` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
@@ -861,6 +862,8 @@ Coordinator-authored check timing is stored at additive `board_meta` key `item_c
 `QUARANTINE_CORE_ENGINE` adds optional structured `testOutcomes` to native gate receipts and seals them through `recordGateRun`. Each row carries the committed relative file, exact test name, actual `passed` boolean and `skipped` boolean; missing or incomplete evidence remains unknown. The normal controller observes native events before reporters, excludes cancelled work and duplicate identities, and binds complete result frames to its private run timing id. Test workers do not inherit that id. Source inventories and the private canonical receipt bind the recorded rows; replay uses those sealed facts without consulting receiver files.
 
 At this floor, two executed opposite verdicts for one file/name on the same tree create one `test-quarantine` event naming both runs and one owner-lane repair item. Direct-suite and partial main-comparison observations do not prove a quarantine. Subsequent recorded executions of the exact file/name advance the clean streak; skips and unrelated passes add nothing, a failure resets it, and the first 20 consecutive passes or verification of the repair item releases it. Legacy events keep their prior lifecycle. The existing accepted-main quarantine opt-in controls reporting. New quarantines still execute and report and retain the actual raw exit code, failed counts and blocking verdict. They grant no landing waiver or proof promotion; nonblocking authority is a separate successor.
+
+`LEDGER_QUARANTINE_ENGINE` makes the typed flake ledger quarantine what it proves. From this engine a `recordFlakeObservation` move files, for every active ledger flake without an active quarantine (rows recorded before this engine included), the ledger's open repair item or a new one with a `flake-repair` event, and one `test-quarantine` event with `ledger: true` naming the flake observation ids as `runs`. A row whose quarantine was lifted after its last sighting stays released until a newer sighting. The landing ratchet counts a ledger-backed quarantine as justified by its own red-and-green proof, however old; a withdrawn or verified repair lifts it. An older engine replays the move without filing.
 A release names a reason code from `INELIGIBLE`, `ROUTED_ELSEWHERE`, `BLOCKED`, `BUDGET` or `OTHER` (with its text in the note); the code is the `reasonCode` of the `release` event. Coded releases need the release-reasons engine; genuinely earlier recorded releases retain their meaning.
 
 
