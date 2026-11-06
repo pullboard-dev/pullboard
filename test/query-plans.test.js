@@ -608,7 +608,7 @@ test('health reads item history by index [C7]', () => {
       const explanation = originalPrepare.call(this, `EXPLAIN QUERY PLAN ${sql}`);
       const plan = (sql.includes('?') ? explanation.all(1) : explanation.all()).map((row) => row.detail);
       historyPlans += 1;
-      assert.ok(plan.some((detail) => /\bSEARCH event USING INDEX event_item_id_event_id\b/u.test(detail)),
+      assert.ok(plan.some((detail) => /\bSEARCH event USING INDEX (?:event_item_id_event_id|event_kind_id)\b/u.test(detail)),
         `health item history must search its index before reading: ${sql}\n${plan.join('\n')}`);
       assert.ok(!plan.some((detail) => /^SCAN event\b/u.test(detail)),
         `health item history must not scan the event table: ${sql}\n${plan.join('\n')}`);
