@@ -479,8 +479,40 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
 });
 
 
+/**
+ * Put one cell refusal past its trial in the fixture's own ledger, so the queued worker refuses it. Why: machinery
+ * refusals start in report mode on every fresh repository (13532c41d3, #2611) under an identity bound to the rule's
+ * content, so a probe queued submit from a spare worktree records that identity first and the ledger is then aged.
+ */
+async function enforceCellTrial(box, kind, code) {
+  const probe = join(box.dir, `trial-probe-${kind}`);
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
+  document(box.run(probe, 'join', 'web', '--model', 'Fixture', '--json'));
+  document(box.run(probe, 'claim', String(box.second), '--json'));
+  mkdirSync(join(probe, 'src'), { recursive: true });
+  assert.equal(box.helpers.commitFile(box, probe, 'src/unplaced.js', 'export const unsafe = true;\n', 'feat(web): trial probe source [G1]').status, 0);
+  if (kind === 'ownership') {
+    writeFileSync(join(probe, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [],
+      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
+      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
+    box.git(probe, 'add', 'bin/cells-plan.json');
+    box.git(probe, 'commit', '-qm', 'feat(web): trial probe ownership control [G1]');
+  }
+  assert.equal(document(box.run(probe, 'submit', String(box.second), '--no-next', '--json')).queued, true);
+  const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+  const recorded = () => { try { return JSON.parse(readFileSync(file, 'utf8')).codes[code]; } catch { return undefined; } };
+  await box.helpers.waitFor(() => recorded() !== undefined, `the probe's ${code} trial`, 120000); // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
+  const ledger = JSON.parse(readFileSync(file, 'utf8'));
+  ledger.gates = 20;
+  ledger.codes[code].start = 0;
+  writeFileSync(file, JSON.stringify(ledger) + '\n');
+  await box.helpers.waitFor(() => ['red', 'green'].includes(state(box, box.second).job?.state), 'the probe job to finish', 120000); // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
+  document(box.run(probe, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
+}
+
 for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
   const box = fixture(t, { cells: true });
+  await enforceCellTrial(box, kind, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
   mkdirSync(join(box.web, 'src'), { recursive: true });
   assert.equal(helpersCommit(box, 'src/unplaced.js', 'export const unsafe = true;\n').status, 0);
   if (kind === 'ownership') {
