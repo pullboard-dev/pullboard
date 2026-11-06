@@ -46,7 +46,7 @@ export const UNREAD_SHOUT_SQL = `FROM (
 
 /** Bind every positional identity occurrence explicitly, including item-role checks. */
 export function unreadShoutBindings(cursor, seat, lane) {
-  return [cursor, seat, lane, cursor, seat, seat, cursor, seat, seat, seat, seat, seat];
+  return [cursor, seat, seat, lane, cursor, seat, seat, cursor, seat, seat, seat, seat, seat];
 }
 
 /** The kinds of evidence a shout can carry (B22): what was tried, or what was measured. */
