@@ -55,10 +55,10 @@ export async function healthyExecutor({ settings = loadMachineSettings(), probe 
   return answers.some(Boolean);
 }
 
-/** Every runner host a failure names: the gate's own mark, a dropped runner, and its recorded attempts. */
+/** Every runner host a failure names: the gate's own mark, its lease's runner, a dropped runner, and its recorded attempts. */
 function failedHosts(error) {
   const attempts = Array.isArray(error?.infrastructureAttempts) ? error.infrastructureAttempts : [];
-  return [error?.runnerHost, error?.name === 'RunnerDropped' ? error.host : null, ...attempts.map(row => row?.runner)]
+  return [error?.runnerHost, error?.lease?.runner?.host, error?.name === 'RunnerDropped' ? error.host : null, ...attempts.map(row => row?.runner)]
     .filter(host => typeof host === 'string' && host && host !== 'local');
 }
 
@@ -117,7 +117,7 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
-      say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
+      say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}${hosts.length ? ` on ${hosts.join(', ')}` : ''}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
       let waits = 0;
       while (!(await healthy())) {
         if (++waits > HEALTH_WAITS) throw exhausted(attempts, error);
