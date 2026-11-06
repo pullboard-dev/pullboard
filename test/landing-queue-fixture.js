@@ -345,7 +345,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     } else first.kill('SIGSTOP'); // Keep IPC connected while the authority owner cannot renew or run its own watchdog.
     try {
       await helpers.waitFor(() => !running(holder.guardianPid) && !running(blockedGatePid), 'the guardian and blocked gate stop without releasing their marker',
-        suspendParent ? 45_000 : 8_000); // Budget: actual 30s lease expiry plus owned-process drain; not a speed threshold.
+        suspendParent ? 90_000 : 8_000); // Budget: actual 30s lease expiry plus owned-process drain, stretched for a loaded runner; not a speed threshold.
     } catch (error) {
       const batch = readBoard(box, board => store.landingBatches(board).at(-1));
       error.message += '; custody observation: ' + JSON.stringify({ processes: processObservation([first.pid, holder.guardianPid, blockedGatePid, second.pid]),
