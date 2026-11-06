@@ -663,6 +663,41 @@ export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
   return env;
 }
 
+/** The read-only answers one commit hook run has already asked Git for, or null outside a hook run (#2505). */
+let commandMemo = null;
+
+/**
+ * Run a synchronous commit-hook check with Git's repeated read-only answers remembered, so each question is asked once.
+ * Why: a one-line commit asked Git the same questions again across its checks, and every ask is a process.
+ * Any call that is not a known read clears the memory, so a check that stages or writes never sees a stale answer.
+ *
+ * @template T
+ * @param {() => T} work
+ * @returns {T}
+ */
+export function withGitCommandMemo(work) {
+  const outer = commandMemo;
+  commandMemo = new Map();
+  try { return work(); } finally { commandMemo = outer; }
+}
+
+/** The memo key for a call that is safe to answer from memory, or null when it must run (or must clear the memory). */
+function memoKey(kind, cwd, args, maxBuffer, env) {
+  if (commandMemo === null || env !== process.env) return null;
+  const words = args.filter((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c');
+  const [command] = words;
+  const reads = ['show', 'ls-tree', 'merge-base', 'rev-parse'].includes(command)
+    || (command === 'diff' && args.includes('--cached'))
+    || (command === 'ls-files' && args.includes('--stage') && !args.includes('--resolve-undo'))
+    || (command === 'config' && args.includes('--get'));
+  return reads ? JSON.stringify([kind, cwd, args, maxBuffer ?? null]) : null;
+}
+
+/** Forget every remembered answer when a call that is not a known read is about to run. */
+function noteMemoCall(key) {
+  if (key === null) commandMemo?.clear();
+}
+
 /**
  * Run git in `cwd` and return its trimmed output, or throw when git fails.
  *
@@ -672,14 +707,19 @@ export function gitChildEnv(root, { env: extra = {}, report = null } = {}) {
  * @returns {string}
  */
 export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
+  const key = memoKey('git', cwd, args, maxBuffer, env);
+  if (key !== null && commandMemo.has(key)) return commandMemo.get(key);
+  noteMemoCall(key);
   try {
-    return gitExecFileSync([...GIT_FLAGS, ...args], {
+    const output = gitExecFileSync([...GIT_FLAGS, ...args], {
       cwd,
       env,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
     }).trim();
+    if (key !== null) commandMemo?.set(key, output);
+    return output;
   } finally {
     if (changesGitFacts(args)) forgetAfterWrite();
   }
@@ -693,9 +733,35 @@ export function git(cwd, args, { maxBuffer, env = process.env } = {}) {
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function tryGit(cwd, args, { env = process.env } = {}) {
+  const raw = rawGit(cwd, args, env);
+  return { status: raw.status, stdout: raw.stdout.trim(), stderr: raw.stderr.trim() };
+}
+
+/** Run git once, untrimmed, answering a repeated known read from the commit hook's memory (#2505). */
+function rawGit(cwd, args, env) {
+  const key = memoKey('raw', cwd, args, undefined, env);
+  const memoized = key === null ? undefined : commandMemo.get(key);
+  if (memoized) return memoized;
+  noteMemoCall(key);
   const result = gitSpawnSync([...GIT_FLAGS, ...args], { cwd, env, encoding: 'utf8' });
   if (changesGitFacts(args)) forgetAfterWrite();
-  return { status: result.status ?? 1, stdout: (result.stdout ?? '').trim(), stderr: (result.stderr ?? '').trim() };
+  const outcome = { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+  if (key !== null) commandMemo.set(key, outcome);
+  return outcome;
+}
+
+/**
+ * The exact bytes of one committed or staged file (`HEAD:path`, `:path`), or null when Git has none there.
+ * Untrimmed, so a caller parses the file as stored; remembered within a commit-hook run like any other read.
+ *
+ * @param {string} cwd
+ * @param {string} revision a commit, `HEAD`, or the empty string for the index
+ * @param {string} file
+ * @returns {string | null}
+ */
+export function gitShowText(cwd, revision, file) {
+  const raw = rawGit(cwd, ['show', `${revision}:${file}`], process.env);
+  return raw.status === 0 ? raw.stdout : null;
 }
 
 /**
