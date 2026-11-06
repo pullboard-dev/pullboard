@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/dco.yml */
+/** @pullboard-test-input .github/workflows/gate.yml .github/workflows/dco.yml .github/workflows/cla.yml */
 /** Check that main CI shards work without hiding failures or cancelling unrelated runs [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
@@ -234,4 +234,83 @@ test('the release workflow publishes exactly the tagged changelog section [O3]',
   assert.ok(workflow.indexOf("<<'NOTES'") < workflow.indexOf('run: npm publish'), 'missing notes stop before npm publishing');
   assert.ok(workflow.indexOf('run: npm publish') < workflow.indexOf('gh release create'), 'the GitHub release follows successful package publication');
   assert.match(workflow, /publish:\n\s+permissions:\n\s+contents: write/u, 'only the publishing job gains release-write authority');
+});
+
+const CLA_WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/cla.yml'), 'utf8');
+const CLA_SENTENCE = 'I have read CLA.md and I agree to it.';
+
+/** Run bin/check-cla.js against a fixture pull request and signatures file in a temp folder. */
+function runCla(t, pr, signatures) {
+  const dir = mkdtempSync(join(tmpdir(), 'cla-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, 'pr.json'), JSON.stringify(pr));
+  writeFileSync(join(dir, 'signatures.json'), JSON.stringify(signatures));
+  return runFixtureChild(process.execPath, [resolve(ROOT, 'bin/check-cla.js')], {
+    encoding: 'utf8',
+    env: { ...process.env, CLA_PR_FILE: join(dir, 'pr.json'), CLA_SIGNATURES_FILE: join(dir, 'signatures.json') },
+  });
+}
+
+const claCommit = (login, parents = ['p']) => ({ sha: 'abcdef012345', login, parents });
+const claComment = (login, body) => ({ login, body, id: 1, url: 'https://example.test/c/1', created_at: '2026-11-06T00:00:00Z' });
+const claSigned = { exempt: ['maintainer'], signatures: [{ login: 'alice', id: 1, comment_url: 'u', agreed_at: 't', cla_sha256: 'h' }] };
+
+test('clause 1: the CLA workflow runs on pull requests and PR comments with only checkout and setup-node', () => {
+  assert.match(CLA_WORKFLOW, /^name: CLA\n/u);
+  assert.match(CLA_WORKFLOW, /\n {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]\n {2}issue_comment:\n {4}types: \[created\]\n/u);
+  assert.match(CLA_WORKFLOW, /github\.event\.issue\.pull_request/u, 'comments on plain issues are skipped');
+  const used = [...CLA_WORKFLOW.matchAll(/uses: ([^\s]+)/gu)].map((m) => m[1].split('@')[0]);
+  assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
+  assert.match(CLA_WORKFLOW, /node bin\/check-cla\.js/u);
+  assert.doesNotMatch(CLA_WORKFLOW, /pull_request_target/u);
+  assert.deepEqual([...CLA_WORKFLOW.matchAll(/^ {2}([\w-]+): write$/gmu)].map((m) => m[1]), ['statuses'],
+    'statuses is the only write permission');
+  assert.doesNotMatch(CLA_WORKFLOW, /contents: write/u);
+});
+
+test('clause 2: check-cla passes for a listed signer', (t) => {
+  const result = runCla(t, { commits: [claCommit('alice')], comments: [] }, claSigned);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('clause 2: check-cla passes for the exact comment and for exempt authors', (t) => {
+  const result = runCla(t, { commits: [claCommit('bob'), claCommit('maintainer'), claCommit('bob', ['a', 'b'])],
+    comments: [claComment('bob', `  ${CLA_SENTENCE}\n`)] }, claSigned);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('clause 2: check-cla fails naming the login for a near-miss comment', (t) => {
+  const result = runCla(t, { commits: [claCommit('bob')], comments: [claComment('bob', 'I have read CLA.md and I agree to it')] }, claSigned);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /bob/u);
+  assert.ok(result.stderr.includes(CLA_SENTENCE), 'the failure quotes the exact sentence');
+});
+
+test('clause 2: check-cla fails naming the login for a comment by a different person', (t) => {
+  const result = runCla(t, { commits: [claCommit('bob')], comments: [claComment('carol', CLA_SENTENCE)] }, claSigned);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /bob/u);
+});
+
+test('clause 2: check-cla fails naming a second unsigned co-author and a commit with no login', (t) => {
+  const result = runCla(t, { commits: [claCommit('bob'), claCommit('dave'), claCommit(null)],
+    comments: [claComment('bob', CLA_SENTENCE)] }, claSigned);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /dave/u);
+  assert.doesNotMatch(result.stderr, /bob has not/u);
+  assert.match(result.stderr, /no GitHub login/u);
+});
+
+test('clause 3: a landing appends a signer entry with the CLA hash', async (t) => {
+  const { appendSignatures } = await import('../bin/check-cla.js');
+  const dir = mkdtempSync(join(tmpdir(), 'cla-land-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'cla-signatures.json');
+  writeFileSync(file, JSON.stringify(claSigned));
+  const claText = 'CLA text at base\n';
+  appendSignatures(file, [{ login: 'bob', comment: { user_id: 7, url: 'https://example.test/c/1', created_at: '2026-11-06T00:00:00Z' } }], claText);
+  const entries = JSON.parse(readFileSync(file, 'utf8')).signatures;
+  assert.equal(entries.length, 2);
+  assert.deepEqual(Object.keys(entries[1]), ['login', 'id', 'comment_url', 'agreed_at', 'cla_sha256']);
+  assert.equal(entries[1].cla_sha256, (await import('node:crypto')).createHash('sha256').update(claText).digest('hex'));
 });
