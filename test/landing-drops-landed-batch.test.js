@@ -20,7 +20,7 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 function acceptedProject() {
   const box = landProject();
   const path = join(box.repo, 'pullboard.json');
-  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   const entry = itemWorktree(box, 1);
@@ -37,7 +37,7 @@ function acceptedProject() {
 function adoptBatch(box, entry, { dirty = false, reset = false, runs = 1 } = {}) {
   const source = [
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/native-board.js')).href)};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
@@ -69,7 +69,7 @@ function adoptBatch(box, entry, { dirty = false, reset = false, runs = 1 } = {})
   return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
 }
 
-test('a batch whose every item already landed another way is dropped and its worktree removed [B35,B3]', () => {
+test('clause 1: a batch whose every item already landed another way is dropped and its worktree removed [B35,B3]', () => {
   const { box, entry } = acceptedProject();
   recordManualMergedItems(box, [entry]);
   const result = adoptBatch(box, entry);

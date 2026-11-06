@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
 import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+import { NOT_MOVES } from './machine-not-moves.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -20,7 +21,7 @@ import { assertCommitShimRefusals, machineSourceModule } from './commits-machine
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../packages/state/index.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { policyRepository, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
@@ -46,74 +47,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
-/**
- * Refusals that are not about an item's lifecycle, so no move declares them: command input, caller
- * registration and machine-wide settings are checked before any item move.
- */
-const NOT_MOVES = {
-  USAGE: 'how a command was typed',
-  NO_FILE: 'how a command was typed: a --note-file that does not exist',
-  ALREADY_JOINED: 'registering who is asking, before any move',
-  BAD_PARENT: 'validating optional parent/session declarations at join, before any move',
-  PARENT_SESSION_CHANGED: 'preserving the joined seat’s immutable parent/session identity, before any move',
-  FAMILY_DECLARED: 'a seat\u2019s declared vendor family is final, checked at join before any move',
-  BAD_ROUTE: 'registering who is asking, before any move',
-  ONE_COORDINATOR: 'registering who is asking, before any move',
-  BAD_SEAT_ID: 'registering who is asking, before any move; only a creator naming a new worktree seat raises it',
-  MACHINE_HOME_NOT_WRITABLE: 'machine-wide storage must be writable before a command runs',
-  SANDBOX_BLOCKED: 'the command environment must allow the gate or check operation',
-  BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
-  BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
-  BAD_BROWSER_SLOTS: 'machine-wide browser capacity checked before a command runs',
-  BAD_SHORT_SLOTS: 'machine-wide short gate slot count checked before a command runs',
-  BAD_SHORT_SLOT_REQUEST: 'only a machine gate run that names its test files may ask for a short slot, checked before admission',
-  BAD_RESOURCE_NAME: 'machine resource names are validated before admission',
-  RESERVED_RUNNER_RESOURCE: 'runner resource rows are managed by machine admission rather than item moves',
-  BAD_RESOURCE_CAPACITY: 'machine resource capacity is validated before admission',
-  BAD_BROWSER_RESOURCE: 'browser capability must be acquired together with the machine gate',
-  BAD_REMOTE_RESOURCE: 'remote executor capability must be acquired together with the machine gate',
-  BAD_RUNNER_POOL: 'configured remote executors are validated before admission',
-  BAD_RESOURCE_METADATA: 'resource queue metadata is validated before admission',
-  BAD_RESOURCE_PRIORITY: 'resource queue priority classes must be mutually exclusive before admission',
-  RESOURCE_CAPACITY_MISMATCH: 'resource capacity cannot change underneath active machine leases',
-  RESOURCE_LEASE_LOST: 'a machine resource lease must remain live while its admitted command runs',
-  LOCAL_RUNNER_REQUEUE: 'only remote executor leases can return to the runner queue',
-  BOARD_SCOPE_UNAVAILABLE: 'board resource admission requires the relay before an item move',
-  BAD_RESOURCE_SCOPE: 'resource pool scope is validated before admission',
-  RUNNER_CAPACITY_MISMATCH: 'configured remote capacity cannot drop below active runner leases',
-  REMOTE_GATE_SLOT_NOT_INHERITABLE: 'a remote executor lease cannot become a local child gate capability',
-  BAD_RUNNER: 'machine-wide SSH runner settings checked before remote execution',
-  RUNNER_OUTPUT_LIMIT: 'remote execution output is bounded before accepting its result',
-  RUNNER_CLEANUP_TIMEOUT: 'remote cleanup must report a bounded failure before returning capacity',
-  RUNNER_SETUP_REFUSED: 'a runner whose own resource pool refuses setup fails the run by name instead of hanging',
-  RUNNER_SOURCE_CHANGED: 'remote execution requires the exact admitted committed source',
-  RUNNER_SECRET: 'source and command transfer is refused before private content leaves the machine',
-  RUNNER_REQUEST_LIMIT: 'remote tooling requests are bounded before transport starts',
-  RUNNER_SOURCE: 'the committed source is readable before remote transport starts',
-  RUNNER_SCAN_LIMIT: 'remote source objects must fit the transfer scan budget',
-  RUNNER_TOOLING_SECRET: 'runner tooling is scanned before transfer',
-  RUNNER_TOOLING_IDENTITY: 'runner tooling comes from an identified Pullboard installation',
-  RUNNER_TOOLING_CHANGED: 'runner tooling matches its selected committed revision',
-  NOT_A_REPO: 'the remote source root must be a Git repository before transport starts',
-  GATE_SLOT_LEASE_REQUIRED: 'a child process or nested runner must receive its live machine gate lease before starting',
-  GATE_SLOT_MARKER_INVALID: 'an inherited machine gate capability is validated before nested work starts',
-  GATE_SLOT_TOKEN_REQUIRED: 'an inherited machine gate capability needs its exact lease token',
-  GATE_SLOT_LEASE_LOST: 'the exact machine gate lease must still be live before nested work starts',
-  SHORT_SLOT_FULL_SUITE: 'a short gate lease is reused only by nested work that names its test files',
-  BROWSER_SLOT_REQUIRED: 'browser capacity must be held before a nested browser command can run',
-  NO_AGENT: 'a linked coordinator must already be registered before an item move',
-  REMOTE_COORDINATOR_MODEL: 'a linked replica cannot redeclare the coordinator model; use the coordinator checkout',
-  EVENT_LOG_VERSION: 'the local board format is checked before opening it for an item move',
-  BOARD_BUSY: 'the board connection is opened or read before an item move can begin',
-  NO_ELIGIBLE_REVIEWER: 'the submit command checks, before any item move, that some active seat could review a strict item; the move itself decides nothing new',
-  BOARD_NOT_WRITABLE: 'the board folder must be writable before a command opens it for an item move',
-  NOT_YOUR_CHECKOUT: 'the caller owns the checkout session, checked before any item move',
-  CHECKOUT_SESSION: 'the checkout-local session binding is readable before any item move',
-  CHECKOUT_BUSY: 'a hook gives up waiting for a checkout another command holds, before any item move',
-  UNMERGED_SCHEMA: 'shared-board schema compatibility checked before a command opens the database',
-  PERSON_SIGNED: 'a person-only move on a board that signs person moves needs a passkey; no item move is person-only',
-  PERSON_SIGNING_CORRUPT: 'the stored relay key is read when a command fetches the relay\'s authority, before any move; it is no item lifecycle rule',
-};
+
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
  * they answer for its refusals together.
@@ -123,19 +57,22 @@ const ENTRY_POINTS = [
   { verbs: ['release'], at: ['board.js#release'] },
   { verbs: ['submit'], at: ['board.js#submit', 'commands/submit.js#submitHere'] },
   { verbs: ['reserve'], at: ['board.js#reserveReview', 'board.js#reserveNextReview'] },
-  { verbs: ['accept', 'reject'], at: ['board.js#verify', 'commands/verify.js#verifyHere'] },
+  { verbs: ['accept', 'reject'], at: ['board.js#verify', '../apps/cli/src/shell/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['board-escalate.js#escalate'] },
   { verbs: ['withdraw'], at: ['board.js#withdraw'] },
   { verbs: ['refreeze'], at: ['board.js#refreeze'] },
   { verbs: ['reopen'], at: ['board.js#reopen'] },
 ];
 /** Setup refusals have no item move, but stay in the same reachability audit. */
+/** Runner refusals reach lifecycle checks through these package and worker entry points. */
+const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/shell/gate-slot.js', '../packages/runners/src/shell/runner-result.js',
+  '../packages/runners/src/shell/runner-dispatch.js', '../apps/runner/src/shell/runner-worker-main.js'];
 const NON_MOVE_ENTRY_POINTS = [
-  'native-board.js#openBoard', // Physical storage is composed before any item move.
-  'cli.js#refuseRemoteCoordinatorModel',
+  '../apps/lib/src/core/native-board.js#openBoard', // Physical storage is composed before any item move.
+  '../apps/cli/src/shell/cli/join.js#refuseRemoteCoordinatorModel',
   // Child-process commands may be serialized into scripts, so audit this exported setup guard directly.
   '../packages/resources/src/shell/resources.js#gateSlotEnvironment',
-  'person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
+  '../packages/person/src/shell/person-signing-cli.js#pinRelayAuthority', // Reads the relay's authority before a person command (#408).
 ];
 
 /**
@@ -145,9 +82,13 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // A lane-policy refresh tries the freezer only to compare digests; a refusal there keeps the pinned policy (#2886).
+  '../apps/cli/src/shell/cli/claim.js#refreshesLanePolicy': ['../apps/cli/src/shell/cli/claim.js#freezer'],
   // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
   // reason as data rather than raising the refusal from the reserve move.
-  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem'],
+  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem', '../packages/items/index.js#expectedBuildProblem'], // An over-budget item is a skip reason.
+  // An unknown code map keeps the file collision; every read inside it is caught.
+  '../packages/items/src/shell/item-function-planning.js#schedulingMap': ['../packages/git/index.js#mainCheckout', '../packages/git/index.js#repoInfo', '../packages/git/index.js#git', '../packages/codemap/index.js#readCodeMap'],
   '../packages/verify/src/core/review-reachability.js#unreviewableStrict': ['../packages/verify/src/core/review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
@@ -155,8 +96,10 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  // The same catches as reached at the CLI's moved source (#2886).
+  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
-  'commands/verify.js#verifyHere': ['commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
@@ -296,8 +239,10 @@ function codeProblems(machine, read = fromDisk) {
       }
     }
   }
-  const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
-  const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set(['../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
+  const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
+    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+  ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -509,27 +454,31 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
-  assert.deepEqual(codeProblems(machineRules.MACHINE), []);
+test('clause 1: every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+  const problems = codeProblems(machineRules.MACHINE);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
+    'clause 1: release, reserve, reopen, withdraw, refreeze and claim have no undeclared refusal lines');
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('board.js#claim').has('UNKNOWN_SPEC'), 'the walk follows claim into the freezer the CLI hands it');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('UNKNOWN_SPEC'), 'and refreeze too');
   assert.ok(walk.refusalsOf('board.js#claim').has('A5_GRAMMAR_VERSION'), 'grammar declarations can stop a claim with their own code');
   assert.ok(walk.refusalsOf('board.js#refreeze').has('A5_GRAMMAR_VERSION'), 'and stop a refreeze too');
   assert.ok(walk.refusalsOf('commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
-  assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
-  assert.ok(walk.refusalsOf('cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
+  assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['../apps/cli/src/shell/commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
+  assert.ok(walk.refusalsOf('../apps/cli/src/shell/cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
   for (const code of Object.keys(NOT_MOVES)) {
     const moveRaises = ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code)));
-    const setupRaises = NON_MOVE_ENTRY_POINTS.some((entry) => walk.refusalsOf(entry).has(code));
+    const setupRaises = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))]
+      .some((entry) => walk.refusalsOf(entry).has(code));
     assert.ok(moveRaises || setupRaises, `${code} is listed as not a move because a move or setup code path raises it`);
   }
 });
 
-test('a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
   for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
@@ -557,6 +506,15 @@ test('a broken copy of the declaration fails the check against the code, both wa
     move.guards = move.guards.filter((id) => id !== 'routeAllows');
   }
   assert.deepEqual(codeProblems(noRouteOnVerdicts), ['ROUTE is raised by accept and reject but not declared there']);
+
+  const noVerdictRefusals = copy();
+  const verdictCodes = ['AGENT_APPROVAL_REQUIRED', 'SUBMISSION_PROOF', 'UNKNOWN_SPEC'];
+  for (const verb of ['accept', 'reject']) {
+    const move = moveOf(noVerdictRefusals, verb);
+    move.alsoRefuses = move.alsoRefuses.filter(entry => !verdictCodes.includes(entry.code));
+  }
+  assert.deepEqual(codeProblems(noVerdictRefusals).sort(), verdictCodes.map(code => `${code} is raised by accept and reject but not declared there`),
+    'clause 1: verdict refusals stay declared rather than hidden by the setup exemptions');
 
   const invented = copy();
   invented.guards.push({ id: 'moonPhase', refuse: 'WRONG_MOON', rule: 'the moon is full', next: 'wait', source: 'board' });
@@ -588,6 +546,8 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
+    // Submit's pending-correction claim freezes the bar again, so it reaches the reader too (#2886).
+    'MOON_PHASE is raised by submit but not declared there',
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
@@ -603,15 +563,18 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
 
   const inFreeze = editedSource('../packages/spec/src/shell/spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
+    'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
-  ], 'claim and refreeze let a freeze refusal through; submit and verify catch it');
+    'MOON_PHASE is raised by submit but not declared there',
+  ], 'claim, refreeze and submit\'s pending-correction claim let a freeze refusal through; verify catches it');
 
   const inProof = editedSource('../packages/spec/src/shell/spec-approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inProof).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
+    'MOON_PHASE is raised by submit but not declared there',
   ], 'only caught proof readers are excluded; a new guard inside their caller is still audited');
 
   const inArrow = editedSource('../packages/seats/src/core/route-escalation.js', /^export const canTake = .*$/m, "import { Refused } from '../../../kernel/core.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
@@ -621,8 +584,9 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'NO_ROUTE is raised by reserve but not declared there',
   ], 'reserve reaches the route check through the reviewer checks it shares with a verdict');
 
-  const doubleQuoted = editedSource('cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
+  const doubleQuoted = editedSource('../apps/cli/src/shell/cli-read-context.js', /^(?:export )?const cdTo = .*$/m, "const cdTo = (root) => { if (!root) throw new Refused(\"NO_ROOT\", 'no root'); return 'cd ' + root + ' &&'; };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, doubleQuoted), [
+    'NO_ROOT is raised by submit but not declared there',
     'NO_ROOT is raised by accept and reject but not declared there',
   ]);
 });
@@ -648,7 +612,7 @@ const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
 function boardOnDisk(clock) {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-machine-'));
   const file = join(dir, 'board.sqlite');
-  const board = openBoard(file, clock);
+  const board = openBoard(file, clock, { gitRoot: policyRepository(dir) });
   store.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
   store.register(board, { lane: 'web', path: '/repo-web-2', family: 'review-vendor' });
@@ -939,12 +903,15 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     const { board } = lab;
     const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
     const strong = store.register(board, { lane: 'web', path: '/repo-web-strong' });
-    const claimAs = (id, agentId, lane, freezer = retiredFreeze) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer }));
+    // The target expects 45 build minutes: a 60-minute budget admits it, and the board's 30-minute default peels buildScopeFits.
+    const claimAs = (id, agentId, lane, freezer = retiredFreeze, buildBudgetMinutes = 60) => outcome(() => store.claim(board, id, { agentId, lane, leaseMs: 7_200_000, freeze: freezer, buildBudgetMinutes }));
     const done = submittedItem(board);
     const returned = submittedItem(board);
-    store.verify(board, returned, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Page', head: SHA_A, digest: 'digest:Page', policy: 'any', note: 'the check fails', reopenFirstRefusalMinutes: 30 });
+    // A reject reopens to anyone (REJECT_OPEN_ENGINE); a failed landing still waits for its builder first.
+    verdictOn(board, returned, 'web-2', 'ACCEPT');
+    store.reopen(board, returned, { agentId: 'coordinator', reopenFirstRefusalMinutes: 30, note: `test/page.test.js: failed case; merge commit ${SHA_B}` });
     const dependency = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
-    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency] });
+    const target = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page', after: [dependency], expectedBuildMinutes: 45 });
     const spare = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
     const raw = lab.raw();
     holdByHand(raw, target, 'web-2');
@@ -960,7 +927,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web', retiredFreeze, 30), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
@@ -977,7 +944,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong, 'Release the spare fixture claim before checking the next guard.', undefined, 'OTHER');
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'ITEM_BUILD_BUDGET', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }
@@ -1150,8 +1117,9 @@ test('a reserved review refuses every other verdict while its lease lives, and o
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
   const dir = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-reserve-')));
   try {
+    // A fixture seat never inherits the running agent's session: it joins with its own declared model.
     const env = {
-      ...process.env,
+      ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:CLAUDE|CODEX)/u.test(key))),
       GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1',
       GIT_AUTHOR_NAME: 'Test Agent',
@@ -1163,7 +1131,10 @@ test('next --verify reserves the review for the reviewLease and says until when;
     };
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
-    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+    // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.
+    const sessions = new Map();
+    const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
+    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) }, encoding: 'utf8' });
     const repo = join(dir, 'repo');
     fs.mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');
@@ -1174,7 +1145,8 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const [builder, holder, other] = ['web-1', 'web-2', 'web-3'].map((name) => {
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
-      const joined = run(path, 'join', 'web');
+      // Each seat declares its model; the builder's family differs so its peers may review it.
+      const joined = run(path, 'join', 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });
@@ -1227,7 +1199,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
   }
 });
 
-test('next --verify looks and reserves in one transaction, so no other verifier takes the review in between [V15]', () => {
+test('next --verify looks outside the lock and rechecks inside it, so no other verifier takes the review in between [V15]', () => {
   const lab = boardOnDisk();
   const others = [];
   try {
@@ -1241,13 +1213,13 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     let armed = false;
     let rivalSaw = null;
     // web-2's own connection. Its clock runs a minute ahead, so the lapsed lease is plainly lapsed,
-    // and the first time the look reads it, a rival verifier on another connection tries to
-    // reserve the same review.
+    // and the first time the look reads it, a rival verifier on another connection reserves the
+    // same review. The look holds no write lock (#3156), so the rival's write lands mid-look.
     const looking = openBoard(lab.file, {
       now: () => {
         if (armed && rivalSaw === null) {
           try {
-            store.reserveReview(rival, id, { agentId: third, leaseMs: 60_000, policy: 'any' });
+            store.reserveReview(rival, id, { agentId: third, leaseMs: 600_000, policy: 'any' });
             rivalSaw = 'reserved';
           } catch (error) {
             rivalSaw = error;
@@ -1259,9 +1231,12 @@ test('next --verify looks and reserves in one transaction, so no other verifier 
     others.push(rival, looking);
     armed = true;
     const found = store.reserveNextReview(looking, { agentId: 'web-2', lane: 'web', leaseMs: 60_000, policy: 'any' });
-    assert.equal(found.item?.item_review_by, 'web-2');
     assert.ok(rivalSaw !== null, 'the look read the clock, so the rival had its chance mid-look');
-    assert.equal(rivalSaw.code, 'BOARD_BUSY', 'the rival could not write while the look held the board');
+    assert.equal(rivalSaw, 'reserved', 'the look held no write lock, so the rival reserved mid-look');
+    // The in-lock recheck sees the rival's live reservation and refuses: the looker never takes the review.
+    assert.notEqual(found.item?.item_id, id, 'the looker did not take the review the rival holds');
+    const held = store.getItem(lab.board, id);
+    assert.equal(held.item_review_by, third, 'exactly one verifier holds the review: the rival');
   } finally {
     for (const board of others) store.closeBoard(board);
     lab.done();
@@ -1400,7 +1375,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
 });
 
 test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
-  const inDispatch = editedSource('cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
+  const inDispatch = editedSource('../apps/cli/src/shell/cli/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
@@ -1452,7 +1427,7 @@ test('lifecycle source walks follow Git shims and catch a planted body refusal [
 
 /** The bound storage callback must reach its real body through the moved public facade. */
 test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
-  const entry = 'native-board.js#openBoard';
+  const entry = '../apps/lib/src/core/native-board.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
   const planted = editedSource('../packages/store/src/shell/board-read-open.js',
     /^export function readEventLogVersion\(db\) \{$/m,

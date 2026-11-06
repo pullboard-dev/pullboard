@@ -10,7 +10,8 @@
  * @returns {{ has: (test: string) => boolean, reasonOf: (test: string) => string }}
  */
 export function unknownRootTests(graph, isTest) {
-  const reaching = new Set(graph.unknown.keys());
+  // An unreadable test is unknown to every test that imports it too, so the walk starts from both [C7].
+  const reaching = new Set([...graph.unknown.keys(), ...graph.undeclared.keys()]);
   const queue = [...reaching];
   for (let at = 0; at < queue.length; at += 1) {
     for (const importer of graph.reverse.get(queue[at]) ?? []) if (!reaching.has(importer)) { reaching.add(importer); queue.push(importer); }
@@ -32,6 +33,7 @@ export function unknownRootTests(graph, isTest) {
     for (let at = 0; at < walk.length; at += 1) {
       const path = walk[at];
       if (graph.unknown.has(path)) return `${graph.unknown.get(path)} in reached file ${path}`;
+      if (path !== test && graph.undeclared.has(path)) return `${graph.undeclared.get(path)} in reached file ${path}`;
       for (const dependency of forward.get(path) ?? []) if (!reached.has(dependency)) { reached.add(dependency); walk.push(dependency); }
     }
     return '';
