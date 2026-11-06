@@ -42,7 +42,7 @@ function landOnce(box, itemId) {
     'const lines = [];',
     'try {',
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
-    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line) }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
+    'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (caught) { error = { code: caught.code, message: caught.message }; }',
     'const item = store.getItem(board, Number(itemId));',
     'const reopens = store.events(board, { itemId: Number(itemId) }).filter(event => event.event_kind === "reopen").map(event => JSON.parse(event.event_detail));',
     'console.log(JSON.stringify({ error, lines, item: { status: item.item_status, verdict: item.item_verdict, owner: item.item_owner, merged: item.item_merged_commit }, reopens }));',
@@ -77,3 +77,25 @@ test('an accepted item whose file main changed after review is withdrawn and reo
   assert.equal(again.reopens.length, 1, 'the return is recorded once');
   assert.equal(again.item.status, 'open');
 });
+
+test('a stale verdict behind a full one-item batch still returns to its lane in the same pass [B3,C7]', () => {
+  const box = cleanProject();
+  const path = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, perItem: true } }, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: one item per batch');
+  const older = itemWorktree(box, 1);
+  submitItem(box, older, '// PASS\n');
+  acceptItem(box, older);
+  const newer = itemWorktree(box, 2);
+  submitItem(box, newer, '// PASS\n');
+  acceptItem(box, newer);
+  // The older accept goes stale while the newer one still composes, so the batch takes the newer item.
+  assert.equal(commitFile(box, box.repo, older.file, '// PASS, rewritten on main\n', 'test(web): main rewrites the older file [G1]').status, 0);
+  const result = landOnce(box, older.item);
+  assert.equal(result.error, null, JSON.stringify(result));
+  assert.equal(result.item.status, 'open', `the stale item behind the batch is reopened: ${JSON.stringify(result.item)}`);
+  assert.equal(result.reopens.length, 1, JSON.stringify(result.reopens));
+  assert.ok(result.lines.some(line => line.startsWith(`STALE_VERDICT #${older.item} reopened to its lane`)), result.lines.join('\n'));
+});
+
