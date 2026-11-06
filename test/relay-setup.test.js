@@ -219,12 +219,14 @@ try {
 `);
 }
 
-test("the view's sign-in links every board without a terminal or a stored session [H5,N26]", async (t) => {
+// Each scenario builds its own relay fixture (an ephemeral port, its own machine home and HOME), so the nine run at
+// once: run one after another they were 218 s of a landing gate on 6 Nov, the whole batch's floor [C7].
+test("the view's sign-in links every board without a terminal or a stored session [H5,N26]", { concurrency: 9 }, async (t) => {
   assert.equal(typeof setup.startViewSignIn, 'function', 'core exposes a view sign-in adapter');
   assert.equal(typeof setup.viewSignInStatus, 'function');
   assert.equal(typeof setup.cancelViewSignIn, 'function');
-  for (const mode of ['linked', 'cancel', 'declined', 'expired', 'abort-start', 'invalid-url', 'cleanup-refused', 'pairing-cleanup-refused', 'excluded']) {
-    await t.test(mode, async (t) => {
+  await Promise.all(['linked', 'cancel', 'declined', 'expired', 'abort-start', 'invalid-url', 'cleanup-refused', 'pairing-cleanup-refused', 'excluded'].map((mode) =>
+    t.test(mode, async (t) => {
       const box = await relayClientFixture(t);
       box.providerState.deviceAuthorized = ['linked','pairing-cleanup-refused','excluded'].includes(mode);
       box.providerState.deviceDeclined = mode === 'declined';
@@ -237,8 +239,7 @@ test("the view's sign-in links every board without a terminal or a stored sessio
       assert.equal(outcome.storedPersonMaterial, false);
       const after = box.providerCalls.filter(call => call.path === '/login/device/code').length;
       assert.equal(after - before, mode === 'abort-start' ? 0 : ['invalid-url','cleanup-refused'].includes(mode) ? 2 : 1, 'one device sign-in serves each attempt, including explicit recovery after invalid instructions');
-    });
-  }
+    })));
 });
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
