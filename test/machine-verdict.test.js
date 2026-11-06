@@ -49,6 +49,10 @@ function fixture(t, { failing = false, sensitive = false, strict = false, advanc
     box.git(box.repo, 'commit', '-q', '-m', 'docs: advance accepted fixture main');
   }
   assert.equal(helpers.commitFile(box, box.web, 'web/result.txt', 'built\n', 'feat(web): build result [G1]').status, 0);
+  for (const entry of commands) {
+    const ticked = box.run(box.web, 'fact', String(id), 'note', `clause ${entry.clause} [command]: ${entry.command} exits 0`);
+    assert.equal(ticked.code, 0, ticked.out + ticked.err);
+  }
   return { box, id, path, commands };
 }
 
