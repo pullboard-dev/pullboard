@@ -82,9 +82,11 @@ test('a current companion family stays excluded when a third joined family can i
 test('mixed-family composition remains independently reviewable while every current author and parent stays excluded [V4,H16]', t => {
   const f = fixture(t);
   f.claim('core-1'); f.attach('core-2');
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   assert.doesNotThrow(() => submitPreflight(f.board, f.id, { agentId: 'core-1', commit: COMMIT, tree: TREE },
     { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) }));
   f.submit();
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1; // moves above raise the board engine; this case proves the replaced rules
   const result = f.projection();
   assert.equal(result.owner, 'core-1', 'missing legacy size chooses the last builder');
   assert.ok(result.eligible.includes('core-4'), JSON.stringify(result));
