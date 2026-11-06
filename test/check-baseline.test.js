@@ -117,7 +117,7 @@ function project({ gate = 'true', content = 'green', commit = true, worktrees = 
 function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane, '--model', 'fixture-model']);
+  const joined = box.run(path, ['join', lane, '--model', 'fixture-model', '--route', 'strong']);
   assert.equal(joined.status, 0, joined.stderr);
   return path;
 }

@@ -53,7 +53,7 @@ for (const timing of [true, false]) {
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(box.run(reviewer, 'join', 'api', '--model', 'fixture-model', '--json'));
+    document(box.run(reviewer, 'join', 'api', '--model', 'fixture-model', '--route', 'strong', '--json'));
     const accepted = document(box.run(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json'));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);
