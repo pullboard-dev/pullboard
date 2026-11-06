@@ -39,9 +39,15 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   assert.equal(unknown.code, 0, unknown.err + unknown.out);
   assert.equal(JSON.parse(unknown.out).route, 'mid', 'an unlisted model label falls back to mid');
 
-  const light = box.run(box.repo, 'add', 'api', 'Light fixture item', '--specs', 'G2', '--route', 'light',
+  const light = box.run(box.repo, 'add', 'api', 'Light fixture item', '--specs', 'G2', '--route', 'mid',
     '--criterion', 'The fixture light item is available.', '--check', 'true', '--brief', 'Files: api/light.js\nChange: fixture\nTest: check passes', '--json');
   assert.equal(light.code, 0, light.err + light.out);
+  const lightId = String(JSON.parse(light.out).item.item_id);
+  const diagnosed = box.run(box.repo, 'fact', lightId, 'diagnosis',
+    'Files: api/light.js\nChange: keep the fixture item eligible for a light seat\nTest case: a light seat selects this item', '--json');
+  assert.equal(diagnosed.code, 0, diagnosed.err + diagnosed.out);
+  const lowered = box.run(box.repo, 'edit', lightId, '--route', 'light', '--json');
+  assert.equal(lowered.code, 0, lowered.err + lowered.out);
   const strong = box.run(box.repo, 'add', 'api', 'Strong fixture item', '--specs', 'G2', '--json');
   assert.equal(strong.code, 0, strong.err + strong.out);
   const offered = box.run(seat, 'next', '--build', '--json');
@@ -61,7 +67,7 @@ test('clause 2: scale takes the declared model and tier from the current environ
   let launched;
   const deps = {
     context: () => ({ info: { isMain: true, root: box.repo }, config }),
-    workerBudget: () => ({ seatHours: 1, window: 'day' }),
+    workerBudget: () => ({ seatHours: 1000, window: 'day' }),
     withBoard: (_ctx, read) => read({}),
     observe: () => ({ worth: 1, workers: [], reviews: 0, builds: 1 }),
     ledger: { record: () => ({ usedHours: 0, spent: null }) },
