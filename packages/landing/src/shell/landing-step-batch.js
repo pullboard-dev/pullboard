@@ -224,6 +224,27 @@ async function retireHeldBatch(root, board, write, say, batch) {
   return true;
 }
 
+/** True for a failure that is no refusal and no lost lease: a crash of the landing code itself [C7,#3188]. */
+export function isCrash(error) {
+  return !(error instanceof Refused) && error?.code !== 'LAND_LEASE_LOST';
+}
+
+/** The refusal to record for an error: a crash becomes LAND_WORKER_CRASH carrying its stack, a refusal stays as raised [C7,#3188]. */
+export function crashRefusal(error) {
+  return isCrash(error) ? { code: 'LAND_WORKER_CRASH', message: String(error?.stack ?? error) } : error;
+}
+
+/**
+ * End the batch blocked after any refusal or crash in a landing step (merge, gate, diagnose, trunk, publish), so the next
+ * batch starts and no restart adopts and gates it again. Only a lost lease keeps it, since another worker owns the batch then;
+ * a landing fault such as BOARD_BUSY is a Refused like any other and blocks it too (its items stay verified).
+ * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
+ */
+export async function blockAfterRefusal(state, error) {
+  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
+  if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
+}
+
 /**
  * Record a refusal on the batch and keep every earlier one; a batch whose items used up their RUNNER_SOURCE retries
  * stops blocked with them held, so nothing adopts it again.
@@ -424,8 +445,9 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       }
     }
   } catch (error) {
+    const crash = isCrash(error);
     if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
-      try { await recordRefusal(state, error); }
+      try { await recordRefusal(state, crashRefusal(error)); }
       catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
     }
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
@@ -435,6 +457,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     // A landing fault (BOARD_BUSY) keeps the batch merging or gating with its worktree and log, so adoption resumes it.
     if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error)
       && ['merging', 'gating'].includes(state.batch.state))) await save(state, { state: 'blocked' });
+    if (!returned) await blockAfterRefusal(state, error);
     if (!returned && (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT')) throw error;
     say(error.message);
   }
