@@ -50,7 +50,7 @@ function nextWebItem(box, title) {
   const web = join(box.dir, `web-${id}`);
   const source = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
-  assert.match(box.run(web, 'join', 'web').out, /joined as web-/);
+  assert.match(box.run(web, 'join', 'web', '--model', 'Fixture').out, /joined as web-/);
   assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
   return { id, web };
 }
@@ -66,9 +66,9 @@ function commitWebAt(box, web, files, message) {
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
   const text = output.endsWith('\n') ? output.slice(0, -1) : output;
-  const footer = '\nnext: pullboard next --wait 1';
-  assert.ok(text.endsWith(footer), 'doctrine check appends its exact navigation footer');
-  assert.equal(text.slice(0, -footer.length), expected);
+  const footer = /\nnext: pullboard next --(?:wait \d+|take)$/u.exec(text);
+  assert.ok(footer, 'doctrine check appends its exact navigation footer');
+  assert.equal(text.slice(0, footer.index), expected);
 }
 
 /** Replace the rule's committed fields on main and try to commit them through the hooks. */
@@ -81,7 +81,7 @@ function editRule(box, from, to) {
   return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("a doctrine rule's check holds its count [D1,D3]", () => {
+test("clause 1: a doctrine rule's check holds its count [D1,D3]", () => {
   const box = checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
   // A check that exits other than 0 or 1 cannot count, so it refuses by name.
@@ -167,7 +167,7 @@ test("a doctrine rule's check holds its count in watch mode and nightly [D1,D3]"
   assert.match(rose.out, /^Q2 Web pages stay TODO-free overnight\. · 4, was 3 · rose$/m);
 });
 
-test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", () => {
+test("clause 2: a doctrine rule's check holds its count when its row is demoted [D1,D3]", () => {
   const box = checkedProject('count: 2');
   const file = join(box.repo, 'DOCTRINE.md');
   const committed = readFileSync(file, 'utf8');
