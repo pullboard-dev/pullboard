@@ -255,15 +255,23 @@ test('a change to one test file selects only what reads it [V4,C7]', (t) => {
   selection = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.deepEqual(selection.files, ['test/api.test.js', 'test/loader.test.js'], 'the literal reader is left out of an unrelated change');
 
-  // A computed import that declares nothing cannot be read, so the whole suite runs and says why.
+  // A computed import that declares nothing cannot be read, so that file always runs and says why; the rest stay focused.
   box.put('test/guess.test.js', 'await import(process.env.GUESS);\n');
   commit = box.commit();
   selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
-  assert.equal(selection.full, true, 'an undeclared computed import falls back to the whole suite');
-  assert.match(selection.reason, /test\/guess\.test\.js/u, 'the fallback names the file that cannot be read');
+  assert.equal(selection.full, false, 'one unreadable test never forces the whole suite');
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js'], 'the unreadable test runs beside the selection, nothing else');
+  assert.match(selection.reason, /test\/guess\.test\.js/u, 'the selection names the file that cannot be read');
+
+  // A test importing the unreadable test reaches what it reads, so it runs too.
+  box.put('test/uses-guess.test.js', "import './guess.test.js';\n");
+  commit = box.commit();
+  selection = selectAffectedTests(box.root, { base, commit, changed: ['test/api.test.js'] });
+  assert.equal(selection.full, false);
+  assert.deepEqual(selection.files, ['test/api.test.js', 'test/guess.test.js', 'test/uses-guess.test.js'], 'an importer of the unreadable test runs with it');
 });
 
-test('an undeclared non-literal specifier, through a helper or a path builder, selects the whole suite [V4,C7]', (t) => {
+test('an undeclared non-literal specifier, through a helper or a path builder, always runs its own file [V4,C7]', (t) => {
   for (const loader of [
     "function pick(fallback) { return process.env.CASE_MODULE || fallback; }\nawait import(new URL(pick('../src/api.js'), import.meta.url).href);\n",
     "const helpers = { pick: (fallback) => process.env.CASE_MODULE || fallback };\nawait import(new URL(helpers.pick('../src/api.js'), import.meta.url).href);\n",
@@ -278,7 +286,8 @@ test('an undeclared non-literal specifier, through a helper or a path builder, s
     box.put('src/b.js', 'export const value = 2;\n');
     const commit = box.commit();
     const selection = selectAffectedTests(box.root, { base, commit, changed: ['src/b.js'] });
-    assert.equal(selection.full, true, `a helper call's result is unresolved, so the selection falls back to the whole suite: ${loader}`);
+    assert.equal(selection.full, false, `a helper call's result is unresolved, so its own file runs, not the whole suite: ${loader}`);
+    assert.ok(selection.files.includes('test/loader.test.js'), 'the unreadable loader always runs');
     assert.match(selection.reason, /test\/loader\.test\.js/u);
   }
 });
@@ -292,8 +301,9 @@ test('a computed import with an environment fallback reads every candidate, not 
   box.put('src/b.js', 'export const value = 2;\n');
   const commit = box.commit();
   const selection = selectAffectedTests(box.root, { base, commit, changed: ['src/b.js'] });
-  assert.equal(selection.full, true, 'an unresolved branch falls back to the whole suite instead of a partial read set');
-  assert.match(selection.reason, /test\/loader\.test\.js/u, 'the fallback names the loader it cannot read');
+  assert.equal(selection.full, false, 'an unresolved branch runs its own loader, never the whole suite');
+  assert.ok(selection.files.includes('test/loader.test.js'), 'the loader it cannot read always runs instead of a partial read set');
+  assert.match(selection.reason, /test\/loader\.test\.js/u, 'the selection names the loader it cannot read');
 });
 
 test('a declaration counts only in the header, globs expand, and literal URLs resolve as the runtime does [V4,C7]', (t) => {
@@ -306,8 +316,8 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
   box.put('src/actual.js', 'export const value = 2;\n');
   const commit = box.commit();
   const hidden = selectAffectedTests(box.root, { base, commit, changed: ['src/actual.js'] });
-  assert.equal(hidden.full, true, 'a declaration inside a template string never stops the fallback');
-  assert.match(hidden.reason, /test\/template\.test\.js/u, 'the fallback names the undeclared file');
+  assert.ok(hidden.files.includes('test/template.test.js'), 'a declaration inside a template string never stops the undeclared file running');
+  assert.match(hidden.reason, /test\/template\.test\.js/u, 'the selection names the undeclared file');
 
   // A declared glob reads every committed module it matches.
   box.put('test/template.test.js', "/** @pullboard-test-loads src/*.js */\nawait import(process.env.TARGET ?? '../src/actual.js');\n");
@@ -324,7 +334,7 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
   // Glob syntax the selector cannot expand is not a usable declaration.
   box.put('test/template.test.js', "/** @pullboard-test-loads src/{a,b}.js */\nawait import(process.env.TARGET ?? '../src/actual.js');\n");
   const braces = box.commit();
-  assert.equal(selectAffectedTests(box.root, { base: after, commit: braces, changed: ['src/actual.js'] }).full, true, 'an unexpandable glob falls back');
+  assert.ok(selectAffectedTests(box.root, { base: after, commit: braces, changed: ['src/actual.js'] }).files.includes('test/template.test.js'), 'an unexpandable glob runs its own file');
 });
 
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {

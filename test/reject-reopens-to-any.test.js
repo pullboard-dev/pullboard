@@ -34,7 +34,7 @@ function fixture(t, { engine = REJECT_OPEN_ENGINE, returnRejectedWork = true, re
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const policyCommit = box.git(box.repo, 'rev-parse', 'main');
   const submit = (agentId, head = commit) => submitFixture(board, id, { agentId, commit: head,
-    tree: box.git(box.web, 'rev-parse', `${head}^{tree}`), policyCommit, clausePolicyCommit: policyCommit, inspectClauses: false });
+    tree: box.git(box.web, 'rev-parse', `${head}^{tree}`), policyCommit, clausePolicyCommit: policyCommit, inspectClauses: true });
   submit(builder);
   store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'OTHER', note: 'the frozen fix still needs rework',
     clause: 'the fix works', head: commit, digest: 'reject-open-bar', policy: 'any', reopenFirstRefusalMinutes: 30 });

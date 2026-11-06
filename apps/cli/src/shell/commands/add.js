@@ -1,3 +1,4 @@
+import { requireOwnLaneCheck } from '../lane-check.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
@@ -123,6 +124,7 @@ export async function run(io, args) {
   if (authority) item.referenceAuthority = authority;
   const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
+  requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
