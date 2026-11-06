@@ -45,8 +45,15 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 async function quickGuards(state, label = 'local-trunk', options = {}) {
-  await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
-  const gate = await gateGroup(state, label, { localTrunk: true, ...options });
+  // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
+  // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
+  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait })
+    .then(result => ({ result }), error => ({ error }));
+  let gate;
+  try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
+  finally { await staticChecks; }
+  const checked = await staticChecks;
+  if (checked.error) throw checked.error;
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
