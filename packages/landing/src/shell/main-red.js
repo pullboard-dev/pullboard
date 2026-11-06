@@ -286,6 +286,8 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
 }
 
 /** The most cache generations kept, oldest first out, so the file stays under readCache's size bound. */
+/** Generations the refresh reads and files it measures at once; the rest wait for the next landing. */
+const REFRESH_GENERATIONS = 8, REFRESH_FILES = 16;
 const CACHE_KEYS_KEPT = 512;
 
 /**
@@ -399,10 +401,13 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
   }
   let failed = null;
-  for (const path of missing) {
+  // A landing's missing files run at once, each under its own gate slot: three serial runs cost a landing 27 minutes
+  // on 6 Nov before its bisect could start, while runner slots sat free. A submit keeps its files in FIFO order and
+  // releases the slot between them, so other seats' gates interleave [V4,C7].
+  const measureFile = async path => {
     try {
       // Another submit may have completed this file after the initial snapshot.
-      if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) continue;
+      if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return;
       // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
       const measured = await withMainCheckout(root, main.commit, async checkout => {
         // Use the same exact-file capability checks as ordinary named tests, on main's source.
@@ -461,7 +466,21 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
       // A concurrent completed comparison can satisfy the request even if our own runner failed.
       if (rerun(path) || !outcomeOf((await snapshot()).entries, path)) failed ??= error;
     }
-  }
+  };
+  if (runnerAdmission.landing === true) await Promise.all(missing.map(measureFile));
+  else for (const path of missing) await measureFile(path);
+  // A file served by its content record is also recorded under this exact main, so the commit generation names every
+  // red file known at it: the post-landing refresh reads generations, and a later landing hits the commit entry first.
+  if (!pinned) await withComparisonCache(root, onWait, () => {
+    const current = readCache(file);
+    let copied = false;
+    for (const path of files) {
+      if (usable(current.entries[main.commit]?.[path]) || !content.get(path)) continue;
+      const served = current.entries[content.get(path)]?.[path];
+      if (usable(served)) { storeOutcome(current, [main.commit], path, served); copied = true; }
+    }
+    if (copied) writeCache(file, current);
+  });
   cache = await snapshot();
   // A pinned comparison served by its content record names that record's retained receipt, as a fresh run would.
   if (pinned && onMeasuredReceipt) for (const path of files.filter(entry => !missing.includes(entry) && !pinnedEntries[entry])) {
@@ -480,24 +499,35 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
-/** Refresh named red files cached for the prior main at the published main in parallel; later landings reuse per-file cases. */
-export async function refreshMainRedComparisons(root, previousMain, publishedMain, onWait, compare = compareMainFailures) {
+/** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
+function recentGenerations(cache, count, except = []) {
+  return Object.keys(cache.entries).filter(key => /^[0-9a-f]{40}$/u.test(key) && !except.includes(key)).slice(-count).reverse();
+}
+
+/**
+ * Refresh main's known red files at the published main in parallel, so the next red batch reads them instead of
+ * rerunning each on main for eight minutes. The files come from the newest generations, not the prior main alone:
+ * a comparison is cached under the exact commit it ran at, and a landing every three minutes meant the prior main
+ * held nothing, so on 6 Nov every refresh ran "0 file(s)" [C7]. A file whose test inputs did not change is served from
+ * its content record at once; one whose inputs changed, or whose red names no case, is measured again.
+ */
+export async function refreshMainRedComparisons(root, previousMain, publishedMain, onWait, compare = compareMainFailures, { generations = REFRESH_GENERATIONS, limit = REFRESH_FILES } = {}) {
   if (!previousMain || !publishedMain || previousMain === publishedMain) return [];
   const file = cacheFile(root);
   const cache = await withComparisonCache(root, onWait, () => readCache(file));
   const refreshed = cache.entries[publishedMain] ?? {};
-  // A red entry that names no failing case is unusable for known-main accounting, so every submit red in that file is
-  // charged to its item; on 6 Nov 14 of 17 recent red entries were such, and the filter below never refreshed them.
-  // Those are refreshed too, fresh and detailed, so the next comparison names its cases [C7].
-  const knownRedFiles = Object.entries(cache.entries[previousMain] ?? {})
-    .filter(([, outcome]) => outcome?.result === 'red')
-    .filter(([path]) => !(['red', 'green'].includes(refreshed[path]?.result)
-      && refreshed[path].signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(refreshed[path].failures)))
-    .map(([path]) => path);
-  return Promise.all(knownRedFiles.map(async path => {
+  const done = path => ['red', 'green'].includes(refreshed[path]?.result)
+    && refreshed[path].signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(refreshed[path].failures);
+  const knownRedFiles = [];
+  for (const generation of [previousMain, ...recentGenerations(cache, generations, [previousMain, publishedMain])]) {
+    for (const [path, outcome] of Object.entries(cache.entries[generation] ?? {})) {
+      if (outcome?.result === 'red' && !done(path) && !knownRedFiles.includes(path)) knownRedFiles.push(path);
+    }
+  }
+  return Promise.all(knownRedFiles.slice(0, limit).map(async path => {
     try {
       return await compare(root, { tests: [{ file: path, passed: false }] }, onWait, '', {
-        commit: publishedMain, detailed: true, fresh: true, allowCancelled: true, contentCache: false,
+        commit: publishedMain, detailed: true, fresh: true, allowCancelled: true,
       });
     } catch (error) {
       return { main: publishedMain, files: [], unavailable: error?.message ?? String(error) };
