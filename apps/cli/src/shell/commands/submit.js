@@ -435,6 +435,12 @@ export async function submitHere(ctx, id, infra) {
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  if (ctx.precheck) {
+    // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
+    withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
+    ctx.io.say(ctx.json ? JSON.stringify({ precheck: true, item: id, commit }) : `precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
+    return 0;
+  }
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -880,7 +886,7 @@ export async function submitHere(ctx, id, infra) {
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  const ctx = { ...context(io), submissionResult };
+  const ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
   const id = idArg(first);
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
