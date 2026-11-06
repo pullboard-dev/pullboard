@@ -140,11 +140,12 @@ function localReason() {
 /**
  * Run named test files through a gate slot, which deals them to the registered runners first (#1054); the focused
  * runner (pullboard.json affectedTests) gives each file its timeout. A red file is compared with main's recorded
- * result for that file, so a failure main already has reads as known.
+ * result for that file, so a failure main already has reads as known. A single named file skips that comparison
+ * unless compareMain is set.
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -176,7 +177,11 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
-  if (!run.isGreen) {
+  // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
+  // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
+  const skipMain = !affected && paths.length === 1 && !compareMain;
+  if (!run.isGreen && skipMain) result.mainSkipped = 'one file: add --compare-main to also run it on main';
+  if (!run.isGreen && !skipMain) {
     const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
       execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
