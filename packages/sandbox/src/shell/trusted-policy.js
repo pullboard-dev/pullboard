@@ -75,6 +75,28 @@ function pathBlobEntry(root, commit, path) {
   return { mode, oid };
 }
 
+/** Whether this item created a path that current main lacks, so its plan row may place it [L3,C7].
+ *
+ * Why not the claim base: a reclaim after the item's own commit puts that file in the base, and refusing then
+ * strands a valid placement. Why the trailer: other lanes and accepted dependencies also add files, and only
+ * commits that name this item in `Pullboard-Item` count as its own history.
+ *
+ * @param {string} root
+ * @param {any} item
+ * @param {string} commit
+ * @param {string} snapshot - The authenticated main commit the item lands on.
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function ownsNewFile(root, item, commit, snapshot, path) {
+  if (pathObject(root, snapshot, path)) return false;
+  const adds = policyGit(root, ['log', '--format=%H', '--diff-filter=A', commit, '--not', snapshot, '--', ':(literal)' + path])
+    .split('\n').filter(Boolean);
+  if (!adds.length) return false;
+  const marker = new RegExp(`^Pullboard-Item: #${Number(item.item_id)}\\s*$`, 'mu');
+  return adds.every(sha => marker.test(policyGit(root, ['log', '-1', '--format=%B', sha])));
+}
+
 /** Test a foreign candidate path against its exact accepted-main blob, including file mode. */
 function importOnlyAtCandidate(root, base, commit, path, moves) {
   const before = pathBlobEntry(root, base, path);
@@ -131,7 +153,7 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
   const planChanges = new Map(denied.map(path => [path, planRowChange(path, {
     before: path => read(snapshot, path), after: path => read(commit, path),
     ownNewFile: path => !outOfLane(ownership, item.item_lane, [path]).length
-      && !pathObject(root, snapshot, path) && bases.every(start => !pathObject(root, start, path))
+      && ownsNewFile(root, item, commit, snapshot, path)
       && Boolean(pathBlobEntry(root, commit, path)),
   })]));
   const moves = movedImportTargets(policyGit(root, ['diff', '--name-status', '-z', '-M', snapshot, commit]),

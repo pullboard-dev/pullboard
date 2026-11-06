@@ -103,14 +103,23 @@ function parallelPublicationRoot(state, batch) {
 
 /** Bind the native count to the batch before any trunk or remote publication. */
 export async function prepareFlakeLanding(state) {
-  const result = state.landingPorts.landingFlakeRatchet(state.board);
-  if (!result.allowed) {
-    const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
-      .map(row => `${row.file} :: ${row.name}`);
-    throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
-      'quarantine each newly observed flake with a filed repair item before landing');
+  // The snapshot carries an event boundary the board checks at write time. Seats write gate runs and flake
+  // observations every few seconds, so a boundary read before the write is often stale: recompute and write again
+  // rather than sleep on it, which starved a landing for 2 minutes on 6 Nov [C7].
+  for (let attempt = 1; ; attempt++) {
+    const result = state.landingPorts.landingFlakeRatchet(state.board);
+    if (!result.allowed) {
+      const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
+        .map(row => `${row.file} :: ${row.name}`);
+      throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
+        'quarantine each newly observed flake with a filed repair item before landing');
+    }
+    try { return await save(state, { flakeRatchet: result.snapshot }); }
+    catch (error) {
+      if (error?.code !== 'BOARD_BUSY' || !/flake evidence or repair status changed/u.test(error.message ?? '') || attempt >= 40) throw error;
+      state.say?.(`flake ratchet boundary moved under the landing (attempt ${attempt}); recomputing`);
+    }
   }
-  return save(state, { flakeRatchet: result.snapshot });
 }
 
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
@@ -170,14 +179,17 @@ function requireLandingCarries(state, batch) {
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await state.checkLease();
+  state.say?.('finish: envelope recorded; checking module resolution');
   await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
+  state.say?.('finish: module resolution checked; recording the finished batch');
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  state.say?.('finish: main fast-forwarded; refreshing the code map');
   await refreshLandedCodeMap(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);

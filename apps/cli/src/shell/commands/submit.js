@@ -86,6 +86,7 @@ import { requireSubmitComposition } from '../../../../../packages/items/index.js
 import { composeAfterProof } from '../../../../../packages/items/index.js';
 import { trunkMoveFact } from '../../../../../packages/items/index.js';
 import { judgeTrunkMove } from '../../../../../packages/verify/index.js';
+import { frozenRowGates } from '../../../../../packages/verify/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { explicitCheckFiles } from '../../../../../packages/gate/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -503,6 +504,8 @@ export async function submitHere(ctx, id, infra) {
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
+  // Each cited spec row's gate test runs with the proof, so its frozen clause has a named run to cite [V4].
+  crossRun.tests = [...new Set([...crossRun.tests, ...frozenRowGates(held).map(row => row.file).filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
   const runGate = (check, runnerPlan = {}) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { ...runnerPlan, executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
@@ -574,11 +577,16 @@ export async function submitHere(ctx, id, infra) {
     .map(item => { const baseline = itemCheckBaseline(board, item); return baseline ? { ...item, item_check_baseline: baseline } : item; }));
   if (criterionCases && !criterionMatched) {
     try {
-      const mainRed = mainRedCheckCases(root, criterionCases, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, criterionCases, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        criterionMatched = { main: mainFailureBase, failures: criterionCases };
-        criterionMainRed = mainRed.owned;
-        criterionProblem = '';
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          criterionMatched = { main: mainFailureBase, failures: criterionCases };
+          criterionMainRed = mainRed.owned;
+          criterionKnown = linked;
+          criterionProblem = '';
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red frozen check. */ }
   }
@@ -641,10 +649,15 @@ export async function submitHere(ctx, id, infra) {
   let proofMainRed = [];
   if (failures && mainFailureBase && !proofMatched && !companion) {
     try {
-      const mainRed = mainRedCheckCases(root, failures, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        proofMatched = { main: mainFailureBase, failures };
-        proofMainRed = mainRed.owned;
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          proofMatched = { main: mainFailureBase, failures };
+          proofMainRed = mainRed.owned;
+          proofKnown = linked;
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }
