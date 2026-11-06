@@ -112,7 +112,7 @@ test('clause 2: a split train landing repoints open and claimed checks and repor
       store.claim(board, openId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Open check') });
       store.release(board, openId, openBuilder, 'Return the fixture claim to open for split repair.', undefined, 'OTHER');
-      store.claim(board, claimedId, { agentId: claimedBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
+      store.claim(board, claimedId, { agentId: claimedBuilder, lane: 'web', leaseMs: 86_400_000, head: base,
         freeze: () => freeze('Claimed check') });
       store.claim(board, submittedId, { agentId: submittedBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Submitted check') });
