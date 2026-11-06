@@ -45,7 +45,7 @@ function pruneKeyMemos(store, now = Date.now()) {
   const keys = join(store, 'keys');
   const marker = join(keys, '.pruned');
   try { if (now - statSync(marker).mtimeMs < PRUNE_EVERY_MS) return; } catch { /* Never pruned: go on. */ }
-  try { writeFileSync(marker, ''); utimesSync(marker, new Date(now), new Date(now)); } catch { return; }
+  try { mkdirSync(keys, { recursive: true, mode: 0o700 }); writeFileSync(marker, ''); utimesSync(marker, new Date(now), new Date(now)); } catch { return; }
   let names = [];
   try { names = readdirSync(keys); } catch { return; }
   for (const folder of names) {
