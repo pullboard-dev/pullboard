@@ -122,7 +122,7 @@ export function roadmapCardsHtml(read, presentation = {}) {
   const card = (m) => {
     const header = headerFor(m);
     const legacyTarget = m.milestone.target ? '<div class="milestone-targetline">Target <time datetime="' + esc(m.milestone.target) + '">' + esc(targets.get(m) ?? m.milestone.target) + '</time>' + (m.milestone.pastTarget ? ' <span class="chip warn">past target</span>' : '') + '</div>' : '';
-    const heading = header ? header.top : '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + count(m) + capacity(m);
+    const heading = header ? header.top + capacity(m) : '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + count(m) + capacity(m);
     const detail = header ? header.detail : legacyTarget;
     return wrap('section', 'card-panel milestone' + (header ? ' roadmap-has-summary' : ''), 'm:' + m.milestone.name, true,
       heading, body(m), detail + (m === next ? mobileShipping : ''), Boolean(header));
