@@ -73,7 +73,7 @@ async function tableListsRequestBytes(t) {
     assert.ok(firstLoad.length > 0, 'the JSON report contains observed first-load requests');
     const successfulFirstLoad = firstLoad.filter((request) => request.complete && !request.failed && request.status === 200
       && Number.isSafeInteger(request.responseBytes) && request.responseBytes > 0);
-    assert.ok(successfulFirstLoad.some((request) => request.type === 'Document' && request.path === '/'),
+    assert.ok(successfulFirstLoad.some((request) => request.type === 'Document' && request.path === '/items'),
       'the JSON report contains the successful document response');
     assert.ok(successfulFirstLoad.some((request) => request.method === 'GET' && request.path === '/api/v1/boards'),
       'the JSON report contains the successful board-list response');
@@ -159,7 +159,7 @@ test('the perf harness measures every action on a stress board [N26]', async (t)
     const firstLoad = report.actions[0].samples[0];
     const successfulFirstLoadRequests = firstLoad.requests.filter((request) =>
       request.complete && !request.failed && request.status === 200 && Number.isSafeInteger(request.responseBytes) && request.responseBytes > 0);
-    assert.ok(successfulFirstLoadRequests.some((request) => request.type === 'Document' && request.path === '/'),
+    assert.ok(successfulFirstLoadRequests.some((request) => request.type === 'Document' && request.path === '/items'),
       'first load captured the local document response with positive encoded bytes');
     assert.ok(successfulFirstLoadRequests.some((request) => request.method === 'GET' && request.path === '/api/v1/boards'),
       'first load captured the board-list API response with positive encoded bytes');
