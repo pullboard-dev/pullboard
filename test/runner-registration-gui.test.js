@@ -18,7 +18,8 @@ test('runner add observes a desktop before the first GUI-marked gate runs [C7,V4
   assert.equal(box.result(run.stdout).isGreen, true);
   assert.equal(existsSync(box.marker), true, 'the GUI-marked file actually executed on the first job');
   assert.equal(box.trace('').length, 1);
-  assert.equal(box.trace('.gui-probes').length, 1, 'a completed job was not needed to discover the initial desktop');
+  // Live-load dispatch is on by default (811f916bc2), so the job's own admission refreshes the measurement with a second probe.
+  assert.equal(box.trace('.gui-probes').length, 2, 'only the dispatch load refresh probed after registration; no completed job was needed to discover the initial desktop');
 });
 
 test('registration records known absence and refreshes a previous desktop observation [C7,V4]', t => {

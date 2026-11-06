@@ -110,7 +110,7 @@ process.exitCode=result.isGreen?0:1;
   return { ...paths, directory, requests, marker, env, register, trace, runGui,
     setMode: value => writeFileSync(modeFile, value),
     transportDown: () => installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-      machineHome: paths.remoteMachine, requests, healthDown: true }),
+      machineHome: paths.remoteMachine, requests, healthDown: true, registrationDown: true }),
     list: () => JSON.parse(cli(paths.repo, env, 'runner', 'list', '--json').stdout).runners,
     result: gateResult };
 }
