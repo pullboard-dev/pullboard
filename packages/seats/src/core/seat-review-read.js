@@ -1,6 +1,6 @@
 /** Native seat identity and verifier-standing readers do not load registration or board writers [C7,V1,H16]. */
 import { agentParent } from './seat-parent.js';
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/src/shell/config.js';
 import {
   ENGINE_VERSION,
   VERIFIER_STANDING_ENGINE,

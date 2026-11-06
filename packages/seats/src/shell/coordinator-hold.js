@@ -10,7 +10,7 @@
  * holder, until that checkout runs pullboard takeover. An unlinked board's main checkout is already held by one
  * session through its checkout binding, so nothing here applies to it (#347).
  */
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/src/shell/config.js';
 import { COORDINATOR_HOLD_ENGINE } from '../../../../src/coordinator-hold-engine.js';
 import { Refused } from '../../../kernel/index.js';
 import { computerName } from '../core/computer-name.js';

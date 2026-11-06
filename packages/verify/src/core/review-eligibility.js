@@ -1,15 +1,15 @@
 import { reviewPatchAuthors } from '../shell/review-composition.js';
 import { compositionFamilyFallback } from '../shell/review-composition.js';
-import { seatFamily } from '../../../items/index.js';
+import { seatFamily } from '../../../items/src/shell/family-declaration.js';
 import { committedItemAuthors } from '../shell/review-independence.js';
 import { strictReviewProblem as strictAuthorProblem } from '../shell/review-independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
 import { strictReviewProblem } from '../shell/review-routing.js';
-import { itemAuthorProblem } from '../../../items/index.js';
+import { itemAuthorProblem } from '../../../items/src/shell/item-authors.js';
 import { itemReviewPolicy } from '../shell/review-independence.js';
 import { reviewFamilyProblem } from '../shell/review-independence.js';
 import { twoTierReviews } from '../shell/review-independence.js';
-import { canTake } from '../../../seats/index.js';
+import { canTake } from '../../../seats/src/core/route-escalation.js';
 import { requiredReviewFamilyProblem } from './required-review-family.js';
 import { familiesDiffer } from './review-policy.js';
 import { builderFamilyOf } from '../shell/review-routing.js';

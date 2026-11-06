@@ -1,4 +1,4 @@
-import { machineHome } from '../../../resources/index.js';
+import { machineHome } from '../../../resources/src/shell/machine-home.js';
 /** Advisory process-owned write records; never part of native board state or lock authority [C7,P4]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';

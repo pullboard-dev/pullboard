@@ -1,12 +1,12 @@
 /** Derive current material authority solely from replicated native source records [V4,H16]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
-import { itemPatchAuthors } from '../../../items/index.js';
-import { itemPatches } from '../../../items/index.js';
+import { itemPatchAuthors } from '../../../items/src/shell/item-patch-state.js';
+import { itemPatches } from '../../../items/src/shell/item-patch-state.js';
 import { itemReviewPolicy } from '../core/review-policy.js';
 import { familyName } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
-import { seatFamily } from '../../../items/index.js';
+import { seatFamily } from '../../../items/src/shell/family-declaration.js';
 
 /** Genuine historical moves retain their recorded exclusion rules. */
 export function compositionReviews(board) {

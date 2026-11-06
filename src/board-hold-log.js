@@ -7,7 +7,7 @@ import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { machineHome } from '../packages/resources/index.js';
+import { machineHome } from '../packages/resources/src/shell/machine-home.js';
 
 export const BOARD_HOLD_MS = 1_000;
 const DAY_MS = 86_400_000;

@@ -1,5 +1,5 @@
 /** Present recorded check observations without loading a shell runner [C7,V2]. */
-import { provingCheck } from '../../../verify/index.js';
+import { provingCheck } from '../../../verify/src/shell/check-accept.js';
 export { provingCheck };
 
 /** Print a recorded observation, including the warning every reviewer must see before work. */

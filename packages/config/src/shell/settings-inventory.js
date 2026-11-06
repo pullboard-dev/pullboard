@@ -12,10 +12,8 @@ import {
   loadConfig,
 } from './config.js';
 import { repoInfo } from '../../../../src/git.js';
-import {
-  machineHome,
-  machineSettingsFile,
-} from '../../../resources/index.js';
+import { machineHome } from '../../../resources/src/shell/machine-home.js';
+import { machineSettingsFile } from '../../../resources/src/shell/machine-home.js';
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,

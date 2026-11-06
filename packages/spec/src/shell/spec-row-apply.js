@@ -1,5 +1,5 @@
 /** Apply person row decisions and their complete item refreezes in one ordered transaction [V2,H16]. */
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/src/shell/config.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../src/automatic-dispatch-engine.js';
 import { SPEC_DRAFT_REFREEZE_ENGINE } from '../../../../src/spec-draft-refreeze-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';

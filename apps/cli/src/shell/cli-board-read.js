@@ -1,5 +1,5 @@
 /** The CLI's async boundary: ordinary reads load queries, genuine write fallbacks load the full store [C7]. */
-import * as store from '../../../../packages/store/index.js';
+import * as store from './cli-read-store.js';
 import { withOpenedBoard } from './cli-read-context.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 

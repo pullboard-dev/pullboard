@@ -24,10 +24,8 @@ import {
   relayLinked,
   relayOperation,
 } from '../../../link/index.js';
-import {
-  BASELINE_RECEIPT,
-  baselineReceiptDirectory,
-} from '../../../store/index.js';
+import { BASELINE_RECEIPT } from '../../../store/src/shell/local-state.js';
+import { baselineReceiptDirectory } from '../../../store/src/shell/local-state.js';
 import { Refused } from '../../../kernel/index.js';
 
 const WORKER = resolve(import.meta.dirname, '../../../../bin/check-baseline.js');

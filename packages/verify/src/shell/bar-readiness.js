@@ -10,7 +10,7 @@ import {
 } from './bar-coverage.js';
 /** Readiness is a revision-bound peer judgement, with mechanical prerequisites [B4,V1,V2,H16]. */
 import { createHash } from 'node:crypto';
-import { agentParent } from '../../../seats/index.js';
+import { agentParent } from '../../../seats/src/core/seat-parent.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { BAR_READY_ENGINE } from '../../../../src/bar-ready-engine.js';
 import { Refused } from '../../../kernel/index.js';

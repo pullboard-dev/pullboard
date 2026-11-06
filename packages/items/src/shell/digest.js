@@ -39,7 +39,7 @@ import {
   caughtFrom,
 } from "../core/caught.js";
 
-import { secretsIn } from "../../../commits/index.js";
+import { secretsIn } from "../../../commits/src/core/secrets.js";
 import { Refused } from "../../../kernel/index.js";
 
 
@@ -47,7 +47,7 @@ import {
   rowDecisionContext,
   staleRowDecision,
 } from "../../../spec/index.js";
-import { loadConfig } from "../../../config/index.js";
+import { loadConfig } from "../../../config/src/shell/config.js";
 
 /** The briefing stays under 50 KB, counted in UTF-8 bytes. */
 export const DIGEST_MAX_BYTES = 50_000;

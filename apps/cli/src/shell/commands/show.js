@@ -1,45 +1,33 @@
-import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
-import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
-import { itemProgress } from '../../../../../packages/roadmap/index.js';
-import { progressLine } from '../../../../../packages/roadmap/index.js';
-import { submitHandoff } from '../../../../../packages/store/index.js';
-import { loadMachineSettings } from '../../../../../packages/config/index.js';
-import { localUsage } from '../../../../../packages/config/index.js';
-import { dollarText } from '../../../../../packages/config/index.js';
-import { trunkRef } from '../../../../../packages/sandbox/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
-import { reviewEligibility } from '../../../../../packages/verify/index.js';
-import { showReviewPacket } from '../../../../../packages/verify/index.js';
+import { recordedVerificationComparison } from '../../../../../packages/verify/src/shell/verify-compare.js';
+import { renderVerificationComparison } from '../../../../../packages/verify/src/shell/verify-compare.js';
+import { itemProgress } from '../../../../../packages/roadmap/src/core/work-progress.js';
+import { progressLine } from '../../../../../packages/roadmap/src/core/work-progress.js';
+import { submitHandoff } from '../../../../../packages/store/src/shell/submit-handoff-read.js';
+import { loadMachineSettings } from '../../../../../packages/config/src/core/settings-read.js';
+import { localUsage } from '../../../../../packages/config/core.js';
+import { dollarText } from '../../../../../packages/config/core.js';
+import { trunkRef } from '../../../../../packages/sandbox/src/shell/trusted-policy-read.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/src/shell/person-row-proof.js';
+import { reviewEligibility } from '../../../../../packages/verify/src/core/review-eligibility.js';
+import { showReviewPacket } from '../../../../../packages/verify/src/shell/review-packet.js';
 import { withBoardRead } from '../cli-board-read.js';
-import {
-  testRuntimeEnvironment,
-  testRuntimeRows,
-} from '../../../../../packages/sandbox/index.js';
+import { testRuntimeEnvironment } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
+import { testRuntimeRows } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
-import {
-  displayAgentName,
-} from '../../../../../packages/seats/index.js';
+import { displayAgentName } from '../../../../../packages/seats/src/core/agent-names.js';
 import {
   barCorrectionLine,
   barCorrections,
 } from '../../../../../src/bar-corrections.js';
-import * as store from '../../../../../packages/store/index.js';
-import {
-  agentApprovalLine,
-  itemAgentApprovals,
-  specApprovalState,
-} from '../../../../../packages/spec/index.js';
-import {
-  sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
-import {
-  mainMergeFor,
-  mainMergeLines,
-} from '../../../../../packages/merge/index.js';
-import {
-  staleVerdictRefusal,
-  verdictProjector,
-} from '../../../../../packages/verify/index.js';
+import * as store from '../cli-read-store.js';
+import { agentApprovalLine } from '../../../../../packages/spec/src/shell/spec-approval.js';
+import { itemAgentApprovals } from '../../../../../packages/spec/src/shell/spec-approval.js';
+import { specApprovalState } from '../../../../../packages/spec/src/shell/spec-approval.js';
+import { sayCheckBaseline } from '../../../../../packages/gate/src/core/check-baseline-format.js';
+import { mainMergeFor } from '../../../../../packages/merge/src/shell/trunk-conflict.js';
+import { mainMergeLines } from '../../../../../packages/merge/src/shell/trunk-conflict.js';
+import { staleVerdictRefusal } from '../../../../../packages/verify/src/shell/verdict-freshness.js';
+import { verdictProjector } from '../../../../../packages/verify/src/shell/verdict-freshness.js';
 import {
   agentDisplayName,
   context,
@@ -49,9 +37,9 @@ import {
   itemLine,
   sayBrief,
 } from '../cli-read-context.js';
-import { relayStateExists } from '../../../../../packages/store/index.js';
-import { itemCost } from '../../../../../packages/stats/index.js';
-import { publicUsage } from '../../../../../packages/stats/index.js';
+import { relayStateExists } from '../../../../../packages/store/src/shell/local-state.js';
+import { itemCost } from '../../../../../packages/stats/src/shell/cost-read.js';
+import { publicUsage } from '../../../../../packages/stats/src/shell/cost-read.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */

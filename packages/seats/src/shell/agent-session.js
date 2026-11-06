@@ -13,10 +13,8 @@ import {
   join,
   resolve,
 } from 'node:path';
-import {
-  holdsLease,
-  takeResource,
-} from '../../../resources/index.js';
+import { holdsLease } from '../../../resources/src/shell/resources.js';
+import { takeResource } from '../../../resources/src/shell/resources.js';
 import { Refused } from '../../../kernel/index.js';
 
 /**

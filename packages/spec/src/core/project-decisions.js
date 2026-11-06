@@ -8,7 +8,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { loadConfig } from '../../../config/index.js';
+import { loadConfig } from '../../../config/src/shell/config.js';
 import { repoInfo } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/core.js';
 

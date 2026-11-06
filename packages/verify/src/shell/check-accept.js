@@ -5,7 +5,7 @@ export { CHECK_ACCEPT_ENGINE } from '../../../../src/move-engine-constants.js';
  * until the person accepts that exact check [V2,V4,B26].
  */
 import { createHash } from 'node:crypto';
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/src/shell/config.js';
 import { Refused } from '../../../kernel/index.js';
 
 

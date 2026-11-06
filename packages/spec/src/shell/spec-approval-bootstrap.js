@@ -1,5 +1,5 @@
 /** Keep one compatibility setup move recoverable without stealing an interrupted work result [S1,H16]. */
-import { loadConfig } from '../../../config/index.js';
+import { loadConfig } from '../../../config/src/shell/config.js';
 import { captureSpecApprovalBaseline } from './spec-approval.js';
 
 /** Establish cold local authority inside the checkout lease; linked and recovered moves keep relay authority. */

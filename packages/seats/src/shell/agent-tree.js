@@ -1,7 +1,7 @@
 import { seatAddress } from '../core/seat-address.js';
 /** The agents view: each agent with its seats, helpers and holds, from the board and this machine's parent notes [N2,B13]. */
 import { dirname } from 'node:path';
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/src/shell/config.js';
 import { displayAgentName } from '../core/agent-names.js';
 import { seatLinks } from './agent-session.js';
 

@@ -4,8 +4,8 @@ import { HISTORICAL_AUTHORS_ENGINE } from "../../../../src/historical-authors-en
 import { Refused } from "../../../kernel/index.js";
 import { PARENT_SESSION_ENGINE } from "../../../../src/parent-session-engine.js";
 import { PATCH_AUTHOR_IDENTITY_ENGINE } from "../../../../src/patch-author-identity-engine.js";
-import { effectiveAgentParent } from "../../../seats/index.js";
-import { standingProblem } from "../../../seats/index.js";
+import { effectiveAgentParent } from "../../../seats/src/core/seat-review-read.js";
+import { standingProblem } from "../../../seats/src/core/seat-review-read.js";
 
 /** Read one item's indexed author history; older ordered moves retain their original current-builder rule. */
 export function itemAuthors(board, item, { twoTierReviews, committedItemAuthors, reviewPatchAuthors }) {

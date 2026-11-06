@@ -6,7 +6,7 @@ import { twoTierReviews } from '../shell/review-independence.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { PARENT_SESSION_ENGINE } from '../../../../src/parent-session-engine.js';
 import { itemAuthors } from '../../../items/index.js';
-import { agentParent } from '../../../seats/index.js';
+import { agentParent } from '../../../seats/src/core/seat-parent.js';
 
 /** Unknown parentage for any historical author limits assurance, even when review is procedurally allowed. */
 export function reviewAssurance(board, item, reviewer) {

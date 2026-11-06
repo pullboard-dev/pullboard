@@ -1,7 +1,7 @@
 import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
-import { seatFamily } from '../../../items/index.js';
+import { seatFamily } from '../../../items/src/shell/family-declaration.js';
 import { FAMILY_DECLARE_ENGINE } from '../../../../src/family-declare-engine.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
 export { seatFamily };
@@ -16,8 +16,8 @@ import { familyAliasesOf } from '../core/review-policy.js';
 export { familiesDiffer } from '../core/review-policy.js';
 import { itemReviewPolicy } from '../core/review-policy.js';
 import { Refused } from '../../../kernel/index.js';
-import { reviewRoutingEnabled } from '../../../seats/index.js';
-export { reviewRoutingEnabled } from '../../../seats/index.js';
+import { reviewRoutingEnabled } from '../../../seats/src/core/review-routing-enabled.js';
+export { reviewRoutingEnabled } from '../../../seats/src/core/review-routing-enabled.js';
 
 
 /** Read the canonical native tier; sensitive work is strict even without a required reviewer family. */

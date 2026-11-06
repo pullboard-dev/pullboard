@@ -2,7 +2,7 @@ import { advancedVerdict } from './source-advance-state.js';
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from '../shell/verdict-withdrawal.js';
 import { Refused } from '../../../kernel/index.js';
-import { verdictRows } from '../../../seats/index.js';
+import { verdictRows } from '../../../seats/src/core/verdict-rows.js';
 import { itemPatchDigest } from '../../../items/index.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */

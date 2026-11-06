@@ -2,7 +2,7 @@
 import { readFileTimes } from './test-value-timing.js';
 import { bindTestValueSources } from '../core/test-value-source.js';
 import { readdirSync } from 'node:fs';
-import { events } from '../../../store/index.js';
+import { events } from '../../../store/src/shell/board-query.js';
 import { proofEventDetail } from '../../../kernel/index.js';
 import {
   boardReceiptStore,

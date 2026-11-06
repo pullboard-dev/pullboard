@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from "../../../../src/git.js";
 import { Refused } from "../../../kernel/index.js";
-import { gitSyncMarkerLinked } from "../../../config/index.js";
+import { gitSyncMarkerLinked } from "../../../config/src/shell/git-sync-files.js";
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;

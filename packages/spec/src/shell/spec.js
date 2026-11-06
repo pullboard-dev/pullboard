@@ -21,10 +21,8 @@ import {
   dirname,
   join,
 } from 'node:path';
-import {
-  DOCTRINE_FILE,
-  LEGACY_DOCTRINE_FILE,
-} from '../../../config/index.js';
+import { DOCTRINE_FILE } from '../../../config/src/shell/config.js';
+import { LEGACY_DOCTRINE_FILE } from '../../../config/src/shell/config.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
 import {

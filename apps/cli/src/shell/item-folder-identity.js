@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { gitPath } from '../../../../packages/git/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
-import { agentAt } from '../../../../packages/store/index.js';
-import { agentById } from '../../../../packages/store/index.js';
+import { agentAt } from './cli-read-store.js';
+import { agentById } from './cli-read-store.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */

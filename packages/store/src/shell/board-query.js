@@ -3,11 +3,11 @@ import { ENGINE_VERSION } from '../../../state/index.js';
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
 import { effectiveItemHead } from "../../../verify/index.js";
-import { agentParent } from "../../../seats/index.js";
-export { agentParent } from "../../../seats/index.js";
+import { agentParent } from "../../../seats/src/core/seat-parent.js";
+export { agentParent } from "../../../seats/src/core/seat-parent.js";
 import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
-import { projectItemDecisions } from "../../../items/index.js";
+import { projectItemDecisions } from "../../../items/src/core/item-decision-queue.js";
 import { itemById } from "../core/board-item-read.js";
 import { submitGateInFlight } from "../core/red-return-lease.js";
 import {
@@ -18,7 +18,7 @@ import {
   projectAgentActivity,
 } from "../core/board-activity-feed.js";
 export { itemById };
-import { outsideSource } from "../../../items/index.js";
+import { outsideSource } from "../../../items/src/core/outside-source.js";
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
@@ -28,9 +28,9 @@ import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
 import { workerInboxQuery } from "../core/board-worker-inbox.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from "../../../verify/index.js";
-import { reopenCauseCorrection } from "../../../items/index.js";
-import { COORDINATOR } from "../../../config/index.js";
-import { itemFiles } from "../../../items/index.js";
+import { reopenCauseCorrection } from "../../../items/src/core/reopen-cause.js";
+import { COORDINATOR } from "../../../config/src/shell/config.js";
+import { itemFiles } from "../../../items/src/core/item-files.js";
 import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";

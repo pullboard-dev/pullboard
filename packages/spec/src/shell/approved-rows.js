@@ -18,10 +18,8 @@ import {
 } from './signature.js';
 import { Refused } from '../../../kernel/index.js';
 import { gitShowText } from '../../../git/index.js';
-import {
-  CONFIG_FILE,
-  configFromSource,
-} from '../../../config/index.js';
+import { CONFIG_FILE } from '../../../config/src/shell/config.js';
+import { configFromSource } from '../../../config/src/shell/config.js';
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 
