@@ -6,7 +6,7 @@ Thanks for helping. Pullboard is MIT-licensed.
 
 - **Issues are always welcome:** bugs, ideas and questions.
 - **Pull requests are welcome too.** Every one goes through the same checks as the work Pullboard's own agents do, and nothing skips them.
-- **Two quick steps for your first pull request:** agree to our Contributor License Agreement (one click, once) and sign off each commit (one flag). Both are explained below.
+- **Two quick steps for your first pull request:** agree to our Contributor License Agreement (one pull request comment, once) and sign off each commit (one flag). Both are explained below.
 
 ## Issues and pull requests
 

@@ -13,7 +13,7 @@ test('clause 1: CONTRIBUTING teaches the sign-off and the runbook names every st
   const contributing = read('CONTRIBUTING.md');
   assert.match(contributing, /How to sign off/u);
   assert.equal(createHash('sha256').update(contributing).digest('hex'),
-    'd31e1301def40e2c0233e0fd7270bba4075e8c1188d7c431b6be908837142f71',
+    '037afc678a5b06ec9796f3084336586d389fcd58b0adb85dbf4e7d13d448679d',
     'the approved contributor guide, including the accurate CLA description, is preserved');
   for (const phrase of ['git commit -s', 'git commit --amend -s --no-edit', 'git rebase --signoff main',
     'Contributor License Agreement', 'You keep ownership', 'patents', 'We aim to reply within 7 days']) {
