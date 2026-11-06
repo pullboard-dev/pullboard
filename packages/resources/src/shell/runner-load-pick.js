@@ -51,7 +51,7 @@ function pickRunnerByLoad(compatible, usage, policy, now) {
   const factor = Number.isFinite(policy.factor) && policy.factor > 0 ? policy.factor : RUNNER_OVERLOAD_FACTOR;
   const ceiling = Number.isFinite(policy.ceiling) && policy.ceiling >= 1 && policy.ceiling <= 100 ? policy.ceiling : 90;
   if (!compatible.length) return { selected: null, dispatch: undefined };
-  const rows = compatible.map(runner => ({ runner, ...runnerLoad(runner, usage(runner.host).admittedSince, now, factor) }));
+  const rows = compatible.map(runner => ({ runner, shards: usage(runner.host).landingShards ?? 0, ...runnerLoad(runner, usage(runner.host).admittedSince, now, factor) }));
   const open = rows.filter(row => !row.overloaded);
   if (!open.length) {
     const named = rows.map(row => `${row.runner.host} load ${row.load.toFixed(1)} on ${row.cores} cores`).join(', ');
@@ -59,7 +59,9 @@ function pickRunnerByLoad(compatible, usage, policy, now) {
   }
   const measured = open.filter(row => row.fresh);
   if (measured.length) {
-    const byHeadroom = (a, b) => b.headroom - a.headroom || a.runner.cpuLoad.busyPercent - b.runner.cpuLoad.busyPercent;
+    // A host already running a landing shard comes after every host running none: one load reading per minute let
+    // three shards of one batch pile onto the lightest host on 6 Nov, each slowing the others [C7].
+    const byHeadroom = (a, b) => a.shards - b.shards || b.headroom - a.headroom || a.runner.cpuLoad.busyPercent - b.runner.cpuLoad.busyPercent;
     const roomy = measured.filter(row => row.headroom > 0).sort(byHeadroom);
     const tight = measured.filter(row => row.headroom <= 0).sort(byHeadroom);
     const best = roomy[0] ?? open.find(row => !row.fresh) ?? tight[0];
