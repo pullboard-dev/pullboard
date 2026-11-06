@@ -1572,6 +1572,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/stranded-dependency-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/ledger-quarantine-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
