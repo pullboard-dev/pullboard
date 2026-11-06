@@ -155,6 +155,7 @@ test('a project switch never shows the old project\'s numbers [N26,A2]', { timeo
     assert.deepEqual(listed.lines, ['Loading…', 'Loading…'], 'unknown counts say loading rather than inventing zeros');
     await chrome.stable('window.__projectStateGate.release()');
     await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && !document.body.classList.contains('loading')`);
+    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     const before = await read();
     assert.match(before.main, /Alpha-only/);
     assert.match(before.status, /^2\s+items\b/u);
@@ -232,6 +233,7 @@ test('the page never tells a person with boards to run init while the list loads
     await chrome.stable("dispatchEvent(new PopStateEvent('popstate', { state: null })), true");
     for (let poll = 0; poll < 5; poll += 1) polls.push(await told());
     await chrome.stable("window.__listGate.release('state')");
+    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor(`data?.root === ${JSON.stringify(alpha.repo)} && !document.body.classList.contains('loading') && document.body.innerText.includes('Alpha waiting item')`);
     polls.push(await told());
     assert.deepEqual(polls.filter(Boolean), [], 'a person with a board never reads No boards yet or pullboard init while the list loads');
