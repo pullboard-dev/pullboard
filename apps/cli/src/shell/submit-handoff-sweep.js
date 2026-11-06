@@ -3,6 +3,8 @@ import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { context } from './cli-context.js';
+import { sweepDeadSubmitHandoffs } from './submit-handoff.js';
 
 /**
  * Open the repository's board as its main checkout and end every hand-off whose worker is gone.
@@ -13,14 +15,12 @@ import { fileURLToPath } from 'node:url';
  */
 export async function sweepRepository(commonDir, { nativeBoard }) {
   const root = basename(commonDir) === '.git' ? dirname(resolve(commonDir)) : resolve(commonDir);
-  const { cliContext$context: context } = await import('../../../cli/index.js');
-  const { sweepDeadSubmitHandoffs } = await import('../../../cli/src/shell/submit-handoff.js');
   const ctx = context({ cwd: root, nativeBoard, say: () => {}, err: line => process.stderr.write(String(line) + '\n') });
   return sweepDeadSubmitHandoffs(ctx);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  import('../core/native-board.js')
+  import('../../../lib/index.js')
     .then(nativeBoard => sweepRepository(process.argv[2], { nativeBoard }))
     .catch(error => { process.stderr.write(`[HANDOFF_SWEEP] ${error.message}\n`); process.exitCode = 1; });
 }

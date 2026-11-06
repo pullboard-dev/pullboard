@@ -18,7 +18,7 @@ const SWEEP_TIMEOUT_MS = 60_000;
  * @param {string} commonDir - The repository's Git common directory.
  */
 export async function sweepRepositoryInChild(commonDir) {
-  const entry = join(fileURLToPath(new URL('..', import.meta.url)), 'apps', 'lib', 'src', 'shell', 'submit-handoff-sweep.js');
+  const entry = join(fileURLToPath(new URL('..', import.meta.url)), 'apps', 'cli', 'src', 'shell', 'submit-handoff-sweep.js');
   const child = spawn(process.execPath, [entry, commonDir], { stdio: ['ignore', 'ignore', 'inherit'], timeout: SWEEP_TIMEOUT_MS, killSignal: 'SIGKILL' });
   const [code] = await once(child, 'close');
   if (code !== 0) throw new Error(`sweep exited ${code}`);
