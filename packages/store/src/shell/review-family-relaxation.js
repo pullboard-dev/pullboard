@@ -48,16 +48,18 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, po
   const { reviewHolder, listItems } = ports;
   if (!relaxable(board, subject, agentId, threshold, ports)) return null;
   const cacheKey = `${agentId}:${threshold}:${policy}`;
-  let witness = cache?.get(cacheKey);
-  if (witness) return witness.waiting.includes(subject.item_id) ? witness : null;
-  const now = board.clock.now();
-  const seats = freeActiveSeats(board, now);
-  const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item));
-  const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
-  if (!blocked.some(item => item.item_id === subject.item_id) || blocked.length < threshold) return null;
-  witness = { version: 1, threshold, queueLength: blocked.length, waiting: blocked.map(item => item.item_id).sort((a, b) => a - b), activeSeats: seats, at: now.toISOString() };
-  if (cache) cache.set(cacheKey, witness);
-  return witness;
+  let state = cache?.get(cacheKey);
+  if (!state) {
+    const now = board.clock.now();
+    const seats = freeActiveSeats(board, now);
+    const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item));
+    const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
+    const ids = blocked.map(item => item.item_id).sort((a, b) => a - b);
+    state = { waiting: ids, witness: blocked.length < threshold ? null
+      : { version: 1, threshold, queueLength: blocked.length, waiting: ids, activeSeats: seats, at: now.toISOString() } };
+    if (cache) cache.set(cacheKey, state);
+  }
+  return state.witness && state.waiting.includes(subject.item_id) ? state.witness : null;
 }
 
 /**
