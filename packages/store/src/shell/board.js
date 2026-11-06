@@ -110,6 +110,7 @@ import { applyRehomeItem } from "./board-apply-rehome-item.js";
 import { approveOutside } from "./board-approve-outside.js";
 import { setLaneLead } from "./board-set-lane-lead.js";
 import { activityDeliveryState } from "./board-activity-delivery.js";
+import { activityInterruptWasDelivered } from "./board-activity-delivery.js";
 import { recordActivityDelivery } from "./board-activity-delivery.js";
 import { actOnActivity } from "./board-act-on-activity.js";
 import { openHandoff } from "./board-open-handoff.js";
@@ -461,6 +462,7 @@ export {
   approveOutside,
   setLaneLead,
   activityDeliveryState,
+  activityInterruptWasDelivered,
   recordActivityDelivery,
   actOnActivity,
   openHandoff,
