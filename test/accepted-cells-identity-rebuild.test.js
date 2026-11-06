@@ -31,11 +31,14 @@ const REPO = new URL('..', import.meta.url).pathname;
 
 /** Isolate the machine cache for one test and restore the caller's setting. */
 function isolateMachine(t) {
-  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  const previous = process.env.PULLBOARD_MACHINE_HOME, options = process.env.NODE_OPTIONS;
+  // The runner's own preloads are foreign to the inventory fingerprint; the producer must see a plain Node.
+  delete process.env.NODE_OPTIONS;
   const directory = mkdtempSync(join(tmpdir(), 'accepted-identity-machine-'));
   process.env.PULLBOARD_MACHINE_HOME = directory;
   t.after(() => {
     if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
+    if (options !== undefined) process.env.NODE_OPTIONS = options;
     rmSync(directory, { recursive: true, force: true });
   });
   return directory;
