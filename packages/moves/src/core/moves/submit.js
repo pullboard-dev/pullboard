@@ -1,4 +1,4 @@
-import { STRICT_RENAME_ENGINE } from '../../../../state/index.js';
+import { STRICT_RENAME_ENGINE } from '../../../../../src/strict-rename-engine.js';
 import { MAIN_RED_FAILURE_LINES_ENGINE } from '../../../../../src/main-red-failure-lines-engine.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
@@ -13,6 +13,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../../src/merge-only-verdict-engine.js";
 import { FLOW_SIZE_ENGINE } from "../../../../../src/flow-size-engine.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../../src/known-main-reworks-engine.js";
+import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../../src/known-main-running-file-engine.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
 import { barReadySetting } from "../bar-ready-setting.js";
@@ -42,8 +43,12 @@ function minimumEngine(args, board, at) {
   const errorLines = args[1]?.autoMainReds?.comparisons?.some(receipt => receipt.failureSignatures?.failures?.some(row => row.firstError !== undefined));
   return Math.max(args[1]?.strictRenames !== undefined ? STRICT_RENAME_ENGINE : 1, errorLines ? MAIN_RED_FAILURE_LINES_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
-      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
-        ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
+      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined)
+      ? args[1].submissionProof.knownMainFailures.failures.some(row => row?.ran !== undefined)
+        ? KNOWN_MAIN_RUNNING_FILE_ENGINE
+        : (board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
+          ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE
+      : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }

@@ -11,15 +11,30 @@ function limit(value, fallback, name) {
   return Number(value);
 }
 
-/** An exact per-file override wins over the global wall limit; idle detection remains independent. */
-export function fileWatchdogLimits(file, env = process.env) {
+/**
+ * The wall-limit multiplier for a machine's load: load per core, never below 1x and never above 4x.
+ * Why: a saturated runner makes a passing file slow, and a fixed wall turned that slowness into a red.
+ */
+export function wallLoadFactor(load, cores) {
+  const perCore = Number(load) / Math.max(1, Number(cores));
+  return Number.isFinite(perCore) ? Math.min(4, Math.max(1, perCore)) : 1;
+}
+
+/**
+ * An exact per-file or environment limit wins as written; only the default wall scales with `system` load
+ * ({ load, cores }, sampled once at file start). Idle detection remains independent.
+ */
+export function fileWatchdogLimits(file, env = process.env, system = { load: 0, cores: 1 }) {
   let files = {};
   if (env.PULLBOARD_TEST_FILE_LIMITS !== undefined) {
     files = JSON.parse(env.PULLBOARD_TEST_FILE_LIMITS);
     if (!files || typeof files !== 'object' || Array.isArray(files)) throw new Error('PULLBOARD_TEST_FILE_LIMITS must be a JSON object of file paths to milliseconds');
     for (const [path, value] of Object.entries(files)) limit(value, DEFAULT_FILE_WALL_MS, `PULLBOARD_TEST_FILE_LIMITS[${path}]`);
   }
-  return { wallMs: limit(files[file] ?? env.PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS, DEFAULT_FILE_WALL_MS, 'PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS'),
+  const explicit = files[file] ?? env.PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS;
+  const loadFactor = explicit === undefined ? wallLoadFactor(system.load, system.cores) : 1;
+  const baseWallMs = limit(explicit, DEFAULT_FILE_WALL_MS, 'PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS');
+  return { wallMs: Math.round(baseWallMs * loadFactor), baseWallMs, loadFactor,
     idleMs: limit(env.PULLBOARD_TEST_IDLE_TIMEOUT_MS, DEFAULT_FILE_IDLE_MS, 'PULLBOARD_TEST_IDLE_TIMEOUT_MS') };
 }
 

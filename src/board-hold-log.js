@@ -22,17 +22,17 @@ function label(value, fallback) {
 }
 
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs }) {
-  if (!Number.isFinite(durationMs) || durationMs <= BOARD_HOLD_MS) return;
+export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs, allWrites = false }) {
+  if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS)) return;
   let fd;
   try {
     const directory = machineHome();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    fd = openSync(boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+    fd = openSync(allWrites ? join(directory, 'board-writes.jsonl') : boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
     if (!fstatSync(fd).isFile()) throw new Error('hold log is not a regular file');
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
-      heldMs: Math.round(durationMs), outcome: label(outcome, 'released'),
+      heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs) } : {}), outcome: label(outcome, 'released'),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null };
     writeSync(fd, JSON.stringify(row) + '\n');
   } catch {

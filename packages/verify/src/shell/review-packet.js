@@ -17,7 +17,9 @@ import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
+import { frozenRowGates } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
+import { criterionClauses } from '../../../state/index.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -61,11 +63,12 @@ function reviewPacketPath(commonDir, id, head) {
 }
 
 /** The stored packet for this head, or null when none was built. */
-function readReviewPacket(commonDir, id, head) {
+function readReviewPacket(commonDir, id, head, criterionDigest) {
   try {
     const path = reviewPacketPath(commonDir, id, head);
     const packet = path && JSON.parse(readFileSync(path, 'utf8'));
-    return packet?.version === VERSION && packet.item === Number(id) && packet.head === head ? packet : null;
+    return packet?.version === VERSION && packet.item === Number(id) && packet.head === head
+      && packet.criterionDigest === criterionDigest ? packet : null;
   } catch { return null; }
 }
 
@@ -99,8 +102,11 @@ function reviewPacketInputs(board, { getItem, events }, id) {
 function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
-  const sentences = criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean);
-  return [...sentences.map(text => ({ text })), ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}` }))]
+  const numbered = criterionClauses(item.item_criterion ?? criterion);
+  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text }))
+    : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
+  const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
+  return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
     .map((clause, index) => ({ n: index + 1, ...clause }));
 }
 
@@ -206,15 +212,20 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
   // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
-  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file)));
+  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
   const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
     .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    // A frozen spec row is proved by the named, executed cases of the gate test its row names, which submit runs with
+    // the proof [V4]. A file-level run proves nothing here: a skipped run has no executed cases, and a zero-case file
+    // reports only a pseudo-case named for the file itself.
+    if (clause.gate) evidence.push(...executed.filter(run => run.file === clause.gate && run.test.replace(/^\.\//u, '') !== clause.gate)
+      .map(run => ({ ...run, why: "the row's gate test" })));
     for (const run of executed) {
-      if (clause.text.includes(run.file)) continue;
+      if (clause.text.includes(run.file) || run.file === clause.gate) continue;
       const cited = [...run.test.matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === clause.n)
         || (clause.id && [...run.test.matchAll(/\[([^\]]+)\]/gu)].some(match => match[1].split(',').map(part => part.trim()).includes(clause.id)));
       const testWords = words(run.test);
@@ -288,7 +299,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
  * exists yet (a packet from another machine's gate, or one built before this release).
  */
 function loadReviewPacket(root, commonDir, inputs) {
-  const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit);
+  const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit, inputs.item.item_frozen_digest);
   if (stored) return stored;
   const packet = buildReviewPacket(root, inputs, { commonDir });
   if (packet) storeReviewPacket(commonDir, packet);
@@ -337,7 +348,7 @@ export async function reviewPacketLines(ctx, id, readBoard) {
 export function reviewPacketReadNote(commonDir, item, read, decision) {
   if (read === undefined) return '';
   if (decision !== 'ACCEPT') throw new Refused('USAGE', '--read records the packet clauses an accept read; a reject names its clause with --clause');
-  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit);
+  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
   if (!packet) throw new Refused('USAGE', `no review packet for #${item.item_id} at ${item.item_commit.slice(0, 12)}; read pullboard show ${item.item_id} --review first`);
   const all = packet.clauses.map(clause => clause.n);
   const numbers = String(read).trim() === 'all' ? all : String(read).split(',').map(part => Number(part.trim()));
@@ -346,4 +357,18 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
   }
   const rerun = reviewRerunClauses(packet);
   return `\nreview packet ${packet.head.slice(0, 12)}: read clauses ${[...new Set(numbers)].sort((a, b) => a - b).join(', ')}; no recorded run: ${rerun.join(', ') || 'none'}`;
+}
+
+/**
+ * What the stored packet at the item's head says an accept must rerun: null with no packet, otherwise
+ * the clause numbers with no recorded run. An empty list lets accept record the verdict from the packet.
+ *
+ * Why: the packet is stored only after a green gate at that exact head, so a clause it covers was already
+ * proved there; rerunning it in a fresh checkout repeats minutes of work and proves nothing new.
+ * A failure recorded at head always forces the frozen check.
+ */
+export function reviewPacketRerun(commonDir, item) {
+  const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
+  if (!packet) return null;
+  return { head: packet.head, rerun: reviewRerunClauses(packet), failures: packet.failures?.length ?? 0 };
 }
