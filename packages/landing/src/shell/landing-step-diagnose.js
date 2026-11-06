@@ -96,7 +96,12 @@ export async function diagnose(state, failures, gate) {
     // true flake passes in the split runs and lands. Only rows classified as flakes are filed as flakes [C7,#2914].
     return [...new Set(observations.filter(row => row.recorded === true && row.classification === 'flake' && row.file).map(row => row.file))];
   }
-  if (!failures.length || failures.some((entry) => !entry.file)) throw new Refused('LAND_DIAGNOSTIC', `the gate did not name a failing test file; inspect ${state.batch.logPath} and make its reporter name source files`);
+  if (!failures.length || failures.some((entry) => !entry.file)) {
+    // Two earlier reds that named no file mean retrying the same gate cannot change the answer: split the items instead [C7,#2858].
+    const unnamed = (state.batch.invariantEvidence?.gates ?? []).filter(entry => !entry.isGreen && !entry.failures?.length).length;
+    if (!failures.length && unnamed - 1 >= 2 && (state.batch.items?.length ?? 0) > 1) return [];
+    throw new Refused('LAND_DIAGNOSTIC', `the gate did not name a failing test file; inspect ${state.batch.logPath} and make its reporter name source files`);
+  }
   const files = [...new Set(failures.map((entry) => entry.file))];
   const flakes = [];
   for (const file of files) {
