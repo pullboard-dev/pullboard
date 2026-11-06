@@ -505,6 +505,26 @@ function recentGenerations(cache, count, except = []) {
 }
 
 /**
+ * The newest recorded main outcome for one file across the latest commit generations, with the main it was measured
+ * at; null when none of them holds a usable named result. Why: a proof keyed on a test's whole import closure dies
+ * with every commit to main, since the gate code sits in every closure, so a landing re-proved the same main reds
+ * after every landing. A red that main failed by the same case names at the last measured main, in a file the batch
+ * did not touch, is carried forward; the detached refresh re-measures it at the new main behind the landing [C7].
+ */
+export function carriedMainOutcome(root, file, { generations = REFRESH_GENERATIONS } = {}) {
+  let cache;
+  try { cache = readCache(cacheFile(root)); } catch { return null; }
+  for (const main of recentGenerations(cache, generations)) {
+    const outcome = cache.entries[main]?.[file];
+    if (outcome?.result === 'red' && outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(outcome.failures) && outcome.failures.length) {
+      return { main, files: [{ file, ...outcome }], carried: true };
+    }
+    if (outcome?.result === 'green') return { main, files: [{ file, ...outcome }], carried: true };
+  }
+  return null;
+}
+
+/**
  * Refresh main's known red files at the published main in parallel, so the next red batch reads them instead of
  * rerunning each on main for eight minutes. The files come from the newest generations, not the prior main alone:
  * a comparison is cached under the exact commit it ran at, and a landing every three minutes meant the prior main
