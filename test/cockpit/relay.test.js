@@ -74,6 +74,8 @@ test('a paired relay reference explains that committed source is available only 
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   })).success, true, 'the private browser receives the paired phone’s authenticated session');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
+  await chrome.waitFor(`data?.project?.items?.some(item => item.title === ${JSON.stringify(itemTitle)})`);
+  await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
   await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
   await chrome.waitFor(`document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
