@@ -108,6 +108,17 @@ export function batchGatePlan(state, options = {}) {
   }
 }
 
+/**
+ * Split a gate plan's files into the ones the per-item gate runs and the ones landing.auditOnly leaves to the
+ * post-landing audit (a red there is filed as a main red minutes later). Why: the lifecycle audit alone was 64 s of
+ * every one-item gate, and any source change selects it [C7].
+ */
+export function auditOnlySplit(config, files) {
+  const auditOnly = new Set(config.landing?.auditOnly ?? []);
+  const sorted = [...new Set(files)].sort();
+  return { files: sorted.filter(file => !auditOnly.has(file)), left: sorted.filter(file => auditOnly.has(file)) };
+}
+
 /** The narrowest proved plan for the batch's merged tree, refusing LAND_DIAGNOSTIC when none can be read. */
 function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id), focus = null } = {}) {
   // A bisection round runs only the files the batch failed: a half's whole plan took a full gate per round, and the
@@ -121,8 +132,11 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
-    const command = testTierCommand(selection.testTiers, selection.files) || 'true';
-    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
+    // This repository plans by test tiers, so landing.auditOnly applies here too (it did not on 6 Nov's first batch).
+    const { files, left } = auditOnlySplit(state.config, selection.files);
+    if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
+    const command = testTierCommand(selection.testTiers, files) || 'true';
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, testTiers: true,
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
@@ -132,7 +146,8 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
     return { ...fullGatePlan(state), files: selection.files };
   }
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
-  const files = [...new Set([...selection.files, ...deferred])].sort();
+  const { files, left } = auditOnlySplit(state.config, [...new Set([...selection.files, ...deferred])]);
+  if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
   const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
   const config = { ...state.config, gate: command, [VALUE_GATE]: true };
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
