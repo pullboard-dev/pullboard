@@ -56,6 +56,7 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    PULLBOARD_MODEL: 'fixture-model', // join refuses a session that has not declared its model (MODEL_REQUIRED)
   });
   delete env.NODE_TEST_CONTEXT; // A fixture CLI/compiler child is a normal process, not its parent's Node test worker.
   // The fixture acts as the person's own terminal: an inherited agent or SSH session would make its verdicts self-verification.
@@ -310,7 +311,7 @@ const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
   "src/known-main-autofile.js": "cfcefe647a8590232176ef4bea8a1cc9c59d8070748ec15f2f61e1716cc51c1b", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
   "src/board-busy.js": "46dfa1149b6468c47b3d1b75142495c8532397640cfd64300fc3c19371b444d6", "src/board-capture.js": "3bdf7cfe9c7e7a223c1d2b0e5e1deb89e519fa82c4ceb0d1f513d82076f9f3e3",
-  "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "7ceea8e6b457faeabcbeac5e09a13d78ca129102721e188b18cef91a92670c0a",
+  "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "871e7170802e5264c21cf080ffe8faced27fd39821efcf08b9929c88751b55ae",
   "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "f47e378d23f918c334437fe829b96a43334e44248ee1f06adac2a3749a11fcfd",
   "src/board-inventory.js": "0a6a433174971e2f05795bd6cc47bd3d5b994867a920b12c8e534c26d8686e07", "src/board-item-dependencies.js": "bcd9f96c6da94ad6f80f31cee806c51f727f8b8c4f3333afe9033eabeb6d6d46",
   "src/board-item-read.js": "b2edb32106441abf09ff6bad4cccba716659b772a16352bb933c55da8846c65b", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
@@ -320,10 +321,10 @@ const STORE_BODY_HASHES = {
   "src/board-query.js": "3627f43d864898aea3bb4cf47a9adde1f76cec006e034d304d920222dc3d2448", "src/board-read-auxiliary.js": "a6b0e357b63eb774da5101fc23cad7d2f2f854ab65ed1520247daf9cd6f2c3c3",
   "src/board-read-open.js": "6211c45798871209a093830c49289fff1f72404cda738f01878bf13d568af163", "src/board-rehome.js": "ea3f4a0b7ab9584917f404e072c3b1462b2525b1084487ffaa528bbf0f486a21",
   "src/board-schema-source.js": "41c2ec4afa58d3d813e4fb601ffdc0995d825f0506d507d93845c16ed126c56e", "src/board-schema.js": "9d0e27591f449ed3e4e62bd53a74dd6b49d143eacd99e54abb2a00a8ff9c689e",
-  "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "c30f6eb0e86492513170a5fb7e2cb4cf4bee444264b1a5142dede03032be22ef",
+  "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "05b6d2a9a08faa318803f435fc1b6c2cc42e373dd278ce093791b7bbc3d32f77",
   "src/board-store-guards.js": "59d61adf6f03ffeb7392bcf964889d1db456a5bcf09af0fd44e95ea4ac8d92ac", "src/board-write-lock.js": "54169f41545630fcc101bb344c5667376e58a832dd784ae08cb320fe40f98b8b",
   "src/board.js": "b484f0264b7a922e40a90673b4799851438ce1c160a4ca5c9ed1f76c7e06ba94", "src/companion.js": "f3d829f6e5df7111122fa26736200c03efefad686fc97e9ef9796003914d0fa9",
-  "src/dispatch-eligibility.js": "1ec458e22bbd8e2784d8ae7b73c3cea36bc62dc576d1a2accaeb039e889d772d", "src/exchange.js": "00ff4ef260f796b10d0c225663b39ccabb2ef6d41dffd8146f323fdd6f33f37b",
+  "src/dispatch-eligibility.js": "f321d1b41f0e707d072012a8a89c49c4ba68f71c01d10fa89405374b095a1e29", "src/exchange.js": "00ff4ef260f796b10d0c225663b39ccabb2ef6d41dffd8146f323fdd6f33f37b",
   "src/history.js": "fa0fd97a765ad359c5965b98d323a99e7d8a50d0905acd58affea61cfb43dad8", "src/item-check-baseline.js": "99c8932745a884b917893567cd2210ae93990dd0e5c744c465113c9d49bb2f7e",
   "src/known-main-reworks.js": "244b98abd3ed373f327f0d1de4147b8579e195c6b04a142616c74b7f179a12e0", "src/local-state.js": "572b942586f48637f2b65f9b36ec22ed42eaa31820624e1ecd636e4184b39f35",
   "src/main-red-build-routing.js": "96bae7ffaeaa3f539ac40b05071a31345fad6663c532f60eeca2b62de9d64ff8", "src/memory-held.js": "3ddaf339187426ca0ab5ac0518409853ded5120b7d247b2788f463144c082c70",
@@ -341,7 +342,7 @@ const STORE_BODY_HASHES = {
   "src/board-inbox-store.js": "8d643a83659d2dc3e5c8a1193f5995b83b8fdea1ea5a681f9532f4270efe776c", "src/board-shout-audience.js": "6079435ee62cb304e2ab657d338423d8d58e8bcd8fc47f57000f3101089e6ebf",
   "src/board-worker-inbox.js": "ac9ff12f75079abfe4847f808f2cbff00044e8a74b14b20f572445d83c9917a7", "src/board-conditional-holds.js": "43c052922168888a8d7fdd8549ed918da83a97d1d87b3e2750e92848c2d2271d",
   "src/board-health-receipts.js": "22d41f344a1e51410effad4436ac37e082d3215820eac564e4a919be81f6135d", "src/board-recurring-jobs.js": "51bc12a731d46c5e38c62f4ec9e4e1138ce73c8a653a2ec8e9fde1029a1d1fb4",
-  "src/board-release-claim.js": "aefe77e335c7935aa1105c8e5d629f1bef1f77a315bfc213380647203a00e2d4", "src/board-stale-claim-release.js": "6b41ff40b89726a64ff829676bbbab6ce0c59d49a833f4fffa39ca91dbac77c6",
+  "src/board-release-claim.js": "30003731a82d1c52f221c0df9562a0c4baaeede6052d1f3f9442ede0e6b415a9", "src/board-stale-claim-release.js": "6b41ff40b89726a64ff829676bbbab6ce0c59d49a833f4fffa39ca91dbac77c6",
   "src/board-stale-state-maintenance.js": "47185b8d63d7c2e887b4660a144bfa5408279c44d4ede00c144eeb0228ce3468", "src/board-stale-state-policy.js": "176868212c5be77a3420defcb3dec5cf4a878e97025e53425f0eabb3f8d3087e",
   "src/board-stale-state-store.js": "18f8e598ac9d995c45bd7d8169af8d5188cb18488136273ad4d2899ecc844408", "src/board-rigor-auto-source.js": "890678baea24e2161e831e84f00340e538dc5521ad32d5b05ba7b57a8d0c9b34",
   "src/board-rigor-source.js": "33f348cb275d515210e30ca5c0cc18ec79a9809ac0dce9583214357507422d55", "src/board-rigor.js": "f1fd397412327f4145500c1b7d52d928881bbf1dfbd94d0738077fc160a96bce",
@@ -355,7 +356,7 @@ const STORE_BODY_HASHES = {
   "src/board-ensure-coordinator.js": "5b24bc6d12347e6563a84c781e6b9ce9e3a7c3cedefe183b5316b841f0c3693c", "src/board-finish-landing-batch.js": "ae986d7ef013c8ace6d57f8b076a4cb1b6b97240fe3622e512407751a8e8fdd3",
   "src/board-hold-item.js": "585ea3bc7a04a79fd92e9f5188b5015ecec58e38c2248dee7c52b223e08fd0be", "src/board-hold-lane.js": "7e23bd4f00e826d0f996706449951d7f2d46415916b10278161a423e5602c7bc",
   "src/board-intake-outside.js": "c538db4c1fe1a1ef3205df37e93d571b178e56009cba541a70521e16d5bfde60", "src/board-maintain-stale-state.js": "3e290d8baa90c7003aed11defc6b471d6a7530eb4720ae794074bddd0b59b605",
-  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "8b166959535f868daa41a6b915311b25ab34ac50ab7fe4c8fd1a924cece8a867",
+  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "e4647f451300a083050380b8da8611afdf09208bb6b01aacbb998bf90f726055",
   "src/board-open-handoff.js": "76109c6e5476e1897ef34e4e9b419a59d6d486f199f6c79061b13463eff8303e", "src/board-pass-decision.js": "aef27eb84910e7e4a4862c3aacd2b7d05a87efea55f50d125629917bbfc2ce42",
   "src/board-publish-repair.js": "5d9beec4dd1113b60b9233c834d46d055cc7d52da753c89ca5a039f4d4f125be", "src/board-record-health-findings.js": "dc90cbc6eee040ac7b5e3dd78d69fdbc2b25fab556df3e7bb6276499c2d82da6",
   "src/board-record-landing-batch.js": "f2eda3970527e4bb4277856fd577f0c244ffd78634eaafbba19288098c73bb1d", "src/board-record-landing-flake.js": "421d845ece8aedcba23bf57c7d75b667aa18cc1c529b6aa84d02484647b00415",
@@ -372,8 +373,8 @@ const STORE_BODY_HASHES = {
   "src/board-verify.js": "113a826a0352c8021262bba73a80259bbaed70c38c67ede1532ac47bea531d08", "src/board-withdraw.js": "90ee177d549b00642aaa33ec5fe75c87bfd67dedef0890e6ae3e1fc164f7f630",
   "src/board-escalate.js": "303f67f8a153244c9babf5a341163866a97c5548ccdfa7ecf5ced61b5d1c26e7", "src/board-record-attempt.js": "26f5280b217eac6d3f3591533961c2eefd64abf7eb36da5335cae68ecccf3691",
   "src/board-line-settings.js": "7082cabaf5c606a0c61f37b51e33802669f8b30c1baa0d496c265ce6a5a414bb", "src/board-coordinator-hold.js": "26c6471c07f37a019f1e37ccf24d326dd156fb6ecbc7eb2ea74657681ca04545",
-  "src/release-reasons.js": "ce02ac56d3042f69014a72aa70901c0240c89ca2ce765a53b30ba716c6f7b887", "src/submit-outcome.js": "8607c2830b46b748a072730ee8edf4d35ad64c46c185c41236857ff0967ee740",
-  "src/submit-handoff-state.js": "6127e1aebd332a8ca7ba7b22b2ada704dd88e0ae28a2b51dfad2e1975e414363", "src/submit-handoff-read.js": "16fc4a53ef91ad6a88ec38fe6aff8b45a0869ee69feba3605fe7ab8765fd63da",
+  "src/release-reasons.js": "24423ec2015cd1b535b07220226bf0d3743d900f088430f6ef0970ec1329fe47", "src/submit-outcome.js": "8607c2830b46b748a072730ee8edf4d35ad64c46c185c41236857ff0967ee740",
+  "src/submit-handoff-state.js": "f43494431c0979532aa5fdeed9b697b833872c768fabbe81c74b544a71bd97c3", "src/submit-handoff-read.js": "16fc4a53ef91ad6a88ec38fe6aff8b45a0869ee69feba3605fe7ab8765fd63da",
   "src/rework-family-routing.js": "2838de62bff33b94dd39a9c3e78760f1d802db88c1bcb0806ab71eef9603abaa",
 };
 
@@ -436,7 +437,7 @@ const ACCEPTED_ENGINE_VALUES = [
   ["FAMILY_ALIAS_ENGINE",162], ["FAMILY_DECLARE_ENGINE",170], ["FILE_GROWTH_NOTICE_ENGINE",99], ["FLAKE_RATCHET_ENGINE",212],
   ["FLOW_SIZE_ENGINE",117], ["FOCUS_BOUNDARY_ENGINE",207], ["FOCUS_MILESTONE_ENGINE",107], ["GATE_RUN_ENGINE",67],
   ["GENERATED_DOCS_ENGINE",154], ["GONE_CLAIM_ENGINE",139], ["HANDOFF_ENGINE",104], ["HEALTH_CAP_ENGINE",62],
-  ["HEALTH_SENTINEL_ENGINE",42], ["HISTORICAL_AUTHORS_ENGINE",80], ["IMPLIES_ENGINE",20], ["ITEM_FOLDER_ENGINE",199],
+  ["HEALTH_SENTINEL_ENGINE",42], ["HISTORICAL_AUTHORS_ENGINE",80], ["IMPLIES_ENGINE",20], ["INFRA_RELEASE_ENGINE",233], ["ITEM_FOLDER_ENGINE",199],
   ["ITEM_NOTES_ENGINE",112], ["ITEM_PATCH_ENGINE",144], ["ITEM_PATCH_SUBMIT_ENGINE",160], ["ITEM_SHOUT_ENGINE",93],
   ["ITEM_SLICE_ENGINE",205], ["KNOWN_MAIN_AUTOFILE_ENGINE",180], ["KNOWN_MAIN_FAILURES_ENGINE",124], ["KNOWN_MAIN_OWNER_PATTERN_ENGINE",179],
   ["KNOWN_MAIN_REWORKS_ENGINE",151], ["KNOWN_MAIN_RUNNING_FILE_ENGINE",225], ["LAND_COLLISION_ENGINE",101], ["LANDING_ENVIRONMENT_ENGINE",85],
