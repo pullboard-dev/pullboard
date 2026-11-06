@@ -28,13 +28,13 @@ These are aims, not promises.
 
 ## Licensing, the CLA and sign-off
 
-**The Contributor License Agreement (CLA).** The first time you open a pull request, a bot asks you to agree to Pullboard's CLA with one click. You only do this once. In short:
+**The Contributor License Agreement (CLA).** The first time you open a pull request, agree to Pullboard's CLA by posting this sentence as a comment on your pull request: "I have read CLA.md and I agree to it." You only do this once. In short:
 
 - **You keep ownership** of your contribution.
 - You give the Pullboard project a broad, permanent license to use, change and distribute it, including under other licenses in the future, plus a license to any patents of yours that your contribution needs.
 - You confirm it's your own work, or that you have permission to contribute it.
 
-Read the full text before agreeing: [CLA.md](CLA.md). It follows the Apache Individual Contributor License Agreement v2.2 terms, with Pullboard as recipient; the nonprofit-bylaws sentence and form fields are omitted, and acceptance is through the CLA bot.
+Read the full text before agreeing: [CLA.md](CLA.md). It follows the Apache Individual Contributor License Agreement v2.2 terms, with Pullboard as recipient; the nonprofit-bylaws sentence and form fields are omitted, and acceptance is by posting that sentence as a comment on your pull request.
 
 **The sign-off.** Each commit also carries a sign-off line confirming you have the right to submit it, as described in the [Developer Certificate of Origin 1.1](https://developercertificate.org/). `git commit -s` adds it for you:
 
