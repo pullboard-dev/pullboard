@@ -148,7 +148,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     syncBuiltinESMExports();
     phoneStale = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   } finally { childProcess.spawnSync = originalSpawn; syncBuiltinESMExports(); }
-  assert.ok(coldGit.filter(args => args.includes('diff')).length <= 1,
+  assert.ok(coldGit.filter(args => args.includes('diff')).length <= 2, // one candidate commit's file list plus the landed-change check c33ce2e1f5 added; never one per commit
     'unrelated main history must not start one file-diff process per commit: ' + JSON.stringify(coldGit));
   const phoneState = snapshotState(phoneStale, withBoard(box.repo, store.boardId));
   assert.equal(phoneState.items[0].verdictState?.commit, movingCommit, 'the sealed phone snapshot carries the same stale verdict at fixed served HEAD');
