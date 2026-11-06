@@ -152,25 +152,29 @@ function freezeItem(item, spec, doctrine) {
   return frozenCriterion(spec, item, doctrine);
 }
 
-/** Move one synthetic item through a committed submission using Pullboard board operations. */
-function submitItem(board, id, seed, lane, builder, commitNumber, freezer) {
-  const commit = digest(seed, 'commit', id, commitNumber).slice(0, 40);
-  const tree = digest(seed, 'tree', id, commitNumber).slice(0, 40);
+/**
+ * Move one synthetic item through a committed submission using Pullboard board operations.
+ * Since 8078e19a4a submit diffs the claim head against the submitted commit, so both are real objects in the
+ * fixture repository: main's commit, and a seeded child commit with fixed dates that stays the same per seed.
+ */
+function submitItem(board, id, seed, lane, builder, commitNumber, freezer, repo) {
+  const commit = run('git', ['commit-tree', repo.tree, '-p', repo.head, '-m', `chore: generated ${digest(seed, 'commit', id, commitNumber).slice(0, 40)}`], repo.root, repo.env).trim();
+  const tree = repo.tree;
   const frozen = claim(board, id, { agentId: builder, lane,
-    leaseMs: LEASE_MS, freeze: freezer, head: digest(seed, 'claim-head', id, commitNumber).slice(0, 40) });
+    leaseMs: LEASE_MS, freeze: freezer, head: repo.head });
   submitFixture(board, id, { agentId: builder, commit, tree, files: [`generated/${id}.txt`] });
   return { commit, tree, digest: frozen.digest };
 }
 
 /** Give one synthetic item a reject, an explicit reopen, a second rejection, and final acceptance. */
-function exerciseReopen(board, id, seed, lane, builder, reviewer, freezer) {
-  submitItem(board, id, seed, lane, builder, 1, freezer);
+function exerciseReopen(board, id, seed, lane, builder, reviewer, freezer, repo) {
+  submitItem(board, id, seed, lane, builder, 1, freezer, repo);
   reopen(board, id, { agentId: 'coordinator', note: 'Exercise the reopened submission path in the generated board.' });
-  const second = submitItem(board, id, seed, lane, builder, 2, freezer);
+  const second = submitItem(board, id, seed, lane, builder, 2, freezer, repo);
   verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
     note: 'Exercise a reject before the final generated acceptance.', clause: JSON.parse(getItem(board, id).item_frozen).criterion, head: second.commit, digest: second.digest,
     policy: 'any', familyPolicy: 'off' });
-  const final = submitItem(board, id, seed, lane, builder, 3, freezer);
+  const final = submitItem(board, id, seed, lane, builder, 3, freezer, repo);
   verify(board, id, { agentId: reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON,
     note: 'The generated state records a final accepted review.', head: final.commit, digest: final.digest,
     policy: 'any', familyPolicy: 'off', check: 'none' });
@@ -237,13 +241,21 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     // #851: cleanEnvironment drops every PULLBOARD_ variable, including the fixture opt-out, so init would start a background view.
     const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Stress fixture',
-      GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid' };
+      GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid',
+      GIT_AUTHOR_DATE: FIXED_NOW.toISOString(), GIT_COMMITTER_DATE: FIXED_NOW.toISOString() };
     run('git', ['init', '-q', '-b', 'main'], root, env);
     run(process.execPath, [BIN, 'init', '--model', 'Stress fixture'], root, env);
     writeConfig(root);
     const source = specText(seed, size);
     writeFileSync(join(root, 'SPEC.md'), source);
     writeFileSync(join(root, 'DOCTRINE.md'), '# Performance fixture rules\n\n## Rules\n- R1 [approved, must] Keep the generated board readable. | gate: review\n');
+    // Submit reads the clause policy from main's commit since 8078e19a4a, so the fixture commits its config, spec and doctrine; init's agent files name the run's own paths, so they stay out of the seeded commit.
+    run('git', ['add', 'pullboard.json', 'SPEC.md', 'DOCTRINE.md'], root, env);
+    // Plumbing, like the generated item commits: init installs the project's hooks, which need an installed pullboard.
+    const tree = run('git', ['write-tree'], root, env).trim();
+    const head = run('git', ['commit-tree', tree, '-m', 'chore: create the stress fixture'], root, env).trim();
+    run('git', ['update-ref', 'refs/heads/main', head], root, env);
+    const repo = { root, env, head, tree };
     const spec = loadSpec(root, { spec: 'SPEC.md' });
     const doctrine = loadDoctrine(root, { practice: 'DOCTRINE.md' });
     const freezer = (item) => freezeItem(item, spec, doctrine);
@@ -301,14 +313,14 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
             head: digest(seed, 'claim-head', id, 0).slice(0, 40) });
           usedEvents += 1;
         } else if (status === 'submitted') {
-          submitItem(board, id, seed, lane, builder, 1, freezer);
+          submitItem(board, id, seed, lane, builder, 1, freezer, repo);
           usedEvents += 2;
         } else if (status === 'verified') {
           if (index === statuses.indexOf('verified')) {
-            exerciseReopen(board, id, seed, lane, builder, agents.reviewer, freezer);
+            exerciseReopen(board, id, seed, lane, builder, agents.reviewer, freezer, repo);
             usedEvents += 9;
           } else {
-            const submitted = submitItem(board, id, seed, lane, builder, 1, freezer);
+            const submitted = submitItem(board, id, seed, lane, builder, 1, freezer, repo);
             verify(board, id, { agentId: agents.reviewer, decision: 'ACCEPT', reason: ACCEPT_REASON,
               note: 'The generated state records a verified review.', head: submitted.commit, digest: submitted.digest,
               policy: 'any', familyPolicy: 'off', check: 'none' });
