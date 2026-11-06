@@ -14,6 +14,11 @@ export const MOVES = [
     verb: 'reject', from: ['submitted', 'verified'], to: 'open', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED',
     guards: ['coordinatorSaysAs', 'joined', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent', 'notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree', 'criterionUnchanged', 'reasonCoded', 'noteGiven', 'causeWellFormed', 'clauseWellFormed'],
     alsoRefuses: [
+      { code: 'AGENT_APPROVAL_REQUIRED', rule: 'the reviewed source satisfies the accepted spec approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
+      { code: 'UNKNOWN_SPEC', rule: 'the reviewed criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
+      { code: 'SUBMISSION_PROOF', rule: 'recorded submission and known-main proof bind the reviewed source and trunk', next: 'retain native source-matched proof receipts and submit again before verification' },
+      { code: 'SEAL_REVISION', rule: 'a reviewed plan that skips sealed packages names revisions this clone holds', next: 'fetch the submitted base and head, then verify again' },
+      { code: 'SEAL_STALE', rule: 'every package the reviewed plan skipped keeps its current native seal receipt', next: 'run the skipped packages\' tests and submit again' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },
       { code: 'TEST_SELECTION_INCOMPLETE', rule: 'the supplied changed paths exactly match the committed Git diff', next: 'derive test selection from the complete committed diff' },

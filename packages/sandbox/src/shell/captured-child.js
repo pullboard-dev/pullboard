@@ -1,19 +1,31 @@
 /** Bounded asynchronous child execution with the same result fields as spawnSync [C7,V4]. */
 import { spawn } from 'node:child_process';
 
-/** Drain an owned child before returning its status, including timeout and output-limit failures. */
+/** Drain an owned child before returning its status, including timeout, output-limit and caller cancellation. */
 export async function spawnCaptured(command, args, options) {
   const grouped = process.platform !== 'win32';
-  const child = spawn(command, args, { ...options, detached: grouped, timeout: undefined });
+  const { signal, ...spawnOptions } = options;
+  signal?.throwIfAborted();
+  const child = spawn(command, args, { ...spawnOptions, detached: grouped, timeout: undefined });
   const output = { stdout: [], stderr: [] };
   const sizes = { stdout: 0, stderr: 0 };
   let error;
   let timer;
+  let cancelTimer;
   /** Signal only this invocation's process group, never another check or the parent. */
   const stop = () => {
     try { if (grouped) process.kill(-child.pid, options.killSignal ?? 'SIGKILL'); else child.kill(options.killSignal ?? 'SIGKILL'); }
     catch (failure) { if (failure.code !== 'ESRCH') error ??= failure; }
   };
+  /** Give a cancelled command a short graceful shutdown before stopping its still-owned process group. */
+  const cancel = () => {
+    try { if (grouped) process.kill(-child.pid, 'SIGTERM'); else child.kill('SIGTERM'); }
+    catch (failure) { if (failure.code !== 'ESRCH') error ??= failure; }
+    cancelTimer = setTimeout(stop, 500);
+    cancelTimer.unref?.();
+  };
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) cancel();
   for (const name of ['stdout', 'stderr']) child[name]?.setEncoding('utf8').on('data', part => {
     sizes[name] += Buffer.byteLength(part);
     if (sizes[name] <= (options.maxBuffer ?? 1024 * 1024)) output[name].push(part);
@@ -29,5 +41,5 @@ export async function spawnCaptured(command, args, options) {
   try {
     const result = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     return { ...result, stdout: output.stdout.join(''), stderr: output.stderr.join(''), ...(error ? { error } : {}) };
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); clearTimeout(cancelTimer); signal?.removeEventListener('abort', cancel); }
 }
