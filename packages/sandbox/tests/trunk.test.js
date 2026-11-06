@@ -203,7 +203,7 @@ function mergeReviewer(box) {
   return review;
 }
 
-test('[B34,V6] clean divergent submit and accept preserve every checkout and index', () => {
+test('clause 1: [B34,V6,C7] clean divergent submit and accept preserve every checkout and index with joins that pass --model', () => {
   const box = mergeCandidate('master');
   advanceMergeTrunk(box, false);
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
