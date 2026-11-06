@@ -14,6 +14,13 @@ import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -123,14 +130,47 @@ export function protectionAt(root, commit) {
   return object ? configFromSource(sourceGit(root, ['cat-file', 'blob', object])).protect : defaults().protect;
 }
 
-/** Apply current protection rules to all selected historical names before any anonymous cache seed. */
+/** How many clean commits the history verdict cache keeps per policy set. */
+const CLEAN_HISTORY_KEEP = 16;
+
+/** The cache file of commits whose whole history passed these exact protection policies, under .git/pullboard. */
+function cleanHistoryFile(root, policies) {
+  const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
+  const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
+  return join(common, 'pullboard', 'history-scan', `${digest}.json`);
+}
+
+/** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */
+function cleanHistory(file) {
+  try {
+    const value = JSON.parse(readFileSync(file, 'utf8'));
+    return Array.isArray(value) ? value.filter(commit => /^[a-f0-9]{40,64}$/u.test(commit)) : [];
+  } catch { return []; }
+}
+
+/**
+ * Apply current protection rules to all selected historical names before any anonymous cache seed.
+ * History is immutable, so a commit whose whole history passed these exact policies stays clean: a later scan of a
+ * descendant reads only `<clean>..<commit>`, and with no cached ancestor it reads all history. Why: the full scan ran
+ * before every runner job and, three at once at load 20, left `whoami` taking 56 s (#3151).
+ */
 export function protectHistory(root, source, policies) {
+  const file = cleanHistoryFile(root, policies), clean = cleanHistory(file);
+  if (clean.includes(source.commit)) return;
+  const base = clean.find(commit => gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', commit, source.commit],
+    { cwd: root, env: cleanGitEnvironment() }).status === 0);
   // Every historical path name, once per commit: this outgrew one blob's 8 MiB, so it gets its own bound.
-  const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history', source.commit], { maxBuffer: 1 << 28 })
-    .split('\0').filter(Boolean))];
+  const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history',
+    base ? `${base}..${source.commit}` : source.commit], { maxBuffer: 1 << 28 }).split('\0').filter(Boolean))];
   if (paths.some(path => policies.some(protect => protectedHistoryPath(path, protect)))) {
     throw new Refused('RUNNER_SECRET', 'selected history includes a blocked private path; keep this run local or remove that private history');
   }
+  try {
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    const temporary = `${file}.${process.pid}.${randomUUID()}`;
+    writeFileSync(temporary, JSON.stringify([source.commit, ...clean.filter(commit => commit !== source.commit)].slice(0, CLEAN_HISTORY_KEEP)), { mode: 0o600 });
+    renameSync(temporary, file);
+  } catch { /* An unwritable cache only costs the next scan its shortcut. */ }
 }
 
 /** Read one exact cat-file record without loading a repository's history into memory. */
