@@ -342,7 +342,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
-          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+          check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
