@@ -8,6 +8,12 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
 
+/** A freshness failure that carries its own reason text, so each cause names the step the person takes [C7]. */
+class FreshnessFailure extends Error {
+  /** Keep the reason the stale refusal prints. */
+  constructor(reason) { super(reason); this.reason = reason; }
+}
+
 /** Read exact Git objects without inherited selectors, replacements, or filename quoting. */
 function readGit(root, args) {
   const result = spawnSync('git', ['--no-replace-objects', ...args], {
@@ -100,14 +106,23 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
-  const validatedBaselines = new Set();
+  const validatedBaselines = new Map();
   const changes = new Map();
   /** Query only first-parent commits touching these literal paths, retaining merges and reverts. */
   const history = (baseline, paths) => {
+    // A reviewed trunk that left main (a rebased or rewritten branch) is judged from merge-base(trunk, main).
     if (!validatedBaselines.has(baseline)) {
-      readGit(root, ['merge-base', '--is-ancestor', baseline, tip]);
-      validatedBaselines.add(baseline);
+      const onMain = spawnSync('git', ['--no-replace-objects', 'merge-base', '--is-ancestor', baseline, tip],
+        { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+      if (onMain.status === 0) validatedBaselines.set(baseline, baseline);
+      else if (onMain.status === 1) {
+        let shared = '';
+        try { shared = readGit(root, ['merge-base', baseline, tip]).trim(); } catch { /* reported below */ }
+        if (!shared) throw new FreshnessFailure(`the reviewed trunk ${baseline.slice(0, 12)} is not on main and shares no history with it; merge current main and re-review`);
+        validatedBaselines.set(baseline, shared);
+      } else throw new FreshnessFailure(`the reviewed trunk ${baseline.slice(0, 12)} is missing from this replica; fetch its objects or re-review`);
     }
+    baseline = validatedBaselines.get(baseline);
     const key = JSON.stringify([baseline, [...paths]]);
     if (!histories.has(key)) {
       const commits = paths.size ? readGit(root, ['--literal-pathspecs', 'log', '--first-parent', '--full-history',
@@ -142,15 +157,15 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
         resolved = true;
         tip = verdictTrunk(root, { trunkRef });
       }
-      if (!tip) throw new Error('The known trunk is unavailable');
+      if (!tip) throw new FreshnessFailure('the known trunk is unavailable; restore the trunk branch and re-review');
       review = accepted?.review;
-      if (review && verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
+      if (review && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const checked = review?.head ?? item.item_commit;
       // A physical landing is final only when it includes the checked composition.
       const landed = spawnSync('git', ['--no-replace-objects', 'merge-base', '--is-ancestor', checked, tip],
         { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
       if (landed.status === 0) return null;
-      if (landed.status !== 1) throw new Error('The checked commit is unavailable');
+      if (landed.status !== 1) throw new FreshnessFailure(`the checked commit ${checked.slice(0, 12)} is missing from this replica; fetch it or re-review`);
       if (mismatch) return { code: 'STALE_VERDICT', file: null, commit: item.item_merged_commit,
         reviewedTrunk: review.trunk, main: tip, landingCode: 'LAND_ITEM_MOVED', checked: review.head,
         reason: `the older landing recorded ${item.item_merged_commit}, which does not contain checked composition ${review.head}` };
@@ -167,7 +182,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
         review = { trunk: baseline,
           paths: readGit(root, ['diff', '--no-renames', '--name-only', '-z', baseline, item.item_commit, '--']).split('\0').filter(Boolean), legacy: true };
       }
-      if (!review.legacy && verdictReviewProblem(review, item.item_commit)) throw new Error('The sealed review is invalid');
+      if (!review.legacy && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const paths = new Set(review.paths);
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
@@ -177,11 +192,11 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
           ...(review.legacy ? { legacy: true } : {}) };
       }
       return null;
-    } catch {
+    } catch (failure) {
       return { code: 'STALE_VERDICT', file: null, commit: null, reviewedTrunk: review?.trunk ?? null,
         main: tip ?? null, ...(mismatch ? { landingCode: 'LAND_ITEM_MOVED', checked: review?.head,
           reason: `the older landing recorded ${item.item_merged_commit}; checked composition ${review?.head} is unavailable on this replica` }
-          : { reason: 'the reviewed Git history is unavailable; restore its objects and re-review' }) };
+          : { reason: failure?.reason ?? 'the reviewed Git history is unavailable; restore its objects and re-review' }) };
     }
   };
   /** Decorate a public item read while preserving every stored proof field. */
