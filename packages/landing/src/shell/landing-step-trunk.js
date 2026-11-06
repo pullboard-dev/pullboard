@@ -21,6 +21,7 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
+import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -169,6 +170,7 @@ export async function landOnTrunk(state) {
       const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
       const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
+      if (await splitRedBatch(state, gate)) return;
       const green = await bisect(state, state.batch.items, own, 'local-split', quickGuards);
       if (state.flaky || !green.length) {
         if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });

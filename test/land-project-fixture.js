@@ -39,6 +39,8 @@ function landProject({ withWorktree = true } = {}) {
   const path = join(fixture.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   config.affectedTests = commands.affected;
+  // These suites prove the bisect; a suite that proves the split sets landing.splitRed itself.
+  config.landing = { ...(config.landing ?? {}), splitRed: false };
   writeFileSync(path, JSON.stringify(config, null, 2));
   fixture.git(fixture.repo, 'add', 'pullboard.json');
   fixture.git(fixture.repo, 'commit', '-q', '-m', 'chore: configure landing');
