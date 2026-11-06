@@ -117,6 +117,7 @@ export async function land(options) {
       if (deferred) return deferred;
     }
   }
+  options.say(`LANDTRACE idle=${idleLanding(options.board, trunk.commit)} adopt=${options.adopt} due=${options.due}`);
   if (trunk.commit && !options.adopt && idleLanding(options.board, trunk.commit)) {
     requireConfirmedLanding(options.board);
     // Only accepted trunk policy may inform this read-only preflight.
@@ -125,6 +126,7 @@ export async function land(options) {
     const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
+    options.say(`LANDTRACE ready=${selected.ready.length} same=${current?.commit === trunk.commit} idle2=${idleLanding(options.board, trunk.commit)}`);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
