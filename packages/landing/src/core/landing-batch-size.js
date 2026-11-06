@@ -1,4 +1,5 @@
 /** Automatic landing sizes each batch from the recorded batches before it: smaller after a red, larger after a green [C7,H24]. */
+import { itemRefusalText } from './item-refusal.js';
 
 /** The size the first batch gets, and the bounds the adaptive size never leaves. */
 export const START_BATCH_SIZE = 4;
@@ -18,7 +19,11 @@ export function batchOutcome(batch) {
   // whether its items are red, so it never shrinks the next batch [C7].
   const culprits = Array.isArray(batch.culprits) && batch.culprits.length > 0;
   const testRed = (batch.failures ?? []).some(failure => failure?.file);
-  if (batch.state === 'blocked' && !culprits && !testRed && batch.refusal) return null;
+  // A refusal of one item's own content is a failure of the batch: the next batch halves, and at one item the
+  // return step sends that item back. A locked database or a lost worktree still says nothing [C7].
+  if (batch.state === 'blocked' && !culprits && !testRed && batch.refusal) {
+    return itemRefusalText(batch.refusal.code, batch.refusal.message) ? false : null;
+  }
   if (batch.state === 'blocked' || culprits) return false;
   return ['trunk', 'pushed', 'landed'].includes(batch.state) ? true : null;
 }
