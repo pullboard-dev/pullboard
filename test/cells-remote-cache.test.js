@@ -76,7 +76,7 @@ function remoteCells(job, main, source) {
   return seconds;
 }
 
-test('on this repository, a runner job whose main moved since the cached one runs the cells stage in under 30 s [C7]', { timeout: 590_000 }, t => {
+test('clause 1: on this repository, a runner job whose main moved since the cached one runs the cells stage in under 30 s [C7]', { timeout: 590_000 }, t => {
   const repository = fileURLToPath(new URL('..', import.meta.url));
   const cellFile = 'packages/landing/src/shell/landing-step-failures.js';
   const first = freshJob(t, repository), mainA = git(first, 'rev-parse', 'HEAD').trim();
