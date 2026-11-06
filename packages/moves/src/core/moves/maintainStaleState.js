@@ -1,3 +1,4 @@
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../../state/index.js';
 /** Coordinator maintenance is a versioned native operation, never a direct housekeeping write [B4,C7]. */
 import { LEASE_LAPSE_ENGINE } from "../../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../../src/stale-state-engine.js";
@@ -5,6 +6,7 @@ import { CLAIM_IDLE_ENGINE } from "../../../../../src/claim-idle-engine.js";
 
 /** An older engine cannot interpret captured inactivity as permission to release another holder. */
 function minimumEngine(args) {
+  if (args[0]?.snapshot?.limits?.dependency !== undefined) return STRANDED_DEPENDENCY_ENGINE;
   if (args[0]?.snapshot?.claims?.some?.(row => row?.idle !== undefined)) return CLAIM_IDLE_ENGINE;
   return args[0]?.claimsOnly === true ? LEASE_LAPSE_ENGINE : STALE_STATE_ENGINE;
 }

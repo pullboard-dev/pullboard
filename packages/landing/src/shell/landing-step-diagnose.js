@@ -272,12 +272,28 @@ export function itemRefusal(error) {
  */
 export async function returnRefusedItem(state, error) {
   if (!itemRefusal(error)) return false;
-  const entry = (state.batch.items?.length ? state.batch.items : state.batch.candidates ?? [])[0];
-  const item = entry && store.getItem(state.board, entry.id);
-  if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) return false;
-  // The refusal is recorded as the item's culprit case, so the existing culprit return carries it with its evidence.
-  await recordCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
-  return store.getItem(state.board, entry.id).item_status !== 'verified';
+  const entries = state.batch.items?.length ? state.batch.items : state.batch.candidates ?? [];
+  // In a batch of several, only a parse failure names its files, so only the items that changed them are charged;
+  // every other accepted verdict stays and the next landing proceeds without them [C7].
+  const charged = entries.length === 1 ? entries : parseImplicated(state, entries, error);
+  let returned = false;
+  for (const entry of charged) {
+    const item = store.getItem(state.board, entry.id);
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) continue;
+    // The refusal is recorded as the item's culprit case, so the existing culprit return carries it with its evidence.
+    await recordCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
+    if (store.getItem(state.board, entry.id).item_status !== 'verified') returned = true;
+  }
+  return returned;
+}
+
+/** The batch entries whose own change touches a file a LAND_MODULE_PARSE refusal named; none for any other refusal. */
+function parseImplicated(state, entries, error) {
+  if (error.code !== 'LAND_MODULE_PARSE' || !error.broken?.length) return [];
+  return entries.filter(entry => {
+    const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+    return changed.status === 0 && changed.stdout.split('\n').some(file => error.broken.includes(file));
+  });
 }
 
 /** Return recorded red candidates once, including a saved failure interrupted before its move. */
