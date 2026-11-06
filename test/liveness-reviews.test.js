@@ -24,7 +24,7 @@ function forgetHeartbeat(box, id) {
   } finally { presence.close(); }
 }
 
-test('a review reservation with no heartbeat for two minutes is available to the next reviewer [C7,V15]', async t => {
+test('clause 1: a review reservation with no heartbeat for two minutes is available to the next reviewer [C7,V15]', async t => {
   const box = await fixture(t);
   const id = box.add('Review reservation whose owner went away');
   box.submit(id);
@@ -43,7 +43,7 @@ test('a review reservation with no heartbeat for two minutes is available to the
   assert.equal(store.getItem(box.board, id).item_review_by, successor.id, 'the new reviewer takes the expired reservation');
 });
 
-test('a reviewer heartbeat within two minutes keeps its reservation held [C7,V15]', async t => {
+test('clause 2: a reviewer heartbeat within two minutes keeps its reservation held [C7,V15]', async t => {
   const box = await fixture(t);
   const id = box.add('Review reservation whose owner remains active');
   box.submit(id);
@@ -60,7 +60,7 @@ test('a reviewer heartbeat within two minutes keeps its reservation held [C7,V15
   }), error => error.code === 'REVIEW_HELD');
 });
 
-test('a reviewer process with no heartbeat releases its reservation before the lease expires [C7,V15]', async t => {
+test('clause 1: a reviewer with no heartbeat record releases its reservation before the lease expires [C7,V15]', async t => {
   const box = await fixture(t);
   const id = box.add('Review reservation whose owner process exited');
   box.submit(id);

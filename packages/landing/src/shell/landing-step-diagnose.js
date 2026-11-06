@@ -4,6 +4,8 @@ import { requireTestTierAccount } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
@@ -12,6 +14,7 @@ import { runProfiledShell } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { itemRefusalText } from '../core/item-refusal.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -57,18 +60,28 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   const present = failures.filter(failure => onBase(failure.file));
   if (!present.length) return { known: [], own: absent };
   const files = [...new Set(present.map(failure => failure.file))];
-  let result;
-  try {
-    result = await compare(state.batch.root, { tests: files.map(file => ({ file, passed: false })) }, state.onWait, '',
-      { commit: state.batch.base, detailed: true, allowCancelled: true });
-  } catch { return null; }
-  if (result?.main !== state.batch.base || result.unavailable || !files.every(file => result.files?.some(row => row.file === file))) return null;
+  // Each file is compared on its own: a file main cannot be compared on stays the batch's own red and never discards the
+  // completed results of every other file, as one combined comparison did [C7,#3073]. Results are cached per file.
+  const rows = new Map();
+  for (const file of files) {
+    let result;
+    try {
+      // The known-main step already compared this file on the same base: reuse its answer instead of a second run.
+      result = state.mainComparisons?.get(file)?.main === state.batch.base ? state.mainComparisons.get(file)
+        : await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+          { commit: state.batch.base, detailed: true, allowCancelled: true });
+    } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); continue; }
+    const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+    // Every outcome is named, so a held batch says why its base comparison gave nothing usable [C7].
+    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+    if (row) rows.set(file, row);
+  }
+  if (!rows.size) return null;
   const known = [], own = [...absent];
   for (const failure of present) {
-    const row = result.files.find(entry => entry.file === failure.file);
-    // Red on base with no named cases cannot be told apart from the batch's own red, so the batch holds [C7,#2945].
-    if (row.result === 'red' && !(row.failures ?? []).length) return null;
-    (row.result === 'red' && row.failures.some(main => main.name === failure.name) ? known : own).push(failure);
+    const row = rows.get(failure.file);
+    // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
   return { known, own };
 }
@@ -133,7 +146,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   if (!split.own.length) return items;
   failures = split.own;
   if (items.length === 1) {
-    await returnCulprit(state, items[0], failures);
+    await returnCulprit(state, items[0], failures, { isolated: true });
     return [];
   }
   const middle = Math.ceil(items.length / 2);
@@ -141,7 +154,10 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   for (const [index, part] of [items.slice(0, middle), items.slice(middle)].entries()) {
     const build = await mergeGroup(state, part);
     await save(state, { ...build, state: 'bisecting' });
-    const gate = await evaluate(state, `${label}-${index}`);
+    // Each half runs only the files the batch failed, those its tree holds; a half without any of them cannot have
+    // caused those reds and is green for this split. The final green set runs its whole plan before landing [C7].
+    const focus = [...new Set(failures.map(failure => failure.file).filter(Boolean))].filter(file => existsSync(join(state.batch.root, file)));
+    const gate = focus.length ? await evaluate(state, `${label}-${index}`, { focus }) : { isGreen: true, failures: [], absentFocus: true };
     // Only unwaived reds split a group further; a group red only on waived files is green for bisection [C7,#2900].
     const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
     if (gate.isGreen || waivedProof(state, gate) || !own.length) green.push(...build.items);
@@ -176,8 +192,11 @@ export function ownFailures(state, entry, failures) {
  * it neither changed nor names in its check reopens nothing: the batch keeps the failure and the item stays verified.
  * Why shared: a bisection's last item and a per-item landing's only item are the same case [C7,#2901,#2967].
  */
-export async function returnCulprit(state, item, failures) {
-  const own = ownFailures(state, item, failures);
+export async function returnCulprit(state, item, failures, { isolated = false } = {}) {
+  // An item a bisection isolated is the only change in its tree: its named reds that main passes are its own even in
+  // files it never touched. Why: "stays verified" sent such an item round again, a bisection each time [C7].
+  const charged = isolated && failures.length && failures.every(failure => failure.file && !failure.watchdog) ? failures : ownFailures(state, item, failures);
+  const own = charged;
   if (!own.length) {
     await save(state, { failures });
     state.say(`landing red is not #${item.id}'s: ${failures.map((failure) => `${failure.file ?? 'gate'}: ${failure.name}`).join('; ')}; it stays verified`);
@@ -209,12 +228,24 @@ export function namedFailures(gate) {
  * Refusals the candidate's own content causes; every other refusal is the landing's infrastructure or diagnosis
  * (board busy, runners, git, timeouts, diagnostics) and reopens nothing [C7,#2901,#2967].
  */
-const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
+// The codes live in core (item-refusal.js) so the batch sizer judges them the same way.
+
+/**
+ * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
+ * on one keeps its batch state, worktree and log, so adoption resumes the batch instead of blocking it as gone [C7].
+ */
+// A locked board or slot database means the run never started, not that the batch or an item failed.
+export const LANDING_FAULTS = new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED']);
+
+/** True when a refusal is a landing fault: retried or adopted, never a reason to block a batch or blame an item [C7]. */
+export function landingFault(error) {
+  return error instanceof Refused && LANDING_FAULTS.has(error.code);
+}
 
 /** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
 export function itemRefusal(error) {
   if (!(error instanceof Refused)) return false;
-  return ITEM_REFUSALS.has(error.code) || (error.code === 'LAND_CLI_SMOKE' && /^the candidate's /u.test(error.message));
+  return itemRefusalText(error.code, error.message);
 }
 
 /**

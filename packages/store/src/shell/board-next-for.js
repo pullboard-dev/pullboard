@@ -53,6 +53,7 @@ import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
+import { heldClaim } from './held-claim.js';
 
 /** Count each first eligibility refusal once; occupied reviews keep their separate lease diagnostics. */
 function skippedReviewReasons(failures) {
@@ -101,8 +102,11 @@ export function nextFor(board, options) {
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
     routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
+  const idleSkips = [];
+  /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
+  const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
+  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, skips: [...idleSkips] } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
@@ -116,6 +120,14 @@ export function nextFor(board, options) {
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
+  if (observeIdle) for (const entry of allItems) {
+    if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
+    if (omitIds.includes(entry.item_id)) skip(entry, 'OMITTED');
+    else if (!canTake(route, entry.item_route) || !routes.includes(entry.item_route)) skip(entry, 'ROUTE_FILTER');
+    else if (runnable && !entry.item_check) skip(entry, 'CHECK_REQUIRED');
+    else if (verify && entry.item_built_by === agentId) skip(entry, 'SELF_VERIFY');
+    else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
+  }
   const items = allItems
     .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
@@ -148,6 +160,7 @@ export function nextFor(board, options) {
       return null;
     }
     const failures = new Map(unrelated.map(entry => [entry, failure(entry)]));
+    for (const [entry, failed] of failures) if (failed) skip(entry, failed.problem.code);
     const skipped = skippedReviewReasons(failures);
     /** Retain eligibility diagnostics whether selection succeeds, waits or has no candidate. */
     const reviewResult = result => ({ ...result, reasons: [...skipped, ...result.reasons] });
@@ -185,6 +198,10 @@ export function nextFor(board, options) {
         || (first?.sequence ?? Infinity) - (second?.sequence ?? Infinity) || a.entry.item_id - b.entry.item_id;
     });
     if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
+    for (const candidate of candidates) {
+      if (candidate.cooldown) skip(candidate.entry, 'REVIEW_RELEASE_COOLDOWN');
+      else if (restrictFocus && !focus.ids.has(candidate.entry.item_id) && (focusOnly || !greenAtHead(board, candidate.entry))) skip(candidate.entry, 'FOCUS_BOUNDARY');
+    }
     const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
       && (!restrictFocus || focus.ids.has(candidate.entry.item_id) || !focusOnly && greenAtHead(board, candidate.entry)))?.entry;
     if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return reviewResult({ item, reasons: focusReasons(board, item, [], { milestones }) });
@@ -197,8 +214,7 @@ export function nextFor(board, options) {
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
   }
-  const claims = items.filter((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
-  const held = (rejectionReturnEnabled(board) ? claims.find(entry => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId) : null) ?? claims[0];
+  const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   const ownRejectionFirst = held && plannedRelease === null && rejectionReturnEnabled(board)
@@ -226,7 +242,7 @@ export function nextFor(board, options) {
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
     && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
-    .filter((entry) => !itemHold(board, entry.item_id))
+    .filter((entry) => { const held = itemHold(board, entry.item_id); if (held) skip(entry, 'ITEM_HELD'); return !held; })
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
@@ -263,39 +279,41 @@ export function nextFor(board, options) {
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
   }
   for (const { entry, shared, reworkRouting: rework } of mine) {
-    if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
-    if (diagnosisProblem) { reasons.push(diagnosisProblem.message); continue; }
+    if (diagnosisProblem) { skip(entry, diagnosisProblem.code); reasons.push(diagnosisProblem.message); continue; }
     const gated = gateAtHead(board, entry);
-    if (gated) { reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
+    if (gated) { skip(entry, 'GATE_AT_HEAD'); reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
-    if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
+    if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
-    if (continuation) { reasons.push(continuation.message); continue; }
+    if (continuation) { skip(entry, continuation.code); reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
+      skip(entry, 'REWORK_ROUTING');
       reasons.push(rework.mode === 'policy-unknown' ? `#${entry.item_id} waits for accepted takeover and maintenance policy` : `#${entry.item_id} is reserved for ${rework.mode === 'builder' ? rework.builder : `the ${rework.builderFamily} family`}`);
       continue;
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
-    if (reserved) { reasons.push(reserved); continue; }
+    if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { reasons.push(...collisions); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
+      skip(entry, 'FOREIGN_DEPENDENCY');
       reasons.push(`#${entry.item_id} waits on ${foreign.map(ref => `${itemDependencies.dependencyLabel(ref)} (${ref.status} on its own board)`).join(', ')}`);
       continue;
     }
     const continuationSummary = exitContinuationSummary(board, entry.item_id);
     const heldFor = claimWaitingOn(board, entry.item_id);
-    if (heldFor.length) { reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
+    if (heldFor.length) { skip(entry, 'WAITING_ON'); reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
     if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
-    reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
+    skip(entry, 'DEPENDENCY'); reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
@@ -305,6 +323,27 @@ export function nextFor(board, options) {
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
+}
+
+/**
+ * The green, unreserved submission this seat may review now, or null [C7, #2992].
+ * Finished work waits only on a reviewer, so a seat takes it before any new build with no
+ * starvation wait. Only a green gate at the submitted head with no live review reservation
+ * counts; every other submission is skipped, and nextFor's reviewer checks, the cross-family rule
+ * among them, still decide eligibility.
+ *
+ * @param {any} board
+ * @param {any} who - The nextFor options of the asking seat.
+ * @returns {any | null}
+ */
+export function greenReviewFor(board, who) {
+  const skip = new Set(who.skipIds ?? []);
+  for (const item of listItems(board)) {
+    if (item.item_status !== 'submitted') continue;
+    // Only a live reservation holds a review: one that expired or was released leaves the work waiting again.
+    if (reviewHolder(board, item) || !greenAtHead(board, item)) skip.add(item.item_id);
+  }
+  return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
 }
 
 /**

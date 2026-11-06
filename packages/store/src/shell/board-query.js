@@ -172,16 +172,17 @@ export function listItems(board, { lane, all = false } = {}) {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
-    // A claim whose lease lapsed reads as open (B4), exactly as current() reads it.
-    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at)) {
+    // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
+    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
     }
     if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);
     if (imported) item.item_rehome_import = JSON.parse(imported);
     return item;
   });
-  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first lease ends.
-  const expires = items.filter(item => item.item_status === 'claimed' && item.item_lease_until).map(item => item.item_lease_until).sort()[0];
+  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
+  // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
+  const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
   LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
@@ -605,4 +606,15 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   }
   return { ...projectAgentActivity({ agent, interests, events: [...rows.values()].toSorted((a, b) => a.event_id - b.event_id),
     shouts: messages, changesForMain, sessionStart, after, newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
+}
+
+/**
+ * Every seat's last heartbeat, read before a board write opens so a reservation check inside the lock never reads the
+ * private heartbeat store [C7,V15].
+ *
+ * @param {any} board
+ * @returns {Map<string, string | null>} Seat id to its last heartbeat time, or null when it never sent one.
+ */
+export function heartbeatSnapshot(board) {
+  return new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
 }
