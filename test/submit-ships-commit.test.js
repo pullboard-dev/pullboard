@@ -153,7 +153,7 @@ test('clause 2: the dispatcher sends a runner ticket to a registered runner, rec
   assert.equal(record.runner, RUNNER.host);
   assert.equal(record.job, JOB);
   assert.ok(Date.parse(record.started) > 0, 'the start time is recorded');
-  assert.deepEqual(readdirSync(handoffQueueDirectory()).filter(name => /^\d+-/u.test(name)), [], 'a delivered ticket is not queued again');
+  assert.equal(existsSync(handoffQueueDirectory()), false, 'a delivered ticket is not queued again');
   assert.equal(existsSync(join(box.commonDir, 'pullboard', 'submit-handoffs', JOB, 'worker.json')), false, 'no local worker record');
 });
 
