@@ -292,7 +292,9 @@ assert.equal(Object.hasOwn(legacy,'failureSignatures'),false,'an absent producer
 assert.equal(receiptBody(receiptFields(JSON.parse(receiptBody(legacy)))),receiptBody(legacy));
 // Twenty genuinely executed passes close this exact quarantine. A cached exception then loses authority.
 for(let index=0;index<20;index++)await gate('green');
-assert.deepEqual(snapshot(),[]);
+// The mixed run's red 'unrelated positive' and a later green on one tree are a same-tree pair, so commit f562d717d8 files it at once
+// (a Submit-path run backfills its ratchet quarantine); only the original target closes here.
+assert.deepEqual(snapshot().map(row=>row.name),['unrelated positive [C7]']);
 withBoard(ctx,board=>{
  assert.throws(()=>validateQuarantineVerdict(board,nativeReceipt),error=>error.code==='PROOF_RUN_UNBOUND');
  assert.throws(()=>validateQuarantineGate(board,gateRecord),error=>error.code==='PROOF_RUN_UNBOUND');
