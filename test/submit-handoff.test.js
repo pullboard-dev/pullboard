@@ -690,7 +690,7 @@ function handoffEvents(box, id, jobState) {
   } finally { board.db.close(); }
 }
 
-test('clause 1 and clause 2: a dispatcher drain requeues a hand-off with no place in line and no worker past ten minutes, once, as worker-gone [C7]', async t => {
+test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', async t => {
   const box = fixture(t);
   const source = resolve(import.meta.dirname, '..');
   const tools = join(box.dir, 'silent-tools');
