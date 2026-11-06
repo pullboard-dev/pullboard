@@ -9,7 +9,6 @@ import { join } from 'node:path';
 import {
   bundledBlueprints,
   readBlueprint,
-  starterCheck,
 } from '../packages/blueprints/index.js';
 import {
   checkBaseline,
@@ -18,23 +17,24 @@ import {
 import { runFixtureChild } from './fixture-child.js';
 
 /** Exercise each real bundled shell command, retaining all failures so both defects reproduce. */
-export function assertStarterChecks({ freshBoard, json }) {
+export function assertStarterChecks({ emptyRepo, freshBoard, json }) {
   const failures = [];
-  const bundled = freshBoard({ lanes: { app: { owns: ['app/'] } } });
-  const lane = join(bundled.repo, 'app');
-  mkdirSync(lane, { recursive: true });
-  const placement = { lane: 'app', proposal: null };
-  const config = { lanes: { app: { owns: ['app/'] } } };
   for (const name of bundledBlueprints()) {
-    const blueprint = readBlueprint(name);
-    for (const item of blueprint.items) {
-      const check = starterCheck(blueprint, item.check, placement, config);
-      const command = `trap 'printf "\\n__starter_cwd__%s\\n" "$(pwd -P)"' EXIT; ${check}`;
-      const ran = runFixtureChild('/bin/sh', ['-c', command], { cwd: bundled.repo, env: bundled.env, encoding: 'utf8' });
+    const box = emptyRepo();
+    const started = box.run('init', '--blueprint', name);
+    assert.equal(started.status, 0, started.stdout + started.stderr);
+    const lane = join(box.repo, 'app');
+    mkdirSync(lane, { recursive: true });
+    const items = json(box, 'list', '--all').items;
+    for (const item of items) {
+      assert.equal(item.item_check_baseline ?? null, null, 'blueprint add never executes a check');
+      const command = `trap 'printf "\\n__starter_cwd__%s\\n" "$(pwd -P)"' EXIT; ${item.item_check}`;
+      const ran = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo, env: box.env, encoding: 'utf8' });
       const observed = /__starter_cwd__([^\n]+)/u.exec(ran.stdout)?.[1];
-      try { assert.equal(observed, realpathSync(lane), `${name}: ${check} executes in its lane, even before its test runner exists`); }
+      try { assert.equal(observed, realpathSync(lane), `${name}: ${item.item_check} executes in its lane, even before its test runner exists`); }
       catch (error) { failures.push(error); }
     }
+    assert.equal(items.length, readBlueprint(name).items.length, `${name} files every starter`);
   }
   for (const owned of ['services/my api/', "-app's/"]) {
     const chosen = freshBoard({ lanes: { service: { owns: [owned], specs: [] } } });
