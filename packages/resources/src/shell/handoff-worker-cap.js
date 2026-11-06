@@ -198,13 +198,13 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
   for (;;) {
     let lock;
     try {
-      lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher',
+      lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher', loopHeartbeat: true,
         onWait() { throw new Refused('HANDOFF_DISPATCHER_RUNNING', 'another dispatcher is starting the queued workers'); } });
     } catch (error) {
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs); }
+    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, lock); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -237,11 +237,16 @@ function boundAfterResult(entry, now, graceMs) {
   else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
 }
 
-/** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs) {
+/**
+ * Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs.
+ * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
+ * next submit starts a fresh dispatcher [C7,#2990].
+ */
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, lock) {
   const running = new Map();
   let wake = () => {};
   while (waitingTickets().length || running.size) {
+    lock.renew();
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = typeof capacity === 'function' ? capacity() : capacity;
     for (const name of waitingTickets()) {

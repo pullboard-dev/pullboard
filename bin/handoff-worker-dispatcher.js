@@ -21,5 +21,9 @@ export function currentCapacity() {
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity }); }
-  catch (error) { process.stderr.write(error.message + '\n'); process.exitCode = 1; }
+  catch (error) {
+    // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
+    process.stderr.write(error.message + '\n');
+    process.exit(1);
+  }
 }
