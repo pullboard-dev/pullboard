@@ -177,6 +177,18 @@ function reviewedCall(source, code, call, end, executors) {
 }
 
 /**
+ * Whether a source names Chrome in executable code or a string literal, never in a comment. Why: a process call
+ * whose command is not statically known launches Chrome only when something in the same closure names it [C7].
+ *
+ * @param {string} source
+ * @returns {boolean}
+ */
+export function sourceNamesChrome(source) {
+  const { code, strings } = lex(source);
+  return CHROME.test(code) || strings.some(string => browserText(string.text));
+}
+
+/**
  * Determine whether executable process calls can reach a Chrome argument. Local literal bindings are
  * followed conservatively, without scope-sensitive elimination. A program supplied to a real process
  * (including node -e or a shell) remains an argument, unlike a program merely written to a fixture file.
@@ -184,9 +196,11 @@ function reviewedCall(source, code, call, end, executors) {
  *
  * @param {string} source
  * @param {{function:string,site:string,reason:string}[]} [reviewedExecutors]
+ * @param {{chromeOnly?:boolean}} [options] - chromeOnly binds only a call that names Chrome, never a call whose
+ *   command is merely not statically known (a git or ps helper); the runtime slot guard fails any launch that misses [C7]
  * @returns {boolean}
  */
-export function sourceLaunchesBrowser(source, reviewedExecutors = []) {
+export function sourceLaunchesBrowser(source, reviewedExecutors = [], { chromeOnly = false } = {}) {
   const { code, strings } = lex(source);
   const names = callNames(source, code);
   const namespaces = processNamespaces(source);
@@ -266,7 +280,7 @@ export function sourceLaunchesBrowser(source, reviewedExecutors = []) {
     if ([...code.slice(start + 1, end).matchAll(WORD)].some(word => namedBrowser(word[0]))) return true;
     // A regex's .exec is not the imported process capability. Unknown-value admission
     // applies to bare process bindings and imported process namespaces, not unrelated methods.
-    if (call.unknown && !reviewedCall(source, code, call, end, reviewedExecutors)) {
+    if (!chromeOnly && call.unknown && !reviewedCall(source, code, call, end, reviewedExecutors)) {
       const commandEnd = expressionEnd(code, start + 1, false);
       if (commandEnd === null) return true;
       const command = code.slice(start + 1, commandEnd);

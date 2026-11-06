@@ -25,9 +25,13 @@ import {
 } from '../../../../src/git.js';
 import { literalShellWords } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
-import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
+import {
+  sourceLaunchesBrowser,
+  sourceNamesChrome,
+} from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
+import { BROWSER_RULE_VERSION } from './browser-scan-cache.js';
 import { browserScanCacheFile } from './browser-scan-cache.js';
 import { cachedVerdictHolds } from './browser-scan-cache.js';
 import { changedPaths } from './browser-scan-cache.js';
@@ -285,8 +289,8 @@ function launchFreeChromeImport(source, request) {
 }
 
 /** Detect direct literal Chrome launchers without treating help text or refusal messages as launches. */
-function namesChromeLauncher(source, path) {
-  return sourceLaunchesBrowser(source, REVIEWED_EXECUTORS.get(path));
+function namesChromeLauncher(source, path, chromeOnly = false) {
+  return sourceLaunchesBrowser(source, REVIEWED_EXECUTORS.get(path), { chromeOnly });
 }
 
 /** Detect dynamic process builtin access, which can load launch-capable modules.
@@ -553,12 +557,19 @@ function parsedSources(sources, memo) {
  * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), walked = null) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), walked = null, verdict = null) {
+  /** Record why a file is bound: the import path from the selected file to the module that launches. */
+  const bind = (why) => { if (verdict) verdict.reason = why; return true; };
+  const parents = new Map();
+  const seen = [];
+  let pendingSite = null;
+  /** The first reaching path: the selected file, then each importer down to the module named. */
+  const chain = (path) => { const out = [path]; while (parents.has(out[0]) && out.length < 40) out.unshift(parents.get(out[0])); return out.join(' > '); };
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
   if (normalized.some((file) => file === null)) return browserFallback(onFallback, '<test selection>', 'a selected path is outside the repository');
-  if (normalized.some((file) => file === JOURNEYS_TEST || file === 'test/cockpit' || file.startsWith('test/cockpit/'))) return true;
+  if (normalized.some((file) => file === JOURNEYS_TEST || file === 'test/cockpit' || file.startsWith('test/cockpit/'))) return bind('cockpit or journeys selection keeps the browser');
 
   let frontier = [...new Set(normalized)];
   const demands = new Map(frontier.map(path => [path, { names: null, narrow: false }]));
@@ -582,7 +593,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         if (processed.get(path) === key) continue;
         processed.set(path, key);
         walked?.add(path);
-        if (path === CHROME_FIXTURE && !byLaunch) return true;
+        if (path === CHROME_FIXTURE && !byLaunch) return bind(`reaches ${chain(path)}`);
         if (path.endsWith('.json')) continue;
         if (/\.(?:cjs|cts)$/u.test(path)) return browserFallback(onFallback, path, 'CommonJS loader behavior is not statically classified');
         paths.push(path);
@@ -633,11 +644,18 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       }
       const originalSources = [...sources];
       if (byLaunch) sources.splice(0, sources.length, ...reaches.map(row => row.source));
-      const browserCalls = sources.map((source, index) => namesChromeLauncher(source, paths[index]));
+      const browserCalls = sources.map((source, index) => namesChromeLauncher(source, paths[index], byLaunch));
       if (paths.some((path, index) => (path.startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(path))
-        && browserCalls[index])) return true;
+        && browserCalls[index])) return bind(`launch call site in ${chain(paths[browserCalls.findIndex((call, at) => call && (paths[at].startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(paths[at])))])}`);
       // By launch, a process or module starter launches a browser only beside a Chrome executable reference.
       const starts = sources.map(source => byLaunch && usesDynamicBuiltinLoader(source));
+      if (byLaunch) {
+        seen.push(...originalSources);
+        // A process call with an unknown command binds only if the closure names Chrome somewhere [C7].
+        sources.forEach((source, index) => {
+          if (!pendingSite && !browserCalls[index] && namesChromeLauncher(source, paths[index], false)) pendingSite = chain(paths[index]);
+        });
+      }
       const dynamicLoaderIndex = byLaunch ? -1 : sources.findIndex(usesDynamicBuiltinLoader);
       if (dynamicLoaderIndex >= 0) return browserFallback(onFallback, paths[dynamicLoaderIndex], 'dynamic process builtin loading can load an unclassified module');
       const commonJsIndex = parsedSources(originalSources, memo).findIndex(parsed => parsed.commonJs);
@@ -675,22 +693,24 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
             }
           }
           if (target === CHROME_FIXTURE) {
-            if (!byLaunch) return true;
+            if (!byLaunch) return bind(`reaches ${chain(target)} from ${paths[index]}`);
             const key = `${request}\0${sources[index]}`;
             if (!launchFree.has(key)) launchFree.set(key, launchFreeChromeImport(sources[index], request));
-            if (!launchFree.get(key)) return true;
+            if (!launchFree.get(key)) return bind(`launching Chrome fixture export reached ${chain(paths[index])} > ${target}`);
             continue;
           }
           if (!target.endsWith('.json')) {
             const value = demands.get(paths[index]);
             const names = byLaunch ? reaches[index].requests.has(request) ? reaches[index].requests.get(request) : null : null;
+            if (!parents.has(target) && !demands.has(target)) parents.set(target, paths[index]);
             demand(target, names, byLaunch && (value.narrow || reaches[index].barrel || names !== null), next);
           }
         }
-        if (starts[index] && browserCalls[index]) return true;
+        if (starts[index] && browserCalls[index]) return bind(`process starter beside a Chrome reference in ${chain(paths[index])}`);
       }
       frontier = [...next];
     }
+    if (pendingSite && seen.some(sourceNamesChrome)) return bind(`process call with an unknown command, and Chrome named in the closure: ${pendingSite}`);
     return false;
   } catch {
     return browserFallback(onFallback, '<test selection>', 'source graph could not be inspected safely');
@@ -721,7 +741,7 @@ export async function testsNeedBrowser(root, files, { commit, onFallback, byLaun
  * @param {{byLaunch?:boolean}} [options] - unset reads gate.browserByLaunch
  * @returns {Promise<string[]>}
  */
-export async function browserBoundFiles(root, files, { byLaunch, stats = null } = {}) {
+export async function browserBoundFiles(root, files, { byLaunch, stats = null, reasons = null } = {}) {
   return withImportParseCache(async () => {
     byLaunch ??= await browserByLaunchSetting();
     const memo = new Map();
@@ -740,16 +760,19 @@ export async function browserBoundFiles(root, files, { byLaunch, stats = null } 
     for (const file of files) {
       const path = repositoryPath(root, file) ?? file;
       const entry = cache.entries[path];
-      if (tree && cachedVerdictHolds(entry, { byLaunch, tree, changed })) {
+      if (tree && cachedVerdictHolds(entry, { byLaunch, tree, changed, ruleVersion: BROWSER_RULE_VERSION })) {
         if (entry.bound) bound.push(file);
+        if (entry.reason && reasons) reasons.set(file, entry.reason);
         if (stats) stats.reused = (stats.reused ?? 0) + 1;
         continue;
       }
       const walked = new Set();
-      const verdict = await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, walked);
+      const why = {};
+      const verdict = await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, walked, why);
       if (verdict) bound.push(file);
+      if (verdict && reasons) reasons.set(file, why.reason ?? 'uncertain graph keeps the browser');
       if (stats) stats.scanned = (stats.scanned ?? 0) + 1;
-      if (tree) { cache.entries[path] = { bound: verdict, byLaunch, tree, closure: [...walked] }; dirty = true; }
+      if (tree) { cache.entries[path] = { bound: verdict, byLaunch, tree, closure: [...walked], ruleVersion: BROWSER_RULE_VERSION, reason: verdict ? (why.reason ?? 'uncertain graph keeps the browser') : '' }; dirty = true; }
     }
     if (dirty && cacheFile) { try { writeBrowserScanCache(cacheFile, cache); } catch { /* a cache that cannot be written only costs the next scan */ } }
     return bound;
