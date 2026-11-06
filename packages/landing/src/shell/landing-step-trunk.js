@@ -32,6 +32,7 @@ import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 import { singleItemLanding } from './landing-step-selection.js';
+import { oneItemBatch } from './landing-step-selection.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
@@ -186,7 +187,7 @@ export async function landOnTrunk(state) {
     if (!(error instanceof Refused)) throw error;
     // A landing fault keeps the batch merging or gating with its worktree, so the next wake adopts and resumes it [C7].
     if (landingFault(error)) throw error;
-    if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
+    if (oneItemBatch(state) && await returnRefusedItem(state, error)) {
       await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
       state.say(`nothing landed: ${error.message}`);
       return;

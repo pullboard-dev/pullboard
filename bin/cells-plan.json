@@ -2014,6 +2014,10 @@
     {
       "path": "bin/automatic-landing.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "cell": "app:cli"
     }
   ],
   "engineStays": [

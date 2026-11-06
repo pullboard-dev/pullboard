@@ -1,4 +1,5 @@
 /** A red queued gate leads its builder's next, inbox and claim with the exact refusal [V4,H16,N2]. */
+import { submitHandoff } from './submit-handoff-read.js';
 import { submitHandoffFailure } from './submit-handoff-read.js';
 
 /**
@@ -10,10 +11,13 @@ import { submitHandoffFailure } from './submit-handoff-read.js';
  * @returns {{ id: number, title: string, leaseUntil: string, error: { code: string, message: string, next: string } }[]}
  */
 export function queuedReds(board, seat) {
+  const observedThrough = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
   return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner=? ORDER BY item_id").all(seat)
-    .map(item => ({ item, error: submitHandoffFailure(board, item) }))
+    .map(item => ({ item, error: submitHandoffFailure(board, item), job: submitHandoff(board, item.item_id),
+      eventId: board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(item.item_id).id }))
     .filter(row => row.error)
-    .map(({ item, error }) => ({ id: item.item_id, title: item.item_title, leaseUntil: item.item_lease_until, error }));
+    .map(({ item, error, job, eventId }) => ({ id: item.item_id, title: item.item_title, leaseUntil: item.item_lease_until,
+      commit: job.commit, eventId, observedThrough, error }));
 }
 
 /**
