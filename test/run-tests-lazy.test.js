@@ -11,12 +11,38 @@ import { runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
+import { testsNeedCpuRunner } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
+
+test('a named-file import check meets its declared ten-second budget [C7,V4]', { cpuLoad: true }, t => {
+  const declaredBudget = 10_000;
+  const started = performance.now();
+  assert.equal(testsNeedCpuRunner(ROOT, ['test/run-tests-lazy.test.js']), true,
+    'the optimized classifier still recognizes this real CPU declaration');
+  const elapsed = performance.now() - started;
+  t.diagnostic(`named-file import check: ${elapsed.toFixed(1)}ms; declared budget ${declaredBudget}ms`);
+  assert.ok(elapsed < declaredBudget, `named-file import check took ${elapsed.toFixed(1)}ms`); // budget: declared #2425 ten-second named-file import-check limit.
+  const box = fixture();
+  assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
+});
+
+test('the real runner prints phases on successful and refused named runs [C7,V4]', () => {
+  const box = fixture();
+  for (const [extra, status] of [[[], 0], [['--test-name-pattern=no-such-case'], 1]]) {
+    const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', ...extra, 'web/plain.test.js'], {
+      cwd: box.repo, env: box.env, encoding: 'utf8',
+    });
+    assert.equal(child.status, status, child.context ?? child.stderr + child.stdout);
+    const lines = child.stderr.split('\n').filter(line => line.startsWith('run-tests: phases '));
+    assert.equal(lines.length, 1, 'each actual controller prints once');
+    assert.match(lines[0], /selection [\d.]+s, admission [\d.]+s, tests [\d.]+s, cleanup [\d.]+s, total [\d.]+s/u);
+  }
+});
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
 function moduleObserver(box) {
