@@ -81,6 +81,21 @@ function recentLightActivity(board) {
 }
 
 /**
+ * A capable seat's pick that is light work with no current diagnosis, while a light seat is active, is offered as
+ * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
+ *
+ * @param {any} board
+ * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {string} seatRoute
+ * @returns {boolean}
+ */
+export function diagnoseWanted(board, item, seatRoute) {
+  if (seatRoute === 'light' || item?.item_status !== 'open') return false;
+  const stored = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(item.item_id);
+  return Boolean(stored && lightDiagnosisProblem(board, stored) && recentLightActivity(board));
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models

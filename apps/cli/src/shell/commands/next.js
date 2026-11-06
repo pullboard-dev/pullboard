@@ -178,6 +178,7 @@ async function nextWithProgress(io, values, progress) {
       await progress.retry({ retryDetail: { phase: 'main spec merge', item: found.specMerged.item, code: 'MAIN_SPEC_MERGED' } });
       continue;
     }
+    if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
@@ -279,4 +280,15 @@ async function nextWithProgress(io, values, progress) {
 /** Run `pullboard next` and return its exit code. */
 export function run(io, { first, values }) {
   return nextHere(io, { ...values, verifyId: first });
+}
+
+/** Offer a capable seat the handoff a light seat needs, claiming nothing, so light work reaches light seats (#2973). */
+function sayDiagnoseOffer(io, { diagnose: item, reasons }) {
+  const id = item.item_id;
+  io.result?.({ diagnose: { item_id: id, item_title: item.item_title }, item: null, reasons });
+  io.say(`diagnose #${id}: ${item.item_title} is light work with no diagnosis, so no light seat can take it`);
+  if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+  if (item.item_check) io.say(`check: ${item.item_check}`);
+  io.say(`next: read it with pullboard show ${id}, then record the handoff: pullboard fact ${id} diagnosis "Files: <exact paths> Change: <the exact fix> Test case: <the named case and assertion>"; then pullboard next`);
+  io.say(`if it is not light work, build it yourself: pullboard claim ${id}`);
 }

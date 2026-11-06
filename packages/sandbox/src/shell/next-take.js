@@ -86,6 +86,7 @@ export async function nextTake(ctx, values = {}, services) {
     || !store.ROUTES.includes(looked.item.item_route) || !store.canTake(me.route, looked.item.item_route)))
     return { reasons: [`#${looked.item.item_id} is available in ${looked.item.item_lane} on the ${looked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
   return await withBoard(ctx, async board => {
+    if (!looked.review && store.diagnoseWanted(board, looked.item, me.route)) return { diagnose: looked.item, reasons: looked.reasons ?? [] };
     ctx.io.nextPhase?.(looked.review ? 'review reservation' : 'claim', looked.item.item_id);
     if (looked.review) {
       let reviewed;
