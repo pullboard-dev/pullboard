@@ -84,6 +84,7 @@ async function moveRepository(box, name, owner) {
 /** Seed genuine native lifecycle records; this synthetic acceptance does not claim a gate or review ran. */
 function privateMoveStatus(file, id, status, root, lane, commit) {
   return withMoveBoard(file, board => {
+    board.gitRoot = root; // a private board lives outside .git, so name its repository for the sealed submit policy [V4,C7]
     const builder = store.register(board, { lane, path: join(root, `builder-${id}`), model: 'fixture-builder' });
     const reviewer = store.register(board, { lane, path: join(root, `reviewer-${id}`), model: 'fixture-reviewer' });
     const digest = `private-move-${id}`;
