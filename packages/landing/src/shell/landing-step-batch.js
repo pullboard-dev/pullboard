@@ -301,6 +301,14 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     batch = null;
   }
   if (batch && await retireHeldBatch(root, board, write, say, batch)) batch = null;
+  // An acceptance that adopts an interrupted batch joins the ready work selected at this same main snapshot.
+  if (batch && interrupted && selected.ready.length) {
+    const candidates = batch.candidates ?? batch.items ?? [];
+    const known = new Set(candidates.map(entry => entry.id));
+    const arrivals = selected.ready.filter(item => !known.has(item.item_id)).map(landingEntry);
+    if (arrivals.length) batch = await write('recordLandingBatch', [{ agentId: 'coordinator',
+      batch: { ...batch, candidates: [...candidates, ...arrivals] }, revision: batch.revision }]);
+  }
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
