@@ -35,6 +35,9 @@ import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
+import { runnerHandoffWanted } from './submit-runner-ticket.js';
+import { queueRunnerHandoffTicket } from './submit-runner-ticket.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
@@ -47,7 +50,11 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart, urgent: itemUrgent(board, item.item_id) }) } : queued;
   }));
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, result.job));
-  if (result.created) {
+  if (result.created && runnerHandoffWanted(loadMachineSettings())) {
+    // The runner does the work: this machine keeps the board write and one ticket, with no worker, checkout or tools copy [C7].
+    await queueRunnerHandoffTicket(ctx.info, result.job, item.item_id, { reservation: result.reservation, startOf: exactStart });
+    await ensureHandoffDispatcher(dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker))))), ctx.info.commonDir, { startOf: exactStart });
+  } else if (result.created) {
     git(ctx.info.root, ['update-ref', `refs/pullboard/submit-handoffs/${result.job.id}`, result.job.commit]);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     // Snapshot the running Pullboard build separately from the submitted project.

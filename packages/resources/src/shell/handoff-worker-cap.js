@@ -233,7 +233,7 @@ function endUnstarted(file, name, launch, error) {
  *   are noticed, and how an exited worker's slot is freed (a throw is logged and retried on the next pass).
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, runnerTicket } = {}) {
   const started = [];
   for (;;) {
     let lock;
@@ -244,7 +244,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
+    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, runnerTicket); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -278,7 +278,7 @@ function boundAfterResult(entry, now, graceMs) {
 }
 
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, runnerTicket) {
   const running = new Map();
   let wake = () => {};
   while (waitingTickets().length || running.size) {
@@ -300,6 +300,14 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       let launch;
       try { launch = JSON.parse(readFileSync(file, 'utf8')); }
       catch (error) { slot.release(); throw new Refused('HANDOFF_QUEUE_SOURCE', `cannot read queued worker ${name}: ${error.message}; restore its ticket before dispatch`); }
+      if (launch.kind === 'runner') {
+        // A runner ticket starts no process here: the dispatcher hands the commit to a runner and the runner does the work [C7].
+        slot.release();
+        rmSync(file);
+        if (runnerTicket) { started.push(launch.job); runnerTicket(launch).catch(error => logDispatcher(`runner ticket ${launch.job} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`)); }
+        else logDispatcher(`runner ticket ${launch.job} dropped: no runner hand-off is wired into this dispatcher`);
+        continue;
+      }
       let worker;
       const startedAt = Date.now();
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
