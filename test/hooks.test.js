@@ -220,20 +220,20 @@ test('header format, length, case and period [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\nsecond line'), ['leave a blank line after the header']);
 });
 
-test('comments are dropped; merges, reverts and fixups are exempt', () => {
+test('comments are dropped; merges, reverts and fixups are exempt [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\n# Please enter the commit message'), []);
   assert.deepEqual(check("Merge branch 'web/page'"), []);
   assert.deepEqual(check('fixup! feat(web): add the page [G1]'), []);
 });
 
-test('opt-in rules: filler words, emoji, co-author trailers', () => {
+test('opt-in rules: filler words, emoji, co-author trailers [C1]', () => {
   const strict = { ...RULES, banned: ['basically', 'seamless'], noEmoji: true, noCoAuthor: true };
   const problems = check('docs: basically seamless lanes \u{1F680}\n\nCo-Authored-By: Bot <b@x>', strict);
   assert.deepEqual(problems, ['drop the filler word "basically"', 'drop the filler word "seamless"', 'remove the emoji', 'remove the Co-Authored-By trailer']);
   assert.deepEqual(check('docs: basically fine'), []);
 });
 
-test('blocked paths: env files by name, examples allowed, patterns with a slash match paths', () => {
+test('blocked paths: env files by name, examples allowed, patterns with a slash match paths [C5]', () => {
   const protect = { ...defaults().protect, blocked: [...defaults().protect.blocked, 'data/*.csv'] };
   assert.deepEqual(
     blockedPaths(['.env', 'app/.env.local', 'prod.env', '.env.example', 'data/claims.csv', 'docs/data/x.csv', 'src/a.js'], protect),
@@ -243,7 +243,7 @@ test('blocked paths: env files by name, examples allowed, patterns with a slash 
   assert.ok(!matchesPattern('.env.*', 'environment.js'));
 });
 
-test('secrets are named by kind and place, never echoed', () => {
+test('secrets are named by kind and place, never echoed [C5]', () => {
   // Built at run time, so this file never holds a string its own pre-commit scan would refuse.
   const fakeKey = ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-');
   const diff = [
