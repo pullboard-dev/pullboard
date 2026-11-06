@@ -228,11 +228,14 @@ export async function gateGroup(state, label, options) {
   const directory = join(dirname(state.batch.root), 'logs');
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
+  state.say(`gate ${label}: saving the gating record`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
+  state.say(`gate ${label}: gating record saved`);
   const onFailure = landingRunObserver(state, config, commit);
   const quarantines = state.landingPorts.quarantineVerdictSnapshot(state.board);
   const item = store.getItem(state.board, state.batch.items[0].id);
   const proofContext = { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' };
+  state.say(`gate ${label}: ${subset ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = subset
     ? await runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
@@ -240,6 +243,7 @@ export async function gateGroup(state, label, options) {
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext });
+  state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
