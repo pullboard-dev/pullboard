@@ -12,7 +12,8 @@
   "landing": {
     "manualOverride": false,
     "publish": "separate",
-    "perItem": false
+    "perItem": false,
+    "parallel": false
   },
   "submit": {
     "requireInfraNote": true,
