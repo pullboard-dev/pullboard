@@ -38,8 +38,8 @@ test('the roadmap panel counts the next release by stage [N26]', {
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   box.run(alpha.web, 'claim', '2');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'The last shipped note.\nA second detail line.', '--items', '6');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'Shipping next.', '--items', '1,2,3,4,5');
+  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'The last shipped note.\nA second detail line.', '--items', '6', '--reason', 'the test release names its shipped item');
+  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'Shipping next.', '--items', '1,2,3,4,5', '--reason', 'the test release takes the next items');
   box.run(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
   const shippedAt = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones.find(milestone => milestone.name === '0.8.6').shipped.at;
   const shippedLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(Date.parse(shippedAt)) + ' · on npm';

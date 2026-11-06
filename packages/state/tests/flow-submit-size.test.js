@@ -72,8 +72,10 @@ test('a native submit records its immutable changed-line base and head for flow 
 test('submission size replays identically and refuses unsupported or malformed measurements [R1,R2,H16]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.sandbox();
-  const source = openBoard(join(box.dir, 'source.sqlite'));
+  // A native board must know its repository, so the fixture boards live in a repo's .git/pullboard as Pullboard stores them.
+  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  const source = openBoard(join(box.repo, '.git/pullboard/source.sqlite'));
+  source.gitRoot = box.repo; // The native CLI binds its repository on open; this fixture binds it the same way.
   const copies = [];
   t.after(() => { for (const board of [source, ...copies]) store.closeBoard(board); });
   // The older submit control needs joins and a claim that its writer could actually have recorded.
@@ -85,7 +87,8 @@ test('submission size replays identically and refuses unsupported or malformed m
     freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) }]);
   const document = exportBoard(source);
   for (let index = 0; index < 4; index += 1) {
-    const board = openBoard(join(box.dir, `replica-${index}.sqlite`));
+    const board = openBoard(join(box.repo, `.git/pullboard/replica-${index}.sqlite`));
+    board.gitRoot = box.repo;
     importBoard(board, document);
     copies.push(board);
   }
