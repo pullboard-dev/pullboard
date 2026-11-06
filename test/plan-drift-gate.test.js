@@ -48,6 +48,7 @@ function plannedProject(t, { companionLanes = false } = {}) {
     config.lanes.view = { owns: ['src/view/', 'apps/view/'], specs: ['G1'] };
     config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
   } else config.lanes.web.owns.push('src/', 'packages/items/', 'apps/web/', 'bin/cells-plan.json', 'bin/cells-plan/');
+  config.lanes.probe = { owns: ['src/plan-gate-probe.js'], specs: ['G1'] };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the real placement fixture');
@@ -55,7 +56,33 @@ function plannedProject(t, { companionLanes = false } = {}) {
   box.git(box.repo, 'add', 'bin/cell-lint-baselines');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: capture the tiny project baseline');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  enforcePlacementTrial(box);
   return { ...box, marker };
+}
+
+/**
+ * Put the placement refusal past its trial in the fixture's own ledger, so a real submit refuses it rather than only
+ * reports it. Why: machinery refusals start in report mode on every fresh repository (#2611) under an identity bound to
+ * the rule's content, so a probe submit from a spare worktree records that identity first and the ledger is then aged.
+ */
+function enforcePlacementTrial(box) {
+  const probe = join(box.dir, 'placement-probe');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
+  success(box, probe, 'join', 'probe', '--model', 'Fixture');
+  const id = success(box, box.repo, 'add', 'probe', 'Cells move 1/1: probe the placement trial', '--specs', 'G1',
+    '--criterion', 'the probe source is planned', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
+  success(box, probe, 'claim', String(id));
+  mkdirSync(join(probe, 'src'), { recursive: true });
+  writeFileSync(join(probe, 'src/plan-gate-probe.js'), 'export const probe = 1;\n');
+  box.git(probe, 'add', 'src/plan-gate-probe.js');
+  box.git(probe, 'commit', '-q', '-m', 'feat(probe): add the probe source [G1]');
+  success(box, probe, 'submit', String(id));
+  const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
+  const ledger = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(ledger.codes.CELLS_PLAN_UNPLACED, 'the probe recorded the placement trial');
+  ledger.gates = 20;
+  ledger.codes.CELLS_PLAN_UNPLACED.start = 0;
+  writeFileSync(file, JSON.stringify(ledger) + '\n');
 }
 
 /** Keep actual native command failures in every setup assertion. */
@@ -126,7 +153,7 @@ test('native view submit validates its core companion placement on the composed 
   const view = join(box.dir, 'placement-view'), core = join(box.dir, 'placement-core');
   for (const [path, lane] of [[view, 'view'], [core, 'core']]) {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-    success(box, path, 'join', lane);
+    success(box, path, 'join', lane, '--model', 'Fixture');
   }
   const author = success(box, core, 'whoami').id;
   const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
