@@ -142,6 +142,25 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
+  const workerRecord = readWorkerRecord(directory);
+  if (!workerRecord && observed.state === 'queued') {
+    const unlaunched = await withHandoffQueueOrder(() => {
+      const current = withBoardRead(ctx, board => {
+        const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
+        const job = submitHandoff(board, itemId);
+        return job?.id === observed.id && job.state === 'queued' && item?.item_status === 'claimed'
+          && item.item_owner === actor && item.item_frozen_digest === observed.digest;
+      });
+      if (!current || existsSync(join(directory, 'request.json')) || handoffTicketWaiting(observed.id)) return false;
+      // The dispatcher writes worker.json before it removes the ticket. Recheck both artifacts after the ticket read so
+      // a just-started worker cannot be mistaken for a queue whose capture never began.
+      return !readWorkerRecord(directory) && !existsSync(join(directory, 'request.json')) && !handoffTicketWaiting(observed.id);
+    });
+    if (unlaunched) {
+      await failUnlaunchedSubmitHandoff(ctx, itemId, actor, observed, 'both request.json and worker.json are missing');
+      return;
+    }
+  }
   const worker = queuedWorkerRecord(observed, { readWorker: () => readWorkerRecord(directory) });
   if (!worker || !deadWorker(worker, observed)) return;
   let owned = false;
@@ -195,6 +214,18 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
       }
     }
   }
+}
+
+/** End a queue whose captured request and worker were never created, so its owner can submit the same source again. */
+async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
+  const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_NOT_LAUNCHED',
+    `queued submit worker was not launched: ${cause}; no gate ran`,
+    'resubmit the same committed source to launch a fresh worker'), { caller: 'seat' }) };
+  const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
+  return withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+    { agentId: actor, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
 }
 
 /**
