@@ -182,7 +182,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   // A revert that restores the reviewed bytes now composes unchanged and reads fresh (96dd1fbad5, 60327df8ec); a further move still reads stale.
   box.git(mainEditor, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 2\n', 'feat(web): move main caller again [G1]').status, 0);
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 0\nlater = 2\n', 'feat(web): move main caller again [G1]').status, 0);
   box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): move main caller again [G1]');
   syncTrunk();
   assert.ok(items().every(item => item.item_verdict_state?.code === 'STALE_VERDICT'), 'a later move keeps an old review stale');
