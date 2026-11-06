@@ -65,10 +65,14 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   for (const file of files) {
     let result;
     try {
-      result = await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true });
-    } catch { continue; }
+      // The known-main step already compared this file on the same base: reuse its answer instead of a second run.
+      result = state.mainComparisons?.get(file)?.main === state.batch.base ? state.mainComparisons.get(file)
+        : await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+          { commit: state.batch.base, detailed: true, allowCancelled: true });
+    } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); continue; }
     const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+    // Every outcome is named, so a held batch says why its base comparison gave nothing usable [C7].
+    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
     if (row) rows.set(file, row);
   }
   if (!rows.size) return null;
@@ -141,7 +145,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   if (!split.own.length) return items;
   failures = split.own;
   if (items.length === 1) {
-    await returnCulprit(state, items[0], failures);
+    await returnCulprit(state, items[0], failures, { isolated: true });
     return [];
   }
   const middle = Math.ceil(items.length / 2);
@@ -187,8 +191,11 @@ export function ownFailures(state, entry, failures) {
  * it neither changed nor names in its check reopens nothing: the batch keeps the failure and the item stays verified.
  * Why shared: a bisection's last item and a per-item landing's only item are the same case [C7,#2901,#2967].
  */
-export async function returnCulprit(state, item, failures) {
-  const own = ownFailures(state, item, failures);
+export async function returnCulprit(state, item, failures, { isolated = false } = {}) {
+  // An item a bisection isolated is the only change in its tree: its named reds that main passes are its own even in
+  // files it never touched. Why: "stays verified" sent such an item round again, a bisection each time [C7].
+  const charged = isolated && failures.length && failures.every(failure => failure.file && !failure.watchdog) ? failures : ownFailures(state, item, failures);
+  const own = charged;
   if (!own.length) {
     await save(state, { failures });
     state.say(`landing red is not #${item.id}'s: ${failures.map((failure) => `${failure.file ?? 'gate'}: ${failure.name}`).join('; ')}; it stays verified`);
@@ -237,7 +244,12 @@ export function landingFault(error) {
 /** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
 export function itemRefusal(error) {
   if (!(error instanceof Refused)) return false;
-  return ITEM_REFUSALS.has(error.code) || (error.code === 'LAND_CLI_SMOKE' && /^the candidate's /u.test(error.message));
+  // Documentation that cannot regenerate from the merged tree is the candidate's own declarations [C7].
+  return ITEM_REFUSALS.has(error.code) || (error.code === 'LAND_CLI_SMOKE' && /^(?:\[LAND_CLI_SMOKE\] )?the candidate's /u.test(error.message))
+    || (error.code === 'LAND_MERGE' && /update-docs\.js failed in the merged tree/u.test(error.message))
+    // Static checks on a single item's merged tree name that item's source; main's own static checks are green
+    // whenever the lander runs, since a red there stops every batch alike [C7].
+    || (error.code === 'GATE_RED' && /static checks are red/u.test(error.message));
 }
 
 /**

@@ -14,7 +14,7 @@ import {
 } from "./board-landing-local-lease.js";
 
 const KEY = 'landing_lease';
-export const LANDING_LEASE_MS = 30_000;
+export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Read the durable queue without treating a corrupt record as an unoccupied trunk. */
 function sharedLandingLeaseState(board) {

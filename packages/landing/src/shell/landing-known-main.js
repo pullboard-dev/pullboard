@@ -27,18 +27,31 @@ export async function knownMainAccount(state, gate) {
   const known = [], remaining = [];
   let changed = null;
   // Each failing file is compared on its own: a file main cannot run (new in the batch) never hides another file's known case.
-  for (const file of [...new Set(failures.map(failure => failure.file))]) {
-    const cases = failures.filter(failure => failure.file === file);
-    let comparison = null;
+  // The files compare at once, bounded by the gate slots the comparisons take; one after another, six red files cost
+  // six comparisons' wall time while the runners sat idle [C7].
+  const files = [...new Set(failures.map(failure => failure.file))];
+  const comparisons = await Promise.all(files.map(async file => {
     try {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
       // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
       const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
-      comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged });
-    } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); /* An unavailable comparison never excuses a red case. */ }
-    if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
-    for (const failure of cases) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
+      const comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
+        // A landing's comparison waits as a landing, ahead of seat submits in the slot line; as a plain diagnostic it
+        // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
+        { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
+      if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
+      else {
+        // Keep the answer for the base split: it ran the same file on main a second time on 6 Nov, 3 minutes each [C7].
+        (state.mainComparisons ??= new Map()).set(file, comparison);
+        const row = comparison?.files?.find(entry => entry.file === file);
+        state.say?.(`main comparison for ${file} at ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+      }
+      return comparison;
+    } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
+  }));
+  for (const [index, file] of files.entries()) {
+    const comparison = comparisons[index];
+    for (const failure of failures.filter(entry => entry.file === file)) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
