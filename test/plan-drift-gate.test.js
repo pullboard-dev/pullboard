@@ -101,7 +101,7 @@ function refusedPhaseCounts(marker) {
   }
 }
 
-test('native submit refuses an unplanned source while independent checks run, then the placed source submits [C7]', t => {
+test('clause 1: native submit refuses an unplanned source while independent checks run, then the placed source submits [C7]', t => {
   const box = plannedProject(t);
   const id = success(box, box.repo, 'add', 'web', 'Cells move 1/1: place the new source', '--specs', 'G1',
     '--criterion', 'the added source is planned', '--check', 'node check.cjs criterion', '--route', 'strong', '--wait').item.item_id;
