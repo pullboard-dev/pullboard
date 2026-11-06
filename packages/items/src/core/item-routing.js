@@ -22,10 +22,10 @@ const BRIEF_LIMIT = 8000;
  * @returns {string[]}
  */
 export function checkTestFiles(check) {
-  return [...new Set((String(check ?? '').match(/(?:^|\s)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))(?:\s|$)/gu) ?? []).map(value => value.trim().split(/\s/u).at(-1)))];
+  return [...new Set([...String(check ?? '').matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))\1(?=\s|$)/gu)].map(match => match[2]))];
 }
 
-/** Fill absent low-route file and test sections from literal test paths in the item's check. */
+/** Fill absent low-route file and test sections from literal test paths, bare or quoted, in the item's check (#3120). */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };
   const sections = briefSections(brief, referenceOptions);

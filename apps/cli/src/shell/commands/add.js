@@ -5,6 +5,8 @@ import { criterionSize } from '../../../../../packages/items/index.js';
 import { criterionCells } from '../../../../../packages/items/index.js';
 import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { defaultItemRoute } from '../../../../../packages/items/index.js';
+import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
 import {
@@ -52,6 +54,14 @@ import {
   CHECKOUT_LEASES,
 } from '../cli.js';
 
+/**
+ * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
+ * light default would refuse DIAGNOSIS_REQUIRED on every plain add; it starts mid, as next already offers it (#3120).
+ */
+function addedRoute(board, route) {
+  return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
+}
+
 /** Run `pullboard add` and return its exit code. */
 export async function run(io, args) {
   const command = 'add';
@@ -88,7 +98,7 @@ export async function run(io, args) {
     reviewFamily: values['review-family'],
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
-    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)) : 'strong'),
+    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
