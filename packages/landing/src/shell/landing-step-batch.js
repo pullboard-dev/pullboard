@@ -61,6 +61,7 @@ import { publish } from './landing-step-publish.js';
 import { landsOnTrunk } from './landing-step-publish.js';
 import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
+import { flakeRatchetBeforeGate } from './landing-step-trunk.js';
 import { finishTrunk } from './landing-step-publish.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
@@ -356,6 +357,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);
     else {
+      await flakeRatchetBeforeGate(state);
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);
