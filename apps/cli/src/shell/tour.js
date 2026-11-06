@@ -48,6 +48,7 @@ const CONFIG = {
   name: 'demo',
   project: 'Pullboard tour demo',
   gate: 'node --test',
+  affectedTests: 'node --test',
   spec: 'SPEC.md',
   verify: { policy: 'any', family: 'off' },
   lease: '2h',
