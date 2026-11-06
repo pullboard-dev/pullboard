@@ -98,6 +98,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         } else result = { holder: current.holder, position: current.line.indexOf(entry) + 1, acquired: false, generation: null };
         rememberLocalLanding(board, { ...entry, until: new Date(board.clock.now().getTime() + 30_000).toISOString() });
       } else {
+        (await import('node:fs')).appendFileSync(`${(await import('../../../git/index.js')).repoInfo(process.cwd()).commonDir}/landtrace.log`, `LEASE pid=${process.pid} argv=${process.argv.slice(1).join(' ')} t=${new Date().toISOString()}\n`);
         result = await write('landingLeaseMove', [{ ...parameters, action: 'request' }]);
         const acknowledged = result.acquired ? result.holder : landingLeaseState(board).line.find(value => value.token === token);
         if (acknowledged) rememberLocalLanding(board, acknowledged);
