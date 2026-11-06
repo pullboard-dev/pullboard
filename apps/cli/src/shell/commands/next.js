@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
 import { fileChangeWaiter } from '../../../../../packages/activity/index.js';
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
-import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
@@ -126,7 +125,19 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  withBoard(ctx, board => {
+    const me = whoAmI(ctx, board);
+    const reds = store.queuedReds(board, me.id).filter(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    if (reds.length) {
+      const activity = store.activityDeliveryState(board, me.id);
+      store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
+        observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
+          id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
+        })) });
+      for (const line of store.queuedRedLines(reds)) io.say(line);
+    }
+  });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -159,8 +170,13 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.take && !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
-    const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
+    // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
+    const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
+    const selectionValues = redClaims.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+      : values;
+    const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -229,13 +245,15 @@ async function nextWithProgress(io, values, progress) {
       return 0;
     }
     const idleReason = found.idleReason ?? 'unknown';
+    const idleObservation = { reason: idleReason, skips: found.skips ?? [] };
+    const idleKey = JSON.stringify(idleObservation);
     let recordedIdle = false;
-    if (!found.retry && idleReason !== lastIdleReason) {
+    if (!found.retry && idleKey !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
-          { agentId: whoAmI(ctx, board).id, reason: idleReason }));
+          { agentId: whoAmI(ctx, board).id, ...idleObservation }));
         if (changed) {
-          await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+          await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
           recordedIdle = true;
         }
       } catch (error) {
@@ -243,7 +261,7 @@ async function nextWithProgress(io, values, progress) {
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
         io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
       }
-      lastIdleReason = idleReason;
+      lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
