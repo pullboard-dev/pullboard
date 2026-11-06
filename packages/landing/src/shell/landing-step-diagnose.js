@@ -14,6 +14,7 @@ import { runProfiledShell } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { itemRefusalText } from '../core/item-refusal.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -246,7 +247,7 @@ export function namedFailures(gate) {
  * Refusals the candidate's own content causes; every other refusal is the landing's infrastructure or diagnosis
  * (board busy, runners, git, timeouts, diagnostics) and reopens nothing [C7,#2901,#2967].
  */
-const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
+// The codes live in core (item-refusal.js) so the batch sizer judges them the same way.
 
 /**
  * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
@@ -263,12 +264,7 @@ export function landingFault(error) {
 /** True when a refusal is the candidate's own: an item code, or the CLI smoke naming the candidate's exit [C7,#2967]. */
 export function itemRefusal(error) {
   if (!(error instanceof Refused)) return false;
-  // Documentation that cannot regenerate from the merged tree is the candidate's own declarations [C7].
-  return ITEM_REFUSALS.has(error.code) || (error.code === 'LAND_CLI_SMOKE' && /^(?:\[LAND_CLI_SMOKE\] )?the candidate's /u.test(error.message))
-    || (error.code === 'LAND_MERGE' && /update-docs\.js failed in the merged tree/u.test(error.message))
-    // Static checks on a single item's merged tree name that item's source; main's own static checks are green
-    // whenever the lander runs, since a red there stops every batch alike [C7].
-    || (error.code === 'GATE_RED' && /static checks are red/u.test(error.message));
+  return itemRefusalText(error.code, error.message);
 }
 
 /**
