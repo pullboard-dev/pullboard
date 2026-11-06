@@ -65,10 +65,14 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   for (const file of files) {
     let result;
     try {
-      result = await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true });
-    } catch { continue; }
+      // The known-main step already compared this file on the same base: reuse its answer instead of a second run.
+      result = state.mainComparisons?.get(file)?.main === state.batch.base ? state.mainComparisons.get(file)
+        : await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+          { commit: state.batch.base, detailed: true, allowCancelled: true });
+    } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); continue; }
     const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+    // Every outcome is named, so a held batch says why its base comparison gave nothing usable [C7].
+    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
     if (row) rows.set(file, row);
   }
   if (!rows.size) return null;
