@@ -46,7 +46,7 @@ async function produceCells(commit) {
   const ran = await withMainCheckout(root, commit, checkout => spawnSync(process.execPath,
     [fileURLToPath(new URL('bin/main-audit.js', `file://${checkout}/`)), root, token, '--cells-only', commit],
     { cwd: checkout, env: { ...process.env, PULLBOARD_CELLS_PINNED: commit }, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] }));
-  if (ran?.unavailable || ran?.status !== 0) throw new Error(ran?.unavailable ?? `accepted cells producer failed in the pinned checkout: ${String(ran?.stderr ?? '').trim().split('\n').slice(-3).join(' ').slice(0, 600)}`);
+  if (ran?.unavailable || ran?.status !== 0) throw new Error(ran?.unavailable ?? `accepted cells producer failed in the pinned checkout: ${String(ran?.stderr ?? '').split('\n').filter(line => /Error/u.test(line)).slice(0, 2).join(' ').slice(0, 600)}`);
   return ran;
 }
 
