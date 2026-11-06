@@ -27,7 +27,7 @@ export { appendRuleProof } from './src/shell/rule-proof-index.js';
 export { advancedVerdict, effectiveItemHead, requireSourceAdvanceReview, sourceAdvanceChain, sourceAdvanceEpisode, sourceAdvanceFloor, sourceAdvanceReviewEpisode } from './src/core/source-advance-state.js';
 export { composeReview, composesAtAdmission } from './src/shell/verdict-admission.js';
 export { recordVerdict, reviewAssurance, verdictAssurance } from './src/core/verdict-assurance.js';
-export { cachedVerdictStates, captureVerdictReview, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/shell/verdict-freshness.js';
+export { cachedVerdictStates, captureVerdictReview, composesUnchanged, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/shell/verdict-freshness.js';
 export { retryReviewCommit } from './src/core/verdict-retry.js';
 export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/core/verdict-reviews.js';
 export { judgeTrunkMove } from './src/shell/verdict-trunk.js';
