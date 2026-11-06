@@ -33,6 +33,9 @@ import { checkRouted } from "../../../items/index.js";
 import { stripPerItemFullSuiteCriterion } from "../../../items/index.js";
 import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../src/per-item-full-suite-engine.js";
 import { COORDINATOR } from "../../../config/index.js";
+import { loadConfig } from "../../../config/index.js";
+import { requireOwnLaneCheck } from "../../../verify/core.js";
+import { laneOf } from "../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
@@ -82,9 +85,14 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     // A coordinator removing prerequisites also removes the corresponding blocked-release wait.
     if (after !== undefined) {
       const marker = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${id}`);
+      const waiting = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_waiting:${id}`);
       if (marker) {
         const retained = JSON.parse(marker.meta_value).filter(value => after.includes(value));
-        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key IN (?,?)').run(JSON.stringify(retained), `blocked_release_waiting:${id}`, `claim_waiting:${id}`);
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `blocked_release_waiting:${id}`);
+      }
+      if (waiting) {
+        const retained = JSON.parse(waiting.meta_value).filter(value => after.includes(value));
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `claim_waiting:${id}`);
       }
     }
     saveCheckTiming(board, id, checkTiming);
@@ -157,6 +165,10 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
+  if (check !== undefined && board.gitRoot && agentId !== COORDINATOR) {
+    const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(agentId);
+    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: agentId, lane: actor?.agent_lane }, item.item_lane, command, laneOf);
+  }
   if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
   }
