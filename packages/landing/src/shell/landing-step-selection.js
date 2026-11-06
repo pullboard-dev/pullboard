@@ -53,7 +53,9 @@ export function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [] } = {}) {
+  // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
+  const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
@@ -71,6 +73,12 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
       if (!failed.has(right.item_id)) return 1;
       if (failed.get(left.item_id) !== failed.get(right.item_id)) return failed.get(left.item_id) - failed.get(right.item_id);
     }
+    const leftPin = pinned.get(left.item_id), rightPin = pinned.get(right.item_id);
+    if (leftPin !== undefined || rightPin !== undefined) {
+      if (leftPin === undefined) return 1;
+      if (rightPin === undefined) return -1;
+      if (leftPin !== rightPin) return leftPin - rightPin;
+    }
     const leftPriority = priorities.get(left.item_id);
     const rightPriority = priorities.get(right.item_id);
     if (leftPriority !== undefined || rightPriority !== undefined) {
@@ -84,7 +92,23 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const blocked = [];
   const touched = new Map();
   const knownReds = batches.flatMap((batch) => batch.culprits ?? []);
+  // Unverified submissions not already on base, read once: a pending item stacks on one when that submission's commit
+  // is among the item's own commits past base. Why: two merge-base walks per pending item per submission (850 Git
+  // processes for 85 waiting items) cost 4 minutes of every selection and left the lander idle between batches.
+  const unverified = store.unverifiedSubmissions(board).filter((other) => tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+  let staleProbes = 0;
   for (const original of pending) {
+    // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
+    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7]. A few items behind
+    // the batch still get their verdict projected, so a stale one returns to its lane this wake instead of waiting
+    // behind every fresh accept: #2466, #2711 and #2988 sat 30 h that way on 5 Nov [B3,C7].
+    if (ready.length >= maximum) {
+      if (staleProbes >= 8 || original.item_hold_at) continue;
+      staleProbes++;
+      const behind = projector.state({ ...original, item_landing_commit: store.checkedLandingCommit(board, original) });
+      if (behind?.code === 'STALE_VERDICT') blocked.push({ id: original.item_id, ...behind });
+      continue;
+    }
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
@@ -99,10 +123,11 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
-    if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
-    const stacked = store.unverifiedSubmissions(board).find((other) => other.item_id !== item.item_id
-      && tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, item.item_landing_commit]).status === 0
-      && tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+    const waitsOn = dependencies.filter((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id));
+    // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
+    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
+    const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
+    const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {
       blocked.push({ id: item.item_id, code: 'STACKED_UNVERIFIED', stacked: stacked.item_id });
       continue;
@@ -157,9 +182,21 @@ export function singleItemLanding(state) {
   return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
 }
 
+/**
+ * True when the batch holds exactly one item, whatever the trunk policy. A refusal of that item's own content (a red
+ * static check, a CLI smoke naming it) is the item's to fix, so it returns to its builder instead of being adopted
+ * again every wake. Why: with per-item off and a batch size of 1, #2566 was retried seven times in 20 minutes on
+ * 6 Nov and starved 24 other accepted items [C7,#2901,#2967].
+ */
+export function oneItemBatch(state) {
+  return (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
 /** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
 export function landingHooks(config) {
-  return landsPerItem(config) ? ['-c', 'core.hooksPath=/dev/null'] : [];
+  // Every landing commit is the board's own: the items' hooks ran when they were built, and a batch merge that ran the
+  // repository's commit-msg hook was refused for lacking a seat's claim (LAND_MERGE on #2721, 44 lander-minutes) [C7].
+  return ['-c', 'core.hooksPath=/dev/null'];
 }
 
 /** Skip admission only when no queued owner, interrupted batch or recorded Git repair needs it. */
