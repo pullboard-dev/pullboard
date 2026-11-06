@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { repoInfo } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { readMainAudit } from '../../../gate/index.js';
 import { saveMainAudit } from '../../../gate/index.js';
 import { scheduleMainAudit } from '../../../gate/index.js';
@@ -98,7 +99,7 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   const self = { pid: process.pid, started: processStart(process.pid) };
   let job = await withPending(directory, () => {
     const current = readMainAudit(file);
-    if (!current || current.version !== 1 || repoInfo(current.root).commonDir !== repoInfo(root).commonDir) return null;
+    if (!current || current.version !== 1 || !sameCommonDir(repoInfo(current.root).commonDir, repoInfo(root).commonDir)) return null;
     if (current.running && running(current.running)) return null;
     saveMainAudit(file, { ...current, running: self });
     return current;
@@ -151,7 +152,7 @@ export async function recoverAutomaticLanding(root, workerUrl) {
   const directory = automaticLandingDirectory(root);
   const job = readMainAudit(join(directory, 'pending.json'));
   if (!job) return false;
-  if (job.version !== 1 || repoInfo(job.root).commonDir !== repoInfo(root).commonDir) throw new Error('automatic landing repository changed');
+  if (job.version !== 1 || !sameCommonDir(repoInfo(job.root).commonDir, repoInfo(root).commonDir)) throw new Error('automatic landing repository changed');
   if (job.running && running(job.running)) return false;
   const timer = readMainAudit(join(directory, 'timer.json'));
   if (timer && running(timer)) return false;

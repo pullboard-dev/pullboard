@@ -6,6 +6,7 @@ import { constants } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { sameCommonDir } from '../../../git/index.js';
 import { renameSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -57,7 +58,7 @@ function registeredWake(info, boardId, seat) {
   try {
     registration = JSON.parse(readFileSync(wakeFile(boardId, seat.agent_id), 'utf8'));
     if (registration.version !== 1 || registration.boardId !== boardId || registration.seat !== seat.agent_id
-      || registration.root !== realpathSync(seat.agent_path) || registration.commonDir !== realpathSync(info.commonDir)
+      || registration.root !== realpathSync(seat.agent_path) || !sameCommonDir(registration.commonDir, realpathSync(info.commonDir))
       || typeof registration.command !== 'string' || !isAbsolute(registration.command)) return null;
   } catch (error) {
     if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error.code) || error instanceof SyntaxError) return null;

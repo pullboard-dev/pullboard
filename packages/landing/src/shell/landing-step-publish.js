@@ -19,6 +19,7 @@ import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { tryGit } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { isStampedGreen } from '../../../gate/index.js';
@@ -121,7 +122,7 @@ function parallelPublicationRoot(state, batch) {
   if (root === batch.root) return root;
   const owner = (batch.parallelCandidates ?? []).some(candidate => candidate.snapshot.root === root
     && (candidate.gate?.tree === batch.proof?.tree || candidate.snapshot.gateResults?.some(gate => gate.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath)));
-  if (!owner || !existsSync(root) || realpathSync(repoInfo(root).commonDir) !== realpathSync(repoInfo(batch.root).commonDir)) {
+  if (!owner || !existsSync(root) || !sameCommonDir(realpathSync(repoInfo(root).commonDir), realpathSync(repoInfo(batch.root).commonDir))) {
     throw new Refused('LAND_MOVED', 'the recorded gate-owning worktree is missing or belongs to another repository; restore it before adopting');
   }
   const tree = git(state.root, ['rev-parse', `${batch.tip}^{tree}`]);

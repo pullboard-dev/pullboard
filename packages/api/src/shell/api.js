@@ -43,6 +43,7 @@ import {
 } from 'node:fs';
 import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import * as store from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
@@ -246,7 +247,7 @@ function openRoadmapInputs(root, milestones, localDb, { scopeCommonDir = null } 
   const references = milestones.flatMap((milestone) => milestone.items.filter((item) => typeof item !== 'number'));
   const registered = references.length ? registeredProjects().filter((project) => {
     if (scopeCommonDir === null) return true;
-    try { return repoInfo(project.root).commonDir === scopeCommonDir; }
+    try { return sameCommonDir(repoInfo(project.root).commonDir, scopeCommonDir); }
     catch { return false; }
   }) : [];
   const opened = new Map();
@@ -773,7 +774,7 @@ function apiProjectScope(projects, scope) {
   try { commonDir = repoInfo(scope.projectRoot).commonDir; }
   catch { throw new Refused('PROJECT_SCOPE', 'scope the API to a registered project repository or linked worktree'); }
   const scoped = () => projects().filter((project) => {
-    try { return repoInfo(project.root).commonDir === commonDir; }
+    try { return sameCommonDir(repoInfo(project.root).commonDir, commonDir); }
     catch { return false; }
   });
   if (scoped().length !== 1) throw new Refused('PROJECT_SCOPE', 'scope the API to exactly one registered project repository or linked worktree');
@@ -794,7 +795,7 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
     if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
     // A clone shares the coordinator identity, but resolves its main checkout locally.
     if (name === COORDINATOR && relayLinked(root)) return root;
-    if (repoInfo(agent.agent_path).commonDir !== info.commonDir) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
+    if (!sameCommonDir(repoInfo(agent.agent_path).commonDir, info.commonDir)) throw new Refused('WRONG_BOARD', `agent ${name}'s worktree belongs to another board; join the agent in this board's worktree`);
     return agent.agent_path;
   }, isMain, boardOpeners);
 }

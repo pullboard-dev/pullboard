@@ -2,6 +2,7 @@ import { spawnCaptured } from '../../../sandbox/index.js';
 import { withPathMapMoves } from './doctrine-path-map.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
+import { sameCommonDir } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { checkCommandDefinition } from '../../../git/index.js';
 import { cleanTree } from '../../../git/index.js';
@@ -350,7 +351,7 @@ function currentMain(root, mainCommit, commit) {
   try { tip = mainCheckout(root)?.commit ?? null; } catch { /* No primary checkout: the handed main stands. */ }
   const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
   const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
-  if (gitDir && gitDir === commonDir) tip = null;
+  if (gitDir && sameCommonDir(gitDir, commonDir)) tip = null;
   const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
   const main = tip && !(tip !== mainCommit && ancestor(tip, mainCommit)) ? tip : mainCommit;
   // Whichever main stands, the counted tree is the candidate composed with it, never a candidate missing it.
