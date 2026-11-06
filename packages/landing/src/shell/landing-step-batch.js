@@ -452,7 +452,7 @@ async function releaseClearedRepeatHolds(root, board, trunk, write, onWait) {
     const hold = repeatedLandingHold(item.item_hold_reason);
     if (!hold) continue;
     let comparison = null;
-    if (item.item_commit === hold.commit && trunk.commit === hold.base && hold.kind === 'case') {
+    if (item.item_commit === hold.commit && hold.kind === 'case') {
       const [file] = hold.key.split('::');
       if (!file) continue;
       try {

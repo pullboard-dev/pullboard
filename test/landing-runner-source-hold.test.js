@@ -121,6 +121,10 @@ test('clause 2: a repeated named-case hold clears only when main no longer repro
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, comparison([{ file: 'test/landing.test.js', name: 'another case' }])), true);
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: BASE, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true);
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: 'c'.repeat(40), unavailable: 'source changed', files: [] }), false);
+  const MOVED = 'c'.repeat(40);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null), false, 'a moved main alone does not lift a case hold');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'red', failures: [{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }] }] }), false, 'main moved and still reproduces the case');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true, 'main moved and the case now passes');
 });
 
 test('clause 3: the one coordinator notice names the parked item and repeated cause [C7]', () => {

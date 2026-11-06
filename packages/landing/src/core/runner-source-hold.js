@@ -32,8 +32,8 @@ export function refusalConditionHolds(hold, facts) {
 
 /** Decide whether an automatic repeat hold's original refusal or failing case has cleared. */
 export function repeatedLandingHoldCleared(hold, item, base, comparison, facts = null) {
-  if (item.item_commit !== hold.commit || base !== hold.base) return true;
-  if (hold.kind === 'refusal') return !refusalConditionHolds(hold, facts);
+  if (item.item_commit !== hold.commit) return true;
+  if (hold.kind === 'refusal') return base !== hold.base || !refusalConditionHolds(hold, facts);
   if (hold.kind !== 'case') return false;
   const [file, ...rest] = hold.key.split('::');
   const name = rest.join('::');
