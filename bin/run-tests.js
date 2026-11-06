@@ -1337,10 +1337,12 @@ async function main(args) {
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
-        const { testsNeedBrowser } = await import('../packages/gate/index.js');
+        const { browserBoundFiles } = await import('../packages/gate/index.js');
+        // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
+        const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
-          needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
+          needsBrowser: async shardFiles => { const bound = await browserBound; return shardFiles.some(file => bound.has(file)); }, timing });
         timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;
         return;
