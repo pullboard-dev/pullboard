@@ -124,11 +124,12 @@ function apply(row, at, valid, qualified) {
 const bindingReadScopes = new AsyncLocalStorage();
 
 /** Reuse only real compiler observations inside one explicitly eligible higher-level census. */
-export function withBindingReadCache(work, { eligible, observations, warmAll = false, onProbe } = {}) {
+export function withBindingReadCache(work, { eligible, observations, warmAll = false, onProbe, runtimeIdentity } = {}) {
+  if (runtimeIdentity !== undefined && !/^[a-f0-9]{64}$/u.test(runtimeIdentity)) throw new TypeError('invalid trusted binding runtime identity');
   if (typeof eligible !== 'function') return work();
   const values = observations instanceof Map ? observations : new Map();
   const bytes = [...values.values()].reduce((sum, row) => sum + row.bytes, 0);
-  return bindingReadScopes.run({ eligible, values, bytes, warmAll, onProbe }, work);
+  return bindingReadScopes.run({ eligible, values, bytes, warmAll, onProbe, runtimeIdentity }, work);
 }
 
 /** Only a durable, eligible census may prepare currently unreachable production modules. */
@@ -170,7 +171,7 @@ function bindingCacheKey(modules) {
   if (!cacheableModules(modules)) return null;
   try {
     const values = modules.map(row => [row.file, row.source, row.body, row.scopeBraces, row.bindings.map(binding => binding.local)]);
-    return 'binding:' + createHash('sha256').update(JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, COMPILER, values])).digest('hex');
+    return 'binding:' + createHash('sha256').update(JSON.stringify([...(bindingReadScopes.getStore()?.runtimeIdentity ? [bindingReadScopes.getStore().runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), COMPILER, values])).digest('hex');
   } catch { return null; }
 }
 
@@ -192,7 +193,7 @@ export function cachedBindingMetadata(source, edges, work) {
         || typeof specifier.value !== 'string' || typeof target.value !== 'string') return null;
       rows.push([specifier.value, target.value]);
     }
-    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, source, rows])).digest('hex'); }
+    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([...(scope.runtimeIdentity ? [scope.runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), source, rows])).digest('hex'); }
     catch { return null; }
   }
   if (!reusable(scope)) return work();
