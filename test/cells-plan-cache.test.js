@@ -76,7 +76,7 @@ test('with the setting off the check always runs and nothing is saved [C7]', t =
 
 test('the cache setting is off by default and described [C7]', () => {
   const config = spawnSync(process.execPath, ['-e', "import('./src/config.js').then(m => console.log(JSON.stringify(m.defaults().cells)))"], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(config.stdout.trim(), '{"cache":false}');
+  assert.equal(config.stdout.trim(), '{"cache":false,"shimMaxAgeDays":7}');
 });
 
 
