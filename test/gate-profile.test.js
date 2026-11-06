@@ -310,7 +310,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
 
-  assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
+  const shellAdded = box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true');
+  assert.equal(shellAdded.status, 0, shellAdded.stderr || shellAdded.stdout);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
   const shellCheck = box.run(box.web, 'check', '2', '--yes');
   assert.equal(shellCheck.status, 0, shellCheck.stderr);
