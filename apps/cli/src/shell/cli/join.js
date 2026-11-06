@@ -62,6 +62,8 @@ export async function bindWriteSession(io, positionals, values) {
     CHECKOUT_BOARD_ONLY.set(io, boardOnly);
     return;
   }
+  // The commit hooks only read: a checkout already bound to this session needs no lease, so they never queue for a slot.
+  if (command === 'hook' && ['pre-commit', 'commit-msg'].includes(first) && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) return;
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next', 'land'].includes(command), waitLimitMs: command === 'hook' ? HOOK_CHECKOUT_WAIT_MS : 0,
     /** Record the takeover; a linked main checkout takes the board's coordinator before its receipt shout, which the hold would refuse (#347). */
     recordTakeover: async () => (await import('../commands/takeover.js')).recordCheckoutTakeover(io, info),

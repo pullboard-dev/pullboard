@@ -93,7 +93,7 @@ function project(disableRefresh) {
 /** A source-only declaration commits cleanly while its generated shared list remains unchanged. */
 function verifiedDeclaration(box) {
   const item = success(box, box.repo, 'add', 'web', 'Document a clean landing declaration', '--specs', 'G1',
-    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./apps/cli/src/shell/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"").item.item_id;
+    '--criterion', 'the command declaration retains its name', '--check', "node -e \"if(require('./apps/cli/src/shell/command-docs/heartbeat.json').name!=='heartbeat')process.exit(1)\"", '--route', 'strong').item.item_id;
   success(box, box.web, 'claim', String(item));
   const file = join(box.web, 'apps/cli/src/shell/command-docs/heartbeat.json');
   const declaration = JSON.parse(readFileSync(file, 'utf8'));
