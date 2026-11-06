@@ -47,17 +47,23 @@ test('a revision advance, new runner job, or new log bytes resets the landing st
   assert.equal(landingProgressed(previous, landingProgressSnapshot(BATCH, { logBytes: 10, runnerJobs: ['pid-1:start-a'] })), false);
 });
 
-test('a timed out batch is blocked and leaves the verified queue available for the next batch [B3,R3,C7]', async t => {
+test('clause 1: a timed out batch is blocked with its recorded state and step [B3,R3,C7]', async t => {
   const { result, stalled } = await runStalledGuardian(t);
   assert.equal(stalled.batch.state, 'gating');
   assert.match(stalled.description, /state gating; last step gating\/gate\.log/u);
   assert.equal(result.batch.state, 'blocked');
   assert.equal(result.batch.refusal.code, 'LAND_STALLED');
   assert.equal(result.stalled, true);
+});
+
+test('clause 2: a stalled batch preserves verified items and schedules the waiting queue [B3,R3,C7]', async t => {
+  const { result } = await runStalledGuardian(t);
+  assert.deepEqual(result.landed, [], 'the stall does not land or rewrite any verified item');
+  assert.equal(result.batch.state, 'blocked');
   assert.deepEqual(landingRetryAt({ ...result, waiting: true }, NOW), new Date(NOW + LANDING_NEXT_BATCH_MS).toISOString());
 });
 
-test('new gate log bytes keep a landing alive past its inactivity limit [B3,R3,C7]', async t => {
+test('clause 3: new gate log bytes keep a landing alive past its inactivity limit [B3,R3,C7]', async t => {
   const { result, stalled } = await runStalledGuardian(t, { progressLog: true });
   assert.equal(stalled, undefined);
   assert.deepEqual(result, { landed: [] });
