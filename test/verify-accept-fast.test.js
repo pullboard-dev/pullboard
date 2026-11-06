@@ -54,7 +54,7 @@ test('a moved main keeps the receipt unless it changes the item or its check [C7
   assert.match(sealedMoveOverlap(dir, { from: touched, to: base, commit: item, check: 'x' }), /rewound/);
 });
 
-test('accept reuses the receipt after an unrelated landing moved main [C7]', { timeout: 180000 }, async t => {
+test('clause 1: accept reuses the receipt after an unrelated landing moved main [C7]', { timeout: 180000 }, async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -81,4 +81,28 @@ test('accept reuses the receipt after an unrelated landing moved main [C7]', { t
   assert.match(verdict.out, /reused submit proof/);
   assert.equal(readFileSync(count, 'utf8'), before, 'the frozen check did not run again');
   assert.ok(elapsed < 15000, `accept took ${Math.round(elapsed)} ms`); // budget: declared #2939 requires green accept under 15000 ms.
+});
+
+test('clause 2: accept says why the receipt could not be reused before it reruns the check [C7]', { timeout: 180000 }, async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'fast-builder'; sandbox.env.CODEX_THREAD_ID = 'fast-builder-session';
+  const count = join(sandbox.dir, 'check-count');
+  const box = helpers.project('true', sandbox);
+  const added = box.run(box.repo, 'add', 'web', 'Fast accept', '--specs', 'G1', '--criterion', 'the check passes', '--check', `test -n web/dep.js && printf x >> '${count}'`, '--brief', 'Files:\n- web/proof.js\nTest:\n- the check passes\n');
+  assert.equal(added.code, 0, added.err || added.out);
+  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal(helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]').status, 0);
+  const submitted = box.run(box.web, 'submit', '1');
+  assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  const landed = helpers.commitFile(box, box.repo, 'web/dep.js', 'export const dep = 1;\n', 'feat(web): main adds a file the check names [G1]');
+  assert.equal(landed.status, 0, landed.stderr || landed.stdout);
+  const reviewer = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
+  sandbox.env.CODEX_THREAD_ID = 'fast-reviewer-session';
+  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'fast-reviewer').code, 0);
+  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The sealed receipt covers the check.');
+  const said = `${verdict.out}${verdict.err}`;
+  assert.match(said, /submit proof not reused: .*main moved since submit and reaches web\/dep\.js, a file the check names/u, said);
 });
