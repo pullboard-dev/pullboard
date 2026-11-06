@@ -58,7 +58,8 @@ test('detached handoff dispatcher and worker drop inherited session ids while th
   // The submitting seat stays in its original session while a stale unrelated ID simulates the dispatcher starter.
   boxProject.env.CODEX_SESSION_ID = 'fake-dispatcher-session';
   const added = boxProject.run(boxProject.repo, 'add', 'web', 'Handoff session receipt', '--specs', 'G1',
-    '--criterion', 'The queued gate retains native seat provenance.', '--check', `${process.execPath} ${gate}`, '--json');
+    '--criterion', 'The queued gate retains native seat provenance.', '--check', `${process.execPath} ${gate}`,
+    '--brief', 'Files: web/session.txt\nChange: bind the handoff session\nTest: the queued gate retains native seat provenance', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = itemId = JSON.parse(added.out).item.item_id;
   const claimed = boxProject.run(boxProject.web, 'claim', String(id), '--json');
