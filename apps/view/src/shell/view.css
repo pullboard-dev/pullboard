@@ -1518,7 +1518,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .first-run-dia .node.now rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
 .first-run-dia .node.now text { fill: var(--accent-strong); }
 .first-run-dia path { fill: none; stroke: var(--ink-faint); stroke-width: 1.6; }
-.first-run-dia path.back { stroke: var(--reject); stroke-dasharray: 4 3; }
+.first-run-dia path.back { stroke: var(--reject); stroke-dasharray: 4 3; } .first-run-dia path.head-back { stroke: var(--reject); }
 .first-run-dia path.next { stroke-dasharray: 3 4; }
 .first-run-dia .lbl { fill: var(--ink-faint); font: 10.5px var(--sans); } .first-run-dia .lbl.back { fill: var(--reject); }
 .first-run-caption { min-height: 28px; margin: 8px 0 0; text-align: center; font-size: 15px; font-weight: 500; color: var(--ink); }
