@@ -221,6 +221,8 @@ function repoWithGate(gate, check = '') {
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
+  // The fixture's checks and gates are their own test runs, not children of this one.
+  delete env.NODE_TEST_CONTEXT;
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
