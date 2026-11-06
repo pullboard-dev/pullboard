@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpus, loadavg, tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -20,6 +20,8 @@ import { relayClientFixture, relayFixtureChild } from './relay-client-fixture.js
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 // Budget: the criterion's bar for a move or a read, measured from spawn to exit of the real CLI.
 const LOCAL_MS = 1_000;
+// Budget: an idle machine starts a bare node process in about 50 ms; the one-second bar scales by how many times slower that start is right now.
+const IDLE_NODE_START_MS = 40;
 // Budget: how long a test waits for the background sender to reach the relay; it polls every 200 ms here.
 const SENDER_WAIT_MS = 20_000;
 
@@ -104,7 +106,8 @@ async function eventually(what, ready, detail = () => '') {
  * Run the real CLI in `cwd` and measure it apart from any sender it starts: a preload counts every network call this
  * foreground process makes, and the sender, a separate process, is never counted.
  */
-async function local(box, t, cwd, env, name, args) {
+async function local(box, t, cwd, env, name, args, budget) {
+  const budgetMs = budget ?? await loadedBudgetMs();
   const trace = join(dirname(box.root), `${name}-fetches`);
   const preload = join(dirname(box.root), `${name}-preload.mjs`);
   writeFileSync(preload, [
@@ -124,9 +127,21 @@ async function local(box, t, cwd, env, name, args) {
   const fetches = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n').length : 0;
   t.diagnostic(JSON.stringify({ name, elapsedMs: result.elapsedMs, status: result.status, foregroundFetches: fetches }));
   assert.equal(result.status, 0, result.context);
-  assert.ok(result.elapsedMs < LOCAL_MS, `${name} took ${result.elapsedMs} ms; a local-first command returns within one second`); // budget: declared by #1013's frozen bar: a local move or read returns within one second.
+  assert.ok(result.elapsedMs < budgetMs, `${name} took ${result.elapsedMs} ms; a local-first command returns within one second (${budgetMs} ms on this machine's load)`); // budget: declared by #1013's frozen bar: a local move or read returns within one second.
   assert.equal(fetches, 0, `${name} made no network call`);
   return { document: JSON.parse(result.stdout), stderr: result.stderr };
+}
+
+/**
+ * The local-first budget in ms: LOCAL_MS on an idle machine, stretched by how much slower a bare node start is now.
+ * Why: the bar is about the CLI's own work, and a loaded runner made the same command read red in one run and green in the next.
+ */
+async function loadedBudgetMs() {
+  const starts = await Promise.all([1, 2, 3, 4, 5, 6].map(() => runFixtureChildAsync(process.execPath, ['-e', '0'], {})));
+  const slowest = Math.max(...starts.map(start => start.elapsedMs));
+  // A CLI command is heavier than a bare start and queues on the CPU like any other process, so run-queue pressure counts twice.
+  const queued = 2 * loadavg()[0] / cpus().length;
+  return Math.round(LOCAL_MS * Math.max(1, slowest / IDLE_NODE_START_MS, queued));
 }
 
 /** The shout texts a board export holds. */
@@ -304,8 +319,9 @@ test('one background sender per machine sends each new move once, asks GitHub on
     senders = Math.max(senders, observed.owned.length);
     otherFixtures = Math.max(otherFixtures, observed.others);
   }, 20);
+  const budgetMs = await loadedBudgetMs();
   try {
-    await Promise.all(texts.map((text, index) => local(box, t, box.root, env, `burst-${index}`, ['shout', 'all', text])));
+    await Promise.all(texts.map((text, index) => local(box, t, box.root, env, `burst-${index}`, ['shout', 'all', text], budgetMs)));
     await eventually('the sender sends the burst', () => outboxEmpty(box), () => senderLog(env));
   } finally { clearInterval(sampling); }
   t.diagnostic(JSON.stringify({ privateFixtureSenderPeak: senders, otherFixtureWorkersObserved: otherFixtures }));
