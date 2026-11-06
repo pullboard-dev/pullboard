@@ -31,7 +31,7 @@ function companionFixture(t) {
   box.git(owner, 'add', 'api/companion.txt');
   box.git(owner, 'commit', '-q', '-m', 'feat(api): add companion [G2]');
   const patchFile = join(box.dir, 'api-companion.patch');
-  writeFileSync(patchFile, box.git(owner, 'diff', 'main...HEAD'));
+  writeFileSync(patchFile, `${box.git(owner, 'diff', 'main...HEAD')}\n`);
   return { box, id, owner, ownerSeat, patchFile };
 }
 
