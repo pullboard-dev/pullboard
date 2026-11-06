@@ -6,7 +6,7 @@
  * thin path stays under 20 modules, and every case it cannot serve returns null so the entry runs the command
  * in-process exactly as before.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
@@ -71,14 +71,35 @@ export function headCommit({ gitDir, commonDir }) {
   return packed ? packed.split(' ')[0] : null;
 }
 
+/** The top-level paths whose files the resident process loads; a commit touching only other paths leaves it current. */
+const CODE_PATHS = ['apps', 'bin', 'package.json', 'packages', 'src'];
+
 /**
- * Name the code an entry would run: its checkout's HEAD commit, or for an installed package the package and entry
- * file stamps. A resident process loaded from different code is retired, so a landed commit reaches the next command.
+ * Name the code in a checkout's HEAD: a hash of the Git tree ids of the paths the CLI loads. A landing commit that
+ * only changes tests, docs or the spec leaves the name alone, so the warm resident process keeps serving [C7,#3249].
+ * Null when Git cannot answer.
+ */
+function codeTreeName(root, commit) {
+  try {
+    const listed = spawnSync('git', ['ls-tree', commit, '--', ...CODE_PATHS], { cwd: root, encoding: 'utf8', timeout: 5000 });
+    if (listed.status !== 0 || !listed.stdout) return null;
+    return createHash('sha256').update(listed.stdout).digest('hex').slice(0, 24);
+  } catch { return null; }
+}
+
+/**
+ * Name the code an entry would run: the Git tree ids of its checkout's code paths at HEAD, or for an installed package
+ * the package and entry file stamps. A resident process loaded from different code is retired, so changed code reaches
+ * the next command, while a commit that leaves the code alone does not retire it.
  */
 export function codeVersion(entry) {
   const codeRoot = dirname(dirname(entry));
   const location = gitLocation(codeRoot, { walk: false });
-  if (location) return { version: `commit:${headCommit(location)}`, linked: location.linked };
+  if (location) {
+    const commit = headCommit(location);
+    const tree = codeTreeName(location.root, commit);
+    return { version: tree ? `code:${tree}` : `commit:${commit}`, linked: location.linked };
+  }
   const stamp = file => { const stat = statSync(file); return `${stat.size}.${stat.mtimeMs}`; };
   return { version: `files:${stamp(join(codeRoot, 'package.json'))}:${stamp(entry)}`, linked: false };
 }

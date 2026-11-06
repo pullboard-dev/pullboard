@@ -251,6 +251,19 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
 });
 
+test('clause 1: after main moves with no code change, the next show is served by the same resident pid [C7,#3249]', () => {
+  fx.awaitResident();
+  const old = fx.residentPid();
+  writeFileSync(join(fx.code, 'landed-note.txt'), 'a landing that touches no code path\n');
+  runFixtureGit(['add', 'landed-note.txt'], { cwd: fx.code, env: fx.env });
+  runFixtureGit(['commit', '-q', '-m', 'docs only'], { cwd: fx.code, env: fx.env });
+  const shown = fx.runIn(fx.repo, ['show', '1'], { modules: true });
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.ok(shown.loaded.length < 20, `the show ran in the resident process, not cold: ${shown.loaded.length} modules in the client`);
+  assert.equal(fx.residentPid(), old, 'the same resident process served it');
+  assert.equal(fx.alive(old), true, 'the resident process did not retire');
+});
+
 /**
  * Kill every resident process started for this socket and wait until none runs. Why the socket argument, not the pid
  * file: a resident an earlier command started may still be loading and has not written its pid yet.
