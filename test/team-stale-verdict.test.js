@@ -36,7 +36,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 0\n', 'feat(web): baseline [G1]').status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const { check, readCheckedHeads } = staleVerdictCheckFixture(box.dir);
-  run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--check', check, '--wait');
+  run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--route', 'strong', '--check', check, '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
