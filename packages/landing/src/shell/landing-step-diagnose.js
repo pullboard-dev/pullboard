@@ -24,7 +24,7 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
 import { compareMainFailures } from './main-red.js';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** Require a green base for every failing file before attributing a red to an item. */
 export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
@@ -43,7 +43,7 @@ export async function landingBaseGreen(state, failures, compare = compareMainFai
  * present, so an unreadable base still goes through the base comparison [C7,#2947].
  */
 function fileOnBase(state, file) {
-  const git = args => spawnSync('git', ['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
+  const git = args => gitSpawnSync(['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
   if (!git(['cat-file', '-e', `${state.batch.base}^{commit}`])) return true;
   return git(['cat-file', '-e', `${state.batch.base}:${file}`]);
 }
@@ -180,7 +180,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
  * accepted work that was never at fault [C7,#2967].
  */
 export function ownFailures(state, entry, failures) {
-  const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+  const changed = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
   if (changed.status !== 0) return [];
   const files = new Set(changed.stdout.split('\0').filter(Boolean));
   const check = store.getItem(state.board, entry.id)?.item_check ?? '';

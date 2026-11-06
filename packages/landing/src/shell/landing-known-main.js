@@ -1,5 +1,4 @@
 /** A landing batch judges its red cases against main the way submit does (#2528), so known main reds never jam it [B3,C7]. */
-import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
@@ -8,6 +7,7 @@ import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
 import { laneOf } from '../../../seats/index.js';
 import { listItems } from '../../../store/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /**
  * Split a fully accounted red landing gate into cases red identically on the batch's main base and cases red only in the batch.
@@ -127,7 +127,7 @@ export function redOnMainUntouched(failure, comparison, changed) {
 
 /** The files the batch's merged tree changed against its base, or null when Git cannot say. */
 function changedFiles(state) {
-  const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
+  const diff = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
   return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
 }
 
