@@ -138,13 +138,14 @@ export function trackedDefaultTestFiles(cwd, env) {
     .map(path => `./${path}`);
 }
 
-/** Translate the runner's shard option to Node's native test-shard option, refusing malformed ranges; option values skip by the runner's arity. */
-export function shardArguments(args, takesValue) {
+/** Translate the runner's shard option to Node's native test-shard option and refuse malformed ranges or an empty selection; option values skip by the runner's arity. */
+export function shardArguments(args, takesValue, env = process.env) {
   if (typeof takesValue !== 'function') throw new TypeError('shardArguments needs the runner option-arity reader');
   const forwarded = [];
-  let shard;
+  let shard, all = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
+    if (argument === '--all') { all = true; continue; }
     if (argument === '--') {
       forwarded.push(...args.slice(index));
       break;
@@ -158,6 +159,12 @@ export function shardArguments(args, takesValue) {
     forwarded.push(argument);
     // An option's value is never read as an option, so a pattern like '--shard=2/2' stays a pattern (#3158).
     if (argument.startsWith('-') && !argument.includes('=') && takesValue(argument) && index + 1 < args.length) forwarded.push(args[++index]);
+  }
+  // A call that names no file would run the whole suite and hold runner slots for a quarter of an hour; the suite is
+  // the gate's, the landing's and the audit's job (S10), and those runs carry a stage marker. Why: on 6 Nov a seat's
+  // bare `node bin/run-tests.js` starved every other seat's test run behind the gate queue. `--all` says it on purpose.
+  if (!all && !hasTestFiles(forwarded, takesValue) && !env.PULLBOARD_TEST_STAGE && env.PULLBOARD_LANDING_RUN !== '1') {
+    return { error: '[TEST_SELECTION_EMPTY] name the test files to run: node bin/run-tests.js <file>...; the full suite runs at the gate, the landing and the audit, or by hand with --all' };
   }
   if (shard === undefined) return { args: forwarded };
   const match = shard.match(/^([1-9][0-9]*)\/([1-9][0-9]*)$/u);

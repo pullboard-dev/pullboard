@@ -15,6 +15,7 @@ import { COLLECTION_REPORT_PREFIX } from './gate-run-receipt.js';
 import { formatCollectionReport } from './gate-run-receipt.js';
 import { parseCollectionReports } from './gate-run-receipt.js';
 import { readTestOutcomes } from './test-outcomes.js';
+import { keepSeatAlive } from './seat-keepalive.js';
 
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
@@ -122,6 +123,8 @@ export function observedRunTiming(run, suite = null) {
 /** Observe one runner invocation without changing its selection, cache, admission or exit semantics. */
 export function beginSuiteTiming(root, args) {
   const started = performance.now(), source = timingSource(root);
+  // The run's seat stays alive for as long as the run: the seat-gone rule otherwise reclaims its claim mid-test [B3].
+  keepSeatAlive(root);
   const id = ID.test(process.env[TIMING_RUN_ID_ENV] ?? '') ? process.env[TIMING_RUN_ID_ENV] : randomUUID();
   const value = { version: 1, id, ...source, node: process.versions.node, full: false,
     selectionMs: null, setupMs: null, shards: [], compareMs: null };
