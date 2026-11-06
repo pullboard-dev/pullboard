@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 import { syncRelay } from '../packages/link/index.js';
 import * as store from '../src/board.js';
+import { nativeBoardPorts } from '../apps/lib/index.js';
 import { openBoardForRead } from '../apps/lib/index.js';
 
 /** Read local events directly so inspection itself cannot drain the durable retry queue. */
@@ -125,7 +126,7 @@ export async function syncReplica(root, env) {
   }
   const diagnostics = [];
   try {
-    const result = await syncRelay(root, { relayOutbox: () => true, err: line => diagnostics.push(line), say: () => {} });
+    const result = await syncRelay(root, { relayOutbox: () => true, nativeBoardPorts, err: line => diagnostics.push(line), say: () => {} });
     return { result, diagnostics };
   } finally {
     for (const [key, value] of previous) {
