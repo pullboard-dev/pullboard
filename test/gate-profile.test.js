@@ -74,7 +74,10 @@ function gateRepo(box, gate) {
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
   const added = box.run(repo, 'add', 'work', 'Work');
   assert.equal(added.status, 0, added.stderr || added.stdout);
-  const claimed = box.run(repo, 'claim', '1');
+  const lane = join(box.dir, 'work-1');
+  box.git(repo, 'worktree', 'add', '-q', lane, '-b', 'work/one');
+  assert.match(box.run(lane, 'join', 'work').stdout, /joined as work-1/);
+  const claimed = box.run(lane, 'claim', '1');
   assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
   return { repo, ...box };
 }
@@ -235,7 +238,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...projectConfig, verify: { policy: 'any', unrelatedTrunkMoves: false } }, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: preserve unaffected profile review');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const runner = `'${RUNNER.replaceAll("'", "'\\''")}'`;
   const command = `node ${runner} .timed/fast.test.js .timed/slow.test.js`;
   mkdirSync(join(box.repo, '.timed'));
@@ -245,7 +248,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   writeFileSync(join(box.repo, '.timed/middle-output.mjs'), "import {spawnSync} from 'node:child_process'; const noise=['-e',\"process.stdout.write(('harmless padding '.repeat(30)+'\\\\n').repeat(10000))\"]; spawnSync(process.execPath,noise,{stdio:'inherit'}); const child=spawnSync(process.execPath,['--test-reporter=tap','.timed/middle.test.mjs'],{stdio:'inherit'}); spawnSync(process.execPath,noise,{stdio:'inherit'}); process.exitCode=child.status;\n");
   box.git(box.repo, 'add', '.timed');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   assert.equal(box.run(box.repo, 'add', 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
   assert.equal(box.run(box.web, 'claim', '1').status, 0);
@@ -303,7 +306,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
     'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
 
   assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
@@ -514,7 +517,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     const trace = join(box.dir, `${scenario.name.replaceAll(' ', '-')}.trace`);
     box.env.PROFILE_TRACE = trace;
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
     const checkCommand = 'node bin/run-tests.js timed/check.test.js';
     // Select the same three private bodies while the copied runtime remains the unchanged production runner.
     const gateCommand = 'node bin/run-tests.js timed/check.test.js web/affected.test.js api/untouched.test.js';
@@ -555,7 +558,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     box.git(box.repo, 'add', '-A');
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
-    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+    box.git(box.web, 'merge', '-q', '--no-edit', 'main');
     const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
