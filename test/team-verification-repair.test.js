@@ -84,7 +84,8 @@ test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', 
   run(box, reviewer, 'join', 'web');
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The original feature matches the original caller.');
   const original = withBoard(box.repo, board => store.verdictsFor(board, 1));
-  assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 2), 'feat(web): caller now requires two [G1]').status, 0);
+  assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 2).replace('// independent caller line\n', '// independent caller line\n// the caller reads this beside the feature\n'), 'feat(web): caller now requires two [G1]').status, 0);
+  // Main edits beside the line the item changed: a far-away edit composes unchanged and is no longer stale [#2896].
   assert.equal(JSON.parse(run(box, box.repo, 'show', '1', '--json')).item_verdict_state?.code, 'STALE_VERDICT');
   box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
   assert.equal(helpers.commitFile(box, reviewer, 'web/feature.txt', source(2, 2), 'feat(web): repair against the new caller [G1]').status, 0);
