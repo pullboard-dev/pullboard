@@ -122,6 +122,21 @@ export function entryPlacementProblems(root, plan, files, sharedMap = undefined)
   return problems;
 }
 
+/**
+ * The placement problems a merged tree adds over base main: tracked bin/ or src/ sources with no plan row, and process
+ * entries without a stays row. Why: three files landed unplaced on 6 Nov and turned every later gate red [C7].
+ * The readers are passed in because cells-plan.js imports this module.
+ */
+export function addedPlacementProblems(baseRoot, mergedRoot, { unplanned, readPlan }) {
+  const found = root => {
+    const plan = readPlan(root);
+    return [...unplanned(root, plan).map(path => ({ path, message: `${path} has no cells-plan row` })),
+      ...entryPlacementProblems(root, plan).map(message => ({ path: message.split(' ')[0], message }))];
+  };
+  const before = new Set(found(baseRoot).map(row => row.message));
+  return found(mergedRoot).filter(row => !before.has(row.message));
+}
+
 /** Results of the forwarding check by source: it is pure and the cut sweep asks it once per cell. */
 const forwardsMemo = new Map();
 
