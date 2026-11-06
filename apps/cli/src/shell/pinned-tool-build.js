@@ -97,12 +97,13 @@ export function writeToolBuild(location, build) {
   return build;
 }
 
-/** Select at command entry only; the immutable module root also pins all subsequent runner imports. */
+/** Select at command entry only; the immutable module root also pins all subsequent runner imports. The policy is read once: each read is a Git spawn on every command's path [C7]. */
 export async function selectedToolEntry(cwd, entry, { now = Date.now() } = {}) {
   const location = toolBuildLocation(cwd);
-  if (!location || !toolBuildPolicy(location).enabled) return null;
-  let build = readToolBuild(location);
+  if (!location) return null;
   const policy = toolBuildPolicy(location);
+  if (!policy.enabled) return null;
+  let build = readToolBuild(location);
   if (!build || now - Date.parse(build.promotedAt) >= policy.refreshMs) {
     const { refreshToolBuild } = await import('./pinned-tool-publish.js');
     build = refreshToolBuild(location, { now }) ?? build;
