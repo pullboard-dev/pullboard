@@ -142,7 +142,8 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
         result = restart;
       }
     }
-    if (result?.healthy !== true && row.detail === 'CLEANUP_UNVERIFIED') result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe, token, now });
+    // A lost transport leaves the same doubt as an unverified cleanup: did the job's processes survive? The leak probe answers it [C7].
+    if (result?.healthy !== true && ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail)) result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe, token, now });
     if (result?.healthy === true) {
       const recovered = auditedChange(db, () => {
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?
