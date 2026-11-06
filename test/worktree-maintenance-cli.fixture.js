@@ -53,7 +53,7 @@ export function registerMaintenanceCliTests() {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
     const joined = box.run(owner, 'join', 'web', '--json');
     assert.equal(joined.code, 0, joined.err);
-    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'light',
+    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'mid',
       '--criterion', 'The fixture can release its own work.', '--check', 'true',
       '--brief', 'Files: web/page.js\nChange: exercise private release\nTest: native release retains archive evidence', '--json');
     assert.equal(added.code, 0, added.err);
