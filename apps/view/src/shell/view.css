@@ -663,7 +663,8 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 .feed .day { margin: 0; padding: var(--space-4) 0 var(--space-1); font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); }
 .feed .day:first-child { padding-top: var(--space-2); }
 button.ref, a.ref[data-go] { width: auto; min-height: 0; border: 0; border-radius: 0; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: inline; vertical-align: baseline; line-height: inherit; font: inherit; }
-.activity-events .activity-item a.ref[data-go] { text-decoration: none; }
+/* On Activity an item number is never underlined, in a row or inside a shout (#2986). */
+.activity-events a.ref[data-go] { text-decoration: none; }
 /* Item anchors use their inherited line box, rather than the shorter inline glyph box. */
 a.ref[data-go] { display: inline-block; }
 /* A code reference (path:lines@sha) is one long token: wider than its line, it breaks anywhere rather than push the page sideways. */
@@ -1213,6 +1214,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .activity-who[title] { text-decoration: underline dotted var(--line); text-underline-offset: 3px; }
 .activity-item { display: block; margin-top: 1px; font-size: var(--text-sm); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-item a { font: var(--text-xs) var(--mono); margin-right: var(--space-2); }
+.activity-item a.ref[data-go], .activity-quote a.ref[data-go] { font: 500 var(--text-xs) var(--mono); }
 .activity-quote { margin: var(--space-1) 0 0; padding: 0; background: none; border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .activity-event[data-activity-coordinator] .activity-quote { color: var(--ink); background: var(--accent-soft); padding: var(--space-1) var(--space-3); -webkit-line-clamp: 3; }
 .activity-event[data-activity-coordinator] .activity-verb { color: var(--accent-strong); background: var(--accent-soft); }

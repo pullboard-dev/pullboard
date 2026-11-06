@@ -708,5 +708,6 @@ test('Activity collapses consecutive continued-building rows by one seat for one
   assert.match(html, /continued building · 3 updates/u);
   assert.equal([...html.matchAll(/continued building · \d+ updates/gu)].length, 1, 'only the collapsed run carries a count');
   const css = readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url), 'utf8');
-  assert.match(css, /\.activity-events \.activity-item a\.ref\[data-go\] \{ text-decoration: none; \}/u, 'item-number links on Activity are not underlined');
+  assert.match(css, /\.activity-events a\.ref\[data-go\] \{ text-decoration: none; \}/u, 'item-number links on Activity, in a row or a shout, are not underlined');
+  assert.match(css, /\.activity-item a\.ref\[data-go\], \.activity-quote a\.ref\[data-go\] \{ font: 500 var\(--text-xs\) var\(--mono\); \}/u, 'an item number in a row or a shout reads as mono, as in the mockup');
 });
