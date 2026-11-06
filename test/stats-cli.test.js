@@ -118,8 +118,10 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
     invalidLines: 0, days: {}, commands: [],
     allowance: { version: 1, allowancePerDay: null, observedDay: null, fact: null, status: 'unmeasured' } };
   const usage = { items: [], lanes: [], milestones: [], models: [], seats: [], sharedSessions: [] };
+  // Landed 1c6a65659d adds idle-filter seat minutes; a fresh machine reports no skipped rows.
+  const idleSkips = { rows: [], since: boardHolds.since, until };
   const coordinator = coordinatorActions(board, { until });
-  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
+  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], idleSkips, testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
     'a fresh private machine reports no invented holds, usage or gated runs (#836,#1875,#1056)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
