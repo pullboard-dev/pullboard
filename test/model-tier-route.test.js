@@ -9,7 +9,7 @@ import { scaleWorkers } from '../apps/cli/src/shell/worker-scale.js';
 import { HELP_SOURCE_SECTIONS } from '../apps/cli/src/core/help/declarations.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
-test('a no-flag Haiku join receives light work and a private board can override its tier [C7]', t => {
+test('clause 3: a no-flag Haiku join receives light work and a private board can override its tier [C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
@@ -50,7 +50,7 @@ test('a no-flag Haiku join receives light work and a private board can override 
     'the Haiku seat is offered its light item and cannot take the strong item');
 });
 
-test('scale takes the declared model and tier from the current environment without a model argument [C7]', async t => {
+test('clause 2: scale takes the declared model and tier from the current environment without a model argument [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
@@ -78,7 +78,7 @@ test('scale takes the declared model and tier from the current environment witho
   assert.deepEqual(launched, { lane: 'api', route: 'light', family: null, model: 'Claude 3 Haiku' });
 });
 
-test('unknown models fall back to mid and model-tier configuration is validated [C7]', () => {
+test('clause 1: unknown models fall back to mid and model-tier configuration is validated [C7]', () => {
   assert.equal(modelTierRoute('Claude 3.5 Haiku', defaults().modelTiers), 'light');
   assert.equal(modelTierRoute('Claude 3.7 Sonnet', defaults().modelTiers), 'mid');
   assert.equal(modelTierRoute('unlisted test model', defaults().modelTiers), 'mid');
