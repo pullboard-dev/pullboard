@@ -10,7 +10,7 @@
   "submitDeferAbove": 20,
   "landingShards": 6,
   "landing": {
-    "manualOverride": false,
+    "manualOverride": true,
     "publish": "separate",
     "perItem": false,
     "parallel": true,
