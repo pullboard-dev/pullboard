@@ -26,6 +26,7 @@ function store() {
  * @returns {{ board: string, rank: number }|undefined}
  */
 export function captureReleaseQueue(root, item) {
+  if (item === undefined || item === null || item === '') return undefined;
   const file = runnerBoardFile(root);
   if (!file) return undefined;
   const { openBoardReadOnly, boardId } = store();
