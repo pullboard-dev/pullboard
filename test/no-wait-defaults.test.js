@@ -175,7 +175,7 @@ test('selection shares the complete relaxation queue per threshold and reservati
   assert.ok(activityReads <= 2, `${activityReads} activity reads after the activity window changed`);
 });
 
-test('the default loop bounds queued-red notices so twelve reds stay under 2 KB [C7,N41]', () => {
+test('clause 3: the default loop bounds queued-red notices so twelve reds stay under 2 KB [C7,N41]', () => {
   const reds = Array.from({ length: 12 }, (_, index) => ({ id: 2100 + index, title: 'x'.repeat(200),
     leaseUntil: '2026-11-04T08:00:00.000Z', error: { code: 'TEST_FAILURE', message: 'm'.repeat(2000), next: 'fix it' } }));
   const lines = boundedQueuedRedLines(reds);
