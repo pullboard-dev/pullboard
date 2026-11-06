@@ -63,11 +63,32 @@ function missingImports(graph) {
 /** Identify inherited main debt without exempting a new importer or a newly deleted target. */
 function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reason]); }
 
+/**
+ * The refusal for a composed module that does not parse, naming the changed files that fail alone.
+ * Why: a duplicate import in a composition killed the worker as LAND_WORKER, which blamed no item and left the batch
+ * pinned in merging; a parse failure is the composed content's own and ends the batch terminally [C7].
+ */
+function parseRefusal(root, tip, changed) {
+  const broken = changed.filter(file => /\.(?:m?js)$/u.test(file)).filter(file => {
+    const shown = tryGit(root, ['show', `${tip}:${file}`]);
+    if (shown.status !== 0) return false;
+    try { importsIn([shown.stdout], undefined); return false; } catch { return true; }
+  });
+  const refusal = new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
+  refusal.broken = broken;
+  return refusal;
+}
+
 /** Inspect source only: no candidate module is imported or evaluated before main moves. */
 export async function requireLandingModuleResolution(root, base, tip) {
   const before = await graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
-  const after = await graphAt(root, tip, before, changed);
+  let after;
+  try { after = await graphAt(root, tip, before, changed); }
+  catch (error) {
+    if (error.message !== 'source does not compile as an ES module') throw error;
+    throw parseRefusal(root, tip, changed);
+  }
   const inherited = new Set(missingImports(before).map(edgeKey));
   const missing = missingImports(after).filter(row => !inherited.has(edgeKey(row)));
   if (missing.length) throw new Refused('LAND_MODULE_RESOLUTION', `the composed landing leaves missing module targets: ${missing.map(row => `${row.file}: ${row.specifier} (${row.reason})`).join('; ')}; restore or repoint every importer before landing`);
