@@ -77,8 +77,10 @@ function requireParallelGateAdmission(root, config) {
 /**
  * Refuse a merged tree that adds an unplaced bin/ or src/ path before main moves, with the same placement check submit
  * runs; false when it returned the adding items to their builders with the path [C7,#3210].
+ * A repository with no bin/cells-plan.json has no placement rule to check, so it passes.
  */
 export async function placedMerge(state, items) {
+  if (!existsSync(join(state.root, 'bin/cells-plan.json'))) return true;
   const { unplanned, readPlan } = await import('../../../../bin/cells-plan.js');
   const { addedPlacementProblems } = await import('../../../../bin/cells-plan-cuts.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
