@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../packages/store/index.js';
+import { recordNextIdle } from '../packages/store/src/shell/board-record-next-idle.js';
+const { nextIdleChanged } = store;
 import { idleSkipMinutes } from '../packages/stats/index.js';
 
 test('clause 1 and clause 2: focused idle next records the first refusal for its top three candidates and stats reports their last-24h seat minutes [C7,#3080]', async t => {
@@ -34,10 +36,10 @@ test('clause 1 and clause 2: focused idle next records the first refusal for its
 test('clause 2: changed first skip evidence starts a new observation even when its broad idle reason is unchanged [C7,#3080]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor.id;
-  store.recordNextIdle(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 1, code: 'ITEM_HELD' }] });
+  recordNextIdle(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 1, code: 'ITEM_HELD' }] });
   box.advance(10 * 60_000);
-  assert.equal(store.nextIdleChanged(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 2, code: 'DEPENDENCY' }] }), true);
-  store.recordNextIdle(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 2, code: 'DEPENDENCY' }] });
+  assert.equal(nextIdleChanged(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 2, code: 'DEPENDENCY' }] }), true);
+  recordNextIdle(box.board, { agentId: seat, reason: 'focus', skips: [{ item: 2, code: 'DEPENDENCY' }] });
   box.advance(20 * 60_000);
   assert.deepEqual(idleSkipMinutes(store.events(box.board), box.clock.now().getTime()).rows,
     [{ code: 'DEPENDENCY', seatMinutes: 20 }, { code: 'ITEM_HELD', seatMinutes: 10 }]);
