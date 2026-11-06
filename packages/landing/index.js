@@ -7,6 +7,7 @@ export * from "./src/core/land-collisions.js";
 export * from "./src/core/land-local-guard.js";
 export * from "./src/shell/land.js";
 export * from "./src/core/landing-batch-history.js";
+export * from "./src/core/landing-batch-size.js";
 export * from "./src/core/landing-cadence.js";
 export * from "./src/shell/landing-candidates.js";
 export * from "./src/shell/landing-deferred-run.js";

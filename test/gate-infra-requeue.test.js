@@ -163,26 +163,19 @@ test('a runner that failed earlier and recovered takes the rerun when the other 
   assert.equal(result, 'GREEN on runner-a');
 });
 
-test('lock contention reruns the candidate without spending its 3 runner retries, bounded on its own [C7]', async () => {
+test('a lost resource lease is infrastructure and waits like a lock, bounded on its own [C7]', async () => {
   assert.equal(infrastructureFailure(new Refused('RESOURCE_LEASE_LOST', 'the queued resource lease disappeared during item renewal')), 'RESOURCE_LEASE_LOST');
-  const locks = [new Refused('BOARD_BUSY', 'the board changed while preparing submit'), Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' }),
-    new Refused('SLOT_DB_LOCKED', 'fixture'), new Refused('RESOURCE_LEASE_LOST', 'fixture'), new Refused('BOARD_BUSY', 'fixture')];
   let calls = 0;
-  const { result, attempts } = await submitUntilSettled(async () => {
+  const { result, attempts, lockWaits } = await submitUntilSettled(async () => {
     calls += 1;
-    if (calls <= locks.length) throw locks[calls - 1];
+    if (calls <= 4) throw new Refused(calls % 2 ? 'RESOURCE_LEASE_LOST' : 'BOARD_BUSY', 'fixture');
     return 'GREEN';
   }, { healthy: async () => true, wait: async () => {} });
-  assert.equal(result, 'GREEN', 'five lock failures, more than the 3 runner retries, still end green');
-  assert.deepEqual(attempts.map(row => row.code), ['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED', 'RESOURCE_LEASE_LOST', 'BOARD_BUSY']);
+  assert.equal(result, 'GREEN', 'four lock failures, more than the 3 runner retries, still end green');
+  assert.deepEqual(attempts, [], 'lock waits are not runner attempts');
+  assert.equal(lockWaits.count, 4);
   calls = 0;
-  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('BOARD_BUSY', 'fixture: always busy'); },
-    { healthy: async () => true, wait: async () => {}, contentionRetries: 5 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && /last BOARD_BUSY/u.test(error.message));
-  assert.equal(calls, 6, 'the first attempt and exactly the contention bound of reruns');
-  calls = 0;
-  await assert.rejects(submitUntilSettled(async () => {
-    calls += 1;
-    throw calls % 2 ? new Refused('BOARD_BUSY', 'fixture') : new Refused('RUNNER_UNAVAILABLE', 'fixture: down');
-  }, { healthy: async () => true, wait: async () => {} }), { code: 'GATE_INFRA_EXHAUSTED' });
-  assert.equal(calls, 8, 'interleaved lock failures leave the runner bound at 3 retries');
+  await assert.rejects(submitUntilSettled(async () => { calls += 1; throw new Refused('RESOURCE_LEASE_LOST', 'fixture'); },
+    { healthy: async () => true, wait: async () => {}, lockWaitLimit: 5 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && /last RESOURCE_LEASE_LOST/u.test(error.message));
+  assert.equal(calls, 6, 'the first attempt and exactly the lock wait bound of reruns');
 });
