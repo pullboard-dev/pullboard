@@ -15,7 +15,7 @@ function reviewsFirst(box) {
     reason: 'Private mandatory first-review dispatch control', window: { windowMinutes: 30 } });
 }
 
-test('a builder nexts past same-family reviews it cannot take [N2,B13]', t => {
+test('clause 1: a builder nexts past same-family reviews it cannot take [N2,B13]', t => {
   const box = crossLaneFixture(t);
   const configPath = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -64,7 +64,7 @@ test('a builder nexts past same-family reviews it cannot take [N2,B13]', t => {
   assert.equal(eligible.item.item_id, review, 'a different-family reviewer retains its eligible review path');
 });
 
-test('explicit build intent skips an eligible mandatory aged review [N2,B13]', async t => {
+test('clause 2: explicit build intent skips an eligible mandatory aged review [N2,B13]', async t => {
   const box = await fixture(t);
   const review = box.add('Eligible mandatory first review');
   box.submit(review);
@@ -79,7 +79,7 @@ test('explicit build intent skips an eligible mandatory aged review [N2,B13]', a
   const selected = await cli(box, box.seats.actor.path, ['next', '--build']);
   assert.equal(selected.code, 0, selected.out + selected.err);
   assert.equal(selected.document.review, false);
-  assert.equal(selected.document.item.item_id, build, 'explicit build intent claims buildable work');
+  assert.equal(selected.document.item.item_id, build, 'clause 2: explicit build intent claims buildable work');
   assert.equal(store.getItem(box.board, review).item_review_by, null, 'the mandatory review remains unreserved');
   assert.equal(store.getItem(box.board, build).item_owner, box.seats.actor.id);
 });
