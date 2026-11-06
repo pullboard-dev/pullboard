@@ -29,7 +29,7 @@ export async function dispatchRunnerTicket(launch, { settings = loadMachineSetti
   const directory = join(launch.commonDir, 'pullboard', 'submit-handoffs', launch.job);
   const shell = `test "$(git rev-parse HEAD)" = ${launch.commit}`;
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs: 10 * 60 * 1000,
-    policyCommit: launch.main ?? launch.commit, trunk: { ref: trunkRef(launch.root), commit: launch.main ?? launch.commit } });
+    policyCommit: launch.main ?? launch.commit, trunk: { ref: trunkRef(launch.root) ?? 'refs/heads/main', commit: launch.main ?? launch.commit } });
   const output = mkdtempSync(join(tmpdir(), 'pullboard-runner-ticket-'));
   const failures = [];
   for (const runner of effectiveRunners(settings)) {
