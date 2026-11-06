@@ -25,10 +25,7 @@ import {
 } from '../../../../src/git.js';
 import { literalShellWords } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
-import {
-  sourceLaunchesBrowser,
-  sourceNamesChrome,
-} from '../core/browser-launch-source.js';
+import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
 import { BROWSER_RULE_VERSION } from './browser-scan-cache.js';
@@ -561,8 +558,6 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
   /** Record why a file is bound: the import path from the selected file to the module that launches. */
   const bind = (why) => { if (verdict) verdict.reason = why; return true; };
   const parents = new Map();
-  const seen = [];
-  let pendingSite = null;
   /** The first reaching path: the selected file, then each importer down to the module named. */
   const chain = (path) => { const out = [path]; while (parents.has(out[0]) && out.length < 40) out.unshift(parents.get(out[0])); return out.join(' > '); };
   byLaunch ??= await browserByLaunchSetting();
@@ -649,13 +644,6 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         && browserCalls[index])) return bind(`launch call site in ${chain(paths[browserCalls.findIndex((call, at) => call && (paths[at].startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(paths[at])))])}`);
       // By launch, a process or module starter launches a browser only beside a Chrome executable reference.
       const starts = sources.map(source => byLaunch && usesDynamicBuiltinLoader(source));
-      if (byLaunch) {
-        seen.push(...originalSources);
-        // A process call with an unknown command binds only if the closure names Chrome somewhere [C7].
-        sources.forEach((source, index) => {
-          if (!pendingSite && !browserCalls[index] && namesChromeLauncher(source, paths[index], false)) pendingSite = chain(paths[index]);
-        });
-      }
       const dynamicLoaderIndex = byLaunch ? -1 : sources.findIndex(usesDynamicBuiltinLoader);
       if (dynamicLoaderIndex >= 0) return browserFallback(onFallback, paths[dynamicLoaderIndex], 'dynamic process builtin loading can load an unclassified module');
       const commonJsIndex = parsedSources(originalSources, memo).findIndex(parsed => parsed.commonJs);
@@ -710,7 +698,6 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       }
       frontier = [...next];
     }
-    if (pendingSite && seen.some(sourceNamesChrome)) return bind(`process call with an unknown command, and Chrome named in the closure: ${pendingSite}`);
     return false;
   } catch {
     return browserFallback(onFallback, '<test selection>', 'source graph could not be inspected safely');

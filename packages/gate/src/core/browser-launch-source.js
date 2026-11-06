@@ -177,18 +177,6 @@ function reviewedCall(source, code, call, end, executors) {
 }
 
 /**
- * Whether a source names Chrome in executable code or a string literal, never in a comment. Why: a process call
- * whose command is not statically known launches Chrome only when something in the same closure names it [C7].
- *
- * @param {string} source
- * @returns {boolean}
- */
-export function sourceNamesChrome(source) {
-  const { code, strings } = lex(source);
-  return CHROME.test(code) || strings.some(string => browserText(string.text));
-}
-
-/**
  * Determine whether executable process calls can reach a Chrome argument. Local literal bindings are
  * followed conservatively, without scope-sensitive elimination. A program supplied to a real process
  * (including node -e or a shell) remains an argument, unlike a program merely written to a fixture file.

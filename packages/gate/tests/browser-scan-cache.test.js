@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { browserBoundFiles } from '../src/shell/browser-admission.js';
 import { browserScanCacheFile } from '../src/shell/browser-scan-cache.js';
+import { BROWSER_RULE_VERSION } from '../src/shell/browser-scan-cache.js';
 import { cacheExists } from '../src/shell/browser-scan-cache.js';
 import { cachedVerdictHolds } from '../src/shell/browser-scan-cache.js';
 import { readBrowserScanCache } from '../src/shell/browser-scan-cache.js';
@@ -59,7 +60,7 @@ test('a change to a closure path rescans only the files that reach it; an unrela
 });
 
 test('a verdict never holds across modes or without a current tree [C7]', () => {
-  const entry = { bound: false, byLaunch: false, tree: 'a'.repeat(40), closure: ['test/x.test.js'] };
+  const entry = { bound: false, byLaunch: false, tree: 'a'.repeat(40), closure: ['test/x.test.js'], ruleVersion: BROWSER_RULE_VERSION };
   assert.equal(cachedVerdictHolds(entry, { byLaunch: true, tree: 'a'.repeat(40), changed: () => new Set() }), false);
   assert.equal(cachedVerdictHolds(entry, { byLaunch: false, tree: null, changed: () => new Set() }), false);
   assert.equal(cachedVerdictHolds(entry, { byLaunch: false, tree: 'b'.repeat(40), changed: () => null }), false, 'an unreadable diff is everything changed');
