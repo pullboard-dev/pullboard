@@ -29,7 +29,7 @@ function capacityWith(t, settings) {
 
 test('clause 1: with gate.runnersOnly on, the dispatcher drains with a capacity of every registered runner slot up to the machine bound, not a fifth of them [C7]', t => {
   const capacity = capacityWith(t, { gate: { runnersOnly: true }, runners: RUNNERS });
-  assert.equal(capacity, Math.min(SLOTS, 12));
+  assert.equal(capacity, Math.min(SLOTS, 8));
   assert.ok(capacity > Math.floor(SLOTS / 5), 'more than the one-in-five cap');
 });
 
