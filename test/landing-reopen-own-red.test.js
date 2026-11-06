@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Only an item's own red reopens it: batch-wide, foreign-file and infrastructure landing failures reopen nothing [C7,#2967]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -9,6 +10,8 @@ import { requireFixtureReviewFamilies } from './review-family-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { returnCulprit, returnRefusedItem } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import { itemRefusal } from '../packages/landing/src/shell/landing-step-diagnose.js';
+import { oneItemBatch, singleItemLanding } from '../packages/landing/src/shell/landing-step-selection.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -91,9 +94,62 @@ test('a landing infrastructure or diagnostic refusal reopens no item [C7,#2967]'
   assert.deepEqual(writes, [], 'nothing is written');
 });
 
+test('a red static check on a one-item batch is the item\'s own and returns it whatever the trunk policy [C7,#2901,#2967]', async t => {
+  const { close, state, status } = landing();
+  t.after(close);
+  const red = new Refused('GATE_RED', 'static checks are red; fix the named source before running proof:\nsrc/cockpit.js:1: prose command declaration differs from the CLI help catalog');
+  assert.equal(itemRefusal(red), true, 'a static red names the candidate\'s source');
+  const withPolicy = { ...state, config: { landing: { perItem: false } } };
+  assert.equal(singleItemLanding(withPolicy), false, 'per-item is off for this batch');
+  assert.equal(oneItemBatch(withPolicy), true, 'the batch still holds exactly one item');
+  assert.equal(await returnRefusedItem(withPolicy, red), true);
+  assert.equal(status(), 'open', 'the item goes back to its builder instead of being adopted again next wake');
+});
+
 test('a refusal of the item\'s own content still reopens it [C7,#2967]', async t => {
   const { close, state, status } = landing();
   t.after(close);
   assert.equal(await returnRefusedItem(state, new Refused('LAND_PLAN_UNPLACED', 'abc fails the cells-plan check')), true);
   assert.equal(status(), 'open');
+});
+
+test('BOARD_BUSY during a per-item landing leaves the item verified and is a landing fault, never a culprit [C7,#3068] clause 2', async t => {
+  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  const { close, state, writes, status } = landing();
+  t.after(close);
+  assert.equal(landingFault(new Refused('BOARD_BUSY', 'the board is busy')), true);
+  assert.equal(landingFault(new Refused('LAND_HEADER', 'bad header')), false);
+  assert.equal(await returnRefusedItem(state, new Refused('BOARD_BUSY', 'the board is busy')), false);
+  assert.equal(status(), 'verified');
+  assert.deepEqual(writes, []);
+});
+
+test('renewLocalLanding retries BOARD_BUSY with backoff until the acknowledged lease deadline, then gives up [C7,#3068] clause 1', async () => {
+  const { renewWithBackoff } = await import('../packages/landing/src/shell/landing-resource.js');
+  let at = 0;
+  const pauses = [];
+  const clock = { now: () => at, pausing: async ms => { pauses.push(ms); at += ms; }, until: () => 30_000 };
+  let failures = 3;
+  const renewed = await renewWithBackoff(() => { if (failures-- > 0) throw new Refused('BOARD_BUSY', 'busy'); return 'renewed'; }, clock);
+  assert.equal(renewed, 'renewed');
+  assert.deepEqual(pauses, [100, 200, 400]);
+  at = 0;
+  await assert.rejects(renewWithBackoff(() => { throw new Refused('BOARD_BUSY', 'busy'); }, clock), /busy/);
+  assert.ok(at < 30_000 && at > 20_000, `gave up before the lease deadline after ${at} ms`);
+  await assert.rejects(renewWithBackoff(() => { throw new Refused('LAND_LEASE_LOST', 'lost'); }, clock), /lost/);
+});
+
+test('a worker that gives up on BOARD_BUSY does not mark its batch blocked, so adoption resumes it [C7,#3068] clause 3', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../packages/landing/src/shell/landing-step-batch.js', import.meta.url), 'utf8');
+  assert.match(source, /&& !landingFault\(error\)\s*\n\s*&& \['merging', 'gating'\]\.includes\(state\.batch\.state\)\)\) await save\(state, \{ state: 'blocked' \}\)/u);
+});
+
+test('a locked slot database is a landing fault, and the local trunk keeps its batch resumable [C7]', async () => {
+  const { landingFault } = await import('../packages/landing/src/shell/landing-step-diagnose.js');
+  assert.equal(landingFault(new Refused('SLOT_DB_LOCKED', 'never ran: the resource queue database stayed locked')), true);
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../packages/landing/src/shell/landing-step-trunk.js', import.meta.url), 'utf8');
+  const handler = /\} catch \(error\) \{\s*if \(!\(error instanceof Refused\)\) throw error;\s*[^\n]*\n\s*if \(landingFault\(error\)\) throw error;/u;
+  assert.match(source, handler, 'a landing fault leaves the local trunk before it can save the batch blocked');
 });
