@@ -537,13 +537,13 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
     // predates the name guard and has no runner column value.
-    const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const remoteHolders = db.prepare('SELECT browser, timing, since, landing, kind FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
       slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
-      browsers: remoteHolders.filter(holder => holder.browser === 1).length,
+      browsers: remoteHolders.filter(holder => holder.browser === 1).length, landingShards: remoteHolders.filter(holder => holder.kind === 'landing' || holder.landing === 1).length, // Spread a batch's shards across hosts [C7].
     }];
   }));
   const unavailable = unavailableRunnerHosts(db, now, runners);

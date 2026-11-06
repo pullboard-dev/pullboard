@@ -41,6 +41,8 @@ export async function knownMainAccount(state, gate) {
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
       if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
       else {
+        // Keep the answer for the base split: it ran the same file on main a second time on 6 Nov, 3 minutes each [C7].
+        (state.mainComparisons ??= new Map()).set(file, comparison);
         const row = comparison?.files?.find(entry => entry.file === file);
         state.say?.(`main comparison for ${file} at ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
       }
