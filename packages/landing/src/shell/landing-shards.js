@@ -477,6 +477,9 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     browser: await needsBrowser(shard.files), gui: await needsGui(shard.files), claimed: false, localOnly: false, done: false, attempts: [], status: null })));
 
   timing?.phase('setupMs', setupAt);
+  /** Seconds since this run started, so the log attributes the time around the shards [C7]. */
+  const sinceStart = () => Math.round((performance.now() - selectionAt) / 100) / 10;
+  write(`# landing timing: selection ${Math.round(setupAt - selectionAt)} ms, setup ${Math.round(performance.now() - setupAt)} ms, shards dispatched at +${sinceStart()} s\n`);
 
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
   const inheritedCanRun = entry => (!runnerOnly || inherited?.runnerExecution === true || Boolean(inherited?.runner))
@@ -682,6 +685,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
+  write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
   const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
