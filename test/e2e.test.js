@@ -330,7 +330,7 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   try {
     const submitted = launch(projectBox, projectBox.web, process.execPath, [BIN, 'submit', '1']);
     children.push(submitted);
-    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource');
+    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource', 40_000); // budget: measured submit prep took 18 s under load; ceiling is a hang bound
     const competitor = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
     children.push(competitor);
     await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit');
