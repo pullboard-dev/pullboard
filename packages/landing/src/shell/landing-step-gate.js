@@ -50,6 +50,7 @@ import { knownMainLine } from './landing-known-main.js';
 import { fileKnownMainReds } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { landingOperations } from './landing-step-merge.js';
 
 /** Quote a command argument without allowing shell interpolation. */
@@ -233,8 +234,13 @@ function smokeTree(state, tree) {
   state.smoked.add(tree);
 }
 
+/** Run one source-pinned gate or selective floor and say how long it took, so a slow landing names its gate [C7]. */
+export function gateGroup(state, label, options) {
+  return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
-export async function gateGroup(state, label, options) {
+async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   smokeTree(state, tree);
   const commit = headCommit(state.batch.root);

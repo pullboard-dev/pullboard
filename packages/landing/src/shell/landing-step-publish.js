@@ -1,4 +1,5 @@
 import { requireLandingCompanions } from './landing-composition-guards.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { quarantineBatchGates } from '../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
@@ -173,14 +174,14 @@ export async function publish(state) {
     batch = await save(state, { proof: { ...batch.proof, failures } });
   }
   if (batch.state !== 'pushed') {
-    await state.checkLease();
+    await timedPhase(state.say, 'lease check', () => state.checkLease());
     batch = await prepareFlakeLanding(state);
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
     if (!alreadyPushed) {
-      state.checkLeaseNow();
-      const pushed = tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]);
+      await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
+      const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));
       if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
     }
     await save(state, { state: 'pushed' });
@@ -217,7 +218,7 @@ function requireLandingCarries(state, batch) {
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
-  await state.checkLease();
+  await timedPhase(state.say, 'lease check', () => state.checkLease());
   state.say?.('finish: envelope recorded; checking module resolution');
   await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
@@ -227,7 +228,9 @@ export async function finishTrunk(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  await timedPhase(state.say, 'push', () => {
+    if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  });
   state.say?.('finish: main fast-forwarded; refreshing the code map');
   refreshPublishedMainReds(state, state.batch.base);
   await refreshLandedCodeMap(state);

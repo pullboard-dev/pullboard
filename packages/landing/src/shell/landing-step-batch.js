@@ -64,6 +64,7 @@ import { landsOnTrunk } from './landing-step-publish.js';
 import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
 import { finishTrunk } from './landing-step-publish.js';
+import { timedPhase } from './landing-phase-timing.js';
 
 /** Require a separate admitted slot for every speculative gate, without holding a parent gate open. */
 function requireParallelGateAdmission(root, config) {
@@ -370,7 +371,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         return { batch: state.batch, landed: state.batch.state === 'landed' ? state.batch.items.map(entry => entry.id) : [],
           conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
       }
-      const build = await mergeGroup(state, initialItems);
+      const build = await timedPhase(say, 'merge', () => mergeGroup(state, initialItems));
       await save(state, { ...build, conflicts: [...state.batch.conflicts, ...build.conflicts] });
       for (const entry of state.batch.blocked ?? []) say(entry.code === 'LAND_FILE_OVERLAP'
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
@@ -393,7 +394,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
           else {
             const green = await bisect(state, build.items, gate.failures);
             if (!state.flaky && green.length) {
-              const rebuilt = await mergeGroup(state, green);
+              const rebuilt = await timedPhase(say, 'merge', () => mergeGroup(state, green));
               await save(state, { ...rebuilt, culprits: state.culprits });
               // The smaller final tree lost the removed items' changes, so the kept items' deferred files run again on it.
               if (!await inlineDeferredGuards(state)) {
