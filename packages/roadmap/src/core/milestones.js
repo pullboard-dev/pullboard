@@ -11,9 +11,11 @@ import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js"
  * into the next milestone, so the roadmap stays the one place that says what is planned.
  */
 import { COORDINATOR } from "../../../config/index.js";
-import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { MILESTONE_RANK_ENGINE } from "../../../../src/milestone-rank-engine.js";
-import { WITHDRAW_MILESTONE_ENGINE } from "../../../../src/withdraw-milestone-engine.js";
+import {
+  ENGINE_VERSION,
+  MILESTONE_RANK_ENGINE,
+  WITHDRAW_MILESTONE_ENGINE,
+} from "../../../state/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";

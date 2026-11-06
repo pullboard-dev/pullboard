@@ -25,7 +25,7 @@ after(e2e.cleanup);
 test('reclaim at newer main submits only the item edits, without reverting coordinator policy [L3,V4]', () => {
   const box = e2e.project('true');
   const added = box.run(box.repo, 'add', 'web', 'Reclaimed work', '--specs', 'G1',
-    '--criterion', 'the owned file exists', '--check', 'test -f web/reclaimed.txt', '--json');
+    '--criterion', 'the owned file exists', '--check', 'test -f web/reclaimed.txt', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   const initial = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
@@ -33,7 +33,7 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   const committed = e2e.commitFile(box, box.web, 'web/reclaimed.txt', 'owned work\n', 'feat(web): reclaimed fixture [G1]');
   assert.equal(committed.status, 0, committed.context);
   const candidate = box.git(box.web, 'rev-parse', 'HEAD');
-  assert.equal(box.run(box.web, 'release', '1', '--reason', 'BLOCKED').code, 0);
+  assert.equal(box.run(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next').code, 0);
 
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lease = '3h';
@@ -46,13 +46,20 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   box.git(box.web, 'checkout', '-q', 'web/one');
   const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
-  assert.equal(reclaimed.item_claim_head, newerMain, 'the new claim is bounded by newer main');
-  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), candidate, 'the item still has its older main parent');
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(reclaimed.item_claim_head, newerMain, `the new claim is bounded by newer main (candidate ${candidate})`);
+  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), candidate, `the item still has its older main parent (candidate ${candidate}, newer main ${newerMain})`);
+  const submitted = box.run(box.web, 'submit', '1', '--json', '--no-next');
   assert.equal(submitted.code, 0, submitted.out + '\n' + submitted.err);
   const record = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(record.item_status, 'submitted');
-  assert.equal(record.item_commit, candidate);
-  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, 'submit does not rewrite the coordinator checkout');
-  assert.deepEqual(submissionPaths(box.web, reclaimed, candidate, { mainCommit: newerMain }), ['web/reclaimed.txt']);
+  assert.doesNotThrow(() => box.git(box.web, 'merge-base', '--is-ancestor', candidate, record.item_commit),
+    `the submitted source retains the item candidate (newer main ${newerMain})`);
+  assert.doesNotThrow(() => box.git(box.web, 'merge-base', '--is-ancestor', newerMain, record.item_commit),
+    `the submitted source includes newer main (candidate ${candidate})`);
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, `submit does not rewrite the coordinator checkout (candidate ${candidate})`);
+  // The listing is conservative across every merge base, so it names the merged-in policy file too; that file must equal newer main's copy.
+  const listed = submissionPaths(box.web, reclaimed, record.item_commit, { mainCommit: newerMain });
+  assert.deepEqual([...listed].sort(), ['pullboard.json', 'web/reclaimed.txt']);
+  assert.equal(box.git(box.web, 'rev-parse', record.item_commit + ':pullboard.json'), box.git(box.web, 'rev-parse', newerMain + ':pullboard.json'),
+    'the coordinator policy file is not reverted');
 });
