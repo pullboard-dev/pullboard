@@ -158,7 +158,7 @@ function warm(root, commit) {
   return warmAcceptedCells(root, commit, { withCheckout: withMainCheckout, withLock: withFileLock });
 }
 
-test('accepted inventory is an off-path, once-per-tree census; cold and corrupt reads never build [C7]', { timeout: 590_000 }, async t => {
+test('clause 1: clause 3: accepted inventory is an off-path, once-per-tree census; cold and corrupt reads never build [C7]', { timeout: 590_000 }, async t => {
   const machine = isolateMachine(t);
   const box = plannedFixture(t);
   const before = inventoryBuildCount();
@@ -234,7 +234,7 @@ test('accepted inventory is an off-path, once-per-tree census; cold and corrupt 
   assert.equal(inventoryBuildCount(), before + 1, 'a corrupt read never repairs by running a census');
 });
 
-test('a structural change runs full candidate inventories and records their cause [C7]', { timeout: 590_000 }, async t => {
+test('clause 2: a structural change runs full candidate inventories and records their cause [C7]', { timeout: 590_000 }, async t => {
   isolateMachine(t);
   const box = plannedFixture(t);
   const artifact = await warm(box.root, box.main);
