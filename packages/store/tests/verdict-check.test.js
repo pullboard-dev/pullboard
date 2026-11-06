@@ -88,6 +88,7 @@ function project(box) {
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: initialize fixture');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  box.env.PULLBOARD_MODEL ||= 'Fixture builder';
   assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
   return { repo, web };
 }
@@ -101,7 +102,7 @@ function succeeds(box, cwd, ...args) {
 
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
 function submitted(box, repo, web, title, check) {
-  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.'];
+  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check'];
   if (check) args.push('--check', check);
   const added = succeeds(box, repo, ...args);
   const id = Number(/#(\d+)/.exec(added)?.[1]);
@@ -291,10 +292,11 @@ test('a landing during the check itself still refuses the verdict [V8]', (t) => 
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: verify composes at admission');
   box.git(web, 'merge', '-q', 'main');
-  const landing = `git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'`;
+  // The landing changes the item's own file with the bytes it reviewed (so the composition merges cleanly), and only once the review checkout exists (an earlier empty landing keeps the submit proof from being reused): an empty or unrelated landing no longer voids a verdict (61b93a7c77).
+  const reviewer = join(box.dir, 'moving-check-reviewer');
+  const landing = `[ -d '${reviewer}' ] || { git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land before the review [G1]'; exit 0; }; mkdir -p '${repo}/web' && printf 'export const complete = true;\\n' > '${repo}/web/item-1.js' && git -C '${repo}' add web/item-1.js && git -C '${repo}' -c user.name=Fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m 'feat: land during the check [G1]'`;
   const { id, commit } = submitted(box, repo, web, 'Moving check', landing);
   box.git(repo, 'switch', '-q', 'main');
-  const reviewer = join(box.dir, 'moving-check-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, commit);
   succeeds(box, reviewer, 'join', 'web');
   const refused = box.run(reviewer, 'verify', String(id), 'accept', '--note', 'Verified while main moves during the check');
@@ -308,23 +310,23 @@ const STORE_BODY_HASHES = {
   "src/exit-rules-continuation.js": "e6ce02be3e201fbf7db44f14e3e7a8a08d21ad6f70a07e8ac1351f719e2d89ed", "src/exit-rules-state.js": "43cff0e1fe6b69e3e06438f9842999ddca53d131e95ba935761bd12755a04e90",
   "src/known-main-autofile.js": "cfcefe647a8590232176ef4bea8a1cc9c59d8070748ec15f2f61e1716cc51c1b", "src/board-access.js": "b5898d8b29808d58563118e90851aaf7fada6b14778d9fde1cc7f97cda2233c8",
   "src/board-busy.js": "46dfa1149b6468c47b3d1b75142495c8532397640cfd64300fc3c19371b444d6", "src/board-capture.js": "3bdf7cfe9c7e7a223c1d2b0e5e1deb89e519fa82c4ceb0d1f513d82076f9f3e3",
-  "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "7ceea8e6b457faeabcbeac5e09a13d78ca129102721e188b18cef91a92670c0a",
-  "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "3f030e7aaa0e4214b4d9cb5641d559157699666957e84b7d1d02c88b9dbd2552",
+  "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "871e7170802e5264c21cf080ffe8faced27fd39821efcf08b9929c88751b55ae",
+  "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "f47e378d23f918c334437fe829b96a43334e44248ee1f06adac2a3749a11fcfd",
   "src/board-inventory.js": "0a6a433174971e2f05795bd6cc47bd3d5b994867a920b12c8e534c26d8686e07", "src/board-item-dependencies.js": "bcd9f96c6da94ad6f80f31cee806c51f727f8b8c4f3333afe9033eabeb6d6d46",
-  "src/board-item-read.js": "29a7b65cafad96e3e8ddeb151e8807fcf318ca4cc17c366bf3def1b2fc8424a7", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
+  "src/board-item-read.js": "b2edb32106441abf09ff6bad4cccba716659b772a16352bb933c55da8846c65b", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
   "src/board-link-relay.js": "69c75aa84eca41160794609951941fe41f47b670dd7033c2c8e7ad06276128c6", "src/board-link-ssh.js": "99bb4a0a223d9f40e885b02fa9e9dd6d27cecd77001cd1cf3d55d557c0f7c849",
   "src/board-link-state.js": "9e0f6860c91c40234c52d672f3a4ce32748e8ae50f5906cf17f1dca07977e30b", "src/board-link.js": "40212bdeef409ee18446ba78892327c6294ae565c06863bc7b1be53ff4d89ef7",
   "src/board-members.js": "91278a43b1d3b568d59cc0c450dac6fe069361b08527fca0a8b5cebf72242bbc", "src/board-migrate.js": "e2c668a8a4a61c620932faadf5e78a5afb34147103514a93ec3408587895c504",
-  "src/board-query.js": "9026c23ac439023816c9d4083fd0e79fdb2f88c68111da77073e2e3619bdefbd", "src/board-read-auxiliary.js": "a6b0e357b63eb774da5101fc23cad7d2f2f854ab65ed1520247daf9cd6f2c3c3",
-  "src/board-read-open.js": "70df408b96863012967b86ffa66e08a99243fc9037fe543c23e703728a1c10ca", "src/board-rehome.js": "ea3f4a0b7ab9584917f404e072c3b1462b2525b1084487ffaa528bbf0f486a21",
+  "src/board-query.js": "3627f43d864898aea3bb4cf47a9adde1f76cec006e034d304d920222dc3d2448", "src/board-read-auxiliary.js": "a6b0e357b63eb774da5101fc23cad7d2f2f854ab65ed1520247daf9cd6f2c3c3",
+  "src/board-read-open.js": "6211c45798871209a093830c49289fff1f72404cda738f01878bf13d568af163", "src/board-rehome.js": "ea3f4a0b7ab9584917f404e072c3b1462b2525b1084487ffaa528bbf0f486a21",
   "src/board-schema-source.js": "41c2ec4afa58d3d813e4fb601ffdc0995d825f0506d507d93845c16ed126c56e", "src/board-schema.js": "9d0e27591f449ed3e4e62bd53a74dd6b49d143eacd99e54abb2a00a8ff9c689e",
-  "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "c30f6eb0e86492513170a5fb7e2cb4cf4bee444264b1a5142dede03032be22ef",
+  "src/board-signing-recovery.js": "5d29d936067c3514891d4d8bb050124446cd4e62298d5f84e8d86f69bacd6689", "src/board-stats.js": "05b6d2a9a08faa318803f435fc1b6c2cc42e373dd278ce093791b7bbc3d32f77",
   "src/board-store-guards.js": "59d61adf6f03ffeb7392bcf964889d1db456a5bcf09af0fd44e95ea4ac8d92ac", "src/board-write-lock.js": "54169f41545630fcc101bb344c5667376e58a832dd784ae08cb320fe40f98b8b",
-  "src/board.js": "5d498094b851e840bb6d5b3ad88f425753c949f0bbe6a4ee703adc7e6704919f", "src/companion.js": "f3d829f6e5df7111122fa26736200c03efefad686fc97e9ef9796003914d0fa9",
-  "src/dispatch-eligibility.js": "fe14fc2e9d89291327cc38dfedb544c8a9d9cb3711b9fcba2967127147aa99f5", "src/exchange.js": "00ff4ef260f796b10d0c225663b39ccabb2ef6d41dffd8146f323fdd6f33f37b",
+  "src/board.js": "b484f0264b7a922e40a90673b4799851438ce1c160a4ca5c9ed1f76c7e06ba94", "src/companion.js": "f3d829f6e5df7111122fa26736200c03efefad686fc97e9ef9796003914d0fa9",
+  "src/dispatch-eligibility.js": "f321d1b41f0e707d072012a8a89c49c4ba68f71c01d10fa89405374b095a1e29", "src/exchange.js": "00ff4ef260f796b10d0c225663b39ccabb2ef6d41dffd8146f323fdd6f33f37b",
   "src/history.js": "fa0fd97a765ad359c5965b98d323a99e7d8a50d0905acd58affea61cfb43dad8", "src/item-check-baseline.js": "99c8932745a884b917893567cd2210ae93990dd0e5c744c465113c9d49bb2f7e",
   "src/known-main-reworks.js": "244b98abd3ed373f327f0d1de4147b8579e195c6b04a142616c74b7f179a12e0", "src/local-state.js": "572b942586f48637f2b65f9b36ec22ed42eaa31820624e1ecd636e4184b39f35",
-  "src/main-red-build-routing.js": "ce8bae312bcde87dace940eff2b83c88dcad5ba322aa0af800c8cdbb80c01411", "src/memory-held.js": "3ddaf339187426ca0ab5ac0518409853ded5120b7d247b2788f463144c082c70",
+  "src/main-red-build-routing.js": "96bae7ffaeaa3f539ac40b05071a31345fad6663c532f60eeca2b62de9d64ff8", "src/memory-held.js": "3ddaf339187426ca0ab5ac0518409853ded5120b7d247b2788f463144c082c70",
   "src/native-board-state.js": "226902b1822463da52c4e30b9f29563c84050cb283a1b9641a9781764bb43f77", "src/native-state-clock.js": "cf9fb8899caa4cfc789d2ae26d3c538dffbf0d779d731044e7dbeaffe75e3426",
   "src/native-user-directory.js": "94f415cdc875eb6c796ff34ae1b9e5adee2a911d6fac3aebac057103acbac1dc", "src/outside-store.js": "d6267a06e55614b297c7d94439bb9257604fc4de3b677b65dd6dd612766c52db",
   "src/proof-receipts.js": "45a1ad4effe3ad14c51cb8d5cdb8794bb9335f0719c6156147fed02e520c524c", "src/seat-presence.js": "6406b2968271407b1b55e8a226020bd8a7fdfed22acaff7ac1228e678033f352",
@@ -332,46 +334,46 @@ const STORE_BODY_HASHES = {
   "src/submission-record.js": "6cc96832fb0413a756a855447494aa4bcf85cbb6270b2099fc59c709e9cbe096", "src/typed-requests.js": "784a50e2b48e860629eca272bcfdea4dda3470a4c35ba33fba34f0920ebf1c90",
   "src/board-engine-ports.js": "1cfce81f15253453d733508538244c6ac750d6f3f150bfc777ebccf8df781ac2", "src/board-milestones.js": "07b6e2e6e90ffeaf29ecc17f787eae492ad4a5e15c276520c0b1609f132b3b3b",
   "src/board-store.js": "0839b4ae1266c564b3e8c8db72bffba49ea44988a8bdde483ebc711b267990c4", "src/board-person-authority-schema.js": "3b030720e19347d6fec66f7cb5eb37ca0750de0bb52e62bd3ce18636a422bca6",
-  "src/board-activity-delivery-store.js": "92884af194a73d88cdb12329d4286556494cf22e7f69033016d42e9790e3eead", "src/board-activity-feed.js": "05df3fa1e1e24749f5f396d0929eab71d93ab595f6704347df72655f685697ff",
+  "src/board-activity-delivery-store.js": "37f90352cdb4d75680bfb420b5835d2145c5b022e6ae3c55b6c5d07198bf4166", "src/board-activity-feed.js": "05df3fa1e1e24749f5f396d0929eab71d93ab595f6704347df72655f685697ff",
   "src/board-activity-news.js": "ccdd40c60a9c2aa76d14b97519158acfab1df3f1c6445b533ce43bbf2d68d6f1", "src/board-landing-exceptions.js": "411e1d5aa110c607319baee0079f5df388c56ea9976cafaedc10240ef20f7694",
-  "src/board-landing-lease.js": "5d89ccaabcb10ff8eac3df596893de57fec748b8a42dbb6a6497488c44a86b83", "src/board-landing-local-lease.js": "4cb79e23083c593805912d87520f3b162c856a3d8288d27c5d52ba1f9a5ef02c",
+  "src/board-landing-lease.js": "287f774a876a2e4a0fdaa91291e9824ecb01571a6db6808db37b78b13644f245", "src/board-landing-local-lease.js": "98fc3ac1334995717c25db764d3702ca738f0488f9dae578c8abb98b46b4c190",
   "src/board-landing-test-defect-history.js": "f56c3ce729d78945877a6ef51cb97296434a26fbef7eefc2705f3f011b93abf4", "src/board-landing-test-defects.js": "098bbafc75c6fad14fe891e33c9f37d40151cac0ec585da2b0137489fa5feb8f",
-  "src/board-inbox-store.js": "2306b7696dae82221afeaf3346d07127bde29bc9501452252d1b4ff7cfd04ab5", "src/board-shout-audience.js": "6079435ee62cb304e2ab657d338423d8d58e8bcd8fc47f57000f3101089e6ebf",
+  "src/board-inbox-store.js": "8d643a83659d2dc3e5c8a1193f5995b83b8fdea1ea5a681f9532f4270efe776c", "src/board-shout-audience.js": "6079435ee62cb304e2ab657d338423d8d58e8bcd8fc47f57000f3101089e6ebf",
   "src/board-worker-inbox.js": "ac9ff12f75079abfe4847f808f2cbff00044e8a74b14b20f572445d83c9917a7", "src/board-conditional-holds.js": "43c052922168888a8d7fdd8549ed918da83a97d1d87b3e2750e92848c2d2271d",
   "src/board-health-receipts.js": "22d41f344a1e51410effad4436ac37e082d3215820eac564e4a919be81f6135d", "src/board-recurring-jobs.js": "51bc12a731d46c5e38c62f4ec9e4e1138ce73c8a653a2ec8e9fde1029a1d1fb4",
-  "src/board-release-claim.js": "c4e25460331c6df3cc6bbbe4d24b87a5bff0eb0c77ef96d778fd1bbb95084b74", "src/board-stale-claim-release.js": "6b41ff40b89726a64ff829676bbbab6ce0c59d49a833f4fffa39ca91dbac77c6",
+  "src/board-release-claim.js": "30003731a82d1c52f221c0df9562a0c4baaeede6052d1f3f9442ede0e6b415a9", "src/board-stale-claim-release.js": "6b41ff40b89726a64ff829676bbbab6ce0c59d49a833f4fffa39ca91dbac77c6",
   "src/board-stale-state-maintenance.js": "47185b8d63d7c2e887b4660a144bfa5408279c44d4ede00c144eeb0228ce3468", "src/board-stale-state-policy.js": "176868212c5be77a3420defcb3dec5cf4a878e97025e53425f0eabb3f8d3087e",
-  "src/board-stale-state-store.js": "18f8e598ac9d995c45bd7d8169af8d5188cb18488136273ad4d2899ecc844408", "src/board-rigor-auto-source.js": "890678baea24e2161e831e84f00340e538dc5521ad32d5b05ba7b57a8d0c9b34",
+  "src/board-stale-state-store.js": "4ea33e81fce378214a41476995e15d2681b63fdfabedb76fc5a72ac4cc651382", "src/board-rigor-auto-source.js": "890678baea24e2161e831e84f00340e538dc5521ad32d5b05ba7b57a8d0c9b34",
   "src/board-rigor-source.js": "33f348cb275d515210e30ca5c0cc18ec79a9809ac0dce9583214357507422d55", "src/board-rigor.js": "f1fd397412327f4145500c1b7d52d928881bbf1dfbd94d0738077fc160a96bce",
-  "src/board-claim.js": "25726a22b75c82737146d5b08841b5e4354337d454b743c0bfc3edd686ae5a88", "src/board-command-write.js": "034df076da93aecab07f42b03de3f8e50bc0cb2902df5c75495af5962bef8798",
+  "src/board-claim.js": "83b4dcc19b354501f081e3ac2949da8375edce81d9bb0d3f38bb7769e2e5798c", "src/board-command-write.js": "b472d7a4bd0c4a19a23878945f5c80accb879712305fb4dc291b85882bafb760",
   "src/board-write-preparation.js": "41e353a4ac017be9dfe130b35e23d233ff93f7502d896a704c03cb129b5e5ded", "src/board-act-on-activity.js": "d0681f7d6c2ebd281e1a0ebd14251e516607c590713659a04aeb65448c27dc64",
-  "src/board-activity-delivery.js": "cac6d47db07ce4418fe13e6cdf24e10a7a21f4e3d873663e8d3a62dace0df53b", "src/board-add-item.js": "ca9cd4421a53716bcd6f0bc3862047fe0b509de1c17565cd2e70d4b039eefb4e",
-  "src/board-answer-decision.js": "eac6bdde95d7a34d39627ebfce6a7debfb108d0b62ac37d7b38f09ad72648528", "src/board-append-fact.js": "827aff92adf64419c6e094ecd9a69f9e26c7a10730895df03d7eb590f0e396ca",
+  "src/board-activity-delivery.js": "4af3eb9c0b234e11ece8d5dfa1c4ddd9366a22a09034c51c63a00241ed9bf319", "src/board-add-item.js": "61a986818dafc029f9ba7188b2de12ce83ce8f8377a979602d1a4a35d70df24f",
+  "src/board-answer-decision.js": "eac6bdde95d7a34d39627ebfce6a7debfb108d0b62ac37d7b38f09ad72648528", "src/board-append-fact.js": "9acd149cfd1c454eca7dce1efb40a91c340d8a69975a12925b0c5249dae3fb5c",
   "src/board-apply-rehome-item.js": "a83031486d74b46148276c90abc1f90a59b3f0feec20d2ab29db52585bda1ca2", "src/board-apply-row-decisions.js": "a95e1fb9eff936309d9887c8460a89af8d8504c4f4fbcb9ca93edc89e11b5fb0",
   "src/board-approve-outside.js": "b589960d8ab4deed1764dcef47e4e05459fbb689f124b3fdc013a02ce76a05f5", "src/board-attach-item-patch.js": "e7530335051b166d9290ac5c4f86fc8d657dcd658cb8ab39edc4d7bd2cdbf215",
-  "src/board-build-order.js": "e96b273914b50aa562cbd25df95e11d7f91a02c6181652acd5f8323f233eb04e", "src/board-edit-item.js": "5ea955eba40d9d7927087c80139ef236a98e0e7702214959ccf1e836a4d0eb6e",
+  "src/board-build-order.js": "e96b273914b50aa562cbd25df95e11d7f91a02c6181652acd5f8323f233eb04e", "src/board-edit-item.js": "b717331808f6f90de813450b1ce61dbb23e709fe80b689bb6a7611ab5b5774ec",
   "src/board-ensure-coordinator.js": "5b24bc6d12347e6563a84c781e6b9ce9e3a7c3cedefe183b5316b841f0c3693c", "src/board-finish-landing-batch.js": "ae986d7ef013c8ace6d57f8b076a4cb1b6b97240fe3622e512407751a8e8fdd3",
   "src/board-hold-item.js": "585ea3bc7a04a79fd92e9f5188b5015ecec58e38c2248dee7c52b223e08fd0be", "src/board-hold-lane.js": "7e23bd4f00e826d0f996706449951d7f2d46415916b10278161a423e5602c7bc",
   "src/board-intake-outside.js": "c538db4c1fe1a1ef3205df37e93d571b178e56009cba541a70521e16d5bfde60", "src/board-maintain-stale-state.js": "3e290d8baa90c7003aed11defc6b471d6a7530eb4720ae794074bddd0b59b605",
-  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "d64bf228a0b38bbceb34476e6e16ab74a69d88276af2b0b14fc2e09ebd064c73",
+  "src/board-merged.js": "fd009c9ae90154924ddcd8f0e9d08a1da71a16ed2649ce79b68af6c47ba1b1c3", "src/board-next-for.js": "e4647f451300a083050380b8da8611afdf09208bb6b01aacbb998bf90f726055",
   "src/board-open-handoff.js": "76109c6e5476e1897ef34e4e9b419a59d6d486f199f6c79061b13463eff8303e", "src/board-pass-decision.js": "aef27eb84910e7e4a4862c3aacd2b7d05a87efea55f50d125629917bbfc2ce42",
   "src/board-publish-repair.js": "5d9beec4dd1113b60b9233c834d46d055cc7d52da753c89ca5a039f4d4f125be", "src/board-record-health-findings.js": "dc90cbc6eee040ac7b5e3dd78d69fdbc2b25fab556df3e7bb6276499c2d82da6",
   "src/board-record-landing-batch.js": "f2eda3970527e4bb4277856fd577f0c244ffd78634eaafbba19288098c73bb1d", "src/board-record-landing-flake.js": "421d845ece8aedcba23bf57c7d75b667aa18cc1c529b6aa84d02484647b00415",
   "src/board-record-landing-waiver.js": "57585a752d1dc5a8b37b9d47cc841bfef69c946ec7b8cbaa5cf0222cee4e141c", "src/board-record-next-idle.js": "0971022436f40893517978e3a3d674d0761a74348b55229f316ed8eb9fc5f8c0",
   "src/board-record-row-decisions.js": "eedf786b066adcbdf8fef775ff26f73a5b84af0a7285a87e0b39cdf79e509239", "src/board-refreeze.js": "f461576845fcf872990820b2307f71c6c8c70b1faa74a34685bbade1550f26bc",
-  "src/board-register.js": "3e74d14313ead859a84681e3abbfdc0683d3222933299a71672fb5ca33c0e2c4", "src/board-relay-refusal.js": "4dfa8d76aed1e41199a068aa76374e10bbf834c61e1126246efa2fab561988fc",
+  "src/board-register.js": "2d1bdb6d97dd91b82460243f523d98a5aab2ee329ea9f0222f44c4cfad1112f2", "src/board-relay-refusal.js": "4dfa8d76aed1e41199a068aa76374e10bbf834c61e1126246efa2fab561988fc",
   "src/board-release-item-hold.js": "2b89e727558978785336f1d0de586924105102f85f41e5a09c56ef6c55cf94e2", "src/board-release-lane.js": "bc2d90af482b26432219617595fb00c5eb8a08cb322c015e476a8fac12e241db",
   "src/board-release.js": "cf62d0bc64eca61251477459852e44cd08b4c5a69da21e1344be5a5ee8e50457", "src/board-remove-item-patch.js": "92e2bbad55c3dd946f4d8835860041cddb25cff85a22da6097bab6d137e1ab9e",
   "src/board-reopen.js": "7db858fd7c50e2067775a6951dc7585bfc3dcb197a7cdce7aa1b48d08d345f77", "src/board-request-companion.js": "b0200c5af20ae2f27b1062a273b743ede0b4327538ce8776169dd52a2aa108e0",
-  "src/board-reserve-next-review.js": "c3cab6b47fc7dae52063799f28aa7cf5baf18e5fe1e4423df3aa576432191d4b", "src/board-reserve-review.js": "a55e2053120fe4f3d3d4fd7c99d4a1413b1c5e94042475252dff3918f874740e",
-  "src/board-review-offer.js": "eafedf056d0b37cc3e34e7b10a6568479963a77bf627fe4875a944f728d19dd1", "src/board-review-release-note.js": "d5809c3ee8973c197c7c0d3e772c113508be9b75ec33d4809af48cc663545853",
+  "src/board-reserve-next-review.js": "94f00fb6f403a4f90bce57806de83c9ba2536a2cf887618bb5ca78b20617f9cc", "src/board-reserve-review.js": "a7fa346d2edc24783ff6b7b83ecf9c40972dd95f751371cafd79f48395925b14",
+  "src/board-review-offer.js": "f86b05793edfc633529aa2d5bab05783cc9bcc002bb081e79733dfc8b78261cb", "src/board-review-release-note.js": "d5809c3ee8973c197c7c0d3e772c113508be9b75ec33d4809af48cc663545853",
   "src/board-set-lane-lead.js": "0b808a3a0c7f2eed081100c50ed9ed06afeaa8aefeabb56805351aae9b918693", "src/board-shout.js": "c1878b177bf35edfba7a0fa6cff71d621130cb6843daeecfc6cbecc3aa56741f",
-  "src/board-submit.js": "ce8a946ad9d457a289bfc84300f0c388c9f8ca176bf998a07dff43ba78d80a35", "src/board-take-handoff.js": "48269aed33f41393bec6c87f0b252093ecde278e4ec74da9fc8b36f65ff547b9",
+  "src/board-submit.js": "a90cc6eb0506373a68640c15f560d023b695049650037aee32fd71164f54a37e", "src/board-take-handoff.js": "48269aed33f41393bec6c87f0b252093ecde278e4ec74da9fc8b36f65ff547b9",
   "src/board-verify.js": "113a826a0352c8021262bba73a80259bbaed70c38c67ede1532ac47bea531d08", "src/board-withdraw.js": "90ee177d549b00642aaa33ec5fe75c87bfd67dedef0890e6ae3e1fc164f7f630",
   "src/board-escalate.js": "303f67f8a153244c9babf5a341163866a97c5548ccdfa7ecf5ced61b5d1c26e7", "src/board-record-attempt.js": "26f5280b217eac6d3f3591533961c2eefd64abf7eb36da5335cae68ecccf3691",
   "src/board-line-settings.js": "7082cabaf5c606a0c61f37b51e33802669f8b30c1baa0d496c265ce6a5a414bb", "src/board-coordinator-hold.js": "26c6471c07f37a019f1e37ccf24d326dd156fb6ecbc7eb2ea74657681ca04545",
-  "src/release-reasons.js": "08159ca66a89c6d205291e3dc8307f8f40ca1a07a276ee1a53f8c0620a176c1f", "src/submit-outcome.js": "8607c2830b46b748a072730ee8edf4d35ad64c46c185c41236857ff0967ee740",
-  "src/submit-handoff-state.js": "9c0ba73e5b2e4f56f1156fabe5db02067fb03ce0b044c8473484545f2ae06789", "src/submit-handoff-read.js": "16fc4a53ef91ad6a88ec38fe6aff8b45a0869ee69feba3605fe7ab8765fd63da",
+  "src/release-reasons.js": "24423ec2015cd1b535b07220226bf0d3743d900f088430f6ef0970ec1329fe47", "src/submit-outcome.js": "8607c2830b46b748a072730ee8edf4d35ad64c46c185c41236857ff0967ee740",
+  "src/submit-handoff-state.js": "f43494431c0979532aa5fdeed9b697b833872c768fabbe81c74b544a71bd97c3", "src/submit-handoff-read.js": "16fc4a53ef91ad6a88ec38fe6aff8b45a0869ee69feba3605fe7ab8765fd63da",
   "src/rework-family-routing.js": "2838de62bff33b94dd39a9c3e78760f1d802db88c1bcb0806ab71eef9603abaa",
 };
 
@@ -434,14 +436,14 @@ const ACCEPTED_ENGINE_VALUES = [
   ["FAMILY_ALIAS_ENGINE",162], ["FAMILY_DECLARE_ENGINE",170], ["FILE_GROWTH_NOTICE_ENGINE",99], ["FLAKE_RATCHET_ENGINE",212],
   ["FLOW_SIZE_ENGINE",117], ["FOCUS_BOUNDARY_ENGINE",207], ["FOCUS_MILESTONE_ENGINE",107], ["GATE_RUN_ENGINE",67],
   ["GENERATED_DOCS_ENGINE",154], ["GONE_CLAIM_ENGINE",139], ["HANDOFF_ENGINE",104], ["HEALTH_CAP_ENGINE",62],
-  ["HEALTH_SENTINEL_ENGINE",42], ["HISTORICAL_AUTHORS_ENGINE",80], ["IMPLIES_ENGINE",20], ["ITEM_FOLDER_ENGINE",199],
+  ["HEALTH_SENTINEL_ENGINE",42], ["HISTORICAL_AUTHORS_ENGINE",80], ["IMPLIES_ENGINE",20], ["INFRA_RELEASE_ENGINE",233], ["ITEM_FOLDER_ENGINE",199],
   ["ITEM_NOTES_ENGINE",112], ["ITEM_PATCH_ENGINE",144], ["ITEM_PATCH_SUBMIT_ENGINE",160], ["ITEM_SHOUT_ENGINE",93],
   ["ITEM_SLICE_ENGINE",205], ["KNOWN_MAIN_AUTOFILE_ENGINE",180], ["KNOWN_MAIN_FAILURES_ENGINE",124], ["KNOWN_MAIN_OWNER_PATTERN_ENGINE",179],
   ["KNOWN_MAIN_REWORKS_ENGINE",151], ["KNOWN_MAIN_RUNNING_FILE_ENGINE",225], ["LAND_COLLISION_ENGINE",101], ["LANDING_ENVIRONMENT_ENGINE",85],
   ["LANDING_LEASE_ENGINE",74], ["LANDING_LOCAL_LEASE_ENGINE",94], ["LANE_LEAD_ENGINE",125], ["LEASE_LAPSE_ENGINE",177], ["LEDGER_QUARANTINE_ENGINE",null],
   ["LINE_CAPACITY_ENGINE",103], ["LINE_ORDER_ENGINE",100], ["LINE_SETTINGS_ENGINE",98], ["LIVE_RELEASE_PLACEMENT_ENGINE",213],
   ["LIVE_ROUTE_ENGINE",153], ["LOCAL_LANDING_ENGINE",64], ["MAIN_AUDIT_ENGINE",138], ["MAIN_RED_FAILURE_LINES_ENGINE",214],
-  ["MECHANICAL_MERGE_ENGINE",132], ["MERGE_ONLY_VERDICT_ENGINE",129], ["MILESTONE_LIMIT_ENGINE",113], ["MILESTONE_PLACEMENT_ENGINE",193],
+  ["MAIN_RED_FOCUS_ENGINE",232], ["MECHANICAL_MERGE_ENGINE",132], ["MERGE_ONLY_VERDICT_ENGINE",129], ["MILESTONE_LIMIT_ENGINE",113], ["MILESTONE_PLACEMENT_ENGINE",193],
   ["MILESTONE_QUEUE_ORDER_ENGINE",215], ["MILESTONE_RANK_ENGINE",34], ["MILESTONE_SHIP_ENGINE",45], ["NATIVE_FLAKE_ENGINE",61],
   ["NEXT_IDLE_ENGINE",169], ["NO_ELIGIBLE_REVIEWER_ENGINE",168], ["OUTSIDE_INTAKE_ENGINE",97], ["PARENT_SESSION_ENGINE",90],
   ["PATCH_AUTHOR_IDENTITY_ENGINE",158], ["PATCH_FOLLOW_ENGINE",165], ["PATCH_REVIEW_CUSTODY_ENGINE",157], ["PEOPLE_ENGINE",73],
