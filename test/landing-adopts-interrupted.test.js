@@ -99,11 +99,11 @@ test('an adopted dead worker batch persists the dead pid and the gap on the batc
   const { box, reviewer, first, trunk } = waitingItem(t);
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
   const note = { pid: stuck.pid, gapSeconds: 97, at: new Date().toISOString() };
-  process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(note);
+  box.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(note);
   try {
     const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
     assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  } finally { delete process.env.PULLBOARD_LANDING_ADOPTION; }
+  } finally { delete box.env.PULLBOARD_LANDING_ADOPTION; }
   const resumed = batchById(box, stuck.id);
   assert.deepEqual(resumed.adoptedFrom, note, 'the stored batch names the dead pid and the gap in seconds');
 });
