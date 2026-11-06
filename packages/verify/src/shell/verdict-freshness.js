@@ -1,12 +1,12 @@
 /** Acceptance stays append-only; freshness is derived from the known Git trunk [E8,V8]. */
 import { mergeOnlyLandingProblem } from '../../../merge/index.js';
-import { spawnSync } from 'node:child_process';
 import {
   cleanGitEnvironment,
   mainCheckout,
 } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** A freshness failure that carries its own reason text, so each cause names the step the person takes [C7]. */
 class FreshnessFailure extends Error {
@@ -16,7 +16,7 @@ class FreshnessFailure extends Error {
 
 /** Read exact Git objects without inherited selectors, replacements, or filename quoting. */
 function readGit(root, args) {
-  const result = spawnSync('git', ['--no-replace-objects', ...args], {
+  const result = gitSpawnSync(['--no-replace-objects', ...args], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
   });
   if (result.status !== 0) throw new Error('Git history is unavailable');
@@ -32,7 +32,7 @@ function readGit(root, args) {
 function pathPatchId(root, from, to, path) {
   const diff = readGit(root, ['diff', '--no-renames', '--full-index', '--binary', '--unified=0', from, to, '--', path]);
   if (!diff) return '';
-  const id = spawnSync('git', ['--no-replace-objects', 'patch-id', '--verbatim'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
+  const id = gitSpawnSync(['--no-replace-objects', 'patch-id', '--verbatim'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
   if (id.status !== 0) throw new Error('Git patch ids are unavailable');
   return id.stdout.split(' ')[0];
 }
@@ -44,7 +44,7 @@ function pathPatchId(root, from, to, path) {
  * every other accept stale and each needed a re-review of identical work.
  */
 export function composesUnchanged(root, { base, checked, tip, paths }) {
-  const merged = spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
+  const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   if (merged.status !== 0) return false;
   const tree = merged.stdout.trim().split('\n')[0];
@@ -167,7 +167,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       if (review && verdictReviewProblem(review, item.item_commit)) throw new FreshnessFailure('the sealed review does not match the submitted commit; re-review the clean composition');
       const checked = review?.head ?? item.item_commit;
       // A physical landing is final only when it includes the checked composition.
-      const landed = spawnSync('git', ['--no-replace-objects', 'merge-base', '--is-ancestor', checked, tip],
+      const landed = gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', checked, tip],
         { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
       if (landed.status === 0) return null;
       if (landed.status !== 1) throw new FreshnessFailure(`the checked commit ${checked.slice(0, 12)} is missing from this replica; fetch it or re-review`);
