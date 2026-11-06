@@ -77,7 +77,7 @@ function fixture(t, health = {}) {
     fact: text => store.appendFact(board, dependency, { agentId: builder.id, kind: 'note', text }) };
 }
 
-test('a dependency waits its full default two hours then releases with its work and original queue rank [B4,B5,C7]', t => {
+test('clause 1: a dependency waits its full default two hours then releases with its work and original queue rank [B4,B5,C7]', t => {
   const f = fixture(t);
   assert.equal(f.board.enginePorts.claimedItemRoot(f.board, store.getItem(f.board, f.dependency)), f.itemRoot);
   f.advance(119);
