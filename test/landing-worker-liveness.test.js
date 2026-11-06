@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
+import { startServeSentinel, LANDING_LIVENESS_INTERVAL_MS } from '../packages/sentinels/src/shell/serve-sentinel.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** An isolated real Git repository gives each private pending record its actual common directory. */
@@ -35,4 +36,17 @@ test('a dead landing worker mid-batch is replaced and the adoption names its pid
   let seen;
   await resumeAutomaticLanding(root, 'fixture-token', dueAt, async (_root, adopted) => { seen = adopted; }, { wait: async () => true });
   assert.equal(seen.pid, gone, 'the replacement receives the adoption to record on the batch');
+});
+
+test('the view sentinel checks landing liveness every minute, inside the two minute bar [C7]', async () => {
+  const timers = []; const recovered = [];
+  const observer = startServeSentinel({ projects: () => [{ root: '/one' }, { root: '/one' }], enabled: () => true,
+    every: (callback, ms) => { timers.push({ callback, ms }); return { unref() {} }; }, cancel: () => {},
+    run: async () => {}, runCanary: async () => {}, canary: () => ({ close: async () => {} }),
+    recover: async root => { recovered.push(root); } });
+  const liveness = timers.find(timer => timer.ms === LANDING_LIVENESS_INTERVAL_MS);
+  assert.ok(liveness && LANDING_LIVENESS_INTERVAL_MS <= 60_000, 'a pid check runs at least once a minute');
+  await liveness.callback();
+  assert.deepEqual(recovered, ['/one'], 'each board root is checked once per pass');
+  await observer.close();
 });

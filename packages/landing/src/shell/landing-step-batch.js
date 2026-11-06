@@ -312,7 +312,10 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (adopt && !unfinished) throw new Refused('LAND_ADOPT', 'there is no interrupted landing batch; run pullboard land');
   let batch = unfinished;
   if (batch && interrupted && process.env.PULLBOARD_LANDING_ADOPTION) {
-    try { batch = { ...batch, adoptedFrom: JSON.parse(process.env.PULLBOARD_LANDING_ADOPTION) }; } catch { /* an unreadable note records nothing */ }
+    let adoptedFrom = null;
+    try { adoptedFrom = JSON.parse(process.env.PULLBOARD_LANDING_ADOPTION); } catch { /* an unreadable note records nothing */ }
+    // The adoption is persisted on the batch itself, so the dead pid and the gap outlive this worker (#2912).
+    if (adoptedFrom) batch = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, adoptedFrom }, revision: batch.revision }]);
   }
   if (batch?.state === 'flaky') {
     const held = (batch.flakes ?? []).filter((flake) => {

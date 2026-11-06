@@ -95,6 +95,19 @@ test('the next accept resumes a merging batch whose landing process died and lan
   assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
 });
 
+test('an adopted dead worker batch persists the dead pid and the gap on the batch [C7,#2912]', t => {
+  const { box, reviewer, first, trunk } = waitingItem(t);
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
+  const note = { pid: stuck.pid, gapSeconds: 97, at: new Date().toISOString() };
+  process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(note);
+  try {
+    const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
+    assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
+  } finally { delete process.env.PULLBOARD_LANDING_ADOPTION; }
+  const resumed = batchById(box, stuck.id);
+  assert.deepEqual(resumed.adoptedFrom, note, 'the stored batch names the dead pid and the gap in seconds');
+});
+
 test('a gating batch whose worker died before its gate log existed resumes and lands [B35,B3,C7,#3013]', t => {
   const { box, reviewer, first, trunk } = waitingItem(t);
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid(), state: 'gating' });
