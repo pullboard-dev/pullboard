@@ -61,7 +61,7 @@ test('the live stylesheet defines the scale the check points to [C12,N26]', () =
   for (const token of ['--text-sm', '--space-3', '--radius-card', '--round']) assert.match(view, new RegExp(`${token}:`), `src/view.css defines ${token}`);
   // Only the deliberately raw glyphs, large layout paddings and Dashboard number remain (#1594/#1668).
   assert.equal(uiSizeCounts(ROOT)['apps/relay/src/shell/browser-screens.css'], 0, 'the actual relay stylesheet uses the shared scale');
-  assert.ok(uiSizeProblems(ROOT).every((problem) => /^(src|relay)\//u.test(problem.path)), 'only stylesheets under src/ and relay/ are read');
+  assert.ok(uiSizeProblems(ROOT).every((problem) => /^apps\/(view|relay)\/src\//u.test(problem.path)), 'only stylesheets under apps/view/src/ and apps/relay/src/ are read');
 });
 
 test('the counts report retains clean relay files and excludes generated documentation [N26]', () => {
