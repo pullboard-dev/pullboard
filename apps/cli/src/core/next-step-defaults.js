@@ -11,6 +11,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   EXIT_CONTINUATION: 'read the item summary, then continue from a fresh native session of its reserved model family',
   EXIT_USAGE: 'restore the original private claim anchor; unreadable or reset native counters must remain unknown',
   NO_ELIGIBLE_REVIEWER: 'credit the companion to a custodian of another family, or declare the missing family with pullboard join <lane> --family <vendor> on a seat that can review, then submit again',
+  S10: 'drop the full-suite or CI requirement and keep the clause tied to this item\u2019s named files',
   BAD_IDLE_SKIPS: 'run next again and record up to three distinct candidate ids with their first native skip codes',
   WRONG_BRANCH: 'submit the item whose commits this head carries, or switch to the branch built for this item',
   ITEM_FOLDER_DIRTY: 'commit or stash the dirty files in that item folder, then claim again',
