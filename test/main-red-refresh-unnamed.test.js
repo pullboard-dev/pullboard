@@ -28,3 +28,26 @@ test('a red entry without named failures is refreshed alongside named ones; gree
   assert.ok(compared.every(row => row[1] === published && row[2] === true && row[3] === true), 'each refresh is fresh and detailed at the published main');
   assert.equal(results.length, 2);
 });
+
+test('a red file cached under a recent generation is refreshed when the prior main holds nothing; older generations and files past the limit wait [C7]', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-refresh-generations-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', '-b', 'main', root]);
+  mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
+  const previous = 'a'.repeat(40), published = 'b'.repeat(40);
+  const red = { result: 'red', failures: [] };
+  // Insertion order is recency: the oldest generation first, then eight newer ones, then a content record, then the prior main.
+  const entries = { ['0'.repeat(40)]: { 'test/too-old.test.js': red } };
+  for (let index = 1; index <= 8; index += 1) entries[String(index).repeat(40)] = { [`test/gen-${index}.test.js`]: red };
+  entries['c'.repeat(64)] = { 'test/content.test.js': red };
+  entries[previous] = {};
+  writeFileSync(join(root, '.git', 'pullboard', 'main-red.json'), JSON.stringify({ version: 2, entries }), { mode: 0o600 });
+  const compared = [];
+  const compare = async (_root, profile) => { compared.push(profile.tests[0].file); return { main: published, files: [] }; };
+  await refreshMainRedComparisons(root, previous, published, () => {}, compare);
+  assert.deepEqual(compared.sort(), Array.from({ length: 8 }, (_, index) => `test/gen-${index + 1}.test.js`), 'the eight newest commit generations, not the ninth and not a content record');
+  compared.length = 0;
+  await refreshMainRedComparisons(root, previous, published, () => {}, compare, { generations: 8, limit: 3 });
+  assert.equal(compared.length, 3, 'the limit caps one refresh');
+  assert.deepEqual(compared, ['test/gen-8.test.js', 'test/gen-7.test.js', 'test/gen-6.test.js'], 'newest generations first');
+});

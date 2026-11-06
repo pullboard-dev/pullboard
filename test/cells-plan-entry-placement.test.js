@@ -10,6 +10,7 @@ import { placePath } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
+import { entryPlacementProblems } from '../bin/cells-plan-cuts.js';
 import { frontDoorBypasses } from '../bin/cells-plan-cuts.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
@@ -189,4 +190,11 @@ test('trusted submit preserves already accepted process ownership [C7,D3,CD64]',
   delete plan.entries;
   writePlan(value.root, plan);
   await assert.rejects(inspectEntry(value), /accepted process entry ownership changed/u);
+});
+
+test('clause 1: main\'s committed plan places every process entry, bin/main-red-refresh.js included [C7]', () => {
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const plan = readPlan(root);
+  assert.ok(plan.stays.some(stay => stay.path === 'bin/main-red-refresh.js'));
+  assert.deepEqual(entryPlacementProblems(root, plan), []);
 });
