@@ -9,6 +9,7 @@ import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -41,10 +42,10 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   const joined = box.run(box.web, 'join', 'web');
   assert.match(joined.out, /joined as web-1/u);
 
-  const oldCitation = box.run(box.repo, 'add', 'web', 'Old frozen citation', '--specs', 'G2,G3',
-    '--criterion', 'Keep prior G2 evidence while correcting G3.', '--check', 'true', '--json');
-  assert.equal(oldCitation.code, 0, oldCitation.err || oldCitation.out);
-  const oldId = JSON.parse(oldCitation.out).item.item_id;
+  const oldId = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Old frozen citation', route: 'strong',
+    criterion: 'Keep prior G2 evidence while correcting G3.', diagnose: false,
+    brief: 'Files: web/old-frozen-citation.js\nChange: keep the old citation\nTest: the check proves it',
+    args: ['--specs', 'G2,G3'] }).item_id;
   const oldClaim = box.run(box.web, 'claim', String(oldId), '--json');
   assert.equal(oldClaim.code, 0, oldClaim.err || oldClaim.out);
   const priorItem = JSON.parse(box.run(box.web, 'show', String(oldId), '--json').out);
@@ -52,10 +53,10 @@ test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a pe
   assert.equal(priorFrozen.rows.find(row => row.id === 'G2').text, 'The API answers.');
   assert.equal(priorFrozen.rows.find(row => row.id === 'G3').text, 'Original G3 promise.');
 
-  const peerAdded = box.run(box.repo, 'add', 'web', 'Peer claim during apply', '--specs', 'G3',
-    '--criterion', 'The peer keeps its assignment.', '--check', 'true', '--json');
-  assert.equal(peerAdded.code, 0, peerAdded.err || peerAdded.out);
-  const peerId = JSON.parse(peerAdded.out).item.item_id;
+  const peerId = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Peer claim during apply', route: 'strong',
+    criterion: 'The peer keeps its assignment.', diagnose: false,
+    brief: 'Files: web/peer-claim.js\nChange: keep the peer claim\nTest: the check proves it',
+    args: ['--specs', 'G3'] }).item_id;
   const ids = Array.from({ length: 7 }, (_, index) => `G${index + 3}`);
   for (const id of ids) {
     const approved = box.run(box.repo, 'spec', 'approve', id, '--text', 'Updated promise text.', '--json');
