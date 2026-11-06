@@ -75,9 +75,13 @@ require('node:module').syncBuiltinESMExports();\n`);
   return { ...box, requests, starts, stderrLog, settingsFile };
 }
 
-/** Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override. */
-async function observe(predicate, description) {
-  const until = Date.now() + 10_000; // budget: private Git and SSH startup; no production deadline extension.
+/**
+ * Observe a real fixture phase, with cleanup owned by the caller rather than a production timeout override.
+ * An infrastructure requeue renews the runner deadline by design (#1953), so a phase that follows one passes
+ * a budget covering the admission deadline plus the renewed one.
+ */
+async function observe(predicate, description, budgetMs = 10_000) {
+  const until = Date.now() + budgetMs; // budget: private Git and SSH startup; no production deadline extension.
   while (!predicate()) {
     if (Date.now() >= until) throw new Error('fixture did not reach ' + description);
     await new Promise(resolve => setTimeout(resolve, 20));
@@ -106,7 +110,11 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
     const first = queue().line.find(row => row.item === 'deadline-case');
-    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
+    let early;
+    pending.then(result => { early = result; }, error => { early = error; });
+    // The requeue renewed the deadline (#1953); wait for the row to cross it while the real local holder stays held.
+    await observe(() => early || queue()?.line.find(row => row.item === 'deadline-case')?.runnerDeadline, 'the requeued run crossing its renewed runner deadline', 2 * STAND_IN_BOOT_BUDGET_MS + 10_000); // budget: one renewed private deadline plus load margin.
+    assert.equal(early, undefined, 'the run stays queued behind the live local holder: ' + (early?.stderr ?? early?.message ?? ''));
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
@@ -166,7 +174,7 @@ test('a registered runner that never answers is canceled at the deadline and the
     pending = runThroughGate(box.repo, box.env, 'node -e "console.log(\'STALLED_RUN_LOCAL\')"', { item: 'stalled-case', requests: box.requests });
     await observe(() => existsSync(box.starts), 'the non-answering SSH stand-in actually starting');
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
-    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket');
+    await observe(() => queue()?.line.some(row => row.item === 'stalled-case' && row.runnerDeadline), 'deadline cancellation and the original local queue ticket', 3 * STAND_IN_BOOT_BUDGET_MS + 10_000); // budget: the admission deadline, then the renewed deadline after the worker-unresponsive requeue (#1953).
     const waiting = queue().line.find(row => row.item === 'stalled-case');
     assert.match(waiting.runnerDeadline.branch, /local gate slots busy/u);
     assert.match(waiting.runnerDeadline.runners[0].reason, /unreachable/u);
