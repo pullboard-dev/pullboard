@@ -1517,6 +1517,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/cells-object-snapshots.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-audit-backlog.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-snapshot-git.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/225.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
