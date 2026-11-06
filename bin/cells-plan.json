@@ -1380,6 +1380,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/test-fixtures.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/current-cli.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
