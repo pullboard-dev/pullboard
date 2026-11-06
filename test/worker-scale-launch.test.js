@@ -11,7 +11,7 @@ import { runFixtureChild } from './fixture-child.js';
 /** Quote a private fixture path for the supervisor's shell command. */
 function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
-test('run --scale with a fake agent launches exactly one seat in its own worktree and reports no error [C7]', { timeout: 120_000 }, t => { // budget: one native scaler cycle and private Git registration, not a throughput assertion.
+test('clause 1: run --scale with a fake agent launches exactly one seat in its own worktree and reports no error [C7]', { timeout: 120_000 }, t => { // budget: one native scaler cycle and private Git registration, not a throughput assertion.
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
