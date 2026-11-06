@@ -1,7 +1,8 @@
-/** First-run shows only until the loop is proven running, and recognises an existing coordinator [N26,N38]. */
+/** First-run shows only until the loop is proven running, and recognises an existing coordinator [N26,N38], and its copy line names pullboard coordinate once that command exists (#2193). */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { firstRunKit } from '../../apps/view/index.js';
+import { cockpitPage, firstRunKit } from "../../apps/view/index.js";
+import { cliCockpitRenderer$cockpitPage as cliCockpitPage, commandPhrases } from "../../apps/cli/index.js";
 
 const kit = firstRunKit();
 const established = {
@@ -31,4 +32,33 @@ test('the checklist completes once the coordinator joins and an item lands, and 
   assert.equal(kit.model(joined, []).ticks[0], true, 'the coordinator joins');
   assert.equal(kit.visible(kit.model(joined, []), false), true, 'a coordinator alone has not proven the loop');
   assert.equal(kit.visible(kit.model(joined, landed), false), false, 'a coordinator and a landed item prove the loop');
+});
+
+const SKILL_LINE = 'Use the pullboard-run skill: be this project&#39;s coordinator. Keep listening, run builder and verifier subagents, and help me add more agents.';
+const APPROVED_LINE = 'Run pullboard coordinate';
+const fresh = () => firstRunKit().model({ agents: [{ agent_id: 'coordinator', agent_lane: 'coordinator', model: null }] }, []);
+const copyLine = html => html.match(/<div class="first-run-line"><code>([^<]*)<\/code>/u)?.[1];
+
+test('clause 1: once the coordinate command exists, the first-run line reads Run pullboard coordinate (#2193)', () => {
+  const coordinateKit = firstRunKit({ coordinate: true });
+  assert.equal(copyLine(coordinateKit.html(fresh())), APPROVED_LINE, 'the approved line, word for word');
+  assert.equal(coordinateKit.copy, APPROVED_LINE, 'the Copy button copies the approved line');
+});
+
+test('clause 2: until #2068 lands, the first-run line keeps the current skill text (#2193)', () => {
+  assert.equal(copyLine(firstRunKit().html(fresh())), SKILL_LINE, 'the kit without the command keeps the skill line');
+  const exists = commandPhrases().includes('coordinate');
+  assert.match(cliCockpitPage(''), new RegExp('\\{ coordinate: ' + exists + ' \\}', 'u'), 'the served page follows the real CLI catalog, so it flips by itself when #2068 adds the command');
+  const without = cockpitPage('', { commandPhrases: () => commandPhrases().filter(phrase => phrase !== 'coordinate') });
+  assert.match(without, /\{ coordinate: false \}/u, 'a catalog without coordinate keeps the skill line');
+});
+
+test('clause 3: the served page flips to the approved line as soon as the CLI catalog has coordinate, with no other change (#2193)', () => {
+  const phrases = () => [...commandPhrases(), 'coordinate'];
+  const page = cockpitPage('', { commandPhrases: phrases });
+  const embedded = page.match(/kit: \((function firstRunKit[\s\S]*?\n\})\)\((\{ coordinate: (?:true|false) \})\)/u);
+  assert.ok(embedded, 'the page embeds the kit and the switch it is built with');
+  assert.equal(embedded[2], '{ coordinate: true }', 'a catalog with coordinate turns the switch on');
+  const kit = new Function('return (' + embedded[1] + ')(' + embedded[2] + ');')();
+  assert.equal(copyLine(kit.html(fresh())), APPROVED_LINE, 'the embedded kit shows Run pullboard coordinate');
 });
