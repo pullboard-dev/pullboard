@@ -262,6 +262,7 @@ export function nextFor(board, options) {
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
   }
+  const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
@@ -283,7 +284,7 @@ export function nextFor(board, options) {
     if (reserved) { reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { reasons.push(...collisions); continue; }
+    if (collisions.length) { overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       reasons.push(`#${entry.item_id} waits on ${foreign.map(ref => `${itemDependencies.dependencyLabel(ref)} (${ref.status} on its own board)`).join(', ')}`);
@@ -296,6 +297,11 @@ export function nextFor(board, options) {
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
+  }
+  // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
+  for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
+    if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
   }
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
