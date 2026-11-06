@@ -16,6 +16,7 @@ import { readMainAudit } from '../packages/gate/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { automaticLandingEnabled } from '../packages/merge/index.js';
 import { setTimeout as pause } from 'node:timers/promises';
+import { LANDING_BOARD_BUSY_MS } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import { isAbsolute } from 'node:path';
@@ -31,9 +32,12 @@ const FILE = fileURLToPath(import.meta.url);
 export function wakeIo(root) {
   return { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: process.stderr,
     replayConflictRecord: outbox.replay,
-    openBoard: (...args) => nativeBoard.openBoard(...args), nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
+    // The lander waits out a seat's long write instead of ending a landing at the board's default 10 s [C7].
+    openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
+    nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
     outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
-    say: console.log, err: console.error };
+    // Every lander line carries its time, so a batch's phases read back from worker.log [C7].
+    say: (...parts) => console.log(new Date().toISOString(), ...parts), err: (...parts) => console.error(new Date().toISOString(), ...parts) };
 }
 
 /** Read current Git and queue facts without retaining a board connection while the worker waits [B35]. */

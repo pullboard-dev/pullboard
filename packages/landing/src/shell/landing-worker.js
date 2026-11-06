@@ -3,6 +3,8 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
+import { statSync } from 'node:fs';
+import { basename } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
 import {
@@ -11,10 +13,22 @@ import {
   repoInfo,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
+import { LANDING_STALL_MS } from './landing-progress.js';
+import { landingProgressSnapshot } from './landing-progress.js';
+import { landingProgressed } from './landing-progress.js';
+import { landingStallDescription } from './landing-progress.js';
+import { landingStallExpired } from './landing-progress.js';
 
 
 /** Preserve one typed refusal prefix while passing it through more than one process. */
-function messageText(error) { return String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, ''); }
+function messageText(error) {
+  const text = String(error.message).replace(/^\[[A-Z][A-Z0-9_]*\] /u, '');
+  // An unexpected error names where it was thrown: a bare "database is locked" left no way to find the write [C7].
+  if (error instanceof Refused || typeof error?.stack !== 'string') return text;
+  const frames = error.stack.split('\n').filter(line => /^\s+at /u.test(line) && !/node:internal|^\s+at node:/u.test(line))
+    .slice(0, 3).map(line => line.trim().replace(/^at /u, '').replace(/file:\/\/\/.*?\/(packages|apps|bin|src)\//u, '$1/'));
+  return frames.length ? `${text} (at ${frames.join(' < ')})` : text;
+}
 
 /** Read process identities before attributing a live worker or its detached gate descendants. */
 function census(parseProcessCensus) {
@@ -74,15 +88,61 @@ function stopNotice(message) { process.stderr.write(message + '\n'); }
 function runningGroup(rows, pgid) { return [...rows.values()].some(row => row.pgid === pgid && !row.state.startsWith('Z')); }
 
 /** Run blocking batch work under a live parent that owns all canonical writes and lease renewal. */
-export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, say, signal, workerFile, parseProcessCensus }) {
+export async function runLandingWorker(options, { write, checkLease, checkLeaseNow, bindWorker, watchDeadline, onWait, onStall, say, signal, workerFile, parseProcessCensus, stallAfterMs = LANDING_STALL_MS, stallPollMs = 10_000, now = Date.now }) {
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing worker needs the explicit process census parser');
   const read = () => census(parseProcessCensus);
   const child = spawn(process.execPath, [workerFile, 'guardian'], { cwd: options.root, env: process.env, detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const inFlight = new Set();
   let result;
   let failure;
+  let guardianStopped;
   let stderr = '';
   let member;
+  let latestBatch = null;
+  let latestStep = 'worker startup';
+  let lastProgressAt = now();
+  let lastSnapshot = null;
+  let stalled = false;
+  let stallResult;
+  let sampling = false;
+  /** Read byte growth from the active gate log without treating old batch logs as progress. */
+  const logBytes = batch => {
+    if (!batch?.logPath) return 0;
+    try { return statSync(batch.logPath).size; } catch { return 0; }
+  };
+  /** Identify newly started worker descendants by PID and immutable process identity. */
+  const runnerJobs = rows => {
+    if (!rows || !child.pid) return [];
+    const descendants = new Set([child.pid]);
+    let changed;
+    do {
+      changed = false;
+      for (const row of rows.values()) if (descendants.has(row.ppid) && !descendants.has(row.pid)) { descendants.add(row.pid); changed = true; }
+    } while (changed);
+    return [...rows.values()].filter(row => descendants.has(row.pid) && row.pid !== child.pid && row.pid !== member?.pid)
+      .map(row => `${row.pid}:${row.started}:${row.processSha256}`);
+  };
+  /** Block a batch only after its revision, runner processes and active log have all stopped advancing. */
+  const sampleProgress = async () => {
+    if (sampling || stalled || !latestBatch || ['blocked', 'landed'].includes(latestBatch.state)) return;
+    sampling = true;
+    try {
+      const current = landingProgressSnapshot(latestBatch, { logBytes: logBytes(latestBatch), runnerJobs: runnerJobs(read()) });
+      if (landingProgressed(lastSnapshot, current)) {
+        lastSnapshot = current;
+        lastProgressAt = now();
+        latestStep = current.logPath ? `${current.state}/${basename(current.logPath)}` : current.state;
+        return;
+      }
+      if (!landingStallExpired(lastProgressAt, now(), stallAfterMs)) return;
+      stalled = true;
+      const description = landingStallDescription(latestBatch, latestStep);
+      stop(child, member, { read });
+      if (typeof onStall !== 'function') throw new Refused('LAND_STALLED', `${description}; the coordinator must record the blocked batch before continuing`);
+      stallResult = await onStall({ batch: latestBatch, step: latestStep, description });
+    } catch (error) { failure ??= error; }
+    finally { sampling = false; }
+  };
   const unwatch = watchDeadline(until => { if (child.connected) child.send({ type: 'deadline', until }, () => {}); });
   child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-65536); });
   /** A failed authority check stops the whole owned group before another command can adopt its worktree. */
@@ -105,6 +165,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
         return;
       }
       member = row;
+      lastProgressAt = now();
       child.send({ type: 'worker-start', options: { ...options, guardianPid: child.pid } }, () => {});
       return;
     }
@@ -112,6 +173,15 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
     if (message.type === 'result') { result = message.value; return; }
     if (message.type === 'failure') { failure = new Refused(message.code, message.message); return; }
     if (message.type !== 'call') return;
+    if (!['check', 'wait'].includes(message.operation)) {
+      const incoming = message.operation === 'recordLandingBatch' ? message.args?.[0]?.batch : null;
+      if (incoming?.id) {
+        latestBatch = incoming;
+        latestStep = incoming.logPath ? `${incoming.state}/${basename(incoming.logPath)}` : incoming.state;
+      }
+      lastProgressAt = now();
+      lastSnapshot = null;
+    }
     /** Permit only the batch worker's narrow protocol, retaining all authority in this parent. */
     const act = async () => {
       if (signal.aborted || failure) throw signal.reason ?? failure;
@@ -120,18 +190,21 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact'].includes(message.operation)) {
         throw new Refused('LAND_WORKER', 'the landing worker requested an unsupported operation; stop it and inspect pullboard resume');
       }
-      return await write(message.operation, message.args);
+      const value = await write(message.operation, message.args);
+      if (message.operation === 'recordLandingBatch' && value?.id) latestBatch = value;
+      return value;
     };
     const pending = act().then(value => answer(message.id, value), error => answer(message.id, null, error));
     inFlight.add(pending);
     void pending.finally(() => inFlight.delete(pending));
   });
+  const progressTimer = setInterval(() => { void sampleProgress(); }, stallPollMs);
   try {
     const terminal = new Promise(resolveClose => {
       child.once('error', error => { failure = error; });
       child.once('exit', (code, terminatedBy) => {
-        if (code !== 0 || terminatedBy || result === undefined) {
-          failure ??= new Refused('LAND_WORKER', 'the landing guardian stopped unexpectedly; inspect pullboard resume before adopting');
+        if (!stalled && (code !== 0 || terminatedBy || result === undefined)) {
+          if (!failure) failure = guardianStopped = new Refused('LAND_WORKER', 'the landing guardian stopped unexpectedly; inspect pullboard resume before adopting');
           stop(child, member, { read });
         }
       });
@@ -142,10 +215,14 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
     if (signal.aborted) abort();
     else child.send({ type: 'start', options });
     const status = await terminal;
+    if (stalled && !failure) return stallResult;
+    // The worker's own crash text reaches only this pipe; a bare refusal hid a liveness SIGTERM for hours (#3130).
+    if (guardianStopped && failure === guardianStopped && stderr.trim()) throw new Refused('LAND_WORKER', `the landing guardian stopped unexpectedly; inspect pullboard resume before adopting: ${stderr.trim().slice(-2048)}`);
     if (failure) throw failure;
     if (status.code !== 0 || result === undefined) throw new Refused('LAND_WORKER', `the landing worker stopped without a completed batch (${status.signal ?? status.code}); inspect pullboard resume before adopting${stderr ? `: ${stderr.trim()}` : ''}`);
     return result;
   } finally {
+    clearInterval(progressTimer);
     signal.removeEventListener('abort', abort);
     unwatch();
     if (child.exitCode === null && child.signalCode === null) stop(child, member, { read });

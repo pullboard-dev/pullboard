@@ -1,7 +1,17 @@
 /** Named milestone preference reads only recorded board policy and preserves each group's existing order [N2,B16,H16]. */
 import { engineAtLeast } from "../../../state/core.js";
 import { FOCUS_MILESTONE_ENGINE } from "../../../../src/focus-milestone-engine.js";
+import { MAIN_RED_FOCUS_ENGINE } from "../../../../src/main-red-focus-engine.js";
 import { lineSettings } from "../../../state/src/core/line-settings-read.js";
+
+/**
+ * Unfinished Main red items, which count as in focus whatever milestone holds them, or none. Why: a Main red blocks
+ * every landing, so a focus with overflow off that hid it left seats idle while landing stayed stuck (#3126).
+ */
+function mainRedIds(board) {
+  if (!engineAtLeast(board, MAIN_RED_FOCUS_ENGINE)) return [];
+  return board.db.prepare("SELECT item_id FROM item WHERE item_title GLOB 'Main red:*' AND item_status IN ('open','claimed','submitted')").all().map(row => row.item_id);
+}
 
 /** Historical moves never gain a preference from policy written by a later engine. */
 export function milestoneFocus(board, ports) {
@@ -10,7 +20,8 @@ export function milestoneFocus(board, ports) {
   const setting = lineSettings(board).focusMilestone;
   const name = typeof setting === 'string' ? setting : setting?.name;
   if (typeof name !== 'string') return null;
-  return { name, overflow: setting?.overflow === true, ids: new Set(ports.milestones(board).find(milestone => milestone.name === name)?.items ?? []) };
+  const ids = new Set([...(ports.milestones(board).find(milestone => milestone.name === name)?.items ?? []), ...mainRedIds(board)]);
+  return { name, overflow: setting?.overflow === true, ids };
 }
 
 /** Add a leading preference while leaving the caller's established comparison intact within each group. */
