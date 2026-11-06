@@ -31,6 +31,9 @@ import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
+import { loadConfig } from "../../../config/index.js";
+import { requireOwnLaneCheck } from "../../../verify/core.js";
+import { laneOf } from "../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
@@ -144,6 +147,10 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
+  if (check !== undefined && board.gitRoot && agentId !== COORDINATOR) {
+    const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(agentId);
+    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: agentId, lane: actor?.agent_lane }, item.item_lane, command, laneOf);
+  }
   if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {
     throw new Refused('NOT_YOURS', `only the coordinator or ${item.item_created_by}, who added #${id}, edits it; shout them instead`);
   }
