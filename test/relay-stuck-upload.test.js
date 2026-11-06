@@ -89,7 +89,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   assert.deepEqual((await sentOperations()).filter(operation => operation !== 'appendFact'), [],
     'no paused local move was sent before its baseline existed');
   const baseline = await uploadedState(box);
-  assert.equal(baseline.sequence, 0);
+  assert.equal(baseline.sequence, box.moveAcks.length, 'the baseline checkpoint covers only the queued review fact move, if it was sent');
   assert.equal(baseline.document.tables.item.find(row => row.item_id === item).item_status, 'submitted',
     'the accepted fresh baseline includes the local claim and submission');
   assert.ok(baseline.document.tables.shout.some(row => row.shout_text === 'Relay pause fixture remains available'),
