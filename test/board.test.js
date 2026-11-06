@@ -23,6 +23,7 @@ import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
 import { ROUTE_CALIBRATION_ENGINE } from '../src/route-calibration-engine.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
@@ -650,11 +651,12 @@ test('a shout can carry typed evidence: attempt or receipt, outcome, item and co
 });
 
 test('every move lands in the event log; stats count items and verdicts [R1, R2]', () => {
+  // Before milestone placement (2a3a0f7555) and automatic escalation (d2a669b629) the log holds only the moves themselves.
+  board.executionEngineVersion = Math.min(MILESTONE_PLACEMENT_ENGINE, AUTO_ESCALATE_ENGINE) - 1;
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'red' });
   const kinds = store.events(board, { itemId: id }).map((event) => `${event.event_by}:${event.event_kind}`);
-  // Placement (2a3a0f7555) records milestone_placed on add; a reject escalates the route (d2a669b629).
-  assert.deepEqual(kinds, ['coordinator:add', 'coordinator:milestone_placed', 'web-1:claim', 'web-1:submit', 'web-2:reject', 'coordinator:escalate']);
+  assert.deepEqual(kinds, ['coordinator:add', 'web-1:claim', 'web-1:submit', 'web-2:reject']);
   const stats = store.stats(board);
   assert.equal(stats.items.open, 1);
   assert.equal(stats.rejected, 1);
