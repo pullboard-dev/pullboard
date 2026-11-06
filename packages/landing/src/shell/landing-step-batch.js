@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
@@ -117,7 +118,7 @@ export async function land(options) {
       if (deferred) return deferred;
     }
   }
-  options.say(`LANDTRACE idle=${idleLanding(options.board, trunk.commit)} adopt=${options.adopt} due=${options.due}`);
+  appendFileSync(join(options.root, '.git', 'landtrace.log'), `LANDTRACE idle=${idleLanding(options.board, trunk.commit)} adopt=${options.adopt} due=${options.due}\n`);
   if (trunk.commit && !options.adopt && idleLanding(options.board, trunk.commit)) {
     requireConfirmedLanding(options.board);
     // Only accepted trunk policy may inform this read-only preflight.
@@ -126,7 +127,7 @@ export async function land(options) {
     const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
-    options.say(`LANDTRACE ready=${selected.ready.length} same=${current?.commit === trunk.commit} idle2=${idleLanding(options.board, trunk.commit)}`);
+    appendFileSync(join(options.root, '.git', 'landtrace.log'), `LANDTRACE ready=${selected.ready.length} same=${current?.commit === trunk.commit} idle2=${idleLanding(options.board, trunk.commit)}\n`);
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);

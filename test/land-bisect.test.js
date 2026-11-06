@@ -1,5 +1,7 @@
 /** Independently schedule the real red landing bisection [B3,R3,E8]. */
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -72,7 +74,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   const again = box.run(box.repo, 'land', '--json');
   assert.equal(again.code, 1, again.out + again.err);
   assert.equal(JSON.parse(again.out).error.code, 'STALE_VERDICT', 'an all-blocked queue refuses instead of suggesting an empty successful land');
-  assert.deepEqual(events(box), beforeEmptyEvents, `an idle all-blocked selection adds no lease events: ${idleState} trunk ${box.git(box.repo, 'rev-parse', 'main')} ${again.out}${again.err}`);
+  assert.deepEqual(events(box), beforeEmptyEvents, `an idle all-blocked selection adds no lease events: ${idleState} trunk ${box.git(box.repo, 'rev-parse', 'main')} ${existsSync(join(box.repo, '.git', 'landtrace.log')) ? readFileSync(join(box.repo, '.git', 'landtrace.log'), 'utf8') : 'NO TRACE'}`);
   assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'a stale refusal takes no lease');
   assert.equal(json(box, box.repo, 'show', String(entries[2].item)).item_status, 'open', 'the known red is returned to its builder and is no longer a verified landing candidate');
   assert.equal(calls(box).length, afterCalls, 'known unchanged red is not retried');
