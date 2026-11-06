@@ -44,6 +44,7 @@ import {
   agentDisplayName,
   context,
   firstLineOf,
+  identifyCaller,
   idArg,
   itemLine,
   sayBrief,
@@ -51,6 +52,7 @@ import {
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -58,10 +60,10 @@ export const nativeBoardRequired = false;
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
-  const prices = loadMachineSettings().costPrices;
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
+  const prices = loadMachineSettings().costPrices;
   const { item, queuedSubmit, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
@@ -95,8 +97,22 @@ export async function run(io, { first, values }) {
     io.result({ ...item, progress, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
+  // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
+  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
+  const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
+    try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
+      relayLinked: () => false }, readers).id; }
+    catch (error) {
+      if (error instanceof Refused && error.code === 'NOT_JOINED') return null;
+      throw error;
+    }
+  });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  if (item.item_status === 'claimed' && item.item_owner === callerId) {
+    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
+  }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));

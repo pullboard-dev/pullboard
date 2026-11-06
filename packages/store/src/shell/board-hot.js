@@ -31,15 +31,29 @@ export function ensureHotIndexes(db) {
   ensureAdditiveIndexes(db);
 }
 
+/**
+ * The seats of one original session, by session value. Why: seatFamily's peer read matches this exact LIKE, and
+ * without it SQLite walked every `a`-key on the board, about 11 ms a call on a 300,000-row board_meta [C7,#2976].
+ */
+const SESSION_PEERS_INDEX = 'board_meta_agent_session_value_v1';
+const SESSION_PEERS_SQL = `CREATE INDEX IF NOT EXISTS ${SESSION_PEERS_INDEX} ON board_meta (meta_value)
+  WHERE meta_key LIKE 'agent\\_session:%' ESCAPE '\\'`;
+
+/** True when the session-peers index is not installed yet. */
+function missingSessionPeersIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SESSION_PEERS_INDEX);
+}
+
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
 export function ensureAdditiveIndexes(db) {
   ensureFactIdentityIndexes(db);
   ensureGrantActivationIndex(db);
+  db.exec(SESSION_PEERS_SQL);
 }
 
 /**

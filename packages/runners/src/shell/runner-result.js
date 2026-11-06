@@ -14,6 +14,7 @@ import { importTestResults } from '../../../gate/index.js';
 import { runnerPhaseFields } from '../../../gate/index.js';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
+import { verifyRunnerReceipt } from '../core/runner-signature.js';
 
 /** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
 export function transportText(value) {
@@ -43,8 +44,15 @@ export function resultFrom(request, result, { privateCheckPhases }) {
   // never manufacture source/proof metadata or treat the refusal as a transport retry.
   if (!result.error && Number.isInteger(result.status) && result.status > 0 && result.status <= 255 && output.length === 0 && receipts.length === 0
       && lines.filter(line => line === 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification').length === 1) {
-    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution`);
-    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: 'invalid work specification' };
+    // The runner's fixed rule text (never a value); an older runner sends none.
+    const ruleLine = lines.find(line => line.startsWith('PULLBOARD_RUNNER_SPEC_RULE '));
+    const rule = ruleLine && /^[A-Za-z][A-Za-z0-9 ,'-]{0,119}$/u.test(ruleLine.slice(27)) ? ruleLine.slice(27) : '';
+    const versions = lines.filter(line => /^PULLBOARD_RUNNER_SPEC_VERSION (?:0|[1-9][0-9]{0,8})$/u.test(line));
+    const runnerVersion = versions.length === 1 ? Number(versions[0].split(' ').at(-1)) : null;
+    const mismatch = runnerVersion !== null && Number.isSafeInteger(request.spec.version) && runnerVersion !== request.spec.version;
+    const refused = new Refused('RUNNER_WORK_SPEC', `runner ${request.runner.host} refused an invalid work specification before execution${mismatch ? `: controller version ${request.spec.version}, runner version ${runnerVersion}` : rule ? `: ${rule}` : ''}`);
+    if (mismatch) refused.workSpecVersions = { controller: request.spec.version, runner: runnerVersion };
+    refused.runnerAttempt = { host: request.runner.host, exitCode: result.status, output: output.toString('utf8'), reason: rule ? `invalid work specification: ${rule}` : 'invalid work specification' };
     throw refused;
   }
 
@@ -62,6 +70,14 @@ export function resultFrom(request, result, { privateCheckPhases }) {
     if (receipts.length !== 1) throw new Error('missing receipt');
     receipt = JSON.parse(Buffer.from(receipts[0].slice(prefix.length), 'base64').toString('utf8'));
   } catch { throw runnerFailure(request, result, receipts.length === 1 ? 'receipt-json' : 'receipt-count'); }
+  if (request.runner.publicKey) {
+    let authenticated = false;
+    try { authenticated = verifyRunnerReceipt(receipt, request.runner.publicKey); } catch { /* Invalid key or signature never authenticates a remote result. */ }
+    if (!authenticated) throw new Refused('RUNNER_RESULT_SIGNATURE', `runner ${request.runner.host} returned an invalid signed result; re-register it with pullboard runner add before accepting another result`);
+  }
+  if (receipt.commit !== request.spec.commit || receipt.tree !== request.spec.tree) {
+    throw new Refused('RUNNER_RESULT_SOURCE', `runner ${request.runner.host} returned a signed result for a different commit or tree; discard it and rerun the pinned source`);
+  }
   if (result.error || result.status !== 0 || receipt.id !== request.spec.id || receipt.commit !== request.spec.commit
     || receipt.tree !== request.spec.tree || receipt.runtimeSha256 !== request.spec.runtime.sha256 || receipt.toolingSha256 !== request.spec.tooling.sha256 || !Number.isInteger(receipt.code) || receipt.code < 0 || receipt.code > 255
     || typeof receipt.root !== 'string' || !Number.isFinite(receipt.wallMs) || receipt.wallMs < 0
@@ -129,7 +145,7 @@ export function resultFrom(request, result, { privateCheckPhases }) {
       importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys, completion);
     } catch { /* Missing retained provenance forces fresh execution next time. */ }
   }
-  return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, ...(receipt.timedOut ? { timedOut: true } : {}),
+  return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, phases: request.phaseAt ?? null, ...(receipt.timedOut ? { timedOut: true } : {}),
     environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
     ...(request.spec.stageMarker ? { stages: staged?.stages ?? null } : {}),
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,
