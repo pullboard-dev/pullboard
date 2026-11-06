@@ -76,11 +76,14 @@ function pause(ms) {
  * A lock stop (LOCK_CODES) is no attempt: the same candidate waits with doubling backoff, capped at 30 s, until the
  * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
  *
+ * A CELLS_INVENTORY_PENDING stop that names its commit is no attempt either: `waitInventory(commit)` waits for the
+ * producer, and when it returns the same candidate runs again; when it throws, the stop counts like any other (#3316).
+ *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @param {{ say?: (line: string) => void, waitInventory?: (commit: string) => Promise<unknown>, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, waitInventory = null, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
   const attempts = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
@@ -100,6 +103,10 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
         say(`queued gate met a busy lock (${code}); waiting ${Math.round(ms / 1000)} s and continuing the same candidate, not a retry`);
         await wait(ms);
         continue;
+      }
+      if (code === 'CELLS_INVENTORY_PENDING' && typeof error.commit === 'string' && waitInventory) {
+        say(`queued gate is waiting for the accepted cells inventory of ${error.commit.slice(0, 12)}; continuing the same candidate, not a retry`);
+        try { await waitInventory(error.commit); attempt -= 1; continue; } catch { /* Still warming at the limit: the stop counts below. */ }
       }
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });

@@ -165,3 +165,49 @@ export function recordAcceptedCellsFailure(root, commit, error) {
   catch { identity = { directory: join(machineHome(), 'cells-cache', 'accepted'), tree: null }; key = HASH.test(commit ?? '') ? commit : 'unknown'; }
   save(join(identity.directory, `${key}.failure.json`), { version: 1, tree: identity.tree, at: new Date().toISOString(), message: String(error?.message ?? error).slice(0, 2048) });
 }
+
+/** Read the producer's owner record for a commit: 'live', 'dead' (a record whose process is gone), or 'none'. */
+function ownerState(root, commit) {
+  try {
+    const identity = acceptedCellsIdentity(root, commit);
+    const file = join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`);
+    return ownerLive(JSON.parse(readFileSync(file, 'utf8'))) ? 'live' : 'dead';
+  } catch { return 'none'; }
+}
+
+/** Resolve after `ms`; the default sleep, replaced by a fixture's own clock. */
+function defaultSleep(ms) {
+  return new Promise(done => setTimeout(done, ms));
+}
+
+/**
+ * Wait for a commit's accepted inventory to be published by its independent producer, and return the artifact.
+ * Polls readAcceptedCells every intervalMs while the producer's owner record is live; a producer that died without
+ * publishing is nudged once more and then waited on too. Throws CELLS_INVENTORY_PENDING (carrying the commit) when
+ * limitMs passes first.
+ * Why: a landing starts a 2 to 5 minute producer, longer than the quick infrastructure retries, so the gate waits on
+ * the producer instead of spending those retries (#3316).
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {{ now?: () => number, sleep?: (ms: number) => Promise<void>, limitMs?: number, intervalMs?: number, workerUrl?: URL, read?: Function, nudge?: Function, owner?: Function }} [options]
+ * @returns {Promise<{ available: true }>}
+ */
+export async function waitForAcceptedCells(root, commit, { now = Date.now, sleep = defaultSleep, limitMs = 15 * 60_000, intervalMs = 15_000,
+  workerUrl = new URL('../../../../bin/main-audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState } = {}) {
+  const deadline = now() + limitMs;
+  let renudged = false;
+  for (;;) {
+    const found = read(root, commit);
+    if (found.available) return found;
+    if (!renudged && owner(root, commit) !== 'live') {
+      renudged = true;
+      try { await nudge(root, workerUrl, commit); } catch { /* The next poll reports what is still missing. */ }
+    }
+    if (now() + intervalMs > deadline) {
+      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is still warming after ${Math.round(limitMs / 1000)} s (${found.cause}); requeue after the independent producer finishes`),
+        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
+    }
+    await sleep(intervalMs);
+  }
+}

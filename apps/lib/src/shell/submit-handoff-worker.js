@@ -34,6 +34,7 @@ import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { waitForAcceptedCells } from '../../../../packages/gate/index.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
@@ -138,7 +139,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n') });
+    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => waitForAcceptedCells(root, commit) });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
       { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
   } catch (error) {
