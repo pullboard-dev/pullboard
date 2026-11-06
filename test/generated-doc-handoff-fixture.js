@@ -45,7 +45,7 @@ export async function submitHandoffEventContract(t) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: native handoff event fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  id = document(box.run(box.repo, 'add', 'web', 'Real handoff event contract', '--specs', 'G1',
+  id = document(box.run(box.repo, 'add', 'web', '--route', 'strong', 'Real handoff event contract', '--specs', 'G1',
     '--criterion', 'A real failing check returns the captured candidate.', '--check', 'false', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/event-contract.txt', 'captured\n', 'feat(web): native handoff contract [G1]').status, 0);
