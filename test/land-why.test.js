@@ -28,7 +28,7 @@ function seeded(t) {
   return board;
 }
 
-test('land --why names the last landing, the batch, its refusal, blocked items and each failure by scope [C7]', (t) => {
+test('clause 1: land --why names the last landing, the batch, its refusal, blocked items and each failure by scope [C7]', (t) => {
   const why = landWhy(seeded(t), NOW);
   assert.deepEqual(why.lastLanded, { item: 12, at: '2026-11-04T09:30:00.000Z' });
   assert.equal(why.batch.id, 'b2');
@@ -53,14 +53,14 @@ test('without a recorded main comparison a failure is unknown, even when an over
   assert.match(landWhyLines(landWhy(board, NOW)).join('\n'), /boots \(unknown\)/u);
 });
 
-test('the status landing line counts the last hour and names the top blocker [C7]', (t) => {
+test('clause 2: the status landing line counts the last hour and names the top blocker [C7]', (t) => {
   const why = landWhy(seeded(t), NOW);
   assert.equal(why.landedLastHour, 1, 'the merge 90 minutes ago is outside the hour');
   assert.equal(why.reopenedLastHour, 1);
   assert.equal(landingLine(why), 'landing: 1 landed, 1 reopened in the last hour; top blocker: LAND_GATE_RED');
 });
 
-test('an empty board and a landed batch read cleanly, from events alone with no git [C7]', (t) => {
+test('clause 3: an empty board and a landed batch read cleanly, from events alone with no git [C7]', (t) => {
   const board = openBoard(':memory:', { now: () => NOW });
   t.after(() => store.closeBoard(board));
   assert.deepEqual(landWhyLines(landWhy(board, NOW)), ['last landed: nothing yet', 'batch: none recorded']);
