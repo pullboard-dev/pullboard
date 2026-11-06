@@ -337,7 +337,7 @@ test('private check timeout kills a TERM-resistant shell and its tracked child [
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true').code, 0);
+  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
