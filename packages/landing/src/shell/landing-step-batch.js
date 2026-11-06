@@ -74,6 +74,23 @@ function requireParallelGateAdmission(root, config) {
   }
 }
 
+/**
+ * Refuse a merged tree that adds an unplaced bin/ or src/ path before main moves, with the same placement check submit
+ * runs; false when it returned the adding items to their builders with the path [C7,#3210].
+ */
+export async function placedMerge(state, items) {
+  const { unplanned, readPlan } = await import('../../../../bin/cells-plan.js');
+  const { addedPlacementProblems } = await import('../../../../bin/cells-plan-cuts.js');
+  const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
+  if (!problems.length) return true;
+  const touched = item => new Set(git(state.root, ['diff', '--name-only', '--no-renames', state.batch.base, item.commit]).split('\n'));
+  const owners = items.filter(item => { const files = touched(item); return problems.some(row => files.has(row.path)); });
+  const failures = problems.map(row => ({ file: row.path, name: `CELLS_PLAN_UNPLACED: ${row.message}; place it with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), commit the plan with the source, then submit again` }));
+  for (const item of owners.length ? owners : items) await returnCulprit(state, item, failures, { isolated: true });
+  state.say(`nothing landed: ${problems.map(row => row.message).join('; ')}`);
+  return false;
+}
+
 /** Name this machine on the public board by a digest, never by its host name. */
 export function landingHost(name = hostname()) {
   return createHash('sha256').update(name).digest('hex').slice(0, 16);
@@ -401,6 +418,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         ? `#${entry.id} waits on overlapping files ${entry.files.join(', ')}; once this batch lands, its reviewer must merge current main and re-accept it without reopening`
         : `${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
       if (!build.items.length) await save(state, { state: 'blocked' });
+      else if (!await placedMerge(state, build.items)) await save(state, { state: 'blocked', culprits: state.culprits });
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
