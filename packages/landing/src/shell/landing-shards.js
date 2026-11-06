@@ -312,6 +312,31 @@ async function stopShard(child, closed, parseProcessCensus) {
   return left.map(row => `pid ${row.pid} (${row.processSha256.slice(0, 12)})`);
 }
 
+/**
+ * Whether a red shard's only failures are files their own watchdog stopped: a HUNG or TIMEOUT line, with no first
+ * failure that stopped the shard early. Why: one hung file must stay red without leaving every other file not run (#3167).
+ */
+export function watchdogStoppedOnly(output) {
+  const text = String(output ?? '');
+  return /run-tests: (?:HUNG|TIMEOUT) file /u.test(text) && !/^Landing gate stopped early after /mu.test(text);
+}
+
+/**
+ * The time a shard spent in each dispatch step: connecting, sending history the runner lacked, waiting for READY, and
+ * running. Why: a one-file shard took 134 s for 54 s of tests, and nothing said which step ate the rest [C7].
+ */
+function phaseText(record) {
+  const at = record.phases;
+  if (!at?.start) return '';
+  const seconds = (from, to) => (from && to ? ` ${Math.round((to - from) / 100) / 10} s` : ' ?');
+  const end = at.start + (record.wallMs ?? 0);
+  // The runner's own stages (its source-cache wait, pack transfer and checkout) say what "connect" and "ready" hold.
+  const stages = record.stages;
+  const stage = name => (Number.isFinite(stages?.[name]) ? ` ${Math.round(stages[name] / 100) / 10} s` : ' ?');
+  const inside = stages ? `; cache wait${stage('cacheWaitMs')}, transfer${stage('transferMs')}, materialize${stage('materializeMs')}` : '';
+  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)}${inside})`;
+}
+
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
 async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
   const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
@@ -456,6 +481,9 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     browser: await needsBrowser(shard.files), gui: await needsGui(shard.files), claimed: false, localOnly: false, done: false, attempts: [], status: null })));
 
   timing?.phase('setupMs', setupAt);
+  /** Seconds since this run started, so the log attributes the time around the shards [C7]. */
+  const sinceStart = () => Math.round((performance.now() - selectionAt) / 100) / 10;
+  write(`# landing timing: selection ${Math.round(setupAt - selectionAt)} ms, setup ${Math.round(performance.now() - setupAt)} ms, shards dispatched at +${sinceStart()} s\n`);
 
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
   const inheritedCanRun = entry => (!runnerOnly || inherited?.runnerExecution === true || Boolean(inherited?.runner))
@@ -492,7 +520,10 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
-      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started),
+      // A runner that could not prepare its checkout ran no test: that is infrastructure to requeue, never a red to
+      // hold the batch on. A locked slot database on .54 held #2794 as "no accounted failure" on 6 Nov [C7].
+      const setupRefused = !run.isGreen && /^runner setup refused:/u.test(run.output ?? '');
+      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : setupRefused ? 'infrastructure' : 'red', ...(setupRefused ? { reason: run.output.split('\n')[0].slice(0, 160) } : {}), output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null, stages: run.sourcePreparation?.stages ?? null,
         ...(release ? { executor: run.executionRunner, head: run.executionSource?.commit, tree: run.executionSource?.tree,
           command: createHash('sha256').update(command).digest('hex') } : {}) };
     } catch (error) {
@@ -524,16 +555,25 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     const stopped = record.outcome !== 'green' && (stop.aborted || (!collectAll && firstFailure !== null));
     const status = record.outcome === 'infrastructure' && !stopped ? 'infrastructure' : stopped ? 'stopped' : record.outcome;
     entry.attempts.push({ ...record, status });
-    write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms\n`);
+    write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms${phaseText(record)}\n`);
     if (record.output) write(record.output.endsWith('\n') ? record.output : `${record.output}\n`);
     if (status === 'infrastructure' && !release && !runnerOnly) {
       write(`landing shard ${entry.label}: runner ${record.host} failed mid-shard; rerunning shard ${entry.label} locally\n`);
       entry.claimed = false;
       entry.localOnly = true;
       acquire(entry);
+    } else if ((status === 'refused' || status === 'infrastructure') && !release && !stop.aborted && entry.attempts.length < 3) {
+      // One runner refusing or dropping a shard is that runner's fault, not the batch's: the shard queues again and
+      // the pool hands it to an available runner. Why: one RUNNER_UNAVAILABLE stopped every other shard and blocked an
+      // 8-item batch with no test red at all [C7].
+      write(`landing shard ${entry.label}: runner ${record.host} ${status}${record.reason ? ` (${record.reason})` : ''}; queuing shard ${entry.label} again (attempt ${entry.attempts.length + 1})\n`);
+      entry.claimed = false;
+      acquire(entry);
     } else {
       entry.done = true;
       entry.status = status;
+      // A shard red only from a file its watchdog stopped (hung or past its wall) never stops the others (#3167).
+      if (status === 'red' && watchdogStoppedOnly(record.output)) return signalChange();
       if (status === 'red' || status === 'refused' || status === 'infrastructure') {
         firstFailure ??= entry.label;
         if (status === 'refused' || status === 'infrastructure' || !collectAll) stopper.abort();
@@ -652,6 +692,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
+  write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
   const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);

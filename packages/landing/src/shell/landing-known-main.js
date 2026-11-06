@@ -1,6 +1,9 @@
 /** A landing batch judges its red cases against main the way submit does (#2528), so known main reds never jam it [B3,C7]. */
+import { spawnSync } from 'node:child_process';
+import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { compareMainFailures } from './main-red.js';
+import { sameTestInputs } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
 import { laneOf } from '../../../seats/index.js';
@@ -17,19 +20,39 @@ import { listItems } from '../../../store/index.js';
  */
 export async function knownMainAccount(state, gate) {
   if (gate.isGreen || !completeGate(gate, { allowCancelled: true }) || gate.requiresGreen) return null;
-  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true });
+  // A by-case match needs only each failure's file and name, so a run whose details cannot all be signed (a timed-out
+  // file) still compares every named case instead of skipping the whole account [C7,#3073].
+  const failures = failureSignatures(gate, state.batch.root, { allowCancelled: true }) ?? gate.accounted ?? null;
   if (!failures?.length) return null;
   const known = [], remaining = [];
+  let changed = null;
   // Each failing file is compared on its own: a file main cannot run (new in the batch) never hides another file's known case.
-  for (const file of [...new Set(failures.map(failure => failure.file))]) {
-    const cases = failures.filter(failure => failure.file === file);
-    let comparison = null;
+  // The files compare at once, bounded by the gate slots the comparisons take; one after another, six red files cost
+  // six comparisons' wall time while the runners sat idle [C7].
+  const files = [...new Set(failures.map(failure => failure.file))];
+  const comparisons = await Promise.all(files.map(async file => {
     try {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
-      comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
-        { commit: state.batch.base, detailed: true, allowCancelled: true });
-    } catch { /* An unavailable comparison never excuses a red case. */ }
-    for (const failure of cases) (comparison && matchingMainFailures([failure], comparison, state.batch.base) ? known : remaining).push(failure);
+      // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
+      const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
+      const comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
+        // A landing's comparison waits as a landing, ahead of seat submits in the slot line; as a plain diagnostic it
+        // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
+        { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
+      if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
+      else {
+        // Keep the answer for the base split: it ran the same file on main a second time on 6 Nov, 3 minutes each [C7].
+        (state.mainComparisons ??= new Map()).set(file, comparison);
+        const row = comparison?.files?.find(entry => entry.file === file);
+        state.say?.(`main comparison for ${file} at ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+      }
+      return comparison;
+    } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
+  }));
+  for (const [index, file] of files.entries()) {
+    const comparison = comparisons[index];
+    for (const failure of failures.filter(entry => entry.file === file)) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
+      || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
   return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining };
@@ -83,4 +106,34 @@ export async function fileKnownMainReds(state, known) {
     } catch (error) { state.say(`main red ${file} was not filed (${error.message}); the coordinator must file its repair`); }
   }
   return filed;
+}
+
+/**
+ * Whether a whole-file failure that names no case sits in a test file main itself fails while no batch item changed it.
+ * Why: an item lands unless its own change breaks a test that passes on main [C7,#3073]. Named cases are matched one by
+ * one; only a runner abort that names no case has nothing to match, and it kept main's red files blocking every batch.
+ *
+ * @param {{file: string, ran?: string}} failure - One batch failure.
+ * @param {{ files: Array<{file: string, result: string}>, coarseFiles?: Array<{file: string, result: string}> }} comparison - Main's run of the failing files.
+ * @param {Set<string>|null} changed - Files the batch changed against its base; null when they cannot be read.
+ * @returns {boolean}
+ */
+export function redOnMainUntouched(failure, comparison, changed) {
+  if (!changed || !failure?.file || !unnamedFileFailure(failure)) return false;
+  const file = failure.ran ?? failure.file;
+  const rows = [...(comparison.files ?? []), ...(comparison.coarseFiles ?? [])];
+  return rows.some(row => row.file === file && row.result === 'red') && !changed.has(file) && !changed.has(failure.file);
+}
+
+/** The files the batch's merged tree changed against its base, or null when Git cannot say. */
+function changedFiles(state) {
+  const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
+  return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
+}
+
+/** Whether a failure is a whole-file row naming no case: the reporter names it by the file's own path. */
+function unnamedFileFailure(failure) {
+  const name = String(failure.name ?? '');
+  // Only the bare path itself: a case title that merely mentions the path never qualifies.
+  return name === failure.file || (isAbsolute(name) && !/\s/u.test(name) && name.endsWith(`/${failure.file}`));
 }
