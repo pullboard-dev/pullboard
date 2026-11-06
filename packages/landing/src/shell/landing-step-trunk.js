@@ -102,7 +102,7 @@ async function followMovedTrunk(state, gate) {
     if (shared.length) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and changed ${shared.slice(0, 3).join(', ')}; rebuild the batch from its new tip`);
     state.say(`main moved to ${moved.slice(0, 12)} outside this batch's files; rebuilding the batch on it`);
     const previous = state.batch.base;
-    await save(state, { base: moved });
+    await save(state, { base: moved, rebasedFrom: previous });
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
