@@ -333,7 +333,8 @@ export async function submitHere(ctx, id, infra) {
   }
   const preflightStart = performance.now();
   const preflightWallStart = Date.now();
-  const runnerAdmission = gateRunnerAdmission();
+  const runnerAdmission = { ...gateRunnerAdmission(), ...(ctx.submitHandoffAdmissionCheck
+    ? { beforeAdmission: ctx.submitHandoffAdmissionCheck } : {}) };
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);

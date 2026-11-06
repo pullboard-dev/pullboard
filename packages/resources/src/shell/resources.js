@@ -1084,7 +1084,7 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
-    const result = await renewWithBeat(file, token, table === 'waiter', () => options.onWait?.(state));
+    const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
         throw new Refused('BAD_RESOURCE_METADATA', 'the waiting item renewal must return a valid leaseUntil timestamp');
@@ -1149,7 +1149,7 @@ export async function takeResource(options) {
         // Await it like every other wait report, so an item-lease callback never renews unobserved.
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
-      const order = queueOrder(scope);
+      await options.beforeAdmission?.(); const order = queueOrder(scope);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
