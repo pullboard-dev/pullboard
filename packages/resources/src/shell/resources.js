@@ -57,6 +57,8 @@ import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
+import { reservedTimingRunner } from './runner-timing-reserve.js';
+import { timingReserveAllows } from './runner-timing-reserve.js';
 import { platformIdentity } from './holder-liveness.js';
 import { differentStart } from './holder-liveness.js';
 import {
@@ -548,7 +550,8 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   }));
   const unavailable = unavailableRunnerHosts(db, now, runners);
   const troubled = loadPolicy.enabled === true ? troubledRunners(db, now, LEASE_MS) : new Set();
-  let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
+  const reserved = reservedTimingRunner(db, runners, unavailable, loadPolicy.timingRunner, now, waiters.find(waiter => waiter.ticket === ticket)); // #2512: replaces the drain
+  let drain = reserved ? null : currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
@@ -564,7 +567,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner)) return false;
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
         if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
         if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
@@ -604,7 +607,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       return null;
     }
     const remote = runnerSlot();
-    if (waiter.runnerOnly === 1) return remote;
+    if (waiter.runnerOnly === 1 || reserved && waiter.timing === 1 && waiter.remote === 1) return remote; // timed work waits for the kept runner
     if (runnersFirst) {
       if (remote) return remote;
       const local = localSlot();
@@ -632,7 +635,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(runner.slots, resourceName);
     }
   }
-  if (!drain) {
+  if (!drain && !reserved) {
     for (const waiter of waiters) {
       const waited = now - Date.parse(waiter.since);
       if (waiter.timing !== 1 || waiter.remote !== 1 || !Number.isFinite(waited) || waited < 120_000
@@ -750,12 +753,8 @@ function requiredRunnerHosts(waiter) {
   if (restriction?.kind !== 'ssh') return null;
   return restriction.hosts ?? [restriction.host];
 }
-
 /** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
-function runnerAllowed(waiter, runner) {
-  const hosts = requiredRunnerHosts(waiter);
-  return hosts === null || hosts.includes(runner.host);
-}
+function runnerAllowed(waiter, runner) { const hosts = requiredRunnerHosts(waiter); return hosts === null || hosts.includes(runner.host); }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
@@ -1161,7 +1160,8 @@ export async function takeResource(options) {
           throw new Refused('BAD_RUNNER_POOL', 'none of the allowed SSH executors is registered');
         }
         const runnersFirst = runnersFirstProvider?.() === true;
-        if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        const timingReserved = name === 'gate' && timing && reservedTimingRunner(db, runners, unavailableRunnerHosts(db, now, runners), options.runnerLoadPolicyProvider?.().timingRunner, now, { remote: 1, timing: 1, requiredExecutor }); // a reserved timed check queues for its runner and its dispatch expiry never widens the executor
+        if (timingReserved) runnerDeadlineAt = 0; else if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, token, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
