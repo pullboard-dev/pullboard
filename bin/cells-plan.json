@@ -1182,6 +1182,14 @@
       "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
     },
     {
+      "path": "src/infra-release-engine.js",
+      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
+    },
+    {
+      "path": "src/main-red-focus-engine.js",
+      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
+    },
+    {
       "path": "test/inspection-clauses.test.js",
       "reason": "frozen item2050 native check entry; exercises the canonical state front door"
     },
@@ -1517,6 +1525,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/cells-object-snapshots.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-audit-backlog.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-snapshot-git.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/225.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1552,6 +1572,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/stranded-dependency-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/ledger-quarantine-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1581,6 +1606,30 @@
     },
     {
       "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/234.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/235.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/236.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/237.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/238.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/239.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
