@@ -70,7 +70,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   if (ctx.submissionResult) Object.assign(ctx.submissionResult,
     { queued: true, job: result.job.id, value: acknowledgment });
   ctx.io.result?.(acknowledgment);
-  ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; the board will wake the next actor when it finishes`);
+  ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; take your next item now: pullboard next --take (the board returns this one to you only if its gate goes red)`);
   return 0;
 }
 
