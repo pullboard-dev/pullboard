@@ -81,7 +81,7 @@ export function assertLandingLease(board, fence, { shared = false } = {}) {
 /** Pending local intents are not authority to merge, push or move the trunk (#1013 integration boundary). */
 export function requireConfirmedLanding(board) {
   if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key GLOB 'relay_local_intent_*' LIMIT 1").get()) {
-    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; wait for their ordered receipts before landing');
+    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; land after their ordered receipts arrive');
   }
 }
 
