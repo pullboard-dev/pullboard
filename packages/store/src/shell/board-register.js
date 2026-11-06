@@ -83,9 +83,10 @@ export function register(board, who) {
     }
     const id = lane === COORDINATOR ? COORDINATOR
       : engine < VERIFIER_STANDING_ENGINE ? `${lane}-${total + 1}` : newSeatId(board, lane, total, named);
+    // Delivery cursors are local-only; a new inbox starts at this join's current shout high-water mark.
     board.db
       .prepare(
-        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_family, agent_created_at, agent_last_shout_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(shout_id), 0) FROM shout))',
       )
       .run(id, lane, path, route, family ?? null, now(board));
     const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
