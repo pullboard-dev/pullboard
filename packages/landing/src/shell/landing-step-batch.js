@@ -384,7 +384,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
         let gate = await gateGroup(state, 'batch');
-        let proof = gate.isGreen ? null : waivedProof(state, gate);
+        let proof = gate.isGreen ? null : gate.knownMainProof ?? waivedProof(state, gate);
         if (!gate.isGreen && !proof && singleItemLanding(state)) {
           // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
           await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
@@ -405,7 +405,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
                 gate = null;
               } else {
                 gate = await gateGroup(state, 'green-items');
-                proof = gate.isGreen ? null : waivedProof(state, gate);
+                proof = gate.isGreen ? null : gate.knownMainProof ?? waivedProof(state, gate);
                 if (!gate.isGreen && !proof) {
                   if (!state.culprits.length) { await fileTestDefects(state, gate); state.flaky = true; }
                   else {
