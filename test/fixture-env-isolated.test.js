@@ -10,7 +10,7 @@ after(e2e.cleanup);
 
 const FIXTURE_KEYS = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_MODEL', 'PULLBOARD_USAGE_CHECKPOINT'];
 
-test('sandbox carries only its own PULLBOARD_ values and the fixed fixture model [C7]', () => {
+test('clause 1: sandbox carries only its own PULLBOARD_ values and the fixed fixture model [C7]', () => {
   const saved = { ...process.env };
   process.env.PULLBOARD_MODEL = 'junk-agent-model';
   process.env.PULLBOARD_HOME = '/junk/agent/home';
@@ -30,7 +30,7 @@ test('sandbox carries only its own PULLBOARD_ values and the fixed fixture model
   }
 });
 
-test('land batch passes with PULLBOARD_MODEL unset in the parent environment [C7]', { timeout: 320_000 }, () => {
+test('clause 2: land batch passes with PULLBOARD_MODEL unset in the parent environment [C7]', { timeout: 320_000 }, () => {
   const env = { ...process.env };
   delete env.PULLBOARD_MODEL;
   const result = spawnSync(process.execPath, ['--test', resolve(import.meta.dirname, 'land-batch-whole.test.js')], {
