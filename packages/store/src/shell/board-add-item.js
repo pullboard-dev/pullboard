@@ -1,3 +1,4 @@
+import { lightDiagnosisProblem } from '../core/item-diagnosis.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
 import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
@@ -25,6 +26,10 @@ import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { COORDINATOR } from "../../../config/index.js";
+import { loadConfig } from "../../../config/index.js";
+import { requireOwnLaneCheck } from "../../../verify/core.js";
+import { laneOf } from "../../../seats/index.js";
 import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 
 /**
@@ -75,6 +80,10 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
     : checkWiden.editCheck(by, check) ?? '';
+  if (board.gitRoot && by !== COORDINATOR) {
+    const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(by);
+    requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command, laneOf);
+  }
   validateCheckTiming(board, by, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
   if (expectedBuildMinutes !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
@@ -89,6 +98,8 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     validateReferences(brief, { actor: proof?.actor ?? by,
       authors: proof?.authors ?? referenceAuthors, authority: proof?.authority ?? referenceAuthority });
   }
+  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route });
+  if (diagnosisProblem) throw diagnosisProblem;
   const normalizedBrief = checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
   if (parentId !== null) {
     const parent = itemById(board, parentId);
