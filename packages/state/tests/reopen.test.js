@@ -478,7 +478,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
-  const firstFix = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "PASS";\n', 'fix(web): restore landing behavior [G1]');
+  const firstFix = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "PASS_FIXED";\n', 'fix(web): restore landing behavior [G1]');
   assert.equal(firstFix.status, 0, firstFix.stderr);
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const firstSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
