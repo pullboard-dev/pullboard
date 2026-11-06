@@ -1,4 +1,5 @@
 /** Automatic landing sizes each batch from the recorded batches before it: smaller after a red, larger after a green [C7,H24]. */
+import { itemRefusalText } from './item-refusal.js';
 
 /** The size the first batch gets, and the bounds the adaptive size never leaves. */
 export const START_BATCH_SIZE = 4;
@@ -14,7 +15,16 @@ export const LANDING_BOARD_BUSY_MS = 60_000;
 /** Whether a recorded batch ended landed (true), ended held or bisected (false), or says nothing about redness (null). */
 export function batchOutcome(batch) {
   if (batch.dropped || batch.supersededByMain) return null;
-  if (batch.state === 'blocked' || (Array.isArray(batch.culprits) && batch.culprits.length)) return false;
+  // A batch stopped by a refusal that names no failing test (a locked database, a lost worktree) says nothing about
+  // whether its items are red, so it never shrinks the next batch [C7].
+  const culprits = Array.isArray(batch.culprits) && batch.culprits.length > 0;
+  const testRed = (batch.failures ?? []).some(failure => failure?.file);
+  // A refusal of one item's own content is a failure of the batch: the next batch halves, and at one item the
+  // return step sends that item back. A locked database or a lost worktree still says nothing [C7].
+  if (batch.state === 'blocked' && !culprits && !testRed && batch.refusal) {
+    return itemRefusalText(batch.refusal.code, batch.refusal.message) ? false : null;
+  }
+  if (batch.state === 'blocked' || culprits) return false;
   return ['trunk', 'pushed', 'landed'].includes(batch.state) ? true : null;
 }
 
@@ -47,7 +57,10 @@ function final(batch) { return batch.state === 'landed' || batch.state === 'bloc
  */
 function revision(batch) {
   const ids = list => (Array.isArray(list) ? list : []).map(entry => entry?.id ?? entry).join(',');
-  return JSON.stringify([batch.id, batch.state, batch.dropped ?? null, batch.supersededByMain ?? null, ids(batch.culprits), ids(batch.items)]);
+  // Whether a refusal was recorded and whether any failure names a file both decide the outcome, so both key it too.
+  const namedRed = (Array.isArray(batch.failures) ? batch.failures : []).some(failure => failure?.file);
+  return JSON.stringify([batch.id, batch.state, batch.dropped ?? null, batch.supersededByMain ?? null, ids(batch.culprits), ids(batch.items),
+    Boolean(batch.refusal), namedRed]);
 }
 
 /**

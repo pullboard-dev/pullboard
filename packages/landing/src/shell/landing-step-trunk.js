@@ -32,6 +32,7 @@ import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 import { singleItemLanding } from './landing-step-selection.js';
+import { oneItemBatch } from './landing-step-selection.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
@@ -47,7 +48,9 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
 async function quickGuards(state, label = 'local-trunk', options = {}) {
   // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
   // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
-  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait })
+  // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
+  // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
+  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
     .then(result => ({ result }), error => ({ error }));
   let gate;
   try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
@@ -184,7 +187,7 @@ export async function landOnTrunk(state) {
     if (!(error instanceof Refused)) throw error;
     // A landing fault keeps the batch merging or gating with its worktree, so the next wake adopts and resumes it [C7].
     if (landingFault(error)) throw error;
-    if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
+    if (oneItemBatch(state) && await returnRefusedItem(state, error)) {
       await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
       state.say(`nothing landed: ${error.message}`);
       return;
@@ -202,7 +205,9 @@ export async function landOnTrunk(state) {
   gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
+  state.say('trunk: gate proved; binding the flake ratchet');
   if (!await flakeRatchetOrBlock(state)) return;
+  state.say('trunk: ratchet bound; recording trunk and finishing');
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
