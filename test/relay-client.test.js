@@ -204,7 +204,7 @@ function seedDoctrine(seed) {
     const body = readFileSync(join(repo, file), 'utf8');
     mkdirSync(dirname(join(seed, file)), { recursive: true });
     writeFileSync(join(seed, file), body);
-    for (const match of body.matchAll(/from '(\.{1,2}\/[^']+)'/g)) pending.push(relative(repo, resolve(dirname(join(repo, file)), match[1])));
+    for (const match of body.matchAll(/from ['"](\.{1,2}\/[^'"]+)['"]/g)) pending.push(relative(repo, resolve(dirname(join(repo, file)), match[1])));
   }
 }
 
