@@ -4,6 +4,7 @@ import { landingExecutionServices } from '../shell/landing-shards.js';
 import { runProfiledShell } from '../../../gate/index.js';
 import { pinRunMain } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
+import { landingControllerPlacement } from '../../../gate/index.js';
 import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
@@ -18,11 +19,14 @@ export async function runLocalLandingGuard(root, config, { files, directory, lab
     lease.quarantines = quarantines;
     if (quarantines.length) lease.proof = proofContext;
     const run = runProfiledShell(root, config.gate, { waitMs: lease.waitMs, gateLease: lease,
-      stages: true, landing: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
+      // Every named file runs to completion, so main's first known red never leaves the rest unrun [C7,#3167].
+      stages: true, landing: true, collectAll: true, waivers, persistLog: true, artifactDirectory: directory, artifactPrefix: label,
       timeoutMs: config.landing?.timeoutMs });
     if (!run.isGreen && !run.timedOut) await onFailure(run, { root, command: config.gate, lease });
     return { ...run, log: run.logPath };
-  }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser, gui: testsNeedGui(root, files), agent: 'coordinator', kind: 'land-guards', onWait });
+  }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser, gui: testsNeedGui(root, files), agent: 'coordinator', kind: 'land-guards', onWait,
+    // The guard's controller stays here when landing shards, so run-tests fans its files out to the runners [C7,#3158].
+    ...landingControllerPlacement(root) });
 }
 
 /** An observed baseline red or missing comparison is not evidence against any item in a local batch. */
