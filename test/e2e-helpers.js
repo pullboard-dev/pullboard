@@ -135,13 +135,13 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = joinFixtureSeat(box, web, 'web', { model: 'Fixture' });
-  assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
+  const joined = joinFixtureSeat(box, web, 'web', { model: 'fixture-model' });
+  assert.equal(joined.code, 0, `fixture join failed (code ${joined.code}): ${joined.err}\n${joined.out}`);
   const seat = JSON.parse(joined.out);
   assert.equal(seat.agent, 'web-1');
   assert.equal(seat.lane, 'web');
   assert.equal(seat.route, 'strong');
-  assert.equal(seat.model, 'Fixture');
+  assert.equal(seat.model, 'fixture-model');
   return { ...box, repo, web };
 }
 

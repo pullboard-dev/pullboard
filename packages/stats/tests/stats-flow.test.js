@@ -300,10 +300,10 @@ test('flow numbers match a hand computation through rework, released reviews and
   assert.equal(result.flow.submitsPerMerged, 2.5, 'five submissions divided by two first merges');
   assert.equal(result.rejectionShare, 1 / 5);
   assert.deepEqual(result.flow.activeAgents, {
-    total: 6, roles: { builder: 4, verifier: 1, coordinator: 1, unknown: 0 }, lanes: { coordinator: 1, core: 4, review: 1 },
-    agents: ['coordinator', 'core-4', 'core-6', 'core-7', 'core-8', 'review-1'].map(id => ({
-      id, lane: id === 'coordinator' ? 'coordinator' : id.startsWith('core') ? 'core' : 'review',
-      role: id === 'coordinator' ? 'coordinator' : id.startsWith('core') ? 'builder' : 'verifier',
+    total: 5, roles: { builder: 4, verifier: 1, coordinator: 0, unknown: 0 }, lanes: { core: 4, review: 1 },
+    agents: ['core-4', 'core-6', 'core-7', 'core-8', 'review-1'].map(id => ({
+      id, lane: id.startsWith('core') ? 'core' : 'review',
+      role: id.startsWith('core') ? 'builder' : 'verifier',
     })),
   });
   assert.equal(result.flow.bottleneck.stage, 'build');
@@ -319,7 +319,7 @@ test('flow numbers match a hand computation through rework, released reviews and
     'open queue: 3 · oldest #3 (2 h 40 min)', 'claimed queue: 1 · oldest #6 (25 min)',
     'submitted queue: 1 · oldest #7 (10 min)', 'accepted queue: 1 · oldest #8 (5 min)',
     'per day: 2026-10-10: 8 added, 2 merged', '2.5 submissions per merged item',
-    'active in the last hour: 6 agents · roles builder 4, verifier 1, coordinator 1, unknown 0 · lanes coordinator 1, core 4, review 1',
+    'active in the last hour: 5 agents · roles builder 4, verifier 1, coordinator 0, unknown 0 · lanes core 4, review 1',
     'bottleneck: build has the largest share of cycle time; bottleneck from 2 fully measured cycles of 2 (42.86%)',
     'next: add a builder in core',
   ]);

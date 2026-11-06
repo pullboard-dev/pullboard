@@ -32,6 +32,8 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
+import { stripPerItemFullSuiteCriterion } from "../../../items/index.js";
+import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../src/per-item-full-suite-engine.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { requireOwnLaneCheck } from "../../../verify/core.js";
@@ -54,14 +56,29 @@ import { persistShout } from "./board-shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
+  if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
+    || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
+    || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
+    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined
+    || barActor !== undefined || referenceAuthors !== undefined || referenceAuthority !== undefined)) {
+    throw new Refused('COORDINATOR_ONLY', 'preserving a frozen bar is limited to the coordinator’s exact S10 criterion strip');
+  }
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen });
+    if (preserveFrozen) {
+      const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+      const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
+      if (engine < PER_ITEM_FULL_SUITE_ENGINE) throw new Refused('ENGINE_VERSION', `S10 bar preservation requires engine ${PER_ITEM_FULL_SUITE_ENGINE}; upgrade Pullboard`);
+      if (!stripped.removed.length || stripped.criterion !== next.item_criterion || criterion !== next.item_criterion) {
+        throw new Refused('S10', 'a frozen bar can be preserved only when this edit removes exactly its full-suite or CI clause');
+      }
+    }
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
-    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder, preserveFrozen,
       sha256: text => createHash('sha256').update(text).digest('hex') });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
@@ -96,6 +113,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
       ...(next.item_route !== item.item_route ? { route: next.item_route } : {}),
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
+      ...(next.item_criterion !== item.item_criterion && reason === 'S10 full-suite strip' ? { previousCriterion: item.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),
@@ -130,7 +148,7 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
@@ -188,7 +206,9 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
   const correctionWhileClaimed = (board.executionEngineVersion ?? ENGINE_VERSION) >= 8
     && item.item_status === 'claimed' && (agentId === COORDINATOR || widened)
     && (next.item_criterion !== item.item_criterion || next.item_check !== item.item_check || next.item_after !== item.item_after || next.item_check_timing !== item.item_check_timing);
-  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed)) {
+  const preservingSubmittedCriterion = preserveFrozen && agentId === COORDINATOR && reason === 'S10 full-suite strip'
+    && item.item_status === 'submitted' && next.item_criterion !== item.item_criterion;
+  if (moved.length && item.item_status !== 'open' && (next.item_route !== item.item_route || !correctionWhileClaimed && !preservingSubmittedCriterion)) {
     throw new Refused('HELD', `item #${id} is ${item.item_status}; change its route, criterion or check only while it is open`);
   }
   if (brief !== undefined && engine >= REFERENCE_ENGINE) validateReferences(brief, { actor: agentId, authors: referenceAuthors, authority: referenceAuthority, previous: item.item_brief });
