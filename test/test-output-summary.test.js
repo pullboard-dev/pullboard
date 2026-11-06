@@ -11,7 +11,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', () => {
+test('clause 1: an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', () => {
   const box = e2e.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
