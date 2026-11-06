@@ -246,7 +246,7 @@ export function registerMaintenanceEngineTests() {
     assert.equal(fx.censusCount(), before, 'health reads retained state and does not start a filesystem scan');
   });
 
-  test('maintenance cleans only the released owner checkout and keeps competing claims, live retirement and exclusions [B3,C7]', async t => {
+  test('clause 1: maintenance cleans only the released owner checkout and keeps competing claims, live retirement and exclusions [B3,C7]', async t => {
     const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
     const clean = fx.addTree('released-owner', { seat: true });
     const released = claimItem(fx, clean.agent, 'Owner release that may clean this checkout');
