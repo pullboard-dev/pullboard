@@ -108,15 +108,17 @@ export function diagnoseWanted(board, item, seatRoute) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
 export function nextFor(board, options) {
   const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
-    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [],
+    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
     routeCeiling = null, skipLightReserve = false } = options;
+  // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
+  const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
@@ -230,7 +232,7 @@ export function nextFor(board, options) {
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
     // Every submission left out only because this seat's session built it: name it so the coordinator adds a seat from another session.
     const sameSession = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId
-      && (skipIds.includes(entry.item_id) || failures.get(entry)?.problem?.code === 'SELF_SESSION_VERIFY'))
+      && (sessionIds.includes(entry.item_id) || failures.get(entry)?.problem?.code === 'SELF_SESSION_VERIFY'))
       .map((entry) => `REVIEWER_SAME_SESSION: #${entry.item_id} was built under this seat's parent session, so it is never offered here; the coordinator adds a reviewer seat from another session`);
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling, ...sameSession] }));

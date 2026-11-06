@@ -37,6 +37,8 @@ test('clause 2: next-idle names the item and REVIEWER_SAME_SESSION when every aw
   const idle = f.offer('core-2');
   assert.equal(idle.item, null);
   assert.match(idle.reasons.join('\n'), new RegExp(`REVIEWER_SAME_SESSION: #${f.item}\\b`, 'u'));
-  const ledger = store.nextFor(f.board, { agentId: 'core-4', lane: 'core', verify: true, policy: 'any', familyPolicy: 'off', skipIds: [f.item] });
-  assert.match(ledger.reasons.join('\n'), new RegExp(`REVIEWER_SAME_SESSION: #${f.item}\\b`, 'u'), 'a ledger-skipped item is named too');
+  const ledger = store.nextFor(f.board, { agentId: 'core-4', lane: 'core', verify: true, policy: 'any', familyPolicy: 'off', sessionIds: [f.item] });
+  assert.match(ledger.reasons.join('\n'), new RegExp(`REVIEWER_SAME_SESSION: #${f.item}\\b`, 'u'), 'an item the caller marks as its session\'s is named too');
+  const other = store.nextFor(f.board, { agentId: 'core-4', lane: 'core', verify: true, policy: 'any', familyPolicy: 'off', skipIds: [f.item] });
+  assert.doesNotMatch(other.reasons.join('\n'), /REVIEWER_SAME_SESSION/u, 'an item skipped for any other reason is never labelled a shared session');
 });
