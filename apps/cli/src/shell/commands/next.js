@@ -110,7 +110,13 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoard(ctx, board => {
+  // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  const hasQueuedReds = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return store.queuedReds(board, me.id).some(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  });
+  if (hasQueuedReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
     const reds = store.queuedReds(board, me.id).filter(red =>
       !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
