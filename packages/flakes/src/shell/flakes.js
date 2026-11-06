@@ -13,6 +13,10 @@ import {
 } from "../../../store/index.js";
 import { CI_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
+import { LEDGER_QUARANTINE_ENGINE } from "../../../../src/ledger-quarantine-engine.js";
+import { flakeQuarantines } from "./quarantine.js";
+import { warmFlakeHistory } from "./quarantine.js";
+import { eventHistory } from "./event-history.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
@@ -84,11 +88,17 @@ function observationKey(value) {
   return createHash('sha256').update(JSON.stringify(value.file === null ? ['unknown', value.commandSha256] : [value.file, value.name])).digest('hex');
 }
 
+/** Each native flake observation and repair event parsed once per connection, then only the events after them [C7]. */
+export function flakeEvents(board) {
+  return eventHistory(board, 'flake', ['flake-observation', 'flake-repair'], event => ({
+    event_id: event.event_id, event_at: event.event_at, event_kind: event.event_kind, detail: JSON.parse(event.event_detail) }));
+}
+
 /** Read only allocated typed events, preserving every original observation and repair relationship. */
 export function flakeLedger(board, { root } = {}) {
   const rows = new Map();
-  for (const event of board.db.prepare("SELECT * FROM event WHERE event_kind IN ('flake-observation','flake-repair') ORDER BY event_id").all()) {
-    const detail = JSON.parse(event.event_detail);
+  for (const event of flakeEvents(board)) {
+    const detail = event.detail;
     if (detail.engine !== NATIVE_FLAKE_ENGINE) continue;
     if (event.event_kind === 'flake-repair') {
       const row = rows.get(detail.key);
@@ -141,6 +151,7 @@ export function recordFlakeObservation(board, { agentId, observation, lane }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < needed) throw new Refused('ENGINE_VERSION', `${observation?.kind === 'ci' ? 'CI ' : ''}flake observations require engine ${needed}; upgrade Pullboard`);
   if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a flake observation');
   const value = flakeObservation(observation);
+  warmFlakeHistory(board);
   return atomic(board, () => {
     const existing = flakeLedger(board).flatMap(row => row.observations).find(row => row.id === value.id);
     if (existing) {
@@ -149,6 +160,10 @@ export function recordFlakeObservation(board, { agentId, observation, lane }) {
     }
     const key = observationKey(value);
     logEvent(board, agentId, 'flake-observation', null, { engine: NATIVE_FLAKE_ENGINE, observation: value });
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= LEDGER_QUARANTINE_ENGINE) {
+      const filed = quarantineLedgerFlakes(board, agentId, lane);
+      return { observation: value, item: flakeLedger(board).find(entry => entry.key === key).item, quarantined: filed };
+    }
     const row = flakeLedger(board).find(entry => entry.key === key);
     if (row.count >= 2 && row.item === null) {
       const item = addItem(board, { by: agentId, lane, route: 'strong', title: `Flaky test: ${value.file} :: ${value.name}`.slice(0, 240),
@@ -160,4 +175,31 @@ export function recordFlakeObservation(board, { agentId, observation, lane }) {
     }
     return { observation: value, item: row.item };
   });
+}
+
+/**
+ * File one repair item and one quarantine for every active ledger flake with no active quarantine, oldest rows included.
+ * A row whose quarantine was lifted after its last sighting is already released, so it is left alone.
+ * Why: a ledger flake proves itself with a red original and a green pair, and the landing ratchet counts it from the
+ * first sighting; drafting repairs only on a second sighting, with no quarantine, left nine tests blocking every landing.
+ */
+function quarantineLedgerFlakes(board, agentId, lane) {
+  const quarantines = new Map(flakeQuarantines(board).map(row => [JSON.stringify([row.file, row.name]), row]));
+  const filed = [];
+  for (const row of flakeLedger(board)) {
+    if (row.status !== 'active' || row.count < 1 || row.file === null) continue;
+    const prior = quarantines.get(JSON.stringify([row.file, row.name]));
+    if (prior?.status === 'quarantined' || prior?.status === 'lifted' && prior.since >= row.lastEventId) continue;
+    const open = row.item !== null && !['verified', 'withdrawn'].includes(getItem(board, row.item).item_status);
+    const flakes = row.observations.filter(entry => entry.classification === 'flake');
+    const item = open ? row.item : addItem(board, { by: agentId, lane, route: 'strong', title: `Flaky test: ${row.file} :: ${row.name}`.slice(0, 240),
+      criterion: `Identify and correct why ${row.file} :: ${row.name} fails intermittently; preserve the original red and paired evidence, prove the correction without retries, and pass the gate.`,
+      brief: 'Ledger quarantine: a typed flake observation holds a red original and a green pair. The test still runs and reports; a landing no longer stops on it until this item is verified.\n\n'
+        + flakes.map(entry => JSON.stringify({ id: entry.id, head: entry.head, at: entry.at, kind: entry.kind, original: entry.original, paired: entry.paired })).join('\n') });
+    if (!open) logEvent(board, agentId, 'flake-repair', item, { engine: NATIVE_FLAKE_ENGINE, key: row.key, item });
+    logEvent(board, agentId, 'test-quarantine', item, { engine: LEDGER_QUARANTINE_ENGINE, ledger: true,
+      file: row.file, name: row.name, tree: flakes.at(-1).tree, runs: flakes.map(entry => entry.id) });
+    filed.push({ file: row.file, name: row.name, item });
+  }
+  return filed;
 }

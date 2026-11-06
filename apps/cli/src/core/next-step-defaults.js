@@ -533,5 +533,17 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_PATCH_OUTPUT: "run pullboard patch again with a fresh --out directory that does not exist yet",
   SHIM_IMPORT_INPUT: "split the staged source file into smaller modules the hook can read, then stage and commit again",
   GIT_SYNC_FOLDER: "move the damaged board folder under .git/pullboard aside, then run pullboard doctor",
-  FLAKE_RATCHET: "quarantine each newly observed flaky test with a filed repair item, then land again"
+  FLAKE_RATCHET: "quarantine each newly observed flaky test with a filed repair item, then land again",
+  DIAGNOSIS_ROUTE: "record the diagnosis from a mid or strong seat; from a light seat, release the item with --reason DIAGNOSIS_WRONG --note \"<what was wrong>\" if it is wrong",
+  DIAGNOSIS_HELD: "diagnose an open item or your own claim; ask the holder to release other work first, as pullboard show <id> names",
+  DIAGNOSIS_WRONG: "claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note \"<what was wrong>\"",
+  ITEM_MARKER_MISSING: "renew the claim from the seat worktree the message names: pullboard claim <id>",
+  SUBMIT_RED_LOOP: "change the failing code before another submit: fix the red tests the message names, commit, then submit again",
+  LAND_MODULE_SOURCE: "restore the landing commit and its parent in this checkout so their modules can be read, then run the command again",
+  RUNNER_SETUP: "install Node and the named command on the runner, or pass --node <absolute-path> to pullboard runner add <ssh-host>",
+  WORKER_WORKTREE_HELD: "wait for the parked seat's claims and reviews to end, then run pullboard run --scale again",
+  SUBMIT_HANDOFF_REPLACED: "nothing to do for this gate: a newer head replaced it; read the newer gate with pullboard show <id>",
+  WORKER_WORKTREE_LIMIT: "finish, release or preserve the work parked in the worker worktrees, then run pullboard run --scale again",
+  WORKER_SEAT_IDENTITY: "check that pullboard worktree registers its seat in pullboard status, then run pullboard run --scale again",
+  LAND_GIT: "fetch the source commit the message names into the main checkout, confirm git log --first-parent reads, then run pullboard land --adopt"
 });

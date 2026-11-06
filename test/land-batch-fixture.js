@@ -9,10 +9,13 @@ import { calls, events, mergeSubjects } from './land-board-fixture.js';
 export const WAITING = 16;
 
 /** Read the gate fixture's own trace of the files each full (non-diagnostic) run tested. */
-function fullRuns(box) {
+function allRuns(box) {
   if (!existsSync(box.trace)) return [];
-  return readFileSync(box.trace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => !row.alone);
+  return readFileSync(box.trace, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
 }
+
+/** The whole-plan runs alone: a focused bisection round and a single-file diagnosis both run through the affected runner. */
+function fullRuns(box) { return allRuns(box).filter(row => !row.alone); }
 
 /**
  * Seed WAITING independent accepted items, one red, then run a plain `pullboard land` with no --max.
@@ -38,6 +41,7 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const batchesBefore = onBoard(box, board => store.landingBatches(board).length);
   const movesBefore = events(box).filter(event => event.event_kind === 'main-moved').length;
   const runsBefore = fullRuns(box).length;
+  const allBefore = allRuns(box).length;
   const callsBefore = calls(box).length;
 
   const result = json(box, box.repo, 'land');
@@ -51,8 +55,11 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   assert.equal(runs[0].files.length, WAITING, 'the first gate run tests the whole queue at once');
   assert.ok(runs.length <= 2 * Math.log2(WAITING) + 2, `a red batch bisects in about log2(n) gates, not n: ${runs.length} full runs`);
   assert.ok(calls(box).length > callsBefore);
-  assert.ok(runs.some(run => run.files.length === 1 && run.files[0] === entries[red].file), 'the culprit is evaluated alone');
-  assert.equal(runs.at(-1).files.length, WAITING - 1, 'the rebuilt green batch is actually evaluated');
+  // A bisection round runs only the file the batch failed, through the affected runner, so each half costs one file,
+  // not its whole plan; the rebuilt green set still runs the whole plan below [C7].
+  const focused = allRuns(box).slice(allBefore).filter(run => run.alone && run.files.length === 1 && run.files[0] === entries[red].file);
+  assert.ok(focused.length >= 1, 'every bisection round runs only the failed file');
+  assert.equal(runs.at(-1).files.length, WAITING - 1, `the rebuilt green batch is actually evaluated; runs: ${JSON.stringify(allRuns(box).slice(allBefore).map(run => [run.alone ? 'alone' : 'full', run.files]))}; batch ${result.batch.state} ${JSON.stringify(result.batch.refusal ?? null)} landed ${JSON.stringify(result.landed)} culprits ${JSON.stringify(result.culprits?.map(entry => entry.id))}`);
 
   assert.deepEqual(result.culprits.map(entry => entry.id), [culprit], 'bisection names the item that caused the red');
   assert.equal(result.culprits[0].tests[0].file, entries[red].file);
