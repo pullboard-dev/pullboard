@@ -139,7 +139,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
 }
 
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
-export const LANDING_RETRY_MS = 5 * 60_000;
+export const LANDING_RETRY_MS = 30_000; // 5 min idled the lander after every blocked batch while 60 items waited [C7].
 
 /** How soon the next batch starts after a run that landed or reopened items while others still wait [C7]. */
 export const LANDING_NEXT_BATCH_MS = 1_000;
@@ -154,7 +154,10 @@ export async function untilBoardFree(work, { wait = ms => new Promise(resolve =>
   for (let waited = 0, pause = pauseMs; ; pause = Math.min(pause * 2, maxPauseMs)) {
     try { return await work(); }
     catch (error) {
-      if (error?.code !== 'BOARD_BUSY' || waited + pause > maxWaitMs) throw error;
+      // A stale flake-ratchet boundary is not a lock: the same snapshot can never be accepted while seats keep
+      // writing, so the worker must recompute it (prepareFlakeLanding), not sleep; 2 minutes of sleeping ended a
+      // worker and cost #3167 a second gate on 6 Nov [C7].
+      if (error?.code !== 'BOARD_BUSY' || /flake evidence or repair status changed/u.test(error.message ?? '') || waited + pause > maxWaitMs) throw error;
       say(`landing met a busy board lock; waiting ${Math.round(pause / 1000)} s and continuing the same landing`);
       await wait(pause);
       waited += pause;
