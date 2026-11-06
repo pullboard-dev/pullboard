@@ -1,6 +1,6 @@
 /** Builder-recorded companion patches attach at submit and their owner can reopen the item [C7]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -19,12 +19,14 @@ function companionFixture(t) {
   const id = document(box.run(box.repo, 'add', 'web', 'Use an API companion', '--specs', 'G1',
     '--criterion', 'the companion file is present', '--check', 'test -f api/companion.txt', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
+  mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'builder\n');
   box.git(box.web, 'add', 'web/page.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add page [G1]');
   const owner = join(box.dir, 'api-owner');
   box.git(box.repo, 'worktree', 'add', '-q', owner, '-b', 'api/owner', 'main');
   const ownerSeat = document(box.run(owner, 'join', 'api', '--json')).agent;
+  mkdirSync(join(owner, 'api'), { recursive: true });
   writeFileSync(join(owner, 'api/companion.txt'), 'required\n');
   box.git(owner, 'add', 'api/companion.txt');
   box.git(owner, 'commit', '-q', '-m', 'feat(api): add companion [G2]');
@@ -57,6 +59,7 @@ test('a submit without a recorded companion does not open an objection window [C
   const id = document(box.run(box.repo, 'add', 'web', 'Web only', '--specs', 'G1', '--criterion', 'the web file exists',
     '--check', 'test -f web/page.txt', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
+  mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'web\n');
   box.git(box.web, 'add', 'web/page.txt');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add page [G1]');
