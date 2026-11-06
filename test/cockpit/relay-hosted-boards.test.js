@@ -187,9 +187,9 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     // Pair the real board key in the fragment; the relay client consumes it into device storage before local discovery.
     await chrome.send('Page.navigate', { url: JOURNEY_HOSTED + '/#board=' + linkedId + '&key=' + encodeURIComponent(linkedKey) });
     await chrome.waitFor('data?.project?.items?.some(item => item.title === ' + JSON.stringify(remoteTitle) + ')', 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
+    await chrome.waitFor('location.hash === ""', 10_000); // budget: 10s hang ceiling for relay-fragment consumption after the board renders.
     await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor("document.querySelector('#chain')?.textContent.includes(" + JSON.stringify(remoteTitle) + ')', 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
-    await chrome.waitFor('location.hash === ""', 10_000); // budget: 10s hang ceiling for relay-fragment consumption after the board renders.
 
     journeyPhase = 'pair-duplicate-board';
     journeyDeadline.setPhase(journeyPhase);
