@@ -169,3 +169,8 @@ export {
 export {
   originRepository,
 } from './src/core/github-origin.js';
+export {
+  WATCHDOG_GRACE_MS,
+  planClaimWatchdog,
+  runClaimWatchdog,
+} from './src/shell/claim-watchdog.js';
