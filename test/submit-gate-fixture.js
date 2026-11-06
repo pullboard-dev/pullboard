@@ -51,7 +51,8 @@ export function privateRepo(t) {
   /** Run real Git in this fixture with only the fixture's configured identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
-  const run = (...args) => {
+  const run = (...rawArgs) => {
+    const args = withBrief(...rawArgs);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
@@ -79,19 +80,19 @@ export function builderRepo(box, additionalOwned = []) {
   /** Run Git only in the joined builder. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   /** Run the real CLI with the joined builder identity. */
-  const run = (...args) => {
+  const run = (...rawArgs) => {
+    const args = withBrief(...rawArgs);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
-  /** Add items with the cold-build brief and criterion the board now requires; every other move passes through. */
-  const coordinator = (...args) => {
-    if (args[0] !== 'add') return box.run(...args);
-    const extra = [];
-    if (!args.includes('--route')) extra.push('--route', 'mid');
-    if (!args.includes('--criterion')) extra.push('--criterion', 'The fixture item is valid.');
-    if (!args.includes('--brief')) extra.push('--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes');
-    return box.run(...args, ...extra);
+  /** Add items with the criterion, route and brief the board now requires; every other move passes through. */
+  const withBrief = (...args) => {
+    if (args[0] !== 'add' || args.includes('--route')) return args;
+    const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
+    if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];
+    return [...args, ...filled, '--route', 'mid', '--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes'];
   };
+  const coordinator = (...args) => box.run(...withBrief(...args));
   return { ...box, root, git, run, coordinator };
 }
 
