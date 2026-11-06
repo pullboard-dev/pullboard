@@ -43,8 +43,8 @@ test('clause 4: recorded Nov3 green submissions get an automatic independent wak
   const trace = JSON.parse(readFileSync(new URL('./review-family-cover-replay.json', import.meta.url), 'utf8'));
   assert.equal(trace.submissions.length, 23);
   const box = await fixture(t, { family: 'require' });
-  const start = Date.parse(trace.start), end = Date.parse(trace.end);
-  box.advance(start - 11 * 60_000 - box.clock.now().getTime());
+  // Replay the recorded offsets just after the fixture seats go idle; a rewound clock would leave their heartbeats in the future, reading as live.
+  const start = box.clock.now().getTime() + 11 * 60_000, end = start + Date.parse(trace.end) - Date.parse(trace.start);
   const clockFile = join(box.root, '..', 'replay-clock');
   const wakeLog = join(box.root, '..', 'replay-wakes.jsonl');
   const builder = replaySeat(box, 'OpenAI-builder', 'OpenAI');

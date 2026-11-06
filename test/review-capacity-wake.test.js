@@ -17,7 +17,7 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const staleBy = Math.max(0, SEAT_LIVE_WINDOW_MS - REVIEW_WAKE_WAIT_MS + 2);
-  let at = Date.now() - staleBy;
+  let at = Date.now();
   const clock = { now: () => new Date(at) };
   /** Preserve actual parsing, authorization, board writes, health scans and executable delivery. */
   const cli = (cwd, ...argv) => captureCommandInProcess((args, streams) => main(args, { ...streams, clock }), argv,
@@ -38,9 +38,12 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   chmodSync(executable, 0o755);
   const reviewer = join(box.dir, 'independent-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/reviewer-wake', reviewer);
+  // The reviewer enrolled before the submission, so its heartbeat is already past the live window at the sweep.
+  at -= staleBy;
   const joined = await cli(reviewer, 'join', 'api', '--model', 'Independent fixture reviewer', '--family', 'Independent Fixture Vendor',
     ...(command ? ['--wake', executable] : []), '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
+  at += staleBy;
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   assert.equal(getItem(board, item).item_status, 'submitted');
