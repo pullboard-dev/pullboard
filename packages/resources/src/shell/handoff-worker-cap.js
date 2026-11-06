@@ -280,8 +280,9 @@ function boundAfterResult(entry, now, graceMs) {
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
 async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, runnerTicket) {
   const running = new Map();
+  const sent = new Set(); // runner tickets in flight: the dispatcher stays up until each settles
   let wake = () => {};
-  while (waitingTickets().length || running.size) {
+  while (waitingTickets().length || running.size || sent.size) {
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = typeof capacity === 'function' ? capacity() : capacity;
@@ -303,8 +304,13 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       if (launch.kind === 'runner') {
         // A runner ticket starts no process here: the dispatcher hands the commit to a runner and the runner does the work [C7].
         slot.release();
+        if (launch.notBefore > Date.now()) continue; // a requeued ticket waits out its retry delay
         rmSync(file);
-        if (runnerTicket) { started.push(launch.job); runnerTicket(launch).catch(error => logDispatcher(`runner ticket ${launch.job} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`)); }
+        if (runnerTicket) {
+          started.push(launch.job);
+          const flight = runnerTicket(launch).catch(error => logDispatcher(`runner ticket ${launch.job} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`)).finally(() => { sent.delete(flight); wake(); });
+          sent.add(flight);
+        }
         else logDispatcher(`runner ticket ${launch.job} dropped: no runner hand-off is wired into this dispatcher`);
         continue;
       }

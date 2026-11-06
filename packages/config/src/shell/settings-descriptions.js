@@ -24,6 +24,7 @@ const ROWS = [
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
+  ['gate.runnerHandoff', 'Hand submits to a runner', 'A submit records its ticket here and the whole hand-off gate runs on a registered runner; off keeps the local worker.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],

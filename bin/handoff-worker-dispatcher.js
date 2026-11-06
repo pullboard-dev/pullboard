@@ -4,6 +4,7 @@ import { exactStart } from '../packages/gate/index.js';
 import { drainHandoffQueue, handoffWorkerCapacity } from '../packages/resources/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
+import { dispatchRunnerTicket } from '../apps/cli/src/shell/submit-runner-dispatch.js';
 import { fileURLToPath } from 'node:url';
 
 /** The worker cap from the current machine settings; unreadable settings count as no runners, leaving the local cap. */
@@ -24,6 +25,6 @@ export function currentCapacity(env = {}) {
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity }); }
+  try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity, runnerTicket: dispatchRunnerTicket }); }
   catch (error) { process.stderr.write(error.message + '\n'); process.exitCode = 1; }
 }

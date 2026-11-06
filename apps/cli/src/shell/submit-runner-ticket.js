@@ -28,5 +28,5 @@ export function runnerHandoffWanted(settings) {
 export async function queueRunnerHandoffTicket(info, job, item, { reservation, startOf } = {}) {
   git(info.root, ['update-ref', `refs/pullboard/submit-handoffs/${job.id}`, job.commit]);
   const place = reservation ?? await reserveHandoffTicket(job.id, { startOf });
-  return queueHandoffLaunch({ kind: 'runner', job: job.id, item, commit: job.commit, tree: job.tree, commonDir: info.commonDir }, place);
+  return queueHandoffLaunch({ kind: 'runner', job: job.id, item, commit: job.commit, tree: job.tree, main: job.main, root: info.root, commonDir: info.commonDir }, place);
 }
