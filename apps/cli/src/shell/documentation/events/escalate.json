@@ -3,7 +3,7 @@
   "entries": [
     {
       "order": 7,
-      "actor": "builder",
+      "actor": "builder, or coordinator",
       "detail": "`from`, `to`, `note`, `attempt`"
     }
   ]

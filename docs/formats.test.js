@@ -23,13 +23,14 @@ import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
 import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { recordNextIdle } from '../src/board.js';
-import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
+import { addMilestone, editMilestoneItems, logEvent } from '../packages/store/index.js';
 import { proposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel } from '../packages/sentinels/index.js';
 import { beginSentinelRun } from '../packages/sentinels/index.js';
@@ -477,6 +478,9 @@ function recordEventContract() {
   for (const id of ['format-first', 'format-second']) recordFlakeObservation(board, {
     agentId: coordinator, lane: 'docs', observation: syntheticFlakeObservation(id, true),
   });
+  // Synthetic automatic-Submit quarantine: only its detail shape is claimed; the native Submit journeys prove how it is filed.
+  logEvent(board, coordinator, 'test-quarantine', first, { engine: AUTO_SUBMIT_QUARANTINE_ENGINE, autoSubmit: true,
+    file: 'test/synthetic.test.js', name: 'synthetic submit target', tree: 'b'.repeat(40), runs: ['format-submit-first', 'format-submit-second'] });
   // Explicitly synthetic event-contract history; no external command or gate is claimed.
   const watch = proposeSentinel(board, { agentId: coordinator, row: { name: 'format-watch', check: 'false', every: 'daily', owner: 'coordinator' } });
   decideSentinel(board, { agentId: PERSON, channel: 'view', name: watch.name, digest: watch.digest, decision: 'approve' });
