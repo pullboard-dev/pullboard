@@ -86,6 +86,7 @@ import { requireSubmitComposition } from '../../../../../packages/items/index.js
 import { composeAfterProof } from '../../../../../packages/items/index.js';
 import { trunkMoveFact } from '../../../../../packages/items/index.js';
 import { judgeTrunkMove } from '../../../../../packages/verify/index.js';
+import { frozenRowGates } from '../../../../../packages/verify/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { explicitCheckFiles } from '../../../../../packages/gate/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -185,7 +186,7 @@ import {
   idArg,
   ordered,
   queuedItemLease,
-  refuseUnverifiedStack,
+  refuseUnsubmittableStack,
   reportSubmission,
   resourceAgent,
   whoAmI,
@@ -321,7 +322,7 @@ export async function submitHere(ctx, id, infra) {
       if (barReadySetting(board).enabled && (recovered.args[1].policyCommit !== trunk.commit || !contains(root, trunk.commit, recovered.args[1].commit))) {
         throw new Refused('MAIN_NOT_COMPOSED', 'the unrecorded recovered submission has no proof for current main; run pullboard inbox to synchronize its original receipt, or ask the coordinator to resolve the pending move before a fresh submit; the original request is retained');
       }
-      refuseUnverifiedStack(root, board, item, recovered.args[1].commit, trunk);
+      refuseUnsubmittableStack(root, board, item, recovered.args[1].commit, trunk);
       return { me, recorded: false };
     });
     if (preflight) {
@@ -461,7 +462,7 @@ export async function submitHere(ctx, id, infra) {
     () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
-  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
+  withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
@@ -497,6 +498,8 @@ export async function submitHere(ctx, id, infra) {
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
+  // Each cited spec row's gate test runs with the proof, so its frozen clause has a named run to cite [V4].
+  crossRun.tests = [...new Set([...crossRun.tests, ...frozenRowGates(held).map(row => row.file).filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
   const runGate = (check, runnerPlan = {}) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { ...runnerPlan, executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
@@ -568,11 +571,16 @@ export async function submitHere(ctx, id, infra) {
     .map(item => { const baseline = itemCheckBaseline(board, item); return baseline ? { ...item, item_check_baseline: baseline } : item; }));
   if (criterionCases && !criterionMatched) {
     try {
-      const mainRed = mainRedCheckCases(root, criterionCases, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, criterionCases, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        criterionMatched = { main: mainFailureBase, failures: criterionCases };
-        criterionMainRed = mainRed.owned;
-        criterionProblem = '';
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          criterionMatched = { main: mainFailureBase, failures: criterionCases };
+          criterionMainRed = mainRed.owned;
+          criterionKnown = linked;
+          criterionProblem = '';
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red frozen check. */ }
   }
@@ -635,10 +643,15 @@ export async function submitHere(ctx, id, infra) {
   let proofMainRed = [];
   if (failures && mainFailureBase && !proofMatched && !companion) {
     try {
-      const mainRed = mainRedCheckCases(root, failures, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      const items = mainRedItems();
+      const mainRed = mainRedCheckCases(root, failures, items, id, mainFailureBase, retakenBaselines);
       if (mainRed.owned.length && !mainRed.rest.length) {
-        proofMatched = { main: mainFailureBase, failures };
-        proofMainRed = mainRed.owned;
+        const linked = linkKnownMainReworks({ main: mainFailureBase, failures: mainRed.owned }, items, id);
+        if (linked) {
+          proofMatched = { main: mainFailureBase, failures };
+          proofMainRed = mainRed.owned;
+          proofKnown = linked;
+        }
       }
     } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }
@@ -790,7 +803,7 @@ export async function submitHere(ctx, id, infra) {
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
   await withBoard(ctx, async (board) => {
-    refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
+    refuseUnsubmittableStack(root, board, store.getItem(board, id), submitted, currentTrunk);
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
     if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
