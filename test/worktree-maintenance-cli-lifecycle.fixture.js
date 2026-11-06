@@ -14,6 +14,7 @@ import { workingDirectories } from '../packages/landing/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 
 /** Keep an exact native timer owner registered so lifecycle cases never launch a scheduler. */
 function retainFixtureTimer(box) {
@@ -39,11 +40,7 @@ function enable(box) {
 
 /** Add one ordinary native item for a private builder checkout. */
 function addFixtureItem(box, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'light',
-    '--criterion', 'The private lifecycle fixture retains the builder source.', '--check', 'true',
-    '--brief', 'Files: web/page.js\nChange: exercise private lifecycle cleanup\nTest: native cleanup archives source first', '--json');
-  assert.equal(added.code, 0, added.err);
-  return JSON.parse(added.out).item.item_id;
+  return fileFixtureItem(box, box.repo, { lane: 'web', title }).item_id;
 }
 
 /** Find one actual recovery manifest for the specific private linked checkout. */
@@ -67,11 +64,18 @@ function assertArchivedBytes(archive, name, expected) {
 /** Join a temporary agent checkout and return its native seat identity. */
 function joinAgent(box, path) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-  const joined = box.run(path, 'join', 'web', '--json');
+  const joined = box.run(path, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json');
   assert.equal(joined.code, 0, joined.err);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.listAgents(board).find(row => resolve(row.agent_path) === resolve(path)).agent_id; }
   finally { closeBoard(board); }
+}
+
+/** Write bytes into an ignored folder: Git status stays clean, so cleanup may archive and remove it. */
+function writeIgnored(box, root, bytes) {
+  fs.mkdirSync(join(root, 'ignored'), { recursive: true });
+  fs.appendFileSync(join(box.repo, '.git', 'info', 'exclude'), '\nignored/\n');
+  fs.writeFileSync(join(root, 'ignored', 'unfinished.bin'), bytes);
 }
 
 /** Register actual CLI lifecycle checks; importing this fixture does not run them. */
@@ -85,15 +89,15 @@ export function registerMaintenanceCliLifecycleTests() {
     const claimed = box.run(owner, 'claim', String(item), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 19, 20, 255]);
-    fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
+    writeIgnored(box, owner, bytes);
 
     const withdrawn = box.run(box.repo, 'withdraw', String(item), 'private lifecycle fixture completed', '--json');
     assert.equal(withdrawn.code, 0, withdrawn.err);
-    assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, 'withdrawal cleans the original builder path');
+    assert.equal(fs.existsSync(join(owner, 'ignored', 'unfinished.bin')), false, 'withdrawal cleans the original builder path');
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');
     const archive = archiveFor(common, owner);
     assert.ok(archive, 'withdrawal retains a recovery archive for the original builder checkout');
-    assertArchivedBytes(archive, 'unfinished.bin', bytes);
+    assertArchivedBytes(archive, 'ignored/unfinished.bin', bytes);
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try { assert.equal(store.listAgents(board).find(row => row.agent_id === ownerId)?.agent_path, owner); }
     finally { closeBoard(board); }
@@ -155,7 +159,7 @@ export function registerMaintenanceCliLifecycleTests() {
     const common = retainFixtureTimer(box), outgoing = join(box.dir, 'handoff-outgoing'), incoming = join(box.dir, 'handoff-incoming');
     const outgoingId = joinAgent(box, outgoing), incomingId = joinAgent(box, incoming);
     const bytes = Buffer.from([0, 21, 22, 255]);
-    fs.writeFileSync(join(outgoing, 'unfinished.bin'), bytes);
+    writeIgnored(box, outgoing, bytes);
     const opened = box.run(outgoing, 'handoff', '--json');
     assert.equal(opened.code, 0, opened.err);
     const handoffItem = JSON.parse(opened.out).handoff.item;
@@ -166,11 +170,11 @@ export function registerMaintenanceCliLifecycleTests() {
     try { assert.equal(agentHandoff(board, outgoingId)?.takenAt, receipt.takenAt); }
     finally { closeBoard(board); }
 
-    assert.equal(fs.existsSync(join(outgoing, 'unfinished.bin')), false, 'the completed native takeover cleans the outgoing checkout');
+    assert.equal(fs.existsSync(join(outgoing, 'ignored', 'unfinished.bin')), false, 'the completed native takeover cleans the outgoing checkout');
     assert.equal(box.git(outgoing, 'status', '--porcelain').trim(), '');
     const archive = archiveFor(common, outgoing);
     assert.ok(archive, 'handoff cleanup keeps a private recovery archive');
-    assertArchivedBytes(archive, 'unfinished.bin', bytes);
+    assertArchivedBytes(archive, 'ignored/unfinished.bin', bytes);
     const log = box.run(box.repo, 'log', String(handoffItem), '--json');
     assert.equal(log.code, 0, log.err);
     assert.match(log.out, /Worktree work archived before maintenance cleanup/u);
