@@ -47,7 +47,9 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
 async function quickGuards(state, label = 'local-trunk', options = {}) {
   // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
   // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
-  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait })
+  // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
+  // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
+  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true } })
     .then(result => ({ result }), error => ({ error }));
   let gate;
   try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
