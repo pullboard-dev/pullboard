@@ -46,13 +46,6 @@ import {
 } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-let store;
-let digestOf;
-let refuseSandboxBlocked;
-let sandboxBlockedOperation;
-let runGate;
-let missingGate;
-
 /** Report changing machine queue state while an unattended item waits for a gate slot. */
 function gateWaitReporter(io) {
   let last = '';
@@ -324,6 +317,7 @@ async function mergeDependencies(ctx, item, deps) {
  * @returns {Promise<{ green: boolean, digest: string, tries: number, seconds: number }>}
  */
 async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start, inScope, packs, earlier }) {
+  const { digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = await import('../../../gate/index.js');
   const { root } = ctx.info;
   const id = item.item_id;
   const tag = item.item_route;
@@ -450,7 +444,10 @@ export async function runItems(io, values, deps) {
   const minutes = boundedInt(values.minutes ?? '15', 1, 240, '--minutes');
   const limit = values.items === undefined ? Infinity : boundedInt(values.items, 1, 1000, '--items');
   const waitMinutes = values.wait === undefined ? 0 : boundedInt(values.wait, 0, 240, '--wait');
-  if (!ctx.config.gate.trim()) throw missingGate(ctx.info.root);
+  if (!ctx.config.gate.trim()) {
+    const { missingGate } = await import('../../../gate/index.js');
+    throw missingGate(ctx.info.root);
+  }
   if (!isClean(ctx.info.root) || untracked(ctx.info.root).length) {
     throw new Refused('DIRTY', 'the runner starts from a clean worktree; commit or remove your changes first');
   }
