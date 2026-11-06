@@ -59,26 +59,29 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   const common = runFixtureGit(['rev-parse', '--path-format=absolute', '--git-common-dir'],
     { cwd: box.root, env: box.env }).trim();
   const cachePath = join(common, 'pullboard/main-red.json');
-  const cacheBefore = readFileSync(cachePath, 'utf8');
+  // Pinned runs share only content records keyed by their executor and runtime; the generic commit entry is never theirs (#3166).
+  const genericAt = () => JSON.stringify(JSON.parse(readFileSync(cachePath, 'utf8')).entries[cached.main]);
+  const cacheBefore = genericAt();
   const callsBefore = runCount(box);
   assert.equal(run('matching').files[0].result, 'red');
   assert.ok(runCount(box) > callsBefore, 'a pinned comparison executes rather than reusing generic evidence');
-  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'pinned evidence does not alter the generic cache');
+  assert.equal(genericAt(), cacheBefore, 'pinned evidence does not alter the generic commit entry');
   const beforeRecorded = runCount(box);
   assert.equal(run('recorded').files[0].result, 'red');
   assert.equal(runCount(box), beforeRecorded + 1, 'a retained native comparison is reused without another main run');
   const beforeAltered = runCount(box);
   assert.equal(run('recorded-altered').files[0].result, 'red');
-  assert.equal(runCount(box), beforeAltered + 2, 'altered event evidence cannot avoid a fresh comparison');
+  // The altered receipt claims green; the red result shows it was refused, and the exact pinned content record served (#3166).
+  assert.equal(runCount(box), beforeAltered, 'altered event evidence is never used; the pinned content record answers without a run');
   const beforeMixed = runCount(box);
   const mixed = run('recorded-mixed');
   assert.equal(mixed.oldMatches, true, 'the inherited case is accounted for');
   assert.equal(mixed.bothMatch, false, 'a new head failure remains blocking');
-  assert.equal(runCount(box), beforeMixed + 2, 'both recorded main files are reused without another run');
+  assert.equal(runCount(box), beforeMixed + 1, 'only the file never measured on this runtime runs; both are then reused without another run');
   const mismatch = run('mismatch');
   assert.deepEqual(mismatch.files, []);
   assert.match(mismatch.unavailable, /exact runtime/u);
-  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'a runtime mismatch cannot publish generic evidence');
+  assert.equal(genericAt(), cacheBefore, 'a runtime mismatch cannot publish generic evidence');
   const beforeUnknown = runCount(box);
   const unknown = run('unknown');
   assert.deepEqual(unknown.files, []);

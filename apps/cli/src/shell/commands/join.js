@@ -50,13 +50,12 @@ export async function run(io, { first, values }) {
     const route = values.route ?? 'strong';
     const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
-    const joined = await withBoard(ctx, async (board) => ({
-      id: await ordered(ctx, board, 'register', [
+    const joined = await withBoard(ctx, async (board) => {
+      const id = await ordered(ctx, board, 'register', [
         { lane: COORDINATOR, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest },
-      ]),
-      boardId: store.boardId(board),
-    }));
-    joined.family = await withBoard(ctx, async (board) => seatFamily(board, joined.id));
+      ]);
+      return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
+    });
     registerProject(ctx.info.root, new Date(), ctx.config, projectBoardIdentity(ctx.info.root, joined.boardId));
     const id = joined.id;
     registerSeatWake(ctx.info, joined.boardId, id, wake);
@@ -86,12 +85,11 @@ export async function run(io, { first, values }) {
   }
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
-  const joined = await withBoard(ctx, async (board) => ({
-    id: await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]),
-    boardId: store.boardId(board),
-  }));
-  // The family the board now holds for this seat, so a join always confirms what was recorded (#2889).
-  joined.family = await withBoard(ctx, async (board) => seatFamily(board, joined.id));
+  // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
+  const joined = await withBoard(ctx, async (board) => {
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]);
+    return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
+  });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
