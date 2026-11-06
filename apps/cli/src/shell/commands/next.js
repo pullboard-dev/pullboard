@@ -1,5 +1,4 @@
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
-import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
@@ -111,7 +110,19 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  withBoard(ctx, board => {
+    const me = whoAmI(ctx, board);
+    const reds = store.queuedReds(board, me.id).filter(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    if (reds.length) {
+      const activity = store.activityDeliveryState(board, me.id);
+      store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
+        observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
+          id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
+        })) });
+      for (const line of store.queuedRedLines(reds)) io.say(line);
+    }
+  });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
