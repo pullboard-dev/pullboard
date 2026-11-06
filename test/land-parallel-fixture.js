@@ -182,7 +182,8 @@ export async function assertParallelCliLease({ landProject, itemWorktree, submit
     let batch;
     try {
       await waitForFixtureProgress({ child: running.child, ready: () => existsSync(box.entered),
-        progress: running.progress, description: 'the parallel CLI entered its real gate' });
+        progress: running.progress, description: 'the parallel CLI entered its real gate',
+        quietMs: 60_000 });
       ({ held, batch } = onBoard(box, board => ({ held: store.landingLeaseState(board).holder,
         batch: store.landingBatches(board).at(-1) })));
       assert.ok(held && Number.isSafeInteger(held.guardianPid) && held.guardianPid > 0, 'the real guardian is bound to an actual lease');
