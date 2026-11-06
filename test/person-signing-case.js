@@ -217,7 +217,8 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
       const request = { version: 1, type: 'person-request', id: proposal.id, move: proposal.move,
         ...(proposal.rows ? { rows: proposal.rows } : {}) };
       const actionGrant = await grantFor(request);
-      assert.equal((await passkeyRequest(box, phone, request, { grant: actionGrant, ...passkey.get(grantChallenge(actionGrant)) })).status, 200);
+      const actionResponse = await passkeyRequest(box, phone, request, { grant: actionGrant, ...passkey.get(grantChallenge(actionGrant)) });
+      assert.equal(actionResponse.status, 200, JSON.stringify(actionResponse.document));
       const outcome = await child.closed;
       assert.equal(outcome.code, 0, child.stderrText);
       const result = JSON.parse(child.stdoutText);
