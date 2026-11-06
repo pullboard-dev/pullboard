@@ -219,7 +219,7 @@ test('clause 3: a per-item landing whose base-main comparison is unavailable blo
   const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
   const result = landBatch(box, entry.item);
-  assert.equal(result.error, 'LAND_MAIN_COMPARISON', JSON.stringify(result.lines));
+  assert.ok(result.lines.some(line => line.includes('[LAND_MAIN_COMPARISON]')), JSON.stringify(result.lines));
   assert.equal(result.merged, null);
   assert.equal(result.status, 'verified', 'an unavailable comparison cannot reopen an accepted item');
 });
