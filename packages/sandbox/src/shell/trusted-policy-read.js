@@ -46,11 +46,22 @@ export function mainPolicy(root) {
 
 export { trunkRef } from '../../../git/index.js';
 
+/** Committed policy bytes by checkout and full commit id; a pinned object never changes, so a long-lived process reuses them. */
+const POLICY_SOURCES = new Map();
+const POLICY_SOURCE_LIMIT = 64;
+
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
 export function policyAt(root, commit) {
   if (!/^[0-9a-f]{40,64}$/.test(commit ?? '')) throw new Refused('NO_POLICY', 'this item has no recorded claim base; ask the coordinator to refreeze it and claim it again');
-  const config = configFromSource(policyGit(root, ['show', commit + ':pullboard.json']));
-  return { version: 1, commit, config };
+  // policyGit runs without replacement objects, so these bytes are exactly the commit's; each caller parses its own copy.
+  const key = `${root}\0${commit}`;
+  let source = POLICY_SOURCES.get(key);
+  if (source === undefined) {
+    source = policyGit(root, ['show', commit + ':pullboard.json']);
+    POLICY_SOURCES.set(key, source);
+    if (POLICY_SOURCES.size > POLICY_SOURCE_LIMIT) POLICY_SOURCES.delete(POLICY_SOURCES.keys().next().value);
+  }
+  return { version: 1, commit, config: configFromSource(source) };
 }
 
 export const RUNNER_POLICY_FILE = 'pullboard-runner-policy.json';
