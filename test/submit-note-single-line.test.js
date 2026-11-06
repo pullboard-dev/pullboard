@@ -21,7 +21,7 @@ function commit(box, cwd, message) {
   box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', () => {
+test('clause 1: deferred suite and cross-lane mechanical edit submit both notices on one line [V4,L3,C7]', () => {
   const box = helpers.project('node --test', helpers.sandbox(), { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
