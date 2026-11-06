@@ -39,7 +39,8 @@ export function reusableSubmitProof(events, { item, commit, tree, main, check, a
       || run.submitReusePlan !== planDigest || run.sourceClean !== true || run.green !== true || run.exitCode !== 0 || run.blockingVerdict) return { reason: `${phase} receipt does not match` };
     ids.push(run.id);
     // The executed proof phase names the host that ran it; a reused acceptance cites that environment, not none.
-    if (phase === 'proof' && run.environment) environment = run.environment;
+    // The criterion phase is the fallback when the proof phase observed no runtime.
+    if (run.environment && (phase === 'proof' || !environment)) environment = run.environment;
   }
   if (!ids.length) return { reason: 'no executed submit proof' };
   return { ids, environment };
