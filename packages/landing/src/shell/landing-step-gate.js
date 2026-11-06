@@ -132,8 +132,11 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
-    const command = testTierCommand(selection.testTiers, selection.files) || 'true';
-    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
+    // This repository plans by test tiers, so landing.auditOnly applies here too (it did not on 6 Nov's first batch).
+    const { files, left } = auditOnlySplit(state.config, selection.files);
+    if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
+    const command = testTierCommand(selection.testTiers, files) || 'true';
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, testTiers: true,
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
