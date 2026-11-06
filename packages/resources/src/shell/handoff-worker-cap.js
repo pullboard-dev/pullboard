@@ -22,6 +22,11 @@ import {
 } from './resources.js';
 import { machineHome } from './machine-home.js';
 import { Refused } from '../../../kernel/index.js';
+import {
+  handoffRoots,
+  pruneFinishedHandoffs,
+  rememberHandoffRoot,
+} from './handoff-folder-prune.js';
 
 /** The machine resource whose slots count running handoff workers. */
 export const HANDOFF_WORKER_RESOURCE = 'submit-handoff-workers';
@@ -38,7 +43,7 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 /** The environment variable that overrides the worker cap. */
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
 /** The most hand-off workers this machine runs at once, whatever the runner fleet offers. */
-export const DISPATCH_WORKER_BOUND = 12;
+export const DISPATCH_WORKER_BOUND = 16;
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
@@ -60,7 +65,7 @@ export function handoffWorkerCapacity({ env = process.env, cores = availablePara
   if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return local;
   // Each worker holds a Node process, a tool-tree copy and an SSH controller on this machine for its gate's whole run,
   // so the cap is bounded whatever the runner count: at 55 (every runner slot) the coordinator Mac ran 46 such
-  // processes at load 47 on 6 Nov and every board command took seconds. The bound lifts when gates become records
+  // processes at load 47 on 6 Nov and every board command took seconds; at 12 the queue reached 70 submits an hour later, and at 20 the Mac went disk-bound (9,000 IOPS: each worker checks out the source and copies the tools) and every runner was quarantined; with the per-admission SSH probes off (loadAwareDispatch, measuredSlots) the Mac held load 32 at 20 workers, so 16 keeps the runners fed without the thrash. The bound lifts when gates become records
   // served by one dispatcher connection per runner [C7].
   return Math.max(local, Math.min(DISPATCH_WORKER_BOUND, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5)));
 }
@@ -277,11 +282,23 @@ function boundAfterResult(entry, now, graceMs) {
   else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
 }
 
+/** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
+function sweepFinished(running) {
+  try {
+    const protect = new Set([...running.values()].map(entry => entry.job));
+    for (const name of waitingTickets()) protect.add(name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, ''));
+    pruneFinishedHandoffs(handoffRoots(), { protect });
+  } catch (error) { logDispatcher(`handoff folder sweep failed: ${error?.message ?? error}`); }
+}
+
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
 async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot) {
   const running = new Map();
   let wake = () => {};
+  let prunedAt = 0;
   while (waitingTickets().length || running.size) {
+    // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
+    if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = typeof capacity === 'function' ? capacity() : capacity;
@@ -305,6 +322,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
       catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
+      rememberHandoffRoot(launch.directory);
       started.push(launch.job);
       const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
       running.set(worker, entry);

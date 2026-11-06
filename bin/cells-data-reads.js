@@ -1,8 +1,12 @@
 /** Exact reviewed generated-data operands for one cells move; declarations never prove repository-source reads [C7,CD64]. */
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import {
+  cellExistsSync as existsSync,
+  cellLstatSync as lstatSync,
+  cellReadFileSync as readFileSync,
+} from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { tryGit } from '../src/git.js';
+import { tryGit } from './cells-snapshot-git.js';
 
 const KINDS = new Set(['hook', 'settings', 'spec', 'marker', 'config', 'HTML']);
 

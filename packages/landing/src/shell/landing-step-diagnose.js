@@ -24,6 +24,8 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
 import { compareMainFailures } from './main-red.js';
+import { carriedMainOutcome } from './main-red.js';
+import { changedFiles } from './landing-known-main.js';
 import { spawnSync } from 'node:child_process';
 
 /** Require a green base for every failing file before attributing a red to an item. */
@@ -51,9 +53,10 @@ function fileOnBase(state, file) {
 /**
  * Split named failures into those base main fails in the same file and test name, and the batch's own; null when main
  * cannot be compared for every file [C7,#2941]. Why: a red that main already has is not the batch's doing, and holding
- * the whole batch for it kept every landing waiting on reds no batch item caused.
+ * the whole batch for it kept every landing waiting on reds no batch item caused. A file no batch item changed keeps main's
+ * newest cached outcome, so it is never re-measured on a runner; each measured comparison logs its start and its duration [C7,#3268].
  */
-export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file)) {
+export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file), carry = (file) => carriedMainOutcome(state.batch.root, file)) {
   if (!failures.length || failures.some(failure => !failure.file)) return null;
   // A failing file that base main does not have is the batch's own new test, so it splits the batch [C7,#2947].
   const absent = failures.filter(failure => !onBase(failure.file));
@@ -63,19 +66,28 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   // Each file is compared on its own: a file main cannot be compared on stays the batch's own red and never discards the
   // completed results of every other file, as one combined comparison did [C7,#3073]. Results are cached per file.
   const rows = new Map();
-  for (const file of files) {
+  // The files compare at once, each as a landing-class run: one after another as plain diagnostics, three red files
+  // cost this split 25 minutes on 6 Nov while runner slots sat free [C7].
+  const changed = changedFiles(state);
+  await Promise.all(files.map(async file => {
     let result;
+    const started = Date.now();
     try {
       // The known-main step already compared this file on the same base: reuse its answer instead of a second run.
-      result = state.mainComparisons?.get(file)?.main === state.batch.base ? state.mainComparisons.get(file)
-        : await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
-          { commit: state.batch.base, detailed: true, allowCancelled: true });
-    } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); continue; }
-    const row = result?.main === state.batch.base && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
+      const kept = state.mainComparisons?.get(file);
+      // A file the batch did not change keeps main's newest cached outcome: re-measuring it cost 11 and 6 minutes on 6 Nov [C7,#3268].
+      const carried = !kept && changed && !changed.has(file) ? carry(file) : null;
+      result = kept && (kept.carried || kept.main === state.batch.base) ? kept
+        : carried ?? await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+          { commit: state.batch.base, detailed: true, allowCancelled: true, runnerAdmission: { landing: true },
+          onStart: ({ runner }) => state.say?.(`base split: comparing ${file} on main ${state.batch.base.slice(0, 12)} started${runner ? ` on runner ${runner}` : ''}`) });
+    } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return; }
+    const runner = result?.runner ?? result?.files?.find(entry => entry.file === file)?.runner;
+    const row = (result?.carried || result?.main === state.batch.base) && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
     // Every outcome is named, so a held batch says why its base comparison gave nothing usable [C7].
-    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}${runner ? ` on runner ${runner}` : ''} (${Date.now() - started} ms)`);
     if (row) rows.set(file, row);
-  }
+  }));
   if (!rows.size) return null;
   const known = [], own = [...absent];
   for (const failure of present) {
@@ -97,7 +109,12 @@ export async function diagnose(state, failures, gate) {
     // true flake passes in the split runs and lands. Only rows classified as flakes are filed as flakes [C7,#2914].
     return [...new Set(observations.filter(row => row.recorded === true && row.classification === 'flake' && row.file).map(row => row.file))];
   }
-  if (!failures.length || failures.some((entry) => !entry.file)) throw new Refused('LAND_DIAGNOSTIC', `the gate did not name a failing test file; inspect ${state.batch.logPath} and make its reporter name source files`);
+  if (!failures.length || failures.some((entry) => !entry.file)) {
+    // Two earlier reds that named no file mean retrying the same gate cannot change the answer: split the items instead [C7,#2858].
+    const unnamed = (state.batch.invariantEvidence?.gates ?? []).filter(entry => !entry.isGreen && !entry.failures?.length).length;
+    if (!failures.length && unnamed - 1 >= 2 && (state.batch.items?.length ?? 0) > 1) return [];
+    throw new Refused('LAND_DIAGNOSTIC', `the gate did not name a failing test file; inspect ${state.batch.logPath} and make its reporter name source files`);
+  }
   const files = [...new Set(failures.map((entry) => entry.file))];
   const flakes = [];
   for (const file of files) {
