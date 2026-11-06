@@ -11,7 +11,7 @@ import {
   join,
 } from 'node:path';
 import { tryGit } from '../../../../src/git.js';
-import { receiptFields } from '../../../verify/index.js';
+import { receiptFields } from '../../../verify/src/core/proof-provenance.js';
 export { receiptFields };
 
 /** The folder beside the board that holds gate run receipts. */
@@ -163,5 +163,3 @@ export function landingShardProfile(output) {
   return shards.length ? { balance, floor, quarantined, unverified, shards, files } : null;
 }
 
-
-export { sealKnownMainAutofile } from './known-main-autofile-receipts.js';
