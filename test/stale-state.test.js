@@ -560,7 +560,7 @@ test('the stale CLI validates and retains an explicit maintenance reason overrid
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
 });
 
-test('release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
+test('clause 1: release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
   const f = fixture(t);
   store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Gone folder fixture' });
   const gone = f.add('Claim whose seat folder was removed'), present = f.add('Claim whose seat folder exists');

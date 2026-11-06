@@ -28,7 +28,7 @@ export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, ite
 export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem } from './src/shell/item-patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/shell/item-receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/shell/item-rehome.js';
-export { checkRouted, checkRoute, checkTestFiles } from './src/core/item-routing.js';
+export { checkRouted, checkRoute, checkTestFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/core/item-routing.js';
 export { requireLedger, recordItemSession, refuseSelfSession } from './src/shell/item-sessions.js';
 export { requireOutsideReceipt } from './src/shell/outside-proof.js';
 export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, planSensitivePaths, outsideSensitivePaths, outsideSensitivity } from './src/core/outside-sensitive.js';
@@ -52,7 +52,7 @@ export { itemEditBar } from './src/core/item-edit-bar.js';
 export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/core/item-patch-paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/shell/item-patch-submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
-export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';
+export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/shell/family-declaration.js';
 export { auditFailureItem } from './src/core/audit-failure-item.js';
 
 export { claimProgress } from './src/core/claims.js';
@@ -60,5 +60,9 @@ export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/core/c
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/core/expected-build.js';
 
 export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
+export { handoffToolsAllowed } from './src/shell/submit-handoff-recovery.js';
+export { sharedHandoffTools } from './src/shell/submit-handoff-recovery.js';
 
+export { claimedItemRoot } from './src/shell/item-patch-submit.js';
+export { dependencyWaiters, dependencyWorkAt } from './src/core/dependency-progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/core/diagnosis.js';

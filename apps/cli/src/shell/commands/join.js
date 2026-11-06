@@ -27,6 +27,7 @@ import { itemFolderSeat } from '../item-folder-identity.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
+import { modelTierRoute } from '../model-tier-route.js';
 import {
   context,
   ordered,
@@ -60,8 +61,8 @@ export async function run(io, { first, values }) {
   const sessionDigest = runtime?.session ? parentSessionDigest(runtime.session) : undefined;
   if (ctx.info.isMain) {
     if (first !== COORDINATOR) throw new Refused('MAIN_IS_COORDINATOR', 'the main checkout is the coordinator; join from a worktree: git worktree add ../<dir>');
-    const route = values.route ?? 'strong';
     const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+    const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
     const joined = await withBoard(ctx, async (board) => {
       const id = await ordered(ctx, board, 'register', [
@@ -83,7 +84,7 @@ export async function run(io, { first, values }) {
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
   const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
-  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
+  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
   if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
