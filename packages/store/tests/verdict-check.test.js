@@ -368,7 +368,7 @@ const STORE_BODY_HASHES = {
   "src/board-reserve-next-review.js": "94f00fb6f403a4f90bce57806de83c9ba2536a2cf887618bb5ca78b20617f9cc", "src/board-reserve-review.js": "a7fa346d2edc24783ff6b7b83ecf9c40972dd95f751371cafd79f48395925b14",
   "src/board-review-offer.js": "f86b05793edfc633529aa2d5bab05783cc9bcc002bb081e79733dfc8b78261cb", "src/board-review-release-note.js": "d5809c3ee8973c197c7c0d3e772c113508be9b75ec33d4809af48cc663545853",
   "src/board-set-lane-lead.js": "0b808a3a0c7f2eed081100c50ed9ed06afeaa8aefeabb56805351aae9b918693", "src/board-shout.js": "c1878b177bf35edfba7a0fa6cff71d621130cb6843daeecfc6cbecc3aa56741f",
-  "src/board-submit.js": "ce8a946ad9d457a289bfc84300f0c388c9f8ca176bf998a07dff43ba78d80a35", "src/board-take-handoff.js": "48269aed33f41393bec6c87f0b252093ecde278e4ec74da9fc8b36f65ff547b9",
+  "src/board-submit.js": "a90cc6eb0506373a68640c15f560d023b695049650037aee32fd71164f54a37e", "src/board-take-handoff.js": "48269aed33f41393bec6c87f0b252093ecde278e4ec74da9fc8b36f65ff547b9",
   "src/board-verify.js": "113a826a0352c8021262bba73a80259bbaed70c38c67ede1532ac47bea531d08", "src/board-withdraw.js": "90ee177d549b00642aaa33ec5fe75c87bfd67dedef0890e6ae3e1fc164f7f630",
   "src/board-escalate.js": "303f67f8a153244c9babf5a341163866a97c5548ccdfa7ecf5ced61b5d1c26e7", "src/board-record-attempt.js": "26f5280b217eac6d3f3591533961c2eefd64abf7eb36da5335cae68ecccf3691",
   "src/board-line-settings.js": "7082cabaf5c606a0c61f37b51e33802669f8b30c1baa0d496c265ce6a5a414bb", "src/board-coordinator-hold.js": "26c6471c07f37a019f1e37ccf24d326dd156fb6ecbc7eb2ea74657681ca04545",
