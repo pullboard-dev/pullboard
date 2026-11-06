@@ -11,6 +11,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   EXIT_CONTINUATION: 'read the item summary, then continue from a fresh native session of its reserved model family',
   EXIT_USAGE: 'restore the original private claim anchor; unreadable or reset native counters must remain unknown',
   NO_ELIGIBLE_REVIEWER: 'credit the companion to a custodian of another family, or declare the missing family with pullboard join <lane> --family <vendor> on a seat that can review, then submit again',
+  S10: 'drop the full-suite or CI requirement and keep the clause tied to this item\u2019s named files',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
