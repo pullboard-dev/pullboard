@@ -159,9 +159,8 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
     review: { commit, head: commit, trunk: base, paths: ['web/activity.txt'] } });
   assert.ok(store.itemThread(board, other).some(entry => entry.kind === 'reject'), 'a rejection remains item activity');
   const notices = board.db.prepare('SELECT * FROM shout WHERE shout_id > ? ORDER BY shout_id').all(beforeShouts.at(-1)?.shout_id ?? 0);
-  assert.equal(notices.length, 1, 'the actionable first-refusal notice survives; no routine reject shout is added');
-  assert.equal(notices[0].shout_to, 'web-1');
-  assert.match(notices[0].shout_text, /waits for you until.*claim it to resume/u);
+  // db3dba1506 (#2779): a reject reopens at once to every eligible seat, so it reserves nothing and sends no first-refusal notice.
+  assert.equal(notices.length, 0, 'a reject reopens at once: no first-refusal notice and no routine reject shout is added');
   store.shout(board, { from: 'web-1', to: 'coordinator', lanes: ['web', 'api'], text: 'My work was submitted.' });
   assert.equal(board.db.prepare('SELECT shout_text FROM shout ORDER BY shout_id DESC LIMIT 1').get().shout_text,
     'My work was submitted.', 'agent-written messages are never suppressed, even when they mention status');
