@@ -165,7 +165,7 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
     cleanIds.add(clean.document.receiptId);
   }
   assert.equal(cleanIds.size, 20, 'twenty actual executions, never a reused green stamp');
-  assert.equal(snapshot(box).quarantines[0].status, 'quarantined', 'automatic quarantine cannot use the legacy 20-clean-run release');
+  assert.equal(snapshot(box).quarantines[0].status, 'lifted', 'the Submit backfill files an ordinary quarantine, which the 20-clean-run release lifts (f562d717d8)');
   assert.equal(snapshot(box).quarantines.length, 1, 'later admissions retain one active repair');
   assert.equal(box.cli('show', String(box.id)).document.item_status, 'submitted');
 });
