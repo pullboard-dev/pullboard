@@ -123,7 +123,7 @@ export function assertMatchingLandingHost(helpers) {
   const environment = { platform: process.platform, arch: process.arch, node: process.versions.node };
   const accepted = boardRead(box, board => store.events(board, { itemId: entry.id }).findLast(event => event.event_kind === 'accept'));
   assert.deepEqual(JSON.parse(accepted.event_detail).environment, environment,
-    'a machine-run verdict records the environment that actually ran its frozen check');
+    'a machine-run verdict records the environment that actually ran its frozen check ' + accepted.event_detail.slice(0,1500));
   success(box, box.repo, 'gate');
   // The fixture's initial push ran the real pre-push gate. A cached CLI gate creates no new run event.
   assert.deepEqual(gateRuns(box.repo).at(-1)?.environment, environment,
