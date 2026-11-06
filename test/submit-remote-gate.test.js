@@ -85,6 +85,7 @@ export async function requireSubmitCells(root, main, source, item, services) {
   return { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] };
 }
 `);
+  put('bin/cells-inventory-cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('bin/static-style-checks.js', `import { existsSync } from 'node:fs';
 import { record } from './record.js';
 record(process.cwd(), 'static', import.meta.url);
@@ -94,7 +95,7 @@ if (existsSync('RED')) { console.error('src/thing.js:1 one import binding per li
   git(controller, '-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'trusted main');
   const main = git(controller, 'rev-parse', 'HEAD');
   const bomb = "throw new Error('candidate tooling was executed');\n";
-  for (const path of ['bin/record.js', 'bin/cells-submit-checks.js', 'bin/static-style-checks.js', 'packages/items/index.js', 'packages/gate/index.js', 'packages/landing/index.js']) put(path, bomb);
+  for (const path of ['bin/record.js', 'bin/cells-submit-checks.js', 'bin/cells-inventory-cache.js', 'bin/static-style-checks.js', 'packages/items/index.js', 'packages/gate/index.js', 'packages/landing/index.js']) put(path, bomb);
   put('src/thing.js', 'export const thing = 1;\n');
   if (red) put('RED', 'candidate data\n');
   git(controller, 'add', '.');
