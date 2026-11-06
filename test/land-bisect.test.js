@@ -1,18 +1,28 @@
 /** Independently schedule the real red landing bisection [B3,R3,E8]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { waitForFixtureProgress } from './fixture-progress.js';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { calls, events, json, onBoard } from './land-board-fixture.js';
+/**
+ * Wait until no process of this fixture is still running. Why: a landing leaves finishing work behind (audits, workers)
+ * that runs a gate and takes a lease on its own clock, so counts read before it ends differ by load.
+ */
+async function drainOwnedProcesses(directory) {
+  const owned = () => spawnSync('pgrep', ['-f', directory], { encoding: 'utf8' }).stdout.trim();
+  await waitForFixtureProgress({ child: { exitCode: null, signalCode: null }, ready: () => owned() === '',
+    progress: () => owned().length, description: 'fixture processes finishing', quietMs: 60_000 });
+}
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
-test('land bisects a real red, blocks stale proof and refuses an unverified stack [B3,R3,E8]', () => {
+test('land bisects a real red, blocks stale proof and refuses an unverified stack [B3,R3,E8]', async () => {
   const box = landProject();
   box.env.LAND_SUPPRESS_RED = '1';
   const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
@@ -67,10 +77,10 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   for (const entry of entries.slice(1)) assert.equal(json(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
   assert.notEqual(result.batch.tip, base);
+  await drainOwnedProcesses(box.dir);
   const afterCalls = calls(box).length;
   const beforeEmptyEvents = events(box);
   const beforeEmptyLease = onBoard(box, board => store.landingLeaseState(board));
-  const idleState = JSON.stringify(onBoard(box, board => ({ batches: store.landingBatches(board).map(b => [b.state, b.base, b.tip]), lease: store.landingLeaseState(board) })));
   const again = box.run(box.repo, 'land', '--json');
   assert.equal(again.code, 1, again.out + again.err);
   assert.equal(JSON.parse(again.out).error.code, 'STALE_VERDICT', 'an all-blocked queue refuses instead of suggesting an empty successful land');
@@ -78,5 +88,6 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'a stale refusal takes no lease');
   assert.equal(json(box, box.repo, 'show', String(entries[2].item)).item_status, 'open', 'the known red is returned to its builder and is no longer a verified landing candidate');
   assert.equal(calls(box).length, afterCalls, 'known unchanged red is not retried');
+  await drainOwnedProcesses(box.dir); // Nothing may still write into the fixture when cleanup removes it.
 });
 
