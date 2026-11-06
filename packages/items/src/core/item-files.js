@@ -12,12 +12,40 @@ export function itemFiles(item) {
   return [...new Set([...changed, ...briefFiles(item.item_brief ?? '')])];
 }
 
-/** Find shared paths against lease-normalized in-flight items, retaining the existing item order. */
+const flightIndexes = new WeakMap();
+
+/**
+ * Index the in-flight items of one list by path, once per list, so a collision lookup touches only
+ * the items that name a path instead of scanning every item. Rebuilt when the list's length changes.
+ *
+ * @param {any[]} items
+ * @returns {Map<string, Array<{ item: any, at: number, files: string[] }>>}
+ */
+function flightIndex(items) {
+  const cached = flightIndexes.get(items);
+  if (cached?.length === items.length) return cached.byPath;
+  const byPath = new Map();
+  items.forEach((other, at) => {
+    if (!(other.item_status === 'claimed' || other.item_status === 'submitted'
+      || (other.item_status === 'verified' && !other.item_merged_commit))) return;
+    const entry = { item: other, at, files: itemFiles(other) };
+    for (const path of new Set(entry.files)) {
+      if (!byPath.has(path)) byPath.set(path, []);
+      byPath.get(path).push(entry);
+    }
+  });
+  flightIndexes.set(items, { length: items.length, byPath });
+  return byPath;
+}
+
+/** Find shared paths against lease-normalized in-flight items through a path index, in item order. */
 function fileCollisions(item, files, items) {
   if (!files.size) return [];
-  return items.filter(other => other.item_id !== item.item_id && (other.item_status === 'claimed'
-    || other.item_status === 'submitted' || (other.item_status === 'verified' && !other.item_merged_commit)))
-    .map(other => ({ item: other, shared: itemFiles(other).filter(path => files.has(path)) }))
+  const byPath = flightIndex(items), hits = new Map();
+  for (const path of files) for (const entry of byPath.get(path) ?? []) hits.set(entry.at, entry);
+  return [...hits.values()].sort((a, b) => a.at - b.at)
+    .filter(entry => entry.item.item_id !== item.item_id)
+    .map(entry => ({ item: entry.item, shared: entry.files.filter(path => files.has(path)) }))
     .filter(other => other.shared.length);
 }
 
