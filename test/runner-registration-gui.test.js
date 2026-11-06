@@ -44,9 +44,14 @@ test('an inconclusive desktop probe remains unknown rather than inventing absenc
 test('failed registration transport replaces a stale desktop positive with unknown [C7,V4]', t => {
   const box = registrationGuiFixture(t);
   assert.equal(box.register().gui, true);
+  const before = box.list()[0];
   box.transportDown();
-  assert.equal(box.register().gui, null);
-  assert.equal(box.list()[0].gui, null, 'a failed probe cannot retain a stale positive admission fact');
+  // Registration now enrolls the runner's signing key in the same probe (RUNNER_SETUP), so a failed probe refuses instead of recording unknown.
+  const failed = box.registerRaw();
+  assert.equal(failed.status, 1, failed.context);
+  assert.match(failed.stderr, /RUNNER_SETUP.*did not complete its registration probe/u);
+  const after = box.list()[0];
+  assert.equal(after.guiObservedAt, before.guiObservedAt, 'a failed probe never refreshes the desktop observation, so the stale positive keeps its old observation time');
   assert.equal(box.trace('').length, 0);
   const probes = box.trace('.gui-probes');
   assert.equal(probes.length, 2);

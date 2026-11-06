@@ -83,6 +83,8 @@ test('first GUI-marked body actually executes [C7]',()=>writeFileSync(${JSON.str
     assert.equal(result.status, 0, result.context);
     return JSON.parse(result.stdout).runner;
   };
+  /** Register again and return the raw CLI result, for a registration that is expected to refuse. */
+  const registerRaw = () => cli(paths.repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json');
   /** Run the ordinary gate with real GUI-marker classification and no previous worker receipt. */
   const runGui = async () => {
     for (const [name, value] of [['browserSlots', '0'], ['gateSlots', '0']]) {
@@ -107,7 +109,7 @@ process.exitCode=result.isGreen?0:1;
       { cwd: paths.repo, env, detached: true });
     return awaitRoundTrip(closed.child, closed, phases, before);
   };
-  return { ...paths, directory, requests, marker, env, register, trace, runGui,
+  return { ...paths, directory, requests, marker, env, register, registerRaw, trace, runGui,
     setMode: value => writeFileSync(modeFile, value),
     transportDown: () => installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
       machineHome: paths.remoteMachine, requests, healthDown: true, registrationDown: true }),
