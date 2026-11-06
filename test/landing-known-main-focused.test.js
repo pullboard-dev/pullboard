@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** Focused main comparisons preserve named failures and use a complete file verdict only as a fallback [B3,C7]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { mainCheckout } from '../packages/git/index.js';
 import { compareMainFailures } from '../packages/landing/src/shell/main-red.js';
@@ -37,7 +38,8 @@ test('an incomplete named account falls back to a complete per-file isolation ve
 /** The current exit-rules red is checked at exact main and retained as either named or isolated evidence. */
 test('exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async () => {
   const root = import.meta.dirname + '/..';
-  const main = mainCheckout(root);
+  // A runner's job checkout is detached and has no main branch: its committed head is the main the job proves.
+  const main = mainCheckout(root) ?? { commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() };
   assert.ok(main?.commit, 'the focused comparison pins a committed main');
   const comparison = await compareMainFailures(root, { tests: [{ file: TARGET, passed: false }] }, undefined, '', {
     commit: main.commit, detailed: true, fresh: true, allowCancelled: true,
