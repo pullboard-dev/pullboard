@@ -4,12 +4,25 @@
 .stage-word { color: var(--ink); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
 .stage-detail { color: var(--ink-muted); font: 400 var(--text-2xs)/var(--leading-snug) var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage-mark { border-radius: var(--radius-sm); padding: 0 var(--space-1); background: var(--surface-2); color: var(--ink-muted); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); white-space: normal; }
-.stage-mark.gate { color: var(--warn); } .stage-mark.no { color: color-mix(in srgb, var(--mark-back) 50%, var(--ink)); }
+/* Held is a dashed outline, no color; Sent back carries its return arrow. */
+.stage-mark.gate { background: none; color: var(--ink-muted); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.stage-mark.no::before { content: '\21A9\FE0E'; margin-right: var(--space-0); }
+.stage-mark.no { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); }
+/* One map from stage word to token: Verified and Landing share the done green, Merged is solid. */
+.item-stage[data-stage=merged], .item-stage[data-stage=verified], .item-stage[data-stage=landing] { --stage: var(--stage-merged); }
+.item-stage[data-stage=in-review] { --stage: var(--stage-review); } .item-stage[data-stage=building] { --stage: var(--stage-building); }
+.item-stage[data-stage=ready] { --stage: var(--stage-ready); } .item-stage[data-stage=gated] { --stage: var(--stage-gated); }
+.item-stage[data-stage] > .stage-line > .stage-word, .item-stage[data-stage] .chip.item-status { display: inline-flex; justify-content: center; min-width: 84px; padding: 1px var(--space-3); border-radius: var(--radius-pill); background: color-mix(in oklab, var(--stage) 16%, var(--surface)); color: color-mix(in oklab, var(--stage) 60%, var(--ink)); font: 600 var(--text-xs)/1.4 var(--sans); letter-spacing: normal; white-space: nowrap; }
+.item-stage[data-stage] .chip.item-status .stage-word { color: inherit; font: inherit; }
+/* The Roadmap reads its row like the mockup: what is happening, any mark, then the stage chip. */
+.roadmap-status .item-stage { flex-direction: row-reverse; align-items: center; gap: var(--space-3); }
+.roadmap-status .stage-line { flex-wrap: nowrap; flex-direction: row-reverse; }
+.roadmap-status .stage-detail { max-width: 230px; font-size: var(--text-xs); }
 .row .item-stage { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; }
 .pipeline-copy, .dash-item-copy { display: grid; gap: var(--space-0); min-width: 0; }
 .pipeline-copy .item-stage { margin-top: var(--space-1); }
 .dash-item-copy .item-stage { align-items: flex-start; }
-.dash-item .stage-word, .dash-item .stage-detail, .dash-item .stage-mark { color: var(--ink-muted); font-family: var(--sans); font-size: var(--text-2xs); }
+.dash-item .stage-detail, .dash-item .stage-mark { color: var(--ink-muted); font-family: var(--sans); font-size: var(--text-2xs); }
 /* Items keep one compact chip line; the native detail remains on hover and for assistive readers. */
 #chain .stage-detail { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #chain .stage-line { flex-wrap: nowrap; }

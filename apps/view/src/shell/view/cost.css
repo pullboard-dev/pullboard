@@ -149,8 +149,8 @@ i.anthropic { background: var(--anthropic); } i.openai { background: var(--opena
 .cost-time b { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
 .cost-time-bar { display: block; width: 100%; height: 6px; border-radius: 4px; overflow: hidden; }
 .cost-time-bar .bg { fill: var(--line-soft); }
-.cost-time-bar .right { fill: var(--ink-faint); opacity: .55; } .cost-time-bar .back { fill: var(--reject); opacity: .75; }
-.cost-sb { justify-self: end; padding: 1px 8px; border-radius: 999px; background: var(--reject-soft); color: var(--reject); font: 600 12px var(--sans); white-space: nowrap; }
+.cost-time-bar .right { fill: var(--ink-faint); opacity: .55; } .cost-time-bar .back { fill: var(--mark-back); opacity: .75; }
+.cost-sb { justify-self: end; padding: 1px 8px; border-radius: 999px; background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); font: 600 12px var(--sans); white-space: nowrap; }
 .cost-detail { display: grid; gap: 10px; padding: 2px 18px 14px; background: var(--surface-2); }
 .cost-sessions { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .cost-session { display: grid; grid-template-columns: minmax(0, 1fr) 1fr 150px; gap: 14px; align-items: center; padding: 7px 12px; font-size: 13px; }

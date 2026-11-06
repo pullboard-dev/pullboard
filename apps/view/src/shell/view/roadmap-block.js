@@ -54,8 +54,8 @@ export function roadmapBlock(item, context = {}) {
     const holder = ['claimed','submitted'].includes(other.status) ? other.claim?.by || (other.status==='claimed'?other.owner:other.reviewer) : null;
     return ref(other)+(holder?' <b>'+escape(name(holder))+'</b>':'')+(other.since?' <span class="muted">since '+escape(time(other.since))+'</span>':'');
   });
-  if (own) waiting.push('<span class="chip warn">held</span> '+escape(own.reason));
-  if (hold) waiting.push('<span class="chip warn">lane held</span> '+escape(item.lane)+(hold.hold_reason?': '+escape(hold.hold_reason):''));
+  if (own) waiting.push('<span class="chip gate held">held</span> '+escape(own.reason));
+  if (hold) waiting.push('<span class="chip gate held">lane held</span> '+escape(item.lane)+(hold.hold_reason?': '+escape(hold.hold_reason):''));
   const downstream = items.filter(other => other.status === 'open' && (other.blockedBy || []).includes(item.id));
   const reject = (item.verdicts || []).findLast(v => v.decision === 'REJECT') || (item.verdict?.decision === 'REJECT' ? item.verdict : null);
   const reasons = {TEST_FAILURE:'A test failed',BEHAVIOR_MISMATCH:'Behavior differs from the criterion',INSUFFICIENT_EVIDENCE:'More evidence is needed',STALE_HEAD:'The submitted commit is out of date',OTHER:'Sent back'};
