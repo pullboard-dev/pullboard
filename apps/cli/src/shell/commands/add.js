@@ -3,6 +3,7 @@ import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.j
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { criterionCells } from '../../../../../packages/items/index.js';
+import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { defaultItemRoute } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
@@ -96,7 +97,8 @@ export async function run(io, args) {
     brief: briefInLane(ctx, first, briefArg(io, values) ?? ''),
     reviewFamily: values['review-family'],
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    route: values.route ?? (values.check ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
+    // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
+    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: values.check,
