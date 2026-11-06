@@ -129,7 +129,8 @@ test('a holder blocked in a synchronous gate run keeps a fresh heartbeat and is 
   while (!existsSync(done) && Date.now() < deadline) {
     const probe = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', agent: 'probe' });
     probe.release();
-    const beat = () => db.prepare('SELECT heartbeat FROM holder WHERE token = ?').get(token)?.heartbeat;
+    // The real beat lives in `beat`; `heartbeat` stays pinned for older readers (#3164).
+    const beat = () => db.prepare('SELECT beat FROM holder WHERE token = ?').get(token)?.beat;
     const seen = beat();
     if (seen) oldest = Math.max(oldest, Date.now() - seen);
     // The next probe waits for the next refreshed heartbeat, the run's end, or a freed row.
@@ -236,7 +237,7 @@ test('clause 3: a runner lease on another host still counts as troubled by its s
   const { troubledRunners } = await import(pathToFileURL(join(REPO, 'packages/resources/src/shell/runner-load-pick.js')).href);
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
-  db.exec(`CREATE TABLE holder(name TEXT, runner TEXT, heartbeat INTEGER); CREATE TABLE runner_recovery_event(host TEXT, kind TEXT, at TEXT)`);
+  db.exec(`CREATE TABLE holder(name TEXT, runner TEXT, beat INTEGER); CREATE TABLE runner_recovery_event(host TEXT, kind TEXT, at TEXT)`);
   const now = Date.now();
   db.prepare('INSERT INTO holder VALUES (?, ?, ?), (?, ?, ?)').run('runner:far', 'far', now - 10 * 60_000, 'runner:near', 'near', now);
   assert.deepEqual([...troubledRunners(db, now, 60_000)], ['far'], 'only the remote lease whose timestamp stopped is troubled');

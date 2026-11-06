@@ -14,7 +14,7 @@ test('a blocked or partly landed batch with verified items waiting wakes again o
     new Date(NOW + LANDING_RETRY_MS).toISOString());
   assert.equal(landingRetryAt({ landed: [], blocked: [], waiting: true, retryMs: 600_000 }, NOW), new Date(NOW + 600_000).toISOString(),
     'a configured cadence sets the interval for a run that moved nothing');
-  assert.equal(LANDING_RETRY_MS, 300_000, 'the default retry is five minutes, the shortest landing cadence');
+  assert.equal(LANDING_RETRY_MS, 30_000, 'the default retry is thirty seconds: a blocked batch never idles the lander for minutes');
 });
 
 test('a recorded cadence deferral keeps its own wake time [C7,#2898]', () => {

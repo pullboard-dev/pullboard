@@ -13,8 +13,9 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
   const cases = [];
   /** A reported path relative to the root, or null when it lies outside it. */
   const inRoot = (path) => {
-    // A runner reports its own checkout path; the part after checkout/ is the repo file.
-    const runner = /\/\.pullboard-runner\/jobs\/[^/]+\/checkout\/(.+)$/u.exec(path);
+    // A runner reports its own checkout path; the part after checkout/ is the repo file. The runner root is
+    // `.pullboard-runner` on the minis and `pullboard-runner` on vanilla: a red there lost its file and held #3126 [C7].
+    const runner = /\/\.?pullboard-runner\/jobs\/[^/]+\/checkout\/(.+)$/u.exec(path);
     if (runner) return runner[1];
     const file = isAbsolute(path) ? relative(root, path) : path.replace(/^\.\//u, '');
     return file && !file.startsWith('../') && !file.includes('\\') ? file : null;
@@ -57,6 +58,13 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
     if (active?.diagnostic && !/^\s*stack:/u.test(line)) (active.detailLines ??= []).push(line.trim());
     if (active && /^\s*stack:/u.test(line)) active.diagnostic = false;
     if (excludeCancelled && active && /^\s*failureType:\s*['"]?(?:cancelledByParent|subtestsFailed)['"]?\s*$/u.test(line)) active.omit = true;
+  }
+  // A nested case reports no location of its own; it fails in the file its outermost case failed in. Why: three such
+  // rows with no file made a complete 17-red gate unaccountable and blocked a 16-item batch [C7].
+  for (const entry of failures) {
+    if (entry.file || !entry.caseNames?.length) continue;
+    const parent = failures.find(other => other.file && !other.caseNames && other.name === entry.caseNames[0]);
+    if (parent) entry.file = parent.file;
   }
   const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name, caseNames, detailLines }) => {
     const bytes = Buffer.from((detailLines ?? []).join('\n'));
@@ -123,7 +131,10 @@ export function unwaivedFailures(board, failures, landingPorts) {
  */
 export function bisectableFailures(board, failures, landingPorts) {
   const own = unwaivedFailures(board, failures, landingPorts);
-  return own.length && own.every((failure) => failure.file) ? own : null;
+  // Named reds are enough to bisect on; an unnamed one rides along and the rebuilt green set's whole-plan run still
+  // catches it. Why: one unnamed row among sixteen named ones blocked a whole batch for a person to read [C7].
+  const named = own.filter((failure) => failure.file);
+  return named.length ? named : null;
 }
 
 /** Project the live person waivers a landing run may read, so it does not stop early on one [B3]. */
