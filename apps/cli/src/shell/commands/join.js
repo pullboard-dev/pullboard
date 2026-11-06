@@ -38,6 +38,13 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard join` and return its exit code. */
+/**
+ * Whether a model is a small, light-route model: a claude-haiku-* model or gpt-6-luna.
+ * A seat on such a model joins the light route unless it names --route, so it never claims strong work.
+ */
+export function lightModel(model) {
+  return /^claude-haiku-/u.test(String(model ?? '')) || model === 'gpt-6-luna';
+}
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const wake = seatWakeCommand(values.wake, ctx.info.root);
@@ -70,7 +77,7 @@ export async function run(io, { first, values }) {
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
   const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
-  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? 'strong';
+  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
   if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
