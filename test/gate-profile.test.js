@@ -134,7 +134,8 @@ test('a timing profile records two runner invocations and the real gate-slot wai
   writeFileSync(join(fixture.repo, 'timed/slow.test.js'), `import { test } from 'node:test'; test(${JSON.stringify(slowName)}, async () => new Promise(resolve => setTimeout(resolve, 150)));\n`);
   writeFileSync(join(fixture.repo, 'timed/fail.test.js'), "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('failing timing profile sample', () => assert.equal(1, 2));\n");
   box.git(fixture.repo, 'add', 'timed');
-  box.git(fixture.repo, 'commit', '-q', '-m', 'test: add timing profile fixtures');
+  // The slow fixture's name carries FAKE_SECRET on purpose; the pre-commit secret scan would refuse this synthetic commit, so it skips that hook as the submit-profile case does.
+  box.git(fixture.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: add timing profile fixtures');
   const runner = `'${RUNNER.replaceAll("'", "'\\''")}'`;
   const command = `node ${runner} timed/fast.test.js && node ${runner} timed/slow.test.js`;
   writeFileSync(join(fixture.repo, 'pullboard.json'), JSON.stringify({ gate: command }));
@@ -306,6 +307,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
     'the checked composition includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
+  box.env.CODEX_THREAD_ID = 'profile-builder-session';
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
 
   assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
