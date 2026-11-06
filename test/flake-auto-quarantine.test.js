@@ -88,7 +88,8 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
-  assert.equal(snapshot(box).quarantines.length, 0, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
+  // f562d717d8: a Submit pair files its quarantine at once, so the first pair already holds the one active repair.
+  assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
   const second = submit(box);
   assert.equal(second.code, 1, JSON.stringify(second.document));
   const state = snapshot(box);
@@ -100,11 +101,11 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   const repair = state.items.find(item => item.item_id === entry.item);
   assert.equal(repair.item_lane, 'core');
   assert.equal(state.items.filter(item => item.item_title.startsWith('Flaky test:')).length, 1, 'typed diagnostics and quarantine share one owner');
-  assert.equal(entry.runs.length, 4);
+  assert.equal(entry.runs.length, 2, 'the second pair never files a second quarantine');
   const receipts = entry.runs.map(id => readGateReceipt(receiptStore(box.root), id));
-  assert.ok(receipts.every(Boolean), 'all four proving receipts are native-produced private bytes');
+  assert.ok(receipts.every(Boolean), 'both proving receipts are native-produced private bytes');
   if (companion) assert.ok(receipts.every(receipt => receipt.head !== box.builder.git('rev-parse', 'HEAD')), 'all proving receipts execute the actual composition, not the bare builder head');
-  assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 2);
+  assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 1);
   assert.equal(state.admissions.length, 2, 'each actually acquired Submit lease creates exactly one authenticated native witness');
   assert.ok(receipts.every(receipt => state.admissions.some(admission => admission.id === receipt.proof.diagnosticAdmission)));
   // These are synthetic validator inputs copied from actual sealed native bytes, never execution receipts or writes.
