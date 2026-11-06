@@ -78,7 +78,7 @@ function listed(file, anchor, line) {
   };
 }
 
-test('two commands added at the same sorted spot merge without conflict (clause 1) [C7,V4]', (t) => {
+test('clause 1: two commands added at the same sorted spot merge without conflict [C7,V4]', (t) => {
   const commandFiles = readdirSync(new URL('commands/', SOURCE)).filter((file) => file.endsWith('.js')).map((file) => `commands/${file}`);
   const command = (name) => ({ name, files: { [`commands/${name}.js`]: '/** An independent private command. */\nexport function run() { return 0; }\n' } });
   const register = (root, addition) => listed('commands/index.js', "  answer: () => import('./answer.js'),", `  ${addition.name}: () => import('./${addition.name}.js'),`)(root);
@@ -87,7 +87,7 @@ test('two commands added at the same sorted spot merge without conflict (clause 
   assert.ok(merged.includes('alpha.js') && merged.includes('alpine.js'), 'both new commands are in the merged tree');
 });
 
-test('two engines added at the same sorted spot merge without conflict (clause 1) [C7,V4]', async (t) => {
+test('clause 1: two engines added at the same sorted spot merge without conflict [C7,V4]', async (t) => {
   const engineFiles = ['machine.js', 'engine-metadata.js', 'discovery.js', 'engine-numbers.js', ...readdirSync(SOURCE).filter((file) => /-engine\.js$|^machine-(?:move-.+|shared)\.js$/u.test(file))];
   const engine = (name, number) => ({ name, files: { [`${name}-engine.js`]: `/** An independent private engine. */\nexport const ${name.toUpperCase().replace(/-/gu, '_')}_ENGINE = ${number};\n` } });
   const register = (root, addition) => listed('machine.js', "  'engine-52': 52,", `  '${addition.name}': ${addition.name.endsWith('alpha') ? 63 : 64},`)(root);
