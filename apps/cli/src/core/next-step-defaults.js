@@ -547,6 +547,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   DIAGNOSIS_WRONG: "claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note \"<what was wrong>\"",
   ITEM_MARKER_MISSING: "renew the claim from the seat worktree the message names: pullboard claim <id>",
   SUBMIT_RED_LOOP: "change the failing code before another submit: fix the red tests the message names, commit, then submit again",
+  LAND_MODULE_PARSE: "fix the module that does not parse in the composed tree, commit, then resubmit the item",
   LAND_MODULE_SOURCE: "restore the landing commit and its parent in this checkout so their modules can be read, then run the command again",
   RUNNER_SETUP: "install Node and the named command on the runner, or pass --node <absolute-path> to pullboard runner add <ssh-host>",
   WORKER_WORKTREE_HELD: "run pullboard run --scale again once the parked seat's claims and reviews end",
