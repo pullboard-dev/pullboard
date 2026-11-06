@@ -21,7 +21,6 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as store from '../../../../src/board.js';
 import { briefFiles } from '../../../items/index.js';
 import {
   CONFIG_FILE,
@@ -32,12 +31,6 @@ import {
   doctrineText,
   loadDoctrine,
 } from '../../../../src/doctrine.js';
-import {
-  digestOf,
-  refuseSandboxBlocked,
-  sandboxBlockedOperation,
-  runGate,
-} from '../../../gate/index.js';
 import {
   contains,
   git,
@@ -52,7 +45,13 @@ import {
   outOfLane,
 } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { missingGate } from '../../../gate/index.js';
+
+let store;
+let digestOf;
+let refuseSandboxBlocked;
+let sandboxBlockedOperation;
+let runGate;
+let missingGate;
 
 /** Report changing machine queue state while an unattended item waits for a gate slot. */
 function gateWaitReporter(io) {
@@ -430,6 +429,13 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
  * @returns {Promise<number>}
  */
 export async function runItems(io, values, deps) {
+  // Keep package import light; unattended work is the first point that needs board and gate machinery.
+  const [board, gate, gateConfig] = await Promise.all([
+    import('../../../store/index.js'), import('../../../gate/index.js'), import('../../../gate/src/shell/gate-config.js'),
+  ]);
+  store = board;
+  ({ digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = gate);
+  ({ missingGate } = gateConfig);
   const ctx = deps.context(io);
   if (ctx.info.isMain) {
     throw new Refused('MAIN_IS_COORDINATOR', 'the runner builds lane items, so it runs in a lane worktree: pullboard worktree <lane> --model "<model name>" --route light, then run it there');

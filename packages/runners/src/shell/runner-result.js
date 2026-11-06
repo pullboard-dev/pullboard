@@ -1,17 +1,17 @@
 /** Authenticate a runner receipt and its complete output before trusting any remote status [C7]. */
 import { environmentProblem } from '../../../config/index.js';
 import { testRuntimeRows } from '../../../sandbox/index.js';
-import { RunnerDropped } from '../../../gate/index.js';
-import { gateStages } from '../../../gate/index.js';
-import { readStages } from '../../../gate/index.js';
+import { RunnerDropped } from '../../../gate/src/core/gate-policy-load.js';
+import { gateStages } from '../../../gate/src/shell/gate-stages.js';
+import { readStages } from '../../../gate/src/shell/gate-stages.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { recordRunnerGui } from '../../../resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from '../../../sandbox/index.js';
-import { retainTestResultCompletion } from '../../../gate/index.js';
-import { importTestResults } from '../../../gate/index.js';
-import { runnerPhaseFields } from '../../../gate/index.js';
+import { retainTestResultCompletion } from '../../../gate/src/shell/test-result-store.js';
+import { importTestResults } from '../../../gate/src/shell/test-result-store.js';
+import { runnerPhaseFields } from '../../../gate/src/shell/timing.js';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 

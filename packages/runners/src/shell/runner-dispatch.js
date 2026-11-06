@@ -1,6 +1,6 @@
 import { committedRunnerController } from './committed-tooling.js';
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
-import { RunnerDropped } from '../../../gate/index.js';
+import { RunnerDropped } from '../../../gate/src/core/gate-policy-load.js';
 import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
