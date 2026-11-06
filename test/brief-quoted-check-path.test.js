@@ -28,7 +28,7 @@ test('a quote that does not close around the path infers nothing and still refus
     check: "node bin/run-tests.js 'test/x.test.js\"" }), { code: 'NO_BRIEF' });
 });
 
-test("pullboard add with --check \"node bin/run-tests.js 'test/x.test.js'\" and no brief succeeds with a brief naming the test [B14,C7,#3120]", () => {
+test("clause 1: pullboard add with --check \"node bin/run-tests.js 'test/x.test.js'\" and no brief succeeds with a brief naming the test [B14,C7,#3120]", () => {
   const box = helpers.project('true', helpers.sandbox());
   const added = box.run(box.repo, 'add', 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
     '--check', "node bin/run-tests.js 'test/x.test.js'", '--json');

@@ -84,7 +84,7 @@ function landRuns(box, entry, { mode, runs }) {
   return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
 }
 
-test('an adopted batch refused RUNNER_SOURCE three times stops blocked, holds its item with the reason and starts nothing more [C7]', () => {
+test('clause 2: an adopted batch refused RUNNER_SOURCE three times stops blocked, holds its item with the reason and starts nothing more [C7]', () => {
   const { box, entry } = acceptedProject();
   const result = landRuns(box, entry, { mode: 'source', runs: 5 });
   const id = '00000000-0000-4000-8000-000000000002';
