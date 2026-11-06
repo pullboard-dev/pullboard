@@ -296,7 +296,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (fromPacket) {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       refuseUnverifiedStack(root, board, item, commit, requireTrunkMerge(root, commit));
-      check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\n${fromPacket}` };
+      check = { state: 'pass', checked: true, reused: true, executionNote: `\n${fromPacket}` };
       ctx.io.say(fromPacket);
     } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
@@ -342,7 +342,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && (frozenCheck(item) || supplement)) {
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
-          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+          check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
