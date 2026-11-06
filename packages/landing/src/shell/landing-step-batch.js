@@ -232,11 +232,12 @@ export function crashRefusal(error) {
 
 /**
  * End the batch blocked after any refusal or crash in a landing step (merge, gate, diagnose, trunk, publish), so the next
- * batch starts and no restart adopts and gates it again. A lost lease and a landing fault (BOARD_BUSY) keep it for adoption.
+ * batch starts and no restart adopts and gates it again. Only a lost lease keeps it, since another worker owns the batch then;
+ * a landing fault such as BOARD_BUSY is a Refused like any other and blocks it too (its items stay verified).
  * Why: FLAKE_RATCHET escaped with the batch still gating and killed the worker 50 times on 5 Nov [C7,#3188].
  */
 export async function blockAfterRefusal(state, error) {
-  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error);
+  const refused = error instanceof Refused && error.code !== 'LAND_LEASE_LOST';
   if ((refused || isCrash(error)) && ['merging', 'gating', 'ready', 'trunk'].includes(state.batch.state)) await save(state, { state: 'blocked' });
 }
 

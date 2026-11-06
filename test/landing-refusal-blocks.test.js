@@ -31,11 +31,13 @@ for (const [step, code] of [['merge', 'LAND_MERGE'], ['gate', 'GATE_RED'], ['dia
   });
 }
 
-test('clause 1: a lost lease and a board-busy fault keep the batch for adoption [C7]', async t => {
-  const { state, latest } = gating(t, 'keep-faults');
-  await blockAfterRefusal(state, new Refused('LAND_LEASE_LOST', 'lost'));
-  await blockAfterRefusal(state, new Refused('BOARD_BUSY', 'busy'));
-  assert.equal(latest().state, 'gating');
+test('clause 1: a lost lease keeps the batch for adoption, a board-busy refusal blocks it like any other [C7]', async t => {
+  const lost = gating(t, 'keep-lost');
+  await blockAfterRefusal(lost.state, new Refused('LAND_LEASE_LOST', 'lost'));
+  assert.equal(lost.latest().state, 'gating');
+  const busy = gating(t, 'block-busy');
+  await blockAfterRefusal(busy.state, new Refused('BOARD_BUSY', 'busy'));
+  assert.equal(busy.latest().state, 'blocked');
 });
 
 test('clause 2: a non-refusal crash is recorded blocked as LAND_WORKER_CRASH with its stack, once [C7]', async t => {
