@@ -66,6 +66,14 @@ export function privateRepo(t) {
   return { dir, root, env, git, run };
 }
 
+/** Add items with the criterion, route and brief the board now requires; every other move passes through. */
+function withBrief(...args) {
+  if (args[0] !== 'add' || args.includes('--route')) return args;
+  const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
+  if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];
+  return [...args, ...filled, '--route', 'mid', '--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes'];
+}
+
 /** Create a real joined builder with its accepted fixture ownership before any claim. */
 export function builderRepo(box, additionalOwned = []) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
@@ -84,13 +92,6 @@ export function builderRepo(box, additionalOwned = []) {
     const args = withBrief(...rawArgs);
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
-  };
-  /** Add items with the criterion, route and brief the board now requires; every other move passes through. */
-  const withBrief = (...args) => {
-    if (args[0] !== 'add' || args.includes('--route')) return args;
-    const filled = args.includes('--criterion') ? [] : ['--criterion', 'The fixture item is valid.'];
-    if (!args.includes('--check')) return [...args, ...filled, '--route', 'strong'];
-    return [...args, ...filled, '--route', 'mid', '--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes'];
   };
   const coordinator = (...args) => box.run(...withBrief(...args));
   return { ...box, root, git, run, coordinator };

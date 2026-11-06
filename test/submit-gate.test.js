@@ -880,7 +880,9 @@ test('a computed-import test joins the selection only when it declares what it l
   put(box.root, 'test/c.test.js', "export const load = path => import(path);\n");
   const base = commitAll(box);
   const added = selectAffectedTests(box.root, { base: original, commit: base, changed: ['src/a.js'] });
-  assert.equal(added.full, true, 'an undeclared computed import cannot be read, so the whole suite runs');
+  // Since a9d9045aa4 one unreadable test always runs its own file and never selects the whole suite.
+  assert.equal(added.full, false, 'an undeclared computed import cannot be read, so its own file runs, not the whole suite');
+  assert.ok(added.files.includes('test/c.test.js'), 'the unreadable loader always runs');
   assert.match(added.reason, /test\/c\.test\.js/u, 'the reason names the undeclared file');
   put(box.root, 'test/c.test.js', "/** @pullboard-test-loads src/a.js */\nexport const load = path => import(path);\n");
   const declared = commitAll(box, 'test(core): declare what the loader reads [G1]');
