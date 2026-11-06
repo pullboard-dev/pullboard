@@ -375,7 +375,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       else if (landsOnTrunk(state.config)) await landOnTrunk(state);
       else if (!await inlineDeferredGuards(state)) await save(state, { state: 'blocked' });
       else {
-        let gate = await timedPhase(say, 'gate', () => gateGroup(state, 'batch'));
+        let gate = await gateGroup(state, 'batch');
         let proof = gate.isGreen ? null : waivedProof(state, gate);
         if (!gate.isGreen && !proof && singleItemLanding(state)) {
           // One item's red is its own: it goes back to open with the evidence, with no bisection or hold [C7,#2901].
@@ -383,10 +383,10 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
           await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
           gate = null;
         } else if (!gate.isGreen && !proof) {
-          const flakyFiles = await timedPhase(say, 'gate', () => diagnose(state, gate.failures, gate));
+          const flakyFiles = await diagnose(state, gate.failures, gate);
           if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; }
           else {
-            const green = await timedPhase(say, 'gate', () => bisect(state, build.items, gate.failures));
+            const green = await bisect(state, build.items, gate.failures);
             if (!state.flaky && green.length) {
               const rebuilt = await timedPhase(say, 'merge', () => mergeGroup(state, green));
               await save(state, { ...rebuilt, culprits: state.culprits });
@@ -395,7 +395,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
                 await save(state, { state: 'blocked', culprits: state.culprits });
                 gate = null;
               } else {
-                gate = await timedPhase(say, 'gate', () => gateGroup(state, 'green-items'));
+                gate = await gateGroup(state, 'green-items');
                 proof = gate.isGreen ? null : waivedProof(state, gate);
                 if (!gate.isGreen && !proof) {
                   if (!state.culprits.length) { await fileTestDefects(state, gate); state.flaky = true; }
