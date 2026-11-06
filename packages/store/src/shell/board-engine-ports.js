@@ -18,7 +18,7 @@ export function boardEnginePorts(providers) {
   if (!providers?.MOVE_REGISTRY || typeof providers.MOVE_REGISTRY !== 'object' || Array.isArray(providers.MOVE_REGISTRY)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_REGISTRY before opening storage.');
   if (!Array.isArray(providers?.MOVE_OPERATIONS)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_OPERATIONS before opening storage.');
   for (const name of [
-    'conditionalHoldFloor', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily',
+    'conditionalHoldFloor', 'claimedItemRoot', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily',
     'minimumMoveEngine', 'declaredMoveActor',
     'recordTrainLanding', 'advanceItemSource', 'proposeSentinel', 'decideSentinel',
     'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation',
@@ -37,7 +37,7 @@ export function boardEnginePorts(providers) {
     if (typeof providers.sandboxPolicyReads?.[name] !== 'function') throw new Refused('NO_POLICY', `Supply the explicit native engine provider sandboxPolicyReads.${name} before opening storage.`);
   }
   const {
-    conditionalHoldFloor, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily,
+    conditionalHoldFloor, claimedItemRoot, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
@@ -53,7 +53,7 @@ export function boardEnginePorts(providers) {
   const store = Object.freeze({ ...rawStore, deferOwnership, measureBoardWritePhase, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
-  return Object.freeze({ sealOwnershipWait, sandboxPolicyReads: providers.sandboxPolicyReads, store, withSeatPresence, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
+  return Object.freeze({ sealOwnershipWait, sandboxPolicyReads: providers.sandboxPolicyReads, store, withSeatPresence, claimedItemRoot, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
     minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
