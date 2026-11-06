@@ -36,7 +36,7 @@ export async function runCommand(argv, io) {
     }
     const load = COMMANDS[command];
     if (!load) return (await import('../cli-help.js')).unknownCommand(io, command);
-    await (await import('../exit-rules-runtime.js')).enforceExitBoundary(io, command);
+    if (await (await import('../exit-rules-policy.js')).exitRulesApply(io, command)) await (await import('../exit-rules-runtime.js')).enforceExitBoundary(io, command);
     const commandModule = await load();
     if (commandModule.nativeBoardRequired !== false) {
       await io.prepareProcessPorts();
