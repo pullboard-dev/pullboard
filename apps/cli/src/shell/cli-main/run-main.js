@@ -17,6 +17,9 @@ import { parseCommandArgs } from './options.js';
 
 let startupMainTraced = false;
 
+/** Commands that start no worktree-maintenance timer after they run; the timer's git reads cost every call about 190 ms [C7]. */
+const QUIET_COMMANDS = new Set(['next', 'show', 'claim']);
+
 /** Retain the primary branch on every command without creating a board for global help. */
 async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   let info;
@@ -222,7 +225,8 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
-    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance'
+      && !QUIET_COMMANDS.has(parsed?.positionals[0])) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
       automaticLandingAfterCommand = io.automaticLandingContext;

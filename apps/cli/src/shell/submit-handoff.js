@@ -4,8 +4,10 @@ import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
+import { handoffToolsAllowed } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
+import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
@@ -13,6 +15,8 @@ import {
   mkdirSync,
   mkdtempSync,
   cpSync,
+  renameSync,
+  rmSync,
   realpathSync,
   readFileSync,
   existsSync,
@@ -36,6 +40,42 @@ import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 
+/** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
+function copyTools(toolRoot, target) {
+  cpSync(toolRoot, target, { recursive: true, mode: constants.COPYFILE_FICLONE,
+    filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+}
+
+/**
+ * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per commit under the OS temp
+ * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
+ * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
+ */
+function toolsSnapshot(toolRoot, job) {
+  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
+  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
+  const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
+    && realpathSync(top.stdout) === realpathSync(toolRoot)
+    && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
+  if (!clean) {
+    const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
+    copyTools(toolRoot, tools);
+    return tools;
+  }
+  const shared = join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  if (existsSync(shared)) return shared;
+  const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  try {
+    copyTools(toolRoot, staging);
+    renameSync(staging, shared);
+  } catch (error) {
+    rmSync(staging, { recursive: true, force: true });
+    // A concurrent submit won the rename; its finished snapshot is the same commit's tools.
+    if (!existsSync(shared)) throw error;
+  }
+  return shared;
+}
+
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   const result = await withHandoffQueueOrder(() => withBoard(ctx, async board => {
@@ -53,9 +93,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
-    const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${result.job.id}-`));
-    cpSync(toolRoot, tools, { recursive: true, mode: constants.COPYFILE_FICLONE,
-      filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+    const tools = toolsSnapshot(toolRoot, result.job.id);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
@@ -181,7 +219,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
-      || !basename(request.tools ?? '').startsWith(`pullboard-handoff-tools-${current.id}-`)
+      || !handoffToolsAllowed(request.tools, current.id)
       || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())
       || existsSync(submitHandoffRoot(ctx.info.commonDir, current))) {
       throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the dead queued worker lacks safe captured tooling or already has a private source; preserve its evidence and resubmit the captured commit');
