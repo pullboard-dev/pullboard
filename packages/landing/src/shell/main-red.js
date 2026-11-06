@@ -225,8 +225,7 @@ function committedNeedsGui(root, commit, path) {
  */
 function writeMainTree(checkout) {
   const env = cleanGitEnvironment();
-  gitCall(checkout, ['config', 'core.sparseCheckout', 'false'], env);
-  const written = gitCall(checkout, ['checkout', '--quiet', '--force', 'HEAD', '--', '.'], env);
+  const written = gitCall(checkout, ['sparse-checkout', 'disable'], env);
   if (written.status !== 0) throw new Error('the temporary main checkout could not write its files');
 }
 
