@@ -8,6 +8,23 @@ import { calls, events, mergeSubjects } from './land-board-fixture.js';
 /** The waiting queue a batch must take whole; the criterion asks for at least sixteen seen. */
 export const WAITING = 16;
 
+/** Longest any one phase of the batch may take before the test names it, in milliseconds. */
+export const PHASE_BUDGET_MS = 240_000;
+
+/**
+ * Run one named phase, print its elapsed time, and fail naming it when it passes the budget.
+ * Why: one 300 s hang ceiling hid which phase (seeding, merge and gate, publication) ate the time.
+ */
+function timed(phases, name, work) {
+  const start = Date.now();
+  const value = work();
+  const elapsed = Date.now() - start;
+  phases.push([name, elapsed]);
+  console.log(`# phase ${name}: ${(elapsed / 1000).toFixed(1)} s`);
+  assert.ok(elapsed <= PHASE_BUDGET_MS, `phase "${name}" took ${(elapsed / 1000).toFixed(1)} s, past the ${PHASE_BUDGET_MS / 1000} s budget`); // budget: declared 240 s ceiling per phase from the item criterion, under the 300 s hang ceiling.
+  return value;
+}
+
 /** Read the gate fixture's own trace of the files each full (non-diagnostic) run tested. */
 function allRuns(box) {
   if (!existsSync(box.trace)) return [];
@@ -34,8 +51,9 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const red = 10;
   box.env.LAND_SUPPRESS_RED = '1';
   const entries = Array.from({ length: WAITING }, (_, index) => itemWorktree(box, index + 1, `web/land-${index + 1}.test.js`));
-  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : 'PASS\n');
-  for (const entry of entries) acceptItem(box, entry);
+  const phases = [];
+  timed(phases, 'submit', () => { for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : 'PASS\n'); });
+  timed(phases, 'accept', () => { for (const entry of entries) acceptItem(box, entry); });
   delete box.env.LAND_SUPPRESS_RED;
   const base = box.git(box.repo, 'rev-parse', 'main');
   const batchesBefore = onBoard(box, board => store.landingBatches(board).length);
@@ -44,7 +62,7 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   const allBefore = allRuns(box).length;
   const callsBefore = calls(box).length;
 
-  const result = json(box, box.repo, 'land');
+  const result = timed(phases, 'land (merge, gate, lease check, push)', () => json(box, box.repo, 'land'));
 
   const ids = entries.map(entry => entry.item);
   const culprit = entries[red].item;
