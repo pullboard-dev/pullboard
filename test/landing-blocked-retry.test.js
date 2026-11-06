@@ -19,7 +19,7 @@ import { runFixtureGit } from './fixture-child.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 /** Make one fixture commit through ordinary hooks and return its full hash. */
 function commit(box, root, message) {
