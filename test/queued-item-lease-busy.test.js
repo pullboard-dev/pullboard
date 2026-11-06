@@ -21,6 +21,7 @@ import {
   startFixtureChild,
 } from './fixture-child.js';
 import { takeResource } from '../packages/resources/index.js';
+import { renewWithBeat, tuneRenewalBeat } from '../packages/resources/src/shell/renewal-beat.js';
 
 const RESOURCES = pathToFileURL(join(import.meta.dirname, '..', 'packages', 'resources', 'index.js')).href;
 /** How far the cleanup process's clock runs ahead: the 120 s cutoff then sits 10 s behind real time. */
@@ -117,4 +118,22 @@ await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'dead-g
   const lease = await takeResource({ name: 'sweep', capacity: 1, scope: 'machine', agent: 'sweeper', repo: home });
   lease.release();
   assert.deepEqual(waiters(home, 'dead-gate'), [], 'the dead gate left the queue');
+});
+
+test('clause 1: a renewal that begins as the cached beat thread retires after its idle timeout still advances the queued waiter heartbeat [C7]', async (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'pb-lease-retire-')));
+  const file = join(home, 'resources.sqlite');
+  const db = new DatabaseSync(file);
+  t.after(() => { tuneRenewalBeat(); try { db.close(); } catch { /* Already closed. */ } rmSync(home, { recursive: true, force: true }); });
+  db.exec('CREATE TABLE waiter (token TEXT PRIMARY KEY, heartbeat INTEGER NOT NULL)');
+  db.prepare('INSERT INTO waiter (token, heartbeat) VALUES (?, 0)').run('retire-token');
+  const heartbeat = () => db.prepare('SELECT heartbeat FROM waiter WHERE token = ?').get('retire-token').heartbeat;
+  tuneRenewalBeat({ beatMs: 100, idleMs: 300 });
+  await renewWithBeat(file, 'retire-token', true, () => 'first');
+  // Hold this thread past the idle timeout: the cached thread retires and exits, but its exit event cannot be handled yet.
+  blockThread(1_000);
+  const start = Date.now();
+  db.prepare('UPDATE waiter SET heartbeat = 0 WHERE token = ?').run('retire-token');
+  await renewWithBeat(file, 'retire-token', true, () => { blockThread(1_000); return 'second'; });
+  assert.ok(heartbeat() >= start, 'a fresh beat thread advanced the heartbeat during the renewal that began at retirement');
 });

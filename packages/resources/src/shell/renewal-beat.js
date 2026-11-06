@@ -17,6 +17,22 @@ export const RENEWAL_BEAT_MS = 5_000;
 const LONGEST_RENEWAL_MS = 10 * 60_000;
 /** How long an idle thread waits for the next renewal before it exits; the next renewal starts a new one. */
 const IDLE_EXIT_MS = 60_000;
+/** The idle and beat timings in force; a test shortens them through `tuneRenewalBeat`. */
+const timing = { beatMs: RENEWAL_BEAT_MS, idleMs: IDLE_EXIT_MS };
+
+/**
+ * Shorten the thread's timings so a test reaches its retirement quickly.
+ *
+ * @param {{beatMs?: number, idleMs?: number}} [next] Timings to use for threads started after this call; none restores the defaults.
+ * @returns {void}
+ */
+export function tuneRenewalBeat(next = {}) {
+  timing.beatMs = next.beatMs ?? RENEWAL_BEAT_MS;
+  timing.idleMs = next.idleMs ?? IDLE_EXIT_MS;
+}
+
+/** Flag states: the thread waits, beats during a renewal, or has claimed its own retirement. */
+const IDLE = 0, BEATING = 1, RETIRING = 2;
 
 const SOURCE = `
 const { workerData } = require('node:worker_threads');
@@ -30,10 +46,12 @@ const touch = db.prepare('UPDATE waiter SET heartbeat = ? WHERE token = ?');
 let idleSince = Date.now();
 const timer = setInterval(() => {
   const now = Date.now();
-  if (Atomics.load(flag, 0) === 1) {
+  if (Atomics.load(flag, 0) === ${BEATING}) {
     idleSince = now;
     if (now - since[0] < longestMs) try { touch.run(now, token); } catch { /* A busy queue keeps the last beat. */ }
   } else if (now - idleSince > idleMs) {
+    // Claim retirement atomically: a renewal that starts first wins and the thread stays; one that loses starts a new thread.
+    if (Atomics.compareExchange(flag, 0, ${IDLE}, ${RETIRING}) !== ${IDLE}) return;
     clearInterval(timer);
     try { db.close(); } catch { /* Already closed. */ }
   }
@@ -43,13 +61,19 @@ const timer = setInterval(() => {
 /** Live beat threads by waiter token. */
 const threads = new Map();
 
-/** The beat thread for one waiter, started on its first renewal. */
+/**
+ * The beat thread for one waiter, started on its first renewal.
+ *
+ * A cached thread that has retired, or is retiring, after its idle timeout is dropped and replaced: its exit event may
+ * not have reached this thread yet, and a renewal that began on it would run with no heartbeat.
+ */
 function thread(file, token) {
   let entry = threads.get(token);
-  if (entry) return entry;
+  if (entry && Atomics.load(entry.flag, 0) !== RETIRING) return entry;
+  if (entry) threads.delete(token);
   const flag = new SharedArrayBuffer(4), since = new SharedArrayBuffer(8);
-  const worker = new Worker(SOURCE, { eval: true, workerData: { file, token, flag, since, beatMs: RENEWAL_BEAT_MS,
-    longestMs: LONGEST_RENEWAL_MS, idleMs: IDLE_EXIT_MS } });
+  const worker = new Worker(SOURCE, { eval: true, workerData: { file, token, flag, since, beatMs: timing.beatMs,
+    longestMs: LONGEST_RENEWAL_MS, idleMs: timing.idleMs } });
   worker.unref();
   entry = { worker, flag: new Int32Array(flag), since: new Float64Array(since) };
   threads.set(token, entry);
@@ -75,8 +99,14 @@ export async function renewWithBeat(file, token, waiting, renew) {
   try {
     entry = thread(file, token);
     entry.since[0] = Date.now();
-    Atomics.store(entry.flag, 0, 1);
+    // Start beating only if the thread is not retiring; if it claimed retirement just now, take a fresh one.
+    if (Atomics.compareExchange(entry.flag, 0, IDLE, BEATING) === RETIRING) {
+      threads.delete(token);
+      entry = thread(file, token);
+      entry.since[0] = Date.now();
+      Atomics.store(entry.flag, 0, BEATING);
+    }
   } catch { entry = null; /* Without a thread the renewal runs as before. */ }
   try { return await renew(); }
-  finally { if (entry) Atomics.store(entry.flag, 0, 0); }
+  finally { if (entry) Atomics.compareExchange(entry.flag, 0, BEATING, IDLE); }
 }
