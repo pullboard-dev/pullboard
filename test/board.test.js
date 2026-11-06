@@ -4,7 +4,7 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import * as clauseFixture from './reject-clause-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -314,7 +314,7 @@ test('the builder never verifies its own work [V1]', () => {
 /** A verifier can release its live review reservation for another verifier [V15]. */
 test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
-  const durable = openBoard(join(directory, 'board.sqlite'), clock);
+  const durable = openBoard(repositoryBoardFile(directory), clock);
   try {
     store.register(durable, { lane: 'coordinator', path: '/repo' });
     const builder = store.register(durable, { lane: 'web', path: '/repo-web-1', family: 'Fixture Builder' });
@@ -399,7 +399,8 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   execFileSync('git', ['config', 'user.name', 'Pullboard Test'], { cwd: repo, stdio: 'pipe' });
   execFileSync('git', ['config', 'user.email', 'pullboard-test@example.com'], { cwd: repo, stdio: 'pipe' });
   writeFileSync(join(repo, 'page.html'), '<h1>Page</h1>\n');
-  execFileSync('git', ['add', 'page.html'], { cwd: repo, stdio: 'pipe' });
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ lanes: {} }));
+  execFileSync('git', ['add', 'page.html', 'pullboard.json'], { cwd: repo, stdio: 'pipe' });
   execFileSync('git', ['commit', '-q', '-m', 'feat(web): render a page [G1]'], { cwd: repo, stdio: 'pipe' });
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
   const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, encoding: 'utf8' }).trim();
@@ -651,7 +652,8 @@ test('every move lands in the event log; stats count items and verdicts [R1, R2]
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'red' });
   const kinds = store.events(board, { itemId: id }).map((event) => `${event.event_by}:${event.event_kind}`);
-  assert.deepEqual(kinds, ['coordinator:add', 'web-1:claim', 'web-1:submit', 'web-2:reject']);
+  // Placement (2a3a0f7555) records milestone_placed on add; a reject escalates the route (d2a669b629).
+  assert.deepEqual(kinds, ['coordinator:add', 'coordinator:milestone_placed', 'web-1:claim', 'web-1:submit', 'web-2:reject', 'coordinator:escalate']);
   const stats = store.stats(board);
   assert.equal(stats.items.open, 1);
   assert.equal(stats.rejected, 1);
