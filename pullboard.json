@@ -13,7 +13,15 @@
     "manualOverride": false,
     "publish": "separate",
     "perItem": false,
-    "parallel": false
+    "parallel": true,
+    "first": [
+      3175,
+      3176
+    ],
+    "auditOnly": [
+      "test/machine.test.js",
+      "test/refusal-next-steps.test.js"
+    ]
   },
   "submit": {
     "requireInfraNote": true,

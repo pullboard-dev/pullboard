@@ -53,6 +53,7 @@ import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
+import { heldClaim } from './held-claim.js';
 
 /** Count each first eligibility refusal once; occupied reviews keep their separate lease diagnostics. */
 function skippedReviewReasons(failures) {
@@ -199,8 +200,7 @@ export function nextFor(board, options) {
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
   }
-  const claims = items.filter((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
-  const held = (rejectionReturnEnabled(board) ? claims.find(entry => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId) : null) ?? claims[0];
+  const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   const ownRejectionFirst = held && plannedRelease === null && rejectionReturnEnabled(board)
