@@ -20,8 +20,6 @@ export {
   patchId,
   refuseGrafts,
   repoInfo,
-  canonicalCommonDir,
-  sameCommonDir,
   resolveCommit,
   setResumeSourceFacts,
   tryGit,
