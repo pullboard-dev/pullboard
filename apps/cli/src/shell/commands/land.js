@@ -1,6 +1,8 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { replayLanding } from '../../../../../packages/landing/index.js';
+import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { landAcceptedItems } from '../../../../../packages/merge/index.js';
@@ -57,6 +59,14 @@ import {
 export async function run(io, { first, second, rest, values }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
+  if (values.replay) {
+    if (first || second || rest.length || values.due || values.adopt || values['dry-run'] || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', 'pullboard land --replay [--since <time>] takes no other option');
+    const rows = replayLanding(board, { since: values.since });
+    io.result?.({ replay: rows });
+    for (const row of rows) io.say(replayLine(row));
+    if (!rows.length) io.say('no recorded landing batches to replay');
+    return 0;
+  }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
@@ -171,11 +181,12 @@ export async function untilBoardFree(work, { wait = ms => new Promise(resolve =>
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
+  if (!result?.waiting) return null;
   // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
   // loops hot.
-  const moved = result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
   if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;

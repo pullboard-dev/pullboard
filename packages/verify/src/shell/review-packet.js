@@ -338,7 +338,10 @@ export async function showReviewPacket(ctx, id, readBoard, { json = false } = {}
 export async function reviewPacketLines(ctx, id, readBoard) {
   const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
   const packet = loadReviewPacket(ctx.info.root, ctx.info.commonDir, inputs);
-  return packet ? renderReviewPacket(packet) : [`review packet: none; the gate is not green at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}, so review it the usual way`];
+  // The offer prints the packet without its hunks: the CLI caps output near 8 KB, so a full diff was cut off and every
+  // reviewer fetched it again with git. The summary fits; the diff is one named command away [V4,C7].
+  return packet ? [...renderReviewPacket(packet, { hunks: false }), `diff: git diff ${packet.base.slice(0, 12)} ${packet.head.slice(0, 12)} (or pullboard show ${id} --review for the hunks)`]
+    : [`review packet: none; the gate is not green at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}, so review it the usual way`];
 }
 
 /**
