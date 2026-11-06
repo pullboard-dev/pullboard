@@ -33,3 +33,33 @@ async function policy() { return import('../core/gate-policy-load.js'); }
   assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)),
     ['packages/gate/src/shell/gate.js', 'packages/gate/src/shell/gate-execution.js']);
 });
+
+const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
+const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
+
+/**
+ * Walk the literal static import graph from one entry file, recording each file's parent.
+ * Dynamic imports are skipped; nothing is imported or executed.
+ */
+function staticGraph(entry) {
+  const parent = new Map();
+  const queue = [[entry, null]];
+  while (queue.length) {
+    const [file, from] = queue.shift();
+    if (parent.has(file)) continue;
+    parent.set(file, from);
+    let source;
+    try { source = readFileSync(new URL('../' + file, import.meta.url), 'utf8'); } catch { continue; }
+    for (const to of staticEdges(file, source)) if (to.startsWith('.') || to.includes('/')) queue.push([to, file]);
+  }
+  return parent;
+}
+
+test('clause 1: bin/run-tests.js static graph does not reach src/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+  const runner = staticGraph('bin/run-tests.js');
+  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
+  for (const barrel of BARRELS) {
+    const graph = staticGraph(barrel);
+    for (const target of RUNNER_TARGETS) assert.ok(!graph.has(target) || !runner.has(barrel), `${barrel} reaches ${target}`);
+  }
+});
