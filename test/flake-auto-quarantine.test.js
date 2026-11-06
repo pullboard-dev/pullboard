@@ -95,7 +95,7 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   const state = snapshot(box);
   assert.equal(state.quarantines.length, 1, JSON.stringify({ first: first.document, second: second.document, quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));
   const entry = state.quarantines[0];
-  assert.equal(entry.autoSubmit, true);
+  assert.equal(entry.nativeCore, true); // the Submit backfill marks its quarantine nativeCore (f562d717d8)
   assert.equal(entry.name, TITLE);
   assert.equal(entry.status, 'quarantined');
   const repair = state.items.find(item => item.item_id === entry.item);
