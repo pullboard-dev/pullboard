@@ -455,6 +455,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       findings.forEach((finding) => messages.push(`${name}:${finding.line} ${finding.id ?? ''} ${finding.level}: ${finding.message}`.replace('  ', ' ')));
       const history = parsed === practice ? doctrineHistory(ctx.info.root, name) : committedIds(ctx.info.root, name);
       const cited = name === ctx.config.spec ? citations(ctx, history) : new Map();
+      // A bare doctrine id in a header (37a843ba86 cited CS4) names a DOCTRINE.md row, never a missing spec row [S1].
+      for (const id of [...cited.keys()]) if (practice?.rows?.some(row => row.id === id)) cited.delete(id);
       const lost = permanenceProblems(parsed === practice ? practice.repo : name === ctx.config.spec ? withRowDrafts(parsed, hookRead(ctx, (board) => store.rowDrafts(board))) : parsed, { committed: history.ids, cited });
       if (name === ctx.config.spec) {
         const mainRows = new Set((previousSources.get(name) ?? []).map(row => row.id));

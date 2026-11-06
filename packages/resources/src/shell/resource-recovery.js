@@ -119,7 +119,8 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     } else {
       try { result = await probe(configured.get(row.host), pending); }
       catch { result = { healthy: false, step: 'worker readiness', reason: 'health observation unavailable' }; }
-      const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
+      // A lost transport whose SSH answers but whose pinned worker resets the probe is a hung worker too (#3128).
+      const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
       const failedProbe = unresponsive ? result : null;
       if (result?.healthy !== true && (result?.idleRequired === true || unresponsive) && typeof idleProbe === 'function') {
         try { result = await idleProbe(configured.get(row.host), pending); }
@@ -130,7 +131,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       if (failedProbe) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
         .run(randomUUID(), row.host, new Date().toISOString(), 'worker-probe-failed', JSON.stringify({ failedProbe, workerState: result }));
       // An idle runner whose pinned worker will not answer restarts that worker itself; a busy one is left alone and named (#2035).
-      if (failedProbe && row.detail === 'WORKER_UNRESPONSIVE' && result?.healthy !== true && typeof restartProbe === 'function') {
+      if (failedProbe && ['WORKER_UNRESPONSIVE', 'TRANSPORT_UNVERIFIED'].includes(row.detail) && result?.healthy !== true && typeof restartProbe === 'function') {
         let restart;
         try { restart = await restartProbe(configured.get(row.host)); }
         catch { restart = { healthy: false, step: 'idle proof', reason: 'worker restart observation unavailable' }; }

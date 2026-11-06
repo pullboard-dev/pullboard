@@ -84,6 +84,7 @@ import {
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
+  guardOf,
   guardRevertNote,
 } from '../../../../../packages/commits/index.js';
 import {
@@ -500,7 +501,8 @@ export async function verifyHere(ctx, id, { second, values }) {
  * reviewed tree, so they always take the full path.
  */
 function packetAcceptance(ctx, board, item, decision, reReview) {
-  if (decision !== 'ACCEPT' || reReview || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
+  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+    || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;
   if (packet.failures) {
