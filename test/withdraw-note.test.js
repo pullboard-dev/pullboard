@@ -7,9 +7,13 @@ import { createE2eHelpers } from './e2e-helpers.js';
 test('clause 1: withdraw with no reason shows the positional form and --note is accepted as the reason [C7]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'First withdraw probe', '--criterion', 'A marker exists', '--check', 'test -f web/a').code, 0);
-  assert.equal(box.run(box.repo, 'add', 'web', 'Second withdraw probe', '--criterion', 'A marker exists', '--check', 'test -f web/b').code, 0);
+  const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Withdraw note fixture';
+  const box = helpers.project('true', isolated);
+  for (const title of ['First withdraw probe', 'Second withdraw probe']) {
+    const added = box.run(box.repo, 'add', 'web', title, '--criterion', 'A marker exists [test]', '--check', 'true');
+    assert.equal(added.code, 0, `${added.out}${added.err}`);
+  }
   const bare = box.run(box.repo, 'withdraw', '1');
   assert.notEqual(bare.code, 0, 'no reason refuses');
   const text = `${bare.out}${bare.err}`;
