@@ -482,9 +482,11 @@ export async function refreshMainRedComparisons(root, previousMain, publishedMai
   const file = cacheFile(root);
   const cache = await withComparisonCache(root, onWait, () => readCache(file));
   const refreshed = cache.entries[publishedMain] ?? {};
+  // A red entry that names no failing case is unusable for known-main accounting, so every submit red in that file is
+  // charged to its item; on 6 Nov 14 of 17 recent red entries were such, and the filter below never refreshed them.
+  // Those are refreshed too, fresh and detailed, so the next comparison names its cases [C7].
   const knownRedFiles = Object.entries(cache.entries[previousMain] ?? {})
-    .filter(([, outcome]) => outcome?.result === 'red' && outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION
-      && Array.isArray(outcome.failures) && outcome.failures.length > 0)
+    .filter(([, outcome]) => outcome?.result === 'red')
     .filter(([path]) => !(['red', 'green'].includes(refreshed[path]?.result)
       && refreshed[path].signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(refreshed[path].failures)))
     .map(([path]) => path);
