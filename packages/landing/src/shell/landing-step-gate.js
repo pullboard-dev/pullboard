@@ -228,7 +228,9 @@ export async function gateGroup(state, label, options) {
   const directory = join(dirname(state.batch.root), 'logs');
   mkdirSync(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
+  state.say(`gate ${label}: saving the gating record`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
+  state.say(`gate ${label}: gating record saved`);
   const onFailure = landingRunObserver(state, config, commit);
   const quarantines = state.landingPorts.quarantineVerdictSnapshot(state.board);
   const item = store.getItem(state.board, state.batch.items[0].id);
