@@ -22,7 +22,7 @@ function refusal(box, cwd, ...args) {
   assert.match(result.out + result.err, /remove|drop/u, 'the refusal gives the author a direct next step');
 }
 
-test('add and edit refuse per-item criteria that require the full suite or CI [S10]', () => {
+test('clause 1: add and edit refuse per-item criteria that require the full suite or CI [S10]', () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox, { withWorktree: false });
@@ -61,7 +61,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
   }
 });
 
-test('the coordinator sweep edits open, claimed, and submitted legacy bars while preserving their frozen snapshots [S10]', () => {
+test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy bars while preserving their frozen snapshots [S10]', () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox);
