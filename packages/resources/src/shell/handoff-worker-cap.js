@@ -188,6 +188,34 @@ function reservationAbandoned(name, startOf) {
   return true;
 }
 
+/**
+ * The repositories whose launches wait in line: each ticket names its Git common directory.
+ * Why: the drain sweeps these boards for hand-offs whose worker is gone before it starts anything (#3221).
+ */
+function waitingCommonDirs() {
+  const dirs = new Set();
+  for (const name of waitingTickets()) {
+    if (!name.endsWith('.json')) continue;
+    try { const launch = JSON.parse(readFileSync(join(handoffQueueDirectory(), name), 'utf8')); if (typeof launch.commonDir === 'string') dirs.add(launch.commonDir); }
+    catch { /* a ticket that cannot be read is reported when it is dispatched */ }
+  }
+  return [...dirs];
+}
+
+/**
+ * Run the caller's sweep once for the dispatcher's own directory and for each repository with a waiting launch.
+ * A failed sweep is logged and never stops dispatch.
+ *
+ * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
+ */
+async function sweepGoneHandoffs(sweep) {
+  if (!sweep) return;
+  for (const commonDir of new Set([process.cwd(), ...waitingCommonDirs()])) {
+    try { await sweep(commonDir); }
+    catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+  }
+}
+
 /** Start one captured worker detached from the dispatcher's terminal, keeping its incarnation on disk. */
 async function startWorker(launch, relaunches, startOf) {
   const log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
@@ -230,10 +258,11 @@ function endUnstarted(file, name, launch, error) {
  *
  * @param {{ capacity?: number | (() => number), pollMs?: number, releaseSlot?: (slot: object) => void }} [options] - The cap, or a
  *   function read again on every pass so a running dispatcher picks up a raised cap without a restart, how often new tickets
- *   are noticed, and how an exited worker's slot is freed (a throw is logged and retried on the next pass).
+ *   are noticed, how an exited worker's slot is freed (a throw is logged and retried on the next pass), and a
+ *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone.
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, sweep } = {}) {
   const started = [];
   for (;;) {
     let lock;
@@ -244,6 +273,8 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
+    // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
+    await sweepGoneHandoffs(sweep);
     try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.

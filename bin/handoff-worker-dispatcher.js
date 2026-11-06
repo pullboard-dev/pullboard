@@ -5,6 +5,24 @@ import { drainHandoffQueue, handoffWorkerCapacity } from '../packages/resources/
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { join } from 'node:path';
+
+/** How long one repository's sweep may run before the dispatcher moves on. */
+const SWEEP_TIMEOUT_MS = 60_000;
+
+/**
+ * Sweep one repository's board for hand-offs whose worker is gone, in a child so a wedged board never stops dispatch.
+ *
+ * @param {string} commonDir - The repository's Git common directory.
+ */
+export async function sweepRepositoryInChild(commonDir) {
+  const entry = join(fileURLToPath(new URL('..', import.meta.url)), 'apps', 'lib', 'src', 'shell', 'submit-handoff-sweep.js');
+  const child = spawn(process.execPath, [entry, commonDir], { stdio: ['ignore', 'ignore', 'inherit'], timeout: SWEEP_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  const [code] = await once(child, 'close');
+  if (code !== 0) throw new Error(`sweep exited ${code}`);
+}
 
 /** The worker cap from the current machine settings; unreadable settings count as no runners, leaving the local cap. */
 export function currentCapacity(env = {}) {
@@ -24,6 +42,6 @@ export function currentCapacity(env = {}) {
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity }); }
+  try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity, sweep: sweepRepositoryInChild }); }
   catch (error) { process.stderr.write(error.message + '\n'); process.exitCode = 1; }
 }

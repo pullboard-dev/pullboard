@@ -74,11 +74,11 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = `${word(process.execPath)} ${word(script)}`;
-  const id = document(box.run(box.repo, 'add', 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
+  const id = document(box.run(box.repo, 'add', 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
-  const third = document(box.run(box.repo, 'add', 'web', 'Third ordinary build', '--specs', 'G1',
+  const third = document(box.run(box.repo, 'add', 'web', 'Third ordinary build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const second = document(box.run(box.repo, 'add', 'web', 'Independent second build', '--specs', 'G1',
+  const second = document(box.run(box.repo, 'add', 'web', 'Independent second build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
   const claim = document(box.run(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
@@ -261,7 +261,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(box.run(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--route', 'strong', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   const duplicate = state(box, box.id).job;
@@ -392,13 +392,14 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
   const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
   writeFileSync(worker, `{
     const fs = await import('node:fs');
-    if (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)})) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
+    if (process.argv[1]?.endsWith('submit-handoff-worker.js') && (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)}))) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
   }\n` + readFileSync(worker, 'utf8'));
   const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' }));
   assert.equal(queued.queued, true);
   const current = state(box, box.id);
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
+  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'the dispatcher recording its worker', 120000); // budget: hang ceiling for observed dispatcher progress.
   const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
   await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
     try { process.kill(owner.pid, 0); return false; }
@@ -612,7 +613,7 @@ function mainAdvanceFixture(t) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(box.run(box.repo, 'add', 'web', 'Queued proof across accepted main', '--specs', 'G1',
+  const id = document(box.run(box.repo, 'add', 'web', 'Queued proof across accepted main', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The captured feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', "export const feature = 'item';\n", 'feat(web): captured implementation [G1]').status, 0);
@@ -665,4 +666,67 @@ test('the handoff documentation receives actual detached-worker event kinds and 
   assert.ok(queued.some(row => row.detail.state === 'queued'));
   assert.ok(queued.some(row => row.detail.state === 'red'));
   assert.ok(rows.find(row => row.event_kind === 'submit_handoff_returned').detail.reopenFirstRefusal);
+});
+
+/** Age the queued or running job's recorded start by `ms`, standing in for time passing on the fixture's own board. */
+function ageHandoff(box, id, ms) {
+  // @pullboard-board-file journey: age the fixture's own hand-off record, as ten minutes passing would.
+  const board = openBoard(box.boardFile);
+  try {
+    const key = `submit_handoff:${id}`;
+    const job = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+    job.at = new Date(Date.now() - ms).toISOString();
+    if (job.startedAt) job.startedAt = job.at;
+    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
+  } finally { board.db.close(); }
+}
+
+/** Count the item's recorded hand-off events that moved a job into `jobState`. */
+function handoffEvents(box, id, jobState) {
+  const board = openBoard(box.boardFile);
+  try {
+    return board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit-handoff'").all(id)
+      .filter(row => JSON.parse(row.event_detail).state === jobState).length;
+  } finally { board.db.close(); }
+}
+
+test('clause 1 and clause 2: a dispatcher drain requeues a hand-off with no place in line and no worker past ten minutes, once, as worker-gone [C7]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'silent-tools');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
+  // The CLI imports this module too, so only the launched worker process exits.
+  writeFileSync(worker, `if (process.argv[1]?.endsWith('submit-handoff-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  const subOut = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(subOut).queued, true);
+  const first = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
+  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'the dispatcher recording its worker', 120000); // budget: hang ceiling for observed dispatcher progress.
+  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
+    try { process.kill(owner.pid, 0); return false; }
+    catch (error) { return error.code === 'ESRCH'; }
+  }, 'actual first worker exit', 120000);
+  rmSync(join(directory, 'worker.json'));
+  const drain = () => execFileSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
+
+  ageHandoff(box, box.id, 11 * 60_000);
+  drain();
+  const requeued = state(box, box.id);
+  assert.notEqual(requeued.job.id, first.id, 'clause 1: a successor job carries the same source');
+  assert.equal(requeued.job.retryOf, first.id);
+  assert.equal(requeued.job.commit, first.commit);
+  assert.equal(requeued.job.requeuedFor, 'worker-gone');
+  assert.equal(requeued.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
+  assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: one board event records the ended job');
+  drain();
+  assert.equal(handoffEvents(box, box.id, 'infrastructure'), 1, 'clause 1: a second drain adds no event for the same item');
+
+  const shown = box.run(box.web, 'show', String(box.id));
+  assert.equal(shown.code, 0, shown.err);
+  assert.match(shown.out, /requeued on the same source after worker-gone/u, 'clause 2: show names the requeue and its reason');
+  const json = JSON.parse(box.run(box.web, 'show', String(box.id), '--json').out);
+  assert.equal(json.queuedSubmit.requeuedFor, 'worker-gone', 'clause 2: show --json carries the reason');
 });

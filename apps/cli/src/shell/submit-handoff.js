@@ -91,6 +91,23 @@ function deadWorker(worker, job) {
   return Boolean(worker.started && observed && observed !== worker.started);
 }
 
+/** How long a hand-off may have no place in line and no live worker before the board requeues it as worker-gone. */
+export const WORKER_GONE_GRACE_MS = 10 * 60_000;
+
+/**
+ * Whether a queued or running job has outlived the worker-gone grace with no place in line. Why: on 6 Nov five items
+ * showed gate running or queued for 8 h with no queue entry and no worker, and their builders waited on a gate that no
+ * longer existed (#3221).
+ *
+ * @param {{ id: string, state: string, at: string, startedAt?: string }} job
+ * @param {{ now?: number, waiting?: (job: string) => boolean }} [ports]
+ * @returns {boolean}
+ */
+export function goneHandoff(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
+  const since = Date.parse(job?.startedAt ?? job?.at ?? '');
+  return ['queued', 'running'].includes(job?.state) && Number.isFinite(since) && now - since > WORKER_GONE_GRACE_MS && !waiting(job.id);
+}
+
 /** A queued job past its launch grace with no worker record and no place in line will never start. */
 export const LOST_LAUNCH_GRACE_MS = 2 * 60_000;
 
@@ -123,11 +140,12 @@ function readWorkerRecord(directory) {
 export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWaiting, now = Date.now() }) {
   const first = readWorker();
   if (first) return first;
-  if (!lostQueuedLaunch(job, { now, waiting })) return null;
+  const lostRunning = job?.state === 'running' && goneHandoff(job, { now, waiting });
+  if (!lostRunning && !lostQueuedLaunch(job, { now, waiting })) return null;
   const again = readWorker();
   if (again) return again;
   return { version: 1, job: job.id, pid: null, started: null, relaunches: 0,
-    unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
+    unstarted: { code: lostRunning ? 'HANDOFF_WORKER_GONE' : 'HANDOFF_TICKET_LOST', message: `the ${job.state} job has no worker record and no place in line` } };
 }
 
 /**
@@ -190,14 +208,17 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     ctx.io.say(`relaunched queued submit #${itemId} from its captured tools`);
     return;
   } catch (error) {
+    // Past the grace with no place in line, a gone worker's job is requeued on its same source, queued or running (#3221).
+    const gone = goneHandoff(current);
     let retry = null;
-    if (owned && current.state === 'running') {
+    if (owned && (current.state === 'running' || gone)) {
       try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
       `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; the gate stopped on infrastructure, never a builder red`,
       'the health sweep retries the captured candidate within its retry budget; the coordinator restores missing tools'), { caller: 'seat' }) };
+    if (gone) failure.error.reason = 'worker-gone';
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
     let ended;
     try {

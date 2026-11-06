@@ -247,6 +247,6 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
   const next = { version: job.version, id: retryJob, agentId: job.agentId, commit: job.commit, tree: job.tree,
     main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree, digest: job.digest,
     companionDigest: job.companionDigest, leaseMs: job.leaseMs, state: 'queued', at: now(board),
-    recoveryRetries: retries + 1, retryOf: job.id };
+    recoveryRetries: retries + 1, retryOf: job.id, ...(typeof error.reason === 'string' ? { requeuedFor: error.reason } : {}) };
   return record(board, id, next);
 }
