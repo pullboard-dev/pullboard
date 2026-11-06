@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +17,21 @@ const TIMEOUT_MS = 10_000;
 const PARSER_PATH = fileURLToPath(import.meta.url);
 const WORKER_PATH = fileURLToPath(new URL('./runner-module-parser-worker.js', import.meta.url));
 const LOADED_COMPILER = captureCompiler();
+// Process-lifetime cache keyed by the content hash of each source; compile results depend only on source bytes.
+// Budget: at most 4 MiB/4096 entries for the life of the process; oversized misses still compile normally.
+const PROCESS_CACHE = new Map();
+let processCacheBytes = 0;
+let sourcesCompiled = 0;
+
+/** Count of sources sent to a compiler child in this process, so callers can prove a cache hit parsed nothing. */
+export function runnerModuleParserCompileCount() {
+  return sourcesCompiled;
+}
+
+/** Content hash that keys the process cache, so a changed file is a different entry and is re-parsed. */
+function sourceKey(source) {
+  return createHash('sha256').update(source).digest('hex');
+}
 
 /** Read exact owned compiler bytes; a symlink or unbounded entry cannot become a trusted parser. */
 function compilerBytes(file) {
@@ -78,23 +94,22 @@ export function createRunnerModuleParser() {
   let closed = false;
   let childFailed = false;
   let sequence = 0;
-  const compiled = new Map();
-  let compiledBytes = 0;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
 
-  /** Retain only bounded exact-source compiler results within this one private derive. */
+  /** Retain bounded compiler results for the life of the process, keyed by source content hash. */
   function remember(source, result) {
     const bytes = Buffer.byteLength(source) + Buffer.byteLength(JSON.stringify(result));
     // Budget: memoization retains at most 4 MiB/4096 entries; oversized misses still compile normally.
-    if (compiled.size >= 4096 || compiledBytes + bytes > 4 * 1024 ** 2) return;
-    compiled.set(source, Object.freeze({ compiles: result.compiles, imports: Object.freeze([...result.imports]) }));
-    compiledBytes += bytes;
+    const key = sourceKey(source);
+    if (PROCESS_CACHE.has(key) || PROCESS_CACHE.size >= 4096 || processCacheBytes + bytes > 4 * 1024 ** 2) return;
+    PROCESS_CACHE.set(key, Object.freeze({ compiles: result.compiles, imports: Object.freeze([...result.imports]) }));
+    processCacheBytes += bytes;
   }
 
   /** Rebuild the caller's original order with independent rows and import arrays, including duplicates. */
   function orderedResults(sources, fresh) {
     return sources.map(source => {
-      const result = compiled.get(source) ?? fresh.get(source);
+      const result = PROCESS_CACHE.get(sourceKey(source)) ?? fresh.get(source);
       return { compiles: result.compiles, imports: [...result.imports] };
     });
   }
@@ -103,8 +118,6 @@ export function createRunnerModuleParser() {
   function close() {
     if (closed) return;
     closed = true;
-    compiled.clear();
-    compiledBytes = 0;
     let failed = false;
     if (child) {
       try { child.kill('SIGKILL'); }
@@ -139,8 +152,9 @@ export function createRunnerModuleParser() {
     try {
       assertRunnerModuleParserCurrent();
       if (closed || childFailed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw parserFailure();
-      const missing = [...new Set(sources.filter(source => !compiled.has(source)))];
+      const missing = [...new Set(sources.filter(source => !PROCESS_CACHE.has(sourceKey(source))))];
       if (!missing.length) return orderedResults(sources, new Map());
+      sourcesCompiled += missing.length;
       const id = ++sequence;
       if (!Number.isSafeInteger(id)) throw parserFailure();
       const input = JSON.stringify({ version: 1, id, sources: missing });
