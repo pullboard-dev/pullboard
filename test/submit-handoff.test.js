@@ -698,5 +698,6 @@ test('the handoff documentation receives actual detached-worker event kinds and 
   const queued = rows.filter(row => row.event_kind === 'submit-handoff');
   assert.ok(queued.some(row => row.detail.state === 'queued'));
   assert.ok(queued.some(row => row.detail.state === 'red'));
-  assert.ok(rows.find(row => row.event_kind === 'submit_handoff_returned').detail.reopenFirstRefusal);
+  // db3dba1506 reopens rejected and returned work to every eligible seat at once, so no first-refusal window is sealed.
+  assert.equal(rows.find(row => row.event_kind === 'submit_handoff_returned').detail.reopenFirstRefusal, undefined);
 });
