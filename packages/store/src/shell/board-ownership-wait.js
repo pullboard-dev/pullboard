@@ -96,7 +96,7 @@ export function deferOwnership(board, id, request) {
     const { job: _job, ...publicWait } = wait;
     logEvent(board, wait.agentId, 'ownership-wait', id, publicWait);
     for (const owner of wait.owners) insertShout(board, { from: wait.agentId, to: owner, lanes: wait.lanes,
-      text: `#${id} waits on ${owner} ownership. Paths: ${wait.paths.join(', ')}\nSource: ${wait.commit} (${wait.sourceRef})\nExact diff:\n${wait.diff}`,
+      text: `#${id} waits on ${owner} ownership. Paths: ${wait.paths.join(', ')}\nSource: ${wait.commit} (${wait.sourceRef})\nExact diff:\n${wait.diff}End of diff.`,
       detail: { item: id, ownershipWait: wait.key } });
     return wait;
   });
