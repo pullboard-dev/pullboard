@@ -10,7 +10,7 @@ function release(box, id, reason) {
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot take this work.', reason);
 }
 
-test('INELIGIBLE release is never offered back to that seat, while another seat still gets it [N2]', async t => {
+test('clause 1: INELIGIBLE release is never offered back to that seat, while another seat still gets it [N2]', async t => {
   const box = await fixture(t);
   const id = box.add('Ineligible item');
   const autoClaim = await cli(box, box.seats.actor.path, ['next', '--take']);
@@ -32,7 +32,7 @@ test('INELIGIBLE release is never offered back to that seat, while another seat 
   assert.equal(otherSeat.document.item.item_id, id);
 });
 
-test('INELIGIBLE history leaves explicit manual claim available [N2]', async t => {
+test('clause 2: INELIGIBLE history leaves explicit manual claim available [N2]', async t => {
   const box = await fixture(t);
   const id = box.add('Manually claimable item');
   release(box, id, 'INELIGIBLE');
