@@ -44,8 +44,31 @@ const PRUNE_EVERY_MS = 600_000;
 function pruneKeyMemos(store, now = Date.now()) {
   const keys = join(store, 'keys');
   const marker = join(keys, '.pruned');
+  const claim = join(keys, '.pruning');
   try { if (now - statSync(marker).mtimeMs < PRUNE_EVERY_MS) return; } catch { /* Never pruned: go on. */ }
-  try { mkdirSync(keys, { recursive: true, mode: 0o700 }); writeFileSync(marker, ''); utimesSync(marker, new Date(now), new Date(now)); } catch { return; }
+  try { mkdirSync(keys, { recursive: true, mode: 0o700 }); } catch { return; }
+  // Exclusive create is the throttle's lock: of any parallel callers that saw a stale marker, one wins and the rest leave.
+  try { writeFileSync(claim, String(process.pid), { flag: 'wx' }); }
+  catch (error) {
+    if (error?.code !== 'EEXIST') return;
+    // A claim left by a killed pruner expires with the throttle window, so a later call can take it over.
+    try { if (now - statSync(claim).mtimeMs < PRUNE_EVERY_MS) return; rmSync(claim, { force: true }); writeFileSync(claim, String(process.pid), { flag: 'wx' }); } catch { return; }
+  }
+  try {
+    // Re-read the marker under the claim: a pruner that finished just before we won it has already done the work.
+    try { if (now - statSync(marker).mtimeMs < PRUNE_EVERY_MS) return; } catch { /* Still never pruned. */ }
+    try { writeFileSync(marker, ''); utimesSync(marker, new Date(now), new Date(now)); } catch { return; }
+    removeOldMemos(keys, now);
+  } finally { rmSync(claim, { force: true }); }
+}
+
+/**
+ * Remove every key memo folder under `keys` older than the memo age limit.
+ *
+ * @param {string} keys
+ * @param {number} now
+ */
+function removeOldMemos(keys, now) {
   let names = [];
   try { names = readdirSync(keys); } catch { return; }
   for (const folder of names) {
