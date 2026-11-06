@@ -585,7 +585,10 @@ function timeline(item, { newestFirst = false } = {}) {
   const entries = (fromThread
     ? item.thread
     : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
-    .filter((entry) => !['usage', 'shared-usage'].includes(entry.kind));
+    // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
+    // verifier's background review-comparison receipts stay out of the person's history.
+    .filter((entry) => !['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
+      && !(entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: ')));
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread
