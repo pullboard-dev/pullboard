@@ -8,3 +8,4 @@ export { keepHeartbeatWhileBlocked } from './src/shell/blocked-heartbeat.js';
 export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/shell/analysis-artifact.js';
 
 export { HANDOFF_DISPATCHER_RESOURCE, HANDOFF_WORKER_RESOURCE, drainHandoffQueue, ensureHandoffDispatcher, handoffQueueDirectory, handoffCapLine, handoffDispatcherLog, handoffTicketWaiting, handoffWorkerCapacity, handoffWorkerCapacityDetail, queueHandoffLaunch, recordHandoffCap, reserveHandoffTicket, withHandoffQueueOrder } from './src/shell/handoff-worker-cap.js';
+export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHandoffRoot } from './src/shell/handoff-folder-prune.js';

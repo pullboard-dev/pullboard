@@ -22,6 +22,11 @@ import {
 } from './resources.js';
 import { machineHome } from './machine-home.js';
 import { Refused } from '../../../kernel/index.js';
+import {
+  handoffRoots,
+  pruneFinishedHandoffs,
+  rememberHandoffRoot,
+} from './handoff-folder-prune.js';
 
 /** The machine resource whose slots count running handoff workers. */
 export const HANDOFF_WORKER_RESOURCE = 'submit-handoff-workers';
@@ -315,11 +320,23 @@ function boundAfterResult(entry, now, graceMs) {
   else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
 }
 
+/** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
+function sweepFinished(running) {
+  try {
+    const protect = new Set([...running.values()].map(entry => entry.job));
+    for (const name of waitingTickets()) protect.add(name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, ''));
+    pruneFinishedHandoffs(handoffRoots(), { protect });
+  } catch (error) { logDispatcher(`handoff folder sweep failed: ${error?.message ?? error}`); }
+}
+
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
 async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot) {
   const running = new Map();
   let wake = () => {};
+  let prunedAt = 0;
   while (waitingTickets().length || running.size) {
+    // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
+    if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = typeof capacity === 'function' ? capacity() : capacity;
@@ -343,6 +360,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
       catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
+      rememberHandoffRoot(launch.directory);
       started.push(launch.job);
       const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
       running.set(worker, entry);
