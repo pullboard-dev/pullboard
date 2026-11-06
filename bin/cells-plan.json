@@ -1174,6 +1174,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/clause-inspection-engine.js",
       "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
     },
@@ -1551,6 +1555,38 @@
       "path": "src/stranded-dependency-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
+    },
+    {
+      "path": "src/ledger-quarantine-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/quarantine-backfill-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/230.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/231.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-socket.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/232.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -1994,6 +2030,10 @@
     },
     {
       "path": "bin/automatic-landing.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
       "cell": "app:cli"
     }
   ],

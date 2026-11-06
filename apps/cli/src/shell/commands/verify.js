@@ -7,6 +7,7 @@ import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
+import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -84,6 +85,7 @@ import {
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
+  guardOf,
   guardRevertNote,
 } from '../../../../../packages/commits/index.js';
 import {
@@ -274,7 +276,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
-    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview);
+    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
@@ -405,10 +407,14 @@ export async function verifyHere(ctx, id, { second, values }) {
         }
         const moved = currentTrunk.commit === trunk.commit ? null
           : itemTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, paths: review.paths });
-        if (moved?.overlap.length) throw new Refused('VERDICT_TRUNK_MOVED',
+        // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
+        // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
+        // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
           `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
         if (moved && !knownMain) {
-          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and its files are unchanged`;
+          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
           break;
         }
@@ -499,19 +505,30 @@ export async function verifyHere(ctx, id, { second, values }) {
  * still composes main and runs the landing gate. Companions, a source advance and a re-review change the
  * reviewed tree, so they always take the full path.
  */
-function packetAcceptance(ctx, board, item, decision, reReview) {
-  if (decision !== 'ACCEPT' || reReview || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
+function packetAcceptance(ctx, board, item, decision, reReview, read) {
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
+    || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;
   if (packet.failures) {
     ctx.io.say(`review packet ${packet.head.slice(0, 12)} records failures at head; running the frozen check`);
     return null;
   }
-  if (packet.rerun.length) {
-    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${packet.rerun.join(', ')} has no recorded run; running the frozen check`);
+  // An uncovered clause the reviewer lists in --read is read evidence. Rerunning the frozen check here repeats the
+  // run the gate already recorded green at this head, so it can never cover a clause the gate did not; it only
+  // costs the reviewer 2 to 4 minutes. Why: 82 of the last 150 packets had an uncovered clause on 6 Nov [V4,C7].
+  const readClauses = read === undefined ? new Set() : String(read).trim() === 'all' ? new Set(packet.rerun) : new Set(String(read).split(',').map(part => Number(part.trim())));
+  const readUncovered = packet.rerun.filter(n => readClauses.has(n));
+  const forced = packet.rerun.filter(n => !readClauses.has(n));
+  if (forced.length) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${forced.join(', ')} has no recorded run and was not read; running the frozen check`);
     return null;
   }
-  return `accepted from review packet ${packet.head.slice(0, 12)}: every clause is covered by a recorded green run at the submitted head; no checkout, test run or main merge`;
+  const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
 }
 
 /** Run `pullboard verify` and return its exit code. */
