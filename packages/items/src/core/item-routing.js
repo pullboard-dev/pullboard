@@ -40,11 +40,12 @@ export function stripPerItemFullSuiteCriterion(criterion) {
  *
  * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
-/** Fill absent low-route file and test sections from literal test paths in the item's check. */
+/** Fill absent low-route file and test sections from literal test paths, bare or quoted, in the item's check. */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };
   const sections = briefSections(brief, referenceOptions);
-  const files = [...new Set((check.match(/(?:^|\s)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))(?:\s|$)/gu) ?? []).map(value => value.trim().split(/\s/u).at(-1)))];
+  // A shell-quoted path ('test/x.test.js' or "test/x.test.js") names the same test as a bare one (#3120).
+  const files = [...new Set([...check.matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))\1(?=\s|$)/gu)].map(match => match[2]))];
   if (!files.length) return brief;
   const add = [];
   if (!briefFiles(brief, referenceOptions).length) add.push(`Files:\n${files.map(file => `- ${file}`).join('\n')}`);
