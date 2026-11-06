@@ -36,7 +36,8 @@ test('launched submit worker completes a native queued request without unsettled
   box.git(box.repo, 'commit', '-qm', 'test: queued worker fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const id = document(box.run(box.repo, 'add', 'web', 'Real worker process', '--specs', 'G1',
-    '--criterion', 'The page is ready.', '--check', 'node check.cjs', '--wait', '--json')).item.item_id;
+    '--criterion', 'The page is ready.', '--check', 'node check.cjs', '--brief',
+    'Files: web/page.txt\nTest: the queued worker submits the committed page.', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   const built = helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready page [G1]');
   assert.equal(built.status, 0, built.stderr);
@@ -127,7 +128,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
       const job = submitHandoff(observed, id);
       return job && !['queued', 'running'].includes(job.state) ? job : false;
     } finally { observed.db.close(); }
-  }, 'fresh worker completion after an orphaned queue', 180000);
+  }, 'fresh worker completion after an orphaned queue', 120000); // budget: owned-worker completion ceiling; no elapsed-time claim.
   assert.equal(completed.state, 'green', JSON.stringify(completed));
 });
 
