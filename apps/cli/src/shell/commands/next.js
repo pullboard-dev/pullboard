@@ -153,8 +153,13 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.take && !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
-    const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
+    // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
+    const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
+    const selectionValues = redClaims.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+      : values;
+    const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
