@@ -51,6 +51,7 @@ export function fileChangeWaiter(paths) {
       if (ino === null || fileWatchers.has(target)) continue;
       const entry = { ino, watcher: watch(target, () => { try { refresh(); snapshot(); changed(); } catch (error) { changed(error); } }) };
       entry.watcher.on('error', error => changed(error));
+      entry.watcher.unref();
       fileWatchers.set(target, entry);
     }
     for (const [directory, entry] of watchers) if (!directories.has(directory)) { entry.watcher.close(); watchers.delete(directory); }
@@ -62,6 +63,7 @@ export function fileChangeWaiter(paths) {
         try { refresh(); snapshot(); changed(); } catch (error) { changed(error); }
       });
       entry.watcher.on('error', error => changed(error));
+      entry.watcher.unref();
       watchers.set(directory, entry);
     }
   }

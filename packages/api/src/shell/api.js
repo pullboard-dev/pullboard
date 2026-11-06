@@ -349,7 +349,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
     notifications.update(paths);
     clearTimeout(expiryTimer);
     const expiry = [local?.nextExpiry, externalNextExpiry].filter(Boolean).sort()[0];
-    if (expiry) expiryTimer = setTimeout(() => { for (const listener of [...listeners]) listener(); }, Math.max(1, Date.parse(expiry) - Date.now()));
+    if (expiry) expiryTimer = setTimeout(() => { for (const listener of [...listeners]) listener(); }, Math.max(1, Date.parse(expiry) - Date.now())), expiryTimer.unref();
   }
 
   try {
