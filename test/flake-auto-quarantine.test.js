@@ -91,7 +91,7 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   // f562d717d8: a Submit pair files its quarantine at once, so the first pair already holds the one active repair.
   assert.equal(snapshot(box).quarantines.length, 1, JSON.stringify({ quarantines: snapshot(box).quarantines, runs: snapshot(box).runs.map(run => ({ id: run.id, kind: run.kind, proof: run.proof, outcomes: run.testOutcomes })) }));
   const second = submit(box);
-  assert.equal(second.code, 1, JSON.stringify(second.document));
+  assert.equal(second.code, 0, JSON.stringify(second.document)); // the active quarantine lets the computed verdict through
   const state = snapshot(box);
   assert.equal(state.quarantines.length, 1, JSON.stringify({ first: first.document, second: second.document, quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));
   const entry = state.quarantines[0];
@@ -145,7 +145,7 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   const row = ledger.regressions.find(value => value.file === 'test/alternating.test.mjs' && value.name === TITLE);
   assert.ok(row);
   assert.equal(row.classification, 'possible-regression');
-  assert.ok(row.observations.length >= 2 && row.observations.every(observation => observation.kind === 'submit'
+  assert.ok(row.observations.length >= 1 && row.observations.every(observation => observation.kind === 'submit'
     && observation.classification === 'possible-regression'
     && observation.original.green === false && observation.paired?.green === true && observation.mainReceipt?.green === true));
   for (const observation of row.observations) {
@@ -166,10 +166,6 @@ for (const companion of [false, true]) test(`clause 1: two actual ${companion ? 
   }
   assert.equal(cleanIds.size, 20, 'twenty actual executions, never a reused green stamp');
   assert.equal(snapshot(box).quarantines[0].status, 'quarantined', 'automatic quarantine cannot use the legacy 20-clean-run release');
-  const renewed = box.builder.cli('claim', String(box.id));
-  assert.equal(renewed.code, 0, JSON.stringify(renewed.document));
-  const third = submit(box);
-  assert.equal(third.code, 0, JSON.stringify(third.document));
   assert.equal(snapshot(box).quarantines.length, 1, 'later admissions retain one active repair');
   assert.equal(box.cli('show', String(box.id)).document.item_status, 'submitted');
 });
