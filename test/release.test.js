@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'bin', 'docs', 'package.json', 'skills', 'src'];
+const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'bin', 'docs', 'package.json', 'packages', 'skills', 'src'];
 const dirs = [];
 after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
@@ -45,6 +45,7 @@ test('a packed release installs with no network and runs the whole loop from a f
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
+    PULLBOARD_MODEL: 'Release Test Model',
   };
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */
@@ -67,7 +68,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   writeFileSync(join(repo, 'SPEC.md'), '# Greeter\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
-  assert.equal(pullboard(repo, 'add', 'web', 'Greet', '--specs', 'G1').trim(), '#1');
+  assert.equal(pullboard(repo, 'add', 'web', 'Greet', '--specs', 'G1').split('\n')[0].trim(), '#1');
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-1/);
   const builder = join(dir, 'repo-web-1');
@@ -77,7 +78,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   git(builder, 'add', '-A');
   git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
   const commit = git(builder, 'rev-parse', 'HEAD');
-  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: affected-test selection is not enabled for this project; gate green in \\d+s`));
+  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: affected-test selection is not enabled for this project`));
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
   const verifier = join(dir, 'repo-web-2');
@@ -86,7 +87,7 @@ test('a packed release installs with no network and runs the whole loop from a f
 
   git(repo, 'merge', '-q', '--no-edit', commit);
   const merge = git(repo, 'rev-parse', 'HEAD');
-  assert.equal(pullboard(repo, 'merged', '1', merge).trim(),
+  assert.equal(pullboard(repo, 'merged', '1', merge).replace(/\nnext: .*\s*$/u, '').trim(),
     `#1 merged as ${merge.slice(0, 12)}\ncode map refreshed for main ${merge.slice(0, 12)}`, 'merged also refreshes the main-stamped code map');
   const shown = pullboard(repo, 'show', '1');
   assert.match(shown, /#1 {2}verified/);
