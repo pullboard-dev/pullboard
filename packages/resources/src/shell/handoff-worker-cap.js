@@ -117,6 +117,17 @@ function waitingTickets() {
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
+/**
+ * Whether a job still holds a place in line, reserved or filled. Why: a queued job with neither a place nor a worker
+ * record will never start, so the health sweep may end it instead of leaving its claim held for hours (#3121, #3153).
+ *
+ * @param {string} job - The job id the place would belong to.
+ * @returns {boolean}
+ */
+export function handoffTicketWaiting(job) {
+  return waitingTickets().some(name => name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') === job);
+}
+
 /** A reservation whose submitting process died gives up its place. */
 function reservationAbandoned(name, startOf) {
   const file = join(handoffQueueDirectory(), name);
