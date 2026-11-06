@@ -212,7 +212,7 @@ test('independent trusted analysis parts run only their named work [C7]', async 
   assert.deepEqual(Object.keys(statics.steps), ['static']);
 });
 
-test('analysis loads main\'s own tooling and never an installed copy that imports a name main dropped; the receipt names main [C7]', async t => {
+test('clause 1: analysis loads main\'s own tooling, never an installed copy that imports a name main dropped; clause 2: the receipt names main [C7]', async t => {
   const box = fixture(t);
   // An installed Pullboard copy on the runner whose module imports a name pinned main no longer exports.
   const installed = join(box.runner, 'node_modules', 'pullboard', 'bin');
@@ -227,7 +227,7 @@ test('analysis loads main\'s own tooling and never an installed copy that import
   assert.deepEqual(observation.toolingSource, { kind: 'pinned-main', commit: box.main });
 });
 
-test('a real import failure in pinned main\'s own tooling still refuses RUNNER_RESULT_INVALID [C7]', async t => {
+test('clause 3: a real import failure in pinned main\'s own tooling still refuses RUNNER_RESULT_INVALID [C7]', async t => {
   const box = fixture(t, { brokenMain: true });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box), fakeRunner(box), join(box.dir, 'artifacts')), { code: 'RUNNER_RESULT_INVALID' });
 });
