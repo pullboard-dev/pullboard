@@ -77,10 +77,10 @@ function pause(ms) {
  * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
  *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @param {{ onInfrastructure?: (rerun: { attempt: number, code: string, hosts: string[], message: string }) => Promise<void>, say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, onInfrastructure = async () => {}, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
   const attempts = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
@@ -106,6 +106,8 @@ export async function submitUntilSettled(run, { say = () => {}, healthy = health
       if (attempts.length > retries) throw exhausted(attempts, error);
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);
+      // The board hears each rerun's code once, before the rerun is admitted, so a cause is never left to the log (#3071).
+      await onInfrastructure({ attempt, code, hosts, message: String(error.message ?? '').slice(0, 500) });
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
       say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
       let waits = 0;
