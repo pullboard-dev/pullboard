@@ -15,6 +15,9 @@ import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-eng
 import { proofRunReceipt } from '../packages/store/index.js';
 import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 
+// The worktree join inherits PULLBOARD_MODEL; without it the join refuses with MODEL_REQUIRED before any case runs.
+process.env.PULLBOARD_MODEL ??= 'Test Model';
+
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */
 function fixture(t, deterministic = false, companion = false) {
   const box = flakyProject(t, { beforeInit: ({ root, git }) => {
