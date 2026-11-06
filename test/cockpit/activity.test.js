@@ -691,7 +691,7 @@ export async function createTransport({ onUpdate }) {
   }
 });
 
-test('Activity collapses consecutive continued-building rows by one seat for one item, and item links are not underlined [N26]', () => {
+test('clause 1: Activity collapses consecutive continued-building rows by one seat for one item [N26]', () => {
   const at = minute => new Date(Date.UTC(2026, 10, 4, 12, minute)).toISOString();
   const event = (id, kind, by, item, minute) => ({ event_id: id, event_kind: kind, event_by: by, item_id: item, event_at: at(minute), event_detail: '{}' });
   const project = { items: [{ id: 7, title: 'Seven' }, { id: 8, title: 'Eight' }], agents: [], shouts: [], events: [
@@ -707,6 +707,11 @@ test('Activity collapses consecutive continued-building rows by one seat for one
   const html = activityHtml(activityModel(project), { controls: false });
   assert.match(html, /continued building · 3 updates/u);
   assert.equal([...html.matchAll(/continued building · \d+ updates/gu)].length, 1, 'only the collapsed run carries a count');
+});
+
+test('clause 2: item-number links on Activity are not underlined and read in mono, as in the mockup [N26]', () => {
+  const project = { items: [{ id: 7, title: 'Seven' }], agents: [], shouts: [], events: [{ event_id: 1, event_kind: 'claim', event_by: 'web-1', item_id: 7, event_at: new Date(Date.UTC(2026, 10, 4, 12)).toISOString(), event_detail: '{}' }] };
+  assert.match(activityHtml(activityModel(project), { controls: false }), /<ol class="activity-events">.*<span class="activity-item"[^>]*><a class="ref" href="[^"]*" data-go="item:7">#7<\/a>/su, 'the item number is an a.ref[data-go] inside the Activity list, which the rules below style');
   const css = readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url), 'utf8');
   assert.match(css, /\.activity-events a\.ref\[data-go\] \{ text-decoration: none; \}/u, 'item-number links on Activity, in a row or a shout, are not underlined');
   assert.match(css, /\.activity-item a\.ref\[data-go\], \.activity-quote a\.ref\[data-go\] \{ font: 500 var\(--text-xs\) var\(--mono\); \}/u, 'an item number in a row or a shout reads as mono, as in the mockup');
