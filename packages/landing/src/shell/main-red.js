@@ -58,6 +58,7 @@ import {
   cachedFailureSignatures,
   MAIN_FAILURE_SIGNATURE_VERSION,
 } from './main-failure-matches.js';
+import { completeGate } from './landing-completion.js';
 import { linkKnownMainReworks } from '../../../store/index.js';
 import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
@@ -131,6 +132,7 @@ function readCache(file) {
         if (typeof path === 'string' && path && ['red', 'green'].includes(outcome?.result)) {
           const failures = cachedFailureSignatures(outcome, path);
           entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
+            ...(outcome.fileIsolation === true && outcome.result === 'red' ? { fileIsolation: true } : {}),
             ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
         }
       }
@@ -376,7 +378,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   const coarse = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
-    && (!detailed || Array.isArray(outcome.failures));
+    && (!detailed || Array.isArray(outcome.failures) || outcome.result === 'red' && outcome.fileIsolation === true);
   /** Read a consistent cache generation in a short metadata-only critical section. */
   // Executor-pinned evidence never reads or populates the generic commit entries: under main's commit it sees only its
   // recorded runs, and it shares content-keyed records only under a key that also names its executor and runtime.
@@ -430,8 +432,10 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout, { allowCancelled }) : null;
           // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).
           const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
-          if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
-          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
+          const fileIsolation = detailed && !run.isGreen && !failures && completeGate(run, { allowCancelled });
+          if (detailed && !run.isGreen && !failures && !fileIsolation) throw new Error('focused main output has no complete named failure account');
+          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
+            ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}) };
         }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
         // A comparison a landing waits for is a landing-class run; a diagnostic slot refuses the landing flag [C7].
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
@@ -482,9 +486,11 @@ export async function refreshMainRedComparisons(root, previousMain, publishedMai
   const file = cacheFile(root);
   const cache = await withComparisonCache(root, onWait, () => readCache(file));
   const refreshed = cache.entries[publishedMain] ?? {};
+  // A red entry that names no failing case is unusable for known-main accounting, so every submit red in that file is
+  // charged to its item; on 6 Nov 14 of 17 recent red entries were such, and the filter below never refreshed them.
+  // Those are refreshed too, fresh and detailed, so the next comparison names its cases [C7].
   const knownRedFiles = Object.entries(cache.entries[previousMain] ?? {})
-    .filter(([, outcome]) => outcome?.result === 'red' && outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION
-      && Array.isArray(outcome.failures) && outcome.failures.length > 0)
+    .filter(([, outcome]) => outcome?.result === 'red')
     .filter(([path]) => !(['red', 'green'].includes(refreshed[path]?.result)
       && refreshed[path].signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(refreshed[path].failures)))
     .map(([path]) => path);
