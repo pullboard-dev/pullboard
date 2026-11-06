@@ -109,7 +109,7 @@ function sweep(box) {
   assert.equal(run.code, 0, `${run.err}\n${run.out}`);
 }
 
-test('one sweep ends a killed worker as infrastructure and retries its exact candidate without builder red [C7,V4]', async t => {
+test('clause 1: one sweep ends a killed worker as infrastructure and retries its exact candidate without builder red [C7,V4]', async t => {
   const box = fixture(t);
   const job = await killedRunningHandoff(box);
   const before = state(box, box.id).item;
@@ -181,7 +181,7 @@ test('two same-candidate crash retries are bounded and exhaustion stays infrastr
 });
 
 
-test('an infrastructure-stopped candidate waits for health, retries twice, and notifies once without builder red [C7,V4]', async t => {
+test('clause 2: an infrastructure-stopped candidate waits for health, retries twice, and notifies once without builder red [C7,V4]', async t => {
   const box = fixture(t);
   let job = await killedRunningHandoff(box);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
@@ -223,7 +223,7 @@ test('an infrastructure-stopped candidate waits for health, retries twice, and n
   } finally { board.db.close(); }
 });
 
-test('board and worker share infrastructure codes, including runner retry exhaustion which never returns builder red [C7,V4]', t => {
+test('clause 3: board and worker share infrastructure codes, including runner retry exhaustion which never returns builder red [C7,V4]', t => {
   assert.deepEqual([...INFRASTRUCTURE_CODES].sort(), [...boardCodes].sort());
   assert.ok(boardCodes.has('RUNNER_INFRA_RETRY_EXHAUSTED'));
   const box = fixture(t);
