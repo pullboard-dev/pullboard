@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import { contains } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { boundProofReceipt } from './proof-receipts.js';
 import {
   basename,
   dirname,
@@ -41,6 +42,10 @@ export function withBoardRepositoryPolicy(board, operation) {
 
 /** Seal against refreshed board custody once; a genuine changed-policy refusal still propagates on the retry. */
 export function sealClauseInspection(board, id, options) {
+  if (options.machineReceiptIds !== undefined || options.machineReceipts !== undefined) {
+    if (!Array.isArray(options.machineReceiptIds)) throw new Refused('MACHINE_PROOF', 'native machine receipt ids are required');
+    options = { ...options, machineReceipts: options.machineReceiptIds.map(receiptId => boundProofReceipt(board, { receiptId })) };
+  }
   return withBoardRepositoryPolicy(board, () => sealCurrentClauseInspection(board, id, options));
 }
 
