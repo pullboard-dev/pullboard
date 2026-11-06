@@ -20,9 +20,9 @@ import { fetchPrintedViewLink } from './view-link-fixture.js';
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
-  /** Remove this test file's fixtures after its tests finish. */
+  /** Remove this test file's fixtures after its tests finish; a late writer in a child process gets about ten seconds to let go (ENOTEMPTY, #2745). */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
