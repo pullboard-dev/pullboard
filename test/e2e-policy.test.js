@@ -199,7 +199,7 @@ test('accept independently refuses a historically unchecked foreign submission [
   assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
 });
 
-test('replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3]', () => {
+test('clause 1: replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3]', () => {
   const box = project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Replacement probe', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
