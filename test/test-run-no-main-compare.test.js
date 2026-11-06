@@ -23,7 +23,7 @@ function redProject() {
   return box;
 }
 
-test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main', { timeout: 120_000 }, () => { // budget: hang ceiling for one real local run.
+test('clause 1: pullboard test <one file> reports its red cases without re-running the file on main [C7]', { timeout: 120_000 }, () => { // budget: hang ceiling for one real local run.
   const box = redProject();
   const ran = box.run(box.repo, 'test', 'test/red.test.js', '--json');
   assert.equal(ran.code, 1);
@@ -34,7 +34,7 @@ test('clause 1: pullboard test <one file> reports its red cases without re-runni
   assert.match(ran.err, /main comparison skipped/u);
 });
 
-test('clause 2: pullboard test <file> --compare-main still runs the main comparison and prints that it is waiting on it', { timeout: 180_000 }, () => { // budget: hang ceiling for one run plus its main comparison.
+test('clause 2: pullboard test <file> --compare-main still runs the main comparison and prints that it is waiting on it [C7]', { timeout: 180_000 }, () => { // budget: hang ceiling for one run plus its main comparison.
   const box = redProject();
   const ran = box.run(box.repo, 'test', 'test/red.test.js', '--compare-main', '--json');
   assert.equal(ran.code, 1);
