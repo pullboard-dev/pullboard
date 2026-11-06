@@ -13,7 +13,7 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('CLI spec apply handles seven rows under a peer writer and preserves untargeted frozen rows [C7]', { timeout: 30_000 }, async t => {
+test('clause 1, clause 2, clause 3: CLI spec apply handles seven rows under a peer writer and preserves untargeted frozen rows [C7]', { timeout: 30_000 }, async t => {
   const children = [];
   let stopPath;
   t.after(() => {
