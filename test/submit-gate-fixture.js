@@ -83,7 +83,16 @@ export function builderRepo(box, additionalOwned = []) {
     const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
   };
-  return { ...box, root, git, run, coordinator: box.run };
+  /** Add items with the cold-build brief and criterion the board now requires; every other move passes through. */
+  const coordinator = (...args) => {
+    if (args[0] !== 'add') return box.run(...args);
+    const extra = [];
+    if (!args.includes('--route')) extra.push('--route', 'mid');
+    if (!args.includes('--criterion')) extra.push('--criterion', 'The fixture item is valid.');
+    if (!args.includes('--brief')) extra.push('--brief', 'Files: src/fixture.js\nChange: keep the fixture valid\nTest: the fixture check passes');
+    return box.run(...args, ...extra);
+  };
+  return { ...box, root, git, run, coordinator };
 }
 
 /** Write a fixture file, creating its parent directory when needed. */
