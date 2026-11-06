@@ -100,6 +100,8 @@ function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
  * is being recorded by this very move; `inserting` leaves out the seat row a registration has only just inserted.
  */
 export function derivedFamily(board, id, { session = null, inserting = false } = {}) {
+  const scope = id && !session && !inserting ? FAMILY_SCOPES.get(board.db) : null;
+  if (scope) return scopedFamily(board, scope, id);
   const original = id ? originalSession(board, id, session) : session;
   const seats = new Set(id ? [id] : []);
   if (original) for (const row of board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`).all(original)) {
@@ -114,6 +116,38 @@ export function derivedFamily(board, id, { session = null, inserting = false } =
     }
   }
   return first?.family ?? null;
+}
+
+/** Read scopes by db handle: the one bulk snapshot and the family already derived per seat inside a synchronous read. */
+const FAMILY_SCOPES = new WeakMap();
+
+/**
+ * Run a synchronous, write-free read with every seat's derived family served from one bulk snapshot.
+ * Why: a loop over all agent rows calling seatFamily paid two or three event queries per seat (1,921 seats, #3251);
+ * the snapshot is read at most once, on the first seat asked, and dies with the scope so no write is ever missed.
+ */
+export function withFamilyReads(board, work) {
+  const db = board.db;
+  if (FAMILY_SCOPES.has(db)) return work();
+  FAMILY_SCOPES.set(db, { snapshot: null, records: new Map(), derived: new Map() });
+  try { return work(); } finally { FAMILY_SCOPES.delete(db); }
+}
+
+/** One seat's derived family from the scope's snapshot, with the same first-record rule as the per-seat read. */
+function scopedFamily(board, scope, id) {
+  if (scope.derived.has(id)) return scope.derived.get(id);
+  scope.snapshot ??= familySnapshot(board);
+  const snapshot = scope.snapshot, original = snapshot.sessions.get(id) ?? null;
+  const seats = new Set([id]);
+  if (original) for (const peer of snapshot.peers.get(original) ?? []) seats.add(peer);
+  let first = null;
+  for (const seat of seats) {
+    if (!scope.records.has(seat)) scope.records.set(seat, seatRecords(board, seat, {}, snapshot));
+    for (const record of scope.records.get(seat)) if (!first || record.order < first.order) first = record;
+  }
+  const family = first?.family ?? null;
+  scope.derived.set(id, family);
+  return family;
 }
 
 /**

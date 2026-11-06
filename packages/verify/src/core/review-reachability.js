@@ -6,6 +6,7 @@ import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { Refused } from '../../../kernel/index.js';
 import { seatFamily } from '../../../items/index.js';
+import { withFamilyReads } from '../../../items/index.js';
 
 const SHOWN = 4;
 /** The projection copy's status column; named once so no status write is mistaken for this read-only copy. */
@@ -38,7 +39,8 @@ export function unreviewableStrict(board, item, options = {}, reads = board.nati
   for (const row of undeclared) parts.push(`${row.role} ${row.agent} has no declared vendor family, so strict review cannot be routed; declare it (pullboard join --family <vendor>) or re-register that seat with one`);
   if (excluding.length) parts.push(`${excluding.map(row => `${row.role} ${row.agent} (${row.family})`).join(' and ')} exclude${excluding.length === 1 ? 's' : ''} ${[...new Set(excluding.map(row => row.family))].join(' and ')} reviewers`);
   const seats = new Map(reads.listAgents(board).map(seat => [seat.agent_id, seat]));
-  const silent = [...seats.values()].filter(seat => (registered || seat.presence !== 'gone') && !familyName(seatFamily(board, seat.agent_id), familyAliasesOf(board)) && !authors.some(row => row.agent === seat.agent_id)).map(seat => seat.agent_id);
+  const aliases = familyAliasesOf(board);
+  const silent = withFamilyReads(board, () => [...seats.values()].filter(seat => (registered || seat.presence !== 'gone') && !familyName(seatFamily(board, seat.agent_id), aliases) && !authors.some(row => row.agent === seat.agent_id)).map(seat => seat.agent_id));
   if (silent.length) parts.push(`active seat${silent.length === 1 ? '' : 's'} ${silent.slice(0, SHOWN).join(', ')}${silent.length > SHOWN ? ` +${silent.length - SHOWN} more` : ''} declare${silent.length === 1 ? 's' : ''} no vendor family, so strict review cannot route to ${silent.length === 1 ? 'it' : 'them'}`);
   const rules = projected.ineligible.slice(0, SHOWN).map(row => `${row.agent}: ${row.rule}`);
   const more = projected.ineligible.length - rules.length;
