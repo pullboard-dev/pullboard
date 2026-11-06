@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { laneOf } from '../../../../../packages/seats/index.js';
 import { outOfLane } from '../../../../../packages/seats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
@@ -85,6 +86,7 @@ export function buildInFilelessLane(config, lane, after) {
  * @returns {string}
  */
 export function briefInLane(ctx, lane, brief) {
+  refuseCoordinatorPaths(ctx.config, lane, brief);
   const foreign = outOfLane(ctx.config, lane, briefFiles(brief));
   if (foreign.length) {
     throw new Refused('BRIEF_LANE', `the brief names files outside the ${lane} lane: ${foreign.join(', ')}; split the item by lane, or wait on the other lane's item with --after`);
@@ -92,3 +94,22 @@ export function briefInLane(ctx, lane, brief) {
   return brief;
 }
 
+
+/**
+ * Refuse a lane item whose brief names a path the frozen policy gives the coordinator (.githooks/, pullboard.json and
+ * the like). A lane builder can commit none of it, so the refusal gives the split: the lane piece here, and the
+ * coordinator piece filed with --after the lane item. Add and claim share it, so a bar filed before the rule cannot
+ * strand a builder at claim time [C7].
+ *
+ * @param {any} config
+ * @param {string} lane
+ * @param {string} brief
+ */
+export function refuseCoordinatorPaths(config, lane, brief) {
+  if (lane === COORDINATOR) return;
+  const isShared = (path) => config.shared.some((prefix) => path.startsWith(prefix));
+  const owned = briefFiles(brief ?? '').filter((path) => !isShared(path) && laneOf(config, path) === COORDINATOR);
+  if (!owned.length) return;
+  throw new Refused('BRIEF_LANE', `the brief names files the coordinator owns, which the ${lane} lane cannot commit: ${owned.join(', ')}`,
+    `split it: keep the ${lane} piece here, then file the coordinator piece with pullboard add coordinator "<title>" --after <the ${lane} item id>`);
+}

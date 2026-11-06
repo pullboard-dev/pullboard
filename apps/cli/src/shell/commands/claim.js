@@ -20,6 +20,7 @@ import {
   claimOrdered,
   idArg,
   ordered,
+  refuseCoordinatorPaths,
   whoAmI,
   wrongLaneGuidance,
 } from '../cli.js';
@@ -31,6 +32,8 @@ export async function run(io, { first }) {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
   cleanItemFolders(ctx, board, me);
+  const named = getItem(board, id);
+  if (named) refuseCoordinatorPaths(ctx.config, named.item_lane, named.item_brief);
   let result;
   for (;;) {
     try {
