@@ -21,6 +21,8 @@ test('clause 1: a seat whose last call prompt exceeds the ceiling ends after its
   assert.equal(decision.code, 'EXIT_CONTEXT');
   assert.equal(decision.ceiling, 200_000);
   assert.equal(exitContextDecision(policy, nativeLastPrompt('claude', claudeLog('claude-sonnet-5-5', [500, 190_000, 9_000]))), null, 'under the ceiling keeps the session');
+  assert.equal(exitContextDecision(policy, { tokens: 200_000, model: 'claude-sonnet-5-5' }), null, 'a prompt exactly at the ceiling keeps the session');
+  assert.equal(exitContextDecision(policy, { tokens: 200_001, model: 'claude-sonnet-5-5' }).code, 'EXIT_CONTEXT');
   const codex = Buffer.from([{ type: 'turn_context', payload: { model: 'gpt-6' } }, { type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 250_000 } } } }].map(row => JSON.stringify(row)).join('\n') + '\n');
   assert.equal(exitContextDecision(policy, nativeLastPrompt('codex', codex)).context, 250_000);
 });
