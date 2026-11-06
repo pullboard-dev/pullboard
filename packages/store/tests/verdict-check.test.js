@@ -101,7 +101,7 @@ function succeeds(box, cwd, ...args) {
 
 /** Add, claim, commit and submit one real worktree item with its optional frozen check. */
 function submitted(box, repo, web, title, check) {
-  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.'];
+  const args = ['add', 'web', title, '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong'];
   if (check) args.push('--check', check);
   const added = succeeds(box, repo, ...args);
   const id = Number(/#(\d+)/.exec(added)?.[1]);
@@ -313,7 +313,7 @@ const STORE_BODY_HASHES = {
   "src/board-event-log-migrate.js": "c7702babc4b01fefdb14c37e4afc9c6229c29dbd995dac7872a7529fb7bf8ae8", "src/board-event-log.js": "7ceea8e6b457faeabcbeac5e09a13d78ca129102721e188b18cef91a92670c0a",
   "src/board-health.js": "59d4611738b111344996f0d09074c702b85bd0332ef451d55e80e5158ccd815a", "src/board-hot.js": "f47e378d23f918c334437fe829b96a43334e44248ee1f06adac2a3749a11fcfd",
   "src/board-inventory.js": "0a6a433174971e2f05795bd6cc47bd3d5b994867a920b12c8e534c26d8686e07", "src/board-item-dependencies.js": "bcd9f96c6da94ad6f80f31cee806c51f727f8b8c4f3333afe9033eabeb6d6d46",
-  "src/board-item-read.js": "29a7b65cafad96e3e8ddeb151e8807fcf318ca4cc17c366bf3def1b2fc8424a7", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
+  "src/board-item-read.js": "b2edb32106441abf09ff6bad4cccba716659b772a16352bb933c55da8846c65b", "src/board-link-envelope.js": "7c19ddd8fd4e44c0b9bb6c5c3a5ed1709b5fdea266973ffe133e86610de17ea3",
   "src/board-link-relay.js": "69c75aa84eca41160794609951941fe41f47b670dd7033c2c8e7ad06276128c6", "src/board-link-ssh.js": "99bb4a0a223d9f40e885b02fa9e9dd6d27cecd77001cd1cf3d55d557c0f7c849",
   "src/board-link-state.js": "9e0f6860c91c40234c52d672f3a4ce32748e8ae50f5906cf17f1dca07977e30b", "src/board-link.js": "40212bdeef409ee18446ba78892327c6294ae565c06863bc7b1be53ff4d89ef7",
   "src/board-members.js": "91278a43b1d3b568d59cc0c450dac6fe069361b08527fca0a8b5cebf72242bbc", "src/board-migrate.js": "e2c668a8a4a61c620932faadf5e78a5afb34147103514a93ec3408587895c504",
@@ -442,7 +442,7 @@ const ACCEPTED_ENGINE_VALUES = [
   ["KNOWN_MAIN_REWORKS_ENGINE",151], ["KNOWN_MAIN_RUNNING_FILE_ENGINE",225], ["LAND_COLLISION_ENGINE",101], ["LANDING_ENVIRONMENT_ENGINE",85],
   ["LANDING_LEASE_ENGINE",74], ["LANDING_LOCAL_LEASE_ENGINE",94], ["LANE_LEAD_ENGINE",125], ["LEASE_LAPSE_ENGINE",177], ["LEDGER_QUARANTINE_ENGINE",null],
   ["LINE_CAPACITY_ENGINE",103], ["LINE_ORDER_ENGINE",100], ["LINE_SETTINGS_ENGINE",98], ["LIVE_RELEASE_PLACEMENT_ENGINE",213],
-  ["LIVE_ROUTE_ENGINE",153], ["LOCAL_LANDING_ENGINE",64], ["MAIN_AUDIT_ENGINE",138], ["MAIN_RED_FAILURE_LINES_ENGINE",214],
+  ["LIVE_ROUTE_ENGINE",153], ["LOCAL_LANDING_ENGINE",64], ["MAIN_AUDIT_ENGINE",138], ["MAIN_RED_FAILURE_LINES_ENGINE",214], ["MAIN_RED_FOCUS_ENGINE",232],
   ["MECHANICAL_MERGE_ENGINE",132], ["MERGE_ONLY_VERDICT_ENGINE",129], ["MILESTONE_LIMIT_ENGINE",113], ["MILESTONE_PLACEMENT_ENGINE",193],
   ["MILESTONE_QUEUE_ORDER_ENGINE",215], ["MILESTONE_RANK_ENGINE",34], ["MILESTONE_SHIP_ENGINE",45], ["NATIVE_FLAKE_ENGINE",61],
   ["NEXT_IDLE_ENGINE",169], ["NO_ELIGIBLE_REVIEWER_ENGINE",168], ["OUTSIDE_INTAKE_ENGINE",97], ["PARENT_SESSION_ENGINE",90],
