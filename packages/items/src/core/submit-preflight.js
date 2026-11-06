@@ -6,6 +6,7 @@
  */
 import { tryGit } from "../../../git/index.js";
 import { inPlanScope } from "../../../codemap/index.js";
+import { moveHistoryPlacement } from "../../../codemap/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** Git variables that could narrow which objects a read sees; trunk reads run without them. */
@@ -102,7 +103,7 @@ export function requirePlannedSource(root, base, commit, { deferUnplaced = false
     if (tab < 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the committed source inventory is malformed');
     if (!inPlanScope(file)) continue;
     if (!/^100(?:644|755) blob /u.test(row)) throw new Refused('CELLS_PLAN_UNPLACED', `restore a regular committed source path before placement: ${file}`);
-    if (!known.has(file)) missing.push(file);
+    if (!known.has(file) && moveHistoryPlacement(file) === null) missing.push(file);
   }
   if (missing.length && deferUnplaced) return { unplaced: missing };
   if (missing.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${missing.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
