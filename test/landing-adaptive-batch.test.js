@@ -93,3 +93,26 @@ test('clause 1: a revised earlier batch refolds the size and the failure turns, 
   const items = history.map(batch => batch.id === 'b2' ? { ...batch, items: [{ id: 30 }] } : batch);
   assert.deepEqual([...roundFailures(items)], [[30, 1]], 'a changed item list moves the failure to the new item');
 });
+
+test('clause 1: a batch stopped by a refusal that names no failing test never shrinks the next batch [C7]', () => {
+  const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
+    refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
+  assert.equal(landingBatchSize([locked, locked, locked]), 4, 'infrastructure refusals keep the starting size');
+  assert.equal(landingBatchSize([landed, locked]), 8, 'and keep a grown size');
+});
+
+test('clause 2: a blocked batch with a named failing test or a culprit still halves the next batch [C7]', () => {
+  const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
+    refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
+  const testRed = { state: 'blocked', failures: [{ file: 'test/a.test.js', name: 'case' }], refusal: { code: 'LAND_DIAGNOSTIC', message: 'red', at: '2026-11-05T16:00:00.000Z' } };
+  assert.equal(landingBatchSize([testRed]), 2, 'a refusal over a named failing test still halves it');
+  assert.equal(landingBatchSize([{ ...locked, culprits: [{ id: 3 }] }]), 2, 'a culprit still halves it');
+});
+
+test('clause 3: revising a blocked batch from an infrastructure refusal to a named red refolds the size [C7]', () => {
+  const id = 'b-1';
+  const first = [{ id, state: 'blocked', failures: [{ file: null, name: 'locked' }], refusal: { code: 'SLOT_DB_LOCKED', message: 'x', at: 'a' } }];
+  assert.equal(landingBatchSize(first), 4);
+  const revised = [{ id, state: 'blocked', failures: [{ file: 'test/a.test.js', name: 'case' }], refusal: { code: 'SLOT_DB_LOCKED', message: 'x', at: 'a' } }];
+  assert.equal(landingBatchSize(revised), 2, 'the same id and state with a named red is red, never the cached infrastructure result');
+});

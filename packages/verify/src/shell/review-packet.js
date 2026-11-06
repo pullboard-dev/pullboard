@@ -103,7 +103,7 @@ function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
   const numbered = criterionClauses(item.item_criterion ?? criterion);
-  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text }))
+  const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text, ...(clause.kind ? { kind: clause.kind } : {}) }))
     : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
   const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
   return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
@@ -273,7 +273,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   lines.push('clauses:');
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
-    if (!clause.runs.length) lines.push(`     ${clause.gap}: rerun this clause`);
+    if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
     for (const run of clause.runs) {
       lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
@@ -288,7 +288,7 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   const metrics = [...new Set([...Object.keys(packet.lints.before), ...Object.keys(packet.lints.after)])].sort();
   lines.push(`lints: ${metrics.map(metric => `${metric} ${packet.lints.before[metric] ?? 0} -> ${packet.lints.after[metric] ?? 0}`).join(', ') || 'no cell lint baselines'}`);
   const rerun = reviewRerunClauses(packet);
-  lines.push(`review rule: rerun only clauses marked no recorded run (${rerun.join(', ') || 'none'}); accept with --read <clauses you read>`);
+  lines.push(`review rule: read every clause marked no recorded run (${rerun.join(', ') || 'none'}) and name it in --read; accept with --read <clauses you read> records the verdict at once, and the frozen check reruns only for a clause you did not read`);
   lines.push('diff stat:', ...packet.diff.stat.split('\n').map(line => `  ${line}`));
   if (hunks) lines.push('diff:', packet.diff.patch.trimEnd(), ...(packet.diff.truncated ? ['(diff truncated at 4 MiB)'] : []));
   return lines;
@@ -370,5 +370,8 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
 export function reviewPacketRerun(commonDir, item) {
   const packet = readReviewPacket(commonDir, item.item_id, item.item_commit, item.item_frozen_digest);
   if (!packet) return null;
-  return { head: packet.head, rerun: reviewRerunClauses(packet), failures: packet.failures?.length ?? 0 };
+  // A reasoning clause has no run to record: the reviewer's reading is its evidence, so an accept that read it
+  // need not rerun the frozen check for it. Why: #3089's clause 3 [reasoning] cost a 200 s rerun on 6 Nov [V4,C7].
+  const reasoning = packet.clauses.filter(clause => !clause.runs.length && clause.kind === 'reasoning').map(clause => clause.n);
+  return { head: packet.head, rerun: reviewRerunClauses(packet), reasoning, failures: packet.failures?.length ?? 0 };
 }
