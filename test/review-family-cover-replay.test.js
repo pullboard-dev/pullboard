@@ -67,7 +67,7 @@ test('recorded Nov3 green submissions get an automatic independent wake reservat
     writeFileSync(clockFile, box.clock.now().toISOString());
     if (event.sweep) { await wakeReviewCapacity(ctx, box.board, ordered); continue; }
     assert.equal(event.family, 'openai', 'the historical immutable submit-author vendor is retained');
-    const id = box.add(`Recorded green submission ${event.index}`, { route: 'strong' });
+    const id = box.add(`Recorded green submission ${event.index}`, { route: 'strong', brief: 'Files: web/ready.js\nTest: the review stays available.' });
     box.claim(id, builder);
     // Synthetic state represents the recorded green input; it is never offered as a gate execution receipt.
     submitFixture(box.board, id, { agentId: builder.id, commit: head, tree, gateGreen: true });

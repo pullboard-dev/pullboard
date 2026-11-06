@@ -23,7 +23,7 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   const cli = (cwd, ...argv) => captureCommandInProcess((args, streams) => main(args, { ...streams, clock }), argv,
     { cwd, env: box.env });
   const added = await cli(box.repo, 'add', 'web', 'Waiting native review', '--specs', 'G1',
-    '--criterion', 'The source marker exists.', '--check', 'test -f web/review-ready', '--wait', '--json');
+    '--criterion', 'The source marker exists.', '--check', 'test -f web/review-ready', '--brief', 'Files: web/review-ready\nTest: the source marker exists.', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   const claim = await cli(box.web, 'claim', String(item));

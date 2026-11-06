@@ -21,7 +21,7 @@ async function reviewFamilyFixture(t, count = 3) {
   const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
   const waiting = [];
   for (let index = 0; index < count; index++) {
-    const id = box.add(`Awaiting independent review ${index}`, { route: 'strong' });
+    const id = box.add(`Awaiting independent review ${index}`, { route: 'strong', brief: 'Files: web/ready.js\nTest: the review stays available.' });
     box.claim(id);
     submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head, tree, gateGreen: true });
     waiting.push(id);
@@ -41,7 +41,7 @@ process.exitCode = 0;
 
 test('three waiting green reviews pause new builds at five minutes, with an explanation and no claim [C7,#3076]', async t => {
   const box = await reviewFamilyFixture(t);
-  const candidate = box.add('New build waits for independent cover', { route: 'strong' });
+  const candidate = box.add('New build waits for independent cover', { route: 'strong', brief: 'Files: web/candidate.js\nTest: the review stays available.' });
   assert.equal(REVIEW_WAKE_WAIT_MS, REVIEW_COVER_WAIT_MS, 'sweep and build advice use the same five-minute deadline');
   box.advance(REVIEW_COVER_WAIT_MS - 1);
   assert.equal(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor), null);
@@ -49,16 +49,16 @@ test('three waiting green reviews pause new builds at five minutes, with an expl
   assert.match(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor), /3 waiting green reviews.*another family/u);
   for (const args of [['next'], ['next', '--build'], ['next', '--take']]) {
     const next = await cli(box, box.seats.actor.path, args);
-    assert.equal(next.code, 0, next.out + next.err);
     assert.equal(next.document.item ?? null, null, args.join(' '));
-    assert.match(next.document.reasons.join('\n'), /independent review cover/u);
+    assert.equal(next.document.error.code, 'NOTHING_FREE', args.join(' '));
+    assert.match(next.document.error.message, /independent review cover/u);
   }
   assert.equal(store.getItem(box.board, candidate).item_status, 'open');
 });
 
 test('next --take retains existing claims and still reserves an eligible independent review during a cover pause [C7,#3076]', async t => {
   const box = await reviewFamilyFixture(t);
-  const held = box.add('Existing work keeps its lease', { route: 'strong' });
+  const held = box.add('Existing work keeps its lease', { route: 'strong', brief: 'Files: web/held.js\nTest: the review stays available.' });
   box.claim(held, box.seats.actor);
   box.advance(REVIEW_COVER_WAIT_MS);
   const resumed = await cli(box, box.seats.actor.path, ['next', '--take']);
@@ -66,8 +66,9 @@ test('next --take retains existing claims and still reserves an eligible indepen
   assert.equal(resumed.document.item.item_id, held);
   assert.equal(resumed.document.held, true);
   store.release(box.board, held, box.seats.actor.id, 'Fixture returns held work.', 'OTHER');
-  const review = box.add('An independent review stays available', { lane: 'review', route: 'strong' });
+  const review = box.add('An independent review stays available', { lane: 'review', route: 'strong', brief: 'Files: review/ready.js\nTest: the review stays available.' });
   box.claim(review, box.seats.outside);
+  box.git(box.seats.outside.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty', '-qm', 'review source with a parent');
   const head = box.git(box.seats.outside.path, 'rev-parse', 'HEAD');
   submitFixture(box.board, review, { agentId: box.seats.outside.id, commit: head,
     tree: box.git(box.root, 'rev-parse', `${head}^{tree}`), gateGreen: true });
