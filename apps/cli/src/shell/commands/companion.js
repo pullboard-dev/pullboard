@@ -17,6 +17,8 @@ import { idArg } from '../cli.js';
 import { idList } from '../cli.js';
 import { ordered } from '../cli.js';
 import { buildInFilelessLane } from '../cli.js';
+import { criterionCells } from '../../../../../packages/items/index.js';
+import { defaultItemRoute } from '../../../../../packages/items/index.js';
 
 /** Execute the normal authenticated request; only the coordinator may supply a check command. */
 export async function run(io, { first, second, rest, values }) {
@@ -35,7 +37,7 @@ export async function run(io, { first, second, rest, values }) {
       buildInFilelessLane(ctx.config, second, []);
       const request = { agentId: me.id, parentId: idArg(first), lane: second, key: values.key,
         title: rest.join(' '), criterion: values.criterion ?? '', specIds,
-        brief: briefInLane(ctx, second, briefArg(io, values) ?? ''), route: values.route ?? 'strong', check: values.check,
+        brief: briefInLane(ctx, second, briefArg(io, values) ?? ''), route: values.route ?? defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root)), check: values.check,
         barActor: barActorForCommand(ctx, board, { asPerson: false }) };
       const plan = store.planCompanion(board, request);
       if (!plan.existing && plan.validated.command) {
