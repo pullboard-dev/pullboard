@@ -75,7 +75,7 @@ function reserve(board, item, agentId, leaseMs = REVIEW_LEASE) {
   return store.reserveReview(board, item, { agentId, leaseMs, policy: 'any' });
 }
 
-test('[Q1,V15] an empty queue is zeroed and exactly three waiting items produce an offer over build work', (t) => {
+test('[Q1,V15] clause 1: an empty queue is zeroed and exactly three waiting items produce an offer over build work', (t) => {
   const { board, agents } = fixture(t);
   assert.deepEqual(store.reviewQueue(board), {
     pending: 0, reviewing: 0, reserved: 0, oldestSubmittedAt: null, ageMs: 0,
