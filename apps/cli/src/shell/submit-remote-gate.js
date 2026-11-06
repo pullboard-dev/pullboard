@@ -63,13 +63,13 @@ process.exitCode = status;
 
 /**
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
- * Why namespace imports: an accepted main that predates an optional export still links, and the step says what it lacks.
+ * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
 const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cells from './bin/cells-submit-checks.js';
-import { transferredCellsInventories } from './bin/cells-inventory-cache.js';
+import * as cellsCache from './bin/cells-inventory-cache.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -101,7 +101,7 @@ try {
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
   if (selected('preflight') && input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
-  const artifacts = input.inventory ? transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+  const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
   const artifact = artifacts?.get(input.main);
   if (selected('cells')) result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout: landing.withMainCheckout, acceptedArtifact: artifact, acceptedArtifacts: artifacts, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },

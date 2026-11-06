@@ -133,10 +133,10 @@ import {
   foreignNodeOptions,
 } from './packages/gate/index.js';
 import { withMainCheckout } from './packages/landing/index.js';
-import { transferredCellsInventories } from './bin/cells-inventory-cache.js';
+import * as cellsCache from './bin/cells-inventory-cache.js';
 import { readFileSync } from 'node:fs';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
-const artifacts = input.inventory ? transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
 const artifact = artifacts?.get(input.main);
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
   { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
