@@ -4,6 +4,7 @@ import { importParseScopes } from './module-import-cache-state.js';
 import { storedCompilations } from './parse-result-store.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import {
+  mkdirSync,
   mkdtempSync,
   rmSync,
   writeFileSync,
@@ -49,7 +50,9 @@ function compileSources(sources) {
 /** Compile in a child Node, with no stored result consulted. */
 function compileFresh(sources) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-imports-'));
+  const cacheDirectory = importParseScopes.getStore()?.directory;
+  if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
+  const directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-imports-'));
   const input = join(directory, 'sources.json');
   try {
     writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
@@ -76,7 +79,7 @@ function copyCompilation(row) { return { compiles: row.compiles, imports: [...ro
  */
 export function withParseScope(work) {
   if (process.env.NODE_OPTIONS) return work();
-  return importParseScopes.run({ epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
+  return importParseScopes.run({ directory: importParseScopes.getStore()?.directory, epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
 }
 
 /** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
