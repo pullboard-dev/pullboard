@@ -37,6 +37,13 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard join` and return its exit code. */
+/**
+ * Whether a model is a small, light-route model: a claude-haiku-* model or gpt-6-luna.
+ * A seat on such a model joins the light route unless it names --route, so it never claims strong work.
+ */
+export function lightModel(model) {
+  return /^claude-haiku-/u.test(String(model ?? '')) || model === 'gpt-6-luna';
+}
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const wake = seatWakeCommand(values.wake, ctx.info.root);
@@ -66,8 +73,8 @@ export async function run(io, { first, values }) {
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
-  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? 'strong';
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
