@@ -251,8 +251,11 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     writeFileSync(join(root, 'DOCTRINE.md'), '# Performance fixture rules\n\n## Rules\n- R1 [approved, must] Keep the generated board readable. | gate: review\n');
     // Submit reads the clause policy from main's commit since 8078e19a4a, so the fixture commits its config, spec and doctrine; init's agent files name the run's own paths, so they stay out of the seeded commit.
     run('git', ['add', 'pullboard.json', 'SPEC.md', 'DOCTRINE.md'], root, env);
-    run('git', ['commit', '-q', '-m', 'chore: create the stress fixture'], root, env);
-    const repo = { root, env, head: run('git', ['rev-parse', 'HEAD'], root, env).trim(), tree: run('git', ['rev-parse', 'HEAD^{tree}'], root, env).trim() };
+    // Plumbing, like the generated item commits: init installs the project's hooks, which need an installed pullboard.
+    const tree = run('git', ['write-tree'], root, env).trim();
+    const head = run('git', ['commit-tree', tree, '-m', 'chore: create the stress fixture'], root, env).trim();
+    run('git', ['update-ref', 'refs/heads/main', head], root, env);
+    const repo = { root, env, head, tree };
     const spec = loadSpec(root, { spec: 'SPEC.md' });
     const doctrine = loadDoctrine(root, { practice: 'DOCTRINE.md' });
     const freezer = (item) => freezeItem(item, spec, doctrine);
