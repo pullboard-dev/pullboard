@@ -525,6 +525,18 @@ export function carriedMainOutcome(root, file, { generations = REFRESH_GENERATIO
 }
 
 /**
+ * The newest cached generation to refresh from when a batch base has no generation of its own; null when the base is
+ * cached or no commit generation exists. Why: a hand-moved main has no cached comparisons, so the first red batch on it
+ * re-measured every known red for minutes [C7,#3268].
+ */
+export function refreshSource(root, base) {
+  let cache;
+  try { cache = readCache(cacheFile(root)); } catch { return null; }
+  if (cache.entries[base]) return null;
+  return recentGenerations(cache, 1, [base])[0] ?? null;
+}
+
+/**
  * Refresh main's known red files at the published main in parallel, so the next red batch reads them instead of
  * rerunning each on main for eight minutes. The files come from the newest generations, not the prior main alone:
  * a comparison is cached under the exact commit it ran at, and a landing every three minutes meant the prior main
