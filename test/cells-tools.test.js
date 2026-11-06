@@ -98,8 +98,8 @@ test('actual CLI help and API catalog work through a named cell command front do
   const box = fixture(t);
   copyPackageFiles(REPO, box.root);
   const manifest = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
-  box.put('package.json', JSON.stringify({ ...manifest, imports: MAP }));
-  copyPackageSubset(REPO, box.root, [{ path: 'apps/cli/src/shell/commands/version.js', as: 'packages/sample/index.js' }]);
+  box.put('package.json', JSON.stringify({ ...manifest, imports: { ...MAP, '#sample': './packages/sample/src/shell/commands/version.js' } }));
+  copyPackageSubset(REPO, box.root, [{ path: 'apps/cli/src/shell/commands/version.js', as: 'packages/sample/src/shell/commands/version.js' }]);
   box.put('apps/cli/src/shell/commands/version.js', "export { run } from '#sample';\n");
   /** Exercise the real command registry through its named package shim. */
   const run = (...args) => runFixtureChild(process.execPath, ['bin/pullboard.js', ...args], { cwd: box.root, encoding: 'utf8' });
@@ -110,7 +110,7 @@ test('actual CLI help and API catalog work through a named cell command front do
   const help = run('help', 'version', '--json');
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /version/u);
-  const script = "import {JSON_SHAPES} from './src/json.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
+  const script = "import {JSON_SHAPES} from './packages/config/index.js'; console.log(JSON.stringify(JSON_SHAPES.commands.version));";
   const catalog = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: box.root, encoding: 'utf8' });
   assert.equal(catalog.status, 0, catalog.stderr);
   const shape = JSON.parse(catalog.stdout);

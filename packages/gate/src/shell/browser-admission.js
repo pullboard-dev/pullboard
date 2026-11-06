@@ -28,6 +28,12 @@ import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
+import { browserScanCacheFile } from './browser-scan-cache.js';
+import { cachedVerdictHolds } from './browser-scan-cache.js';
+import { changedPaths } from './browser-scan-cache.js';
+import { currentTree } from './browser-scan-cache.js';
+import { readBrowserScanCache } from './browser-scan-cache.js';
+import { writeBrowserScanCache } from './browser-scan-cache.js';
 
 const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
 const CHROME_FIXTURE = 'test/chrome-fixture.js';
@@ -86,6 +92,9 @@ const REVIEWED_EXECUTORS = new Map([
   ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',
     site: "spawn(runner?.executable ?? '/bin/sh', runner?.args ?? ['-c', check], { cwd: tree, env: environment, detached: true, stdio: ['ignore', 'pipe', 'pipe'], })",
     reason: 'prepareCauseProof validates the named runner executable against the real process.execPath' }]],
+  ['packages/seats/src/shell/seat-wake.js', [{ function: 'wakeRoutedSeat',
+    site: "spawn(registration.command, [String(item)], { cwd: registration.root, shell: false, stdio: 'ignore' })",
+    reason: 'the wake runs only the executable the seat itself registered, when routing commits; importing the module starts nothing' }]],
   ['test/cli-startup.test.js', [{ function: 'fixture',
     site: "runFixtureChild(env.PULLBOARD_REAL_GIT, args, { cwd, env, encoding: 'utf8' })",
     reason: 'this private fixture binds PULLBOARD_REAL_GIT to realGitPath before installing its counting shim' }]],
@@ -544,7 +553,7 @@ function parsedSources(sources, memo) {
  * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map()) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), walked = null) {
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
@@ -572,6 +581,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         const key = JSON.stringify([value.narrow, value.names === null ? null : [...value.names].sort()]);
         if (processed.get(path) === key) continue;
         processed.set(path, key);
+        walked?.add(path);
         if (path === CHROME_FIXTURE && !byLaunch) return true;
         if (path.endsWith('.json')) continue;
         if (/\.(?:cjs|cts)$/u.test(path)) return browserFallback(onFallback, path, 'CommonJS loader behavior is not statically classified');
@@ -711,7 +721,7 @@ export async function testsNeedBrowser(root, files, { commit, onFallback, byLaun
  * @param {{byLaunch?:boolean}} [options] - unset reads gate.browserByLaunch
  * @returns {Promise<string[]>}
  */
-export async function browserBoundFiles(root, files, { byLaunch } = {}) {
+export async function browserBoundFiles(root, files, { byLaunch, stats = null } = {}) {
   return withImportParseCache(async () => {
     byLaunch ??= await browserByLaunchSetting();
     const memo = new Map();
@@ -719,9 +729,29 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const safeChildImports = new Map();
     const sourceMemo = new Map(), reachMemo = new Map();
     const bound = [];
+    // Verdicts persist across runs with the closure each was computed from: a file whose closure did not change
+    // since its cached tree keeps its verdict, and only the rest are walked [C7].
+    const cacheFile = process.env.NODE_OPTIONS ? null : browserScanCacheFile(root);
+    const tree = cacheFile ? currentTree(root) : null;
+    const cache = cacheFile ? readBrowserScanCache(cacheFile) : { version: 1, entries: {} };
+    const diffs = new Map();
+    const changed = fromTree => changedPaths(root, fromTree, tree, diffs);
+    let dirty = false;
     for (const file of files) {
-      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo)) bound.push(file);
+      const path = repositoryPath(root, file) ?? file;
+      const entry = cache.entries[path];
+      if (tree && cachedVerdictHolds(entry, { byLaunch, tree, changed })) {
+        if (entry.bound) bound.push(file);
+        if (stats) stats.reused = (stats.reused ?? 0) + 1;
+        continue;
+      }
+      const walked = new Set();
+      const verdict = await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, walked);
+      if (verdict) bound.push(file);
+      if (stats) stats.scanned = (stats.scanned ?? 0) + 1;
+      if (tree) { cache.entries[path] = { bound: verdict, byLaunch, tree, closure: [...walked] }; dirty = true; }
     }
+    if (dirty && cacheFile) { try { writeBrowserScanCache(cacheFile, cache); } catch { /* a cache that cannot be written only costs the next scan */ } }
     return bound;
   });
 }

@@ -1,5 +1,4 @@
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
-import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
@@ -68,9 +67,27 @@ function inboxReasons(ctx) {
 
 /** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
 function answerFirstReasons(reasons) {
+  return ['no item is free', ...heldCounted(reasons)];
+}
+
+/** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
+function heldCounted(reasons) {
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return ['no item is free', ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+}
+
+/**
+ * Keep the first few reason lines and fold the rest into one counted line naming where to read them [C7,#2895].
+ * Why: a long hold or skip list pushed the claim's action off the first screen, and small models lost it.
+ *
+ * @param {string[]} lines
+ * @param {string} more the command that lists every reason
+ * @param {number} [keep]
+ * @returns {string[]}
+ */
+export function foldedReasons(lines, more, keep = 5) {
+  return lines.length <= keep ? lines : [...lines.slice(0, keep), `+${lines.length - keep} more reasons: ${more}`];
 }
 
 /**
@@ -93,7 +110,19 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
-  withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  withBoard(ctx, board => {
+    const me = whoAmI(ctx, board);
+    const reds = store.queuedReds(board, me.id).filter(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+    if (reds.length) {
+      const activity = store.activityDeliveryState(board, me.id);
+      store.recordActivityDelivery(board, { agentId: me.id, through: activity.through,
+        observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
+          id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
+        })) });
+      for (const line of store.queuedRedLines(reds)) io.say(line);
+    }
+  });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
@@ -124,8 +153,13 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
-    const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
+    // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
+    const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
+    const selectionValues = redClaims.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+      : values;
+    const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -155,7 +189,7 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -170,8 +204,15 @@ async function nextWithProgress(io, values, progress) {
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
+        if (found.waitingOffer) {
+          io.say(`available #${item.item_id}: ${item.item_title}`);
+          for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
+          io.say(`claim it when ready: ${here} pullboard claim ${item.item_id}`);
+          return 0;
+        }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
-        for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
+        io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
@@ -182,22 +223,24 @@ async function nextWithProgress(io, values, progress) {
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${row.text}`);
         sayBrief(io, item.item_brief);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
-        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id} --wait`);
+        io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
       }
       return 0;
     }
     const idleReason = found.idleReason ?? 'unknown';
-    if (!found.retry && idleReason !== lastIdleReason) {
+    const idleObservation = { reason: idleReason, skips: found.skips ?? [] };
+    const idleKey = JSON.stringify(idleObservation);
+    if (!found.retry && idleKey !== lastIdleReason) {
       try {
         const changed = withBoardRead(ctx, board => nextIdleChanged(board,
-          { agentId: whoAmI(ctx, board).id, reason: idleReason }));
-        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+          { agentId: whoAmI(ctx, board).id, ...idleObservation }));
+        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, ...idleObservation }])));
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.
         io.err(`next idle observation was not recorded (${error.code}); the idle reason remains unmeasured`);
       }
-      lastIdleReason = idleReason;
+      lastIdleReason = idleKey;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
@@ -210,9 +253,9 @@ async function nextWithProgress(io, values, progress) {
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
       const reasons = answerFirstReasons(found.reasons);
-      return refuseNextIdle(io, reasons, reasons.map((reason) => displayedWait(reason, agents, ctx.config)), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
-    if (found.retry) await progress.retry(found);
+    if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
 }

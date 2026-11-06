@@ -16,6 +16,7 @@ import { HOOK_CHECKOUT_WAIT_MS } from '../../../../../packages/seats/index.js';
 import { localSessionMatches } from '../../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { seatAt } from '../item-folder-identity.js';
+import { itemFolderRenewalRefusal } from '../item-folder-identity.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { relayLinked } from '../../../../../packages/link/index.js';
 
@@ -51,7 +52,9 @@ export async function bindWriteSession(io, positionals, values) {
     const ownsLandingRoot = command === 'hook' ? (await import('../../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
     agent = withBoard(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
-    if (!agent && command !== 'join') throw withBoard(ctx, (board) => unjoinedRefusal(info, store.listAgents(board), agentSessionDigest));
+    if (!agent && command !== 'join') throw withBoard(ctx, (board) =>
+      (command === 'hook' ? itemFolderRenewalRefusal(board, info.root) : null)
+      ?? unjoinedRefusal(info, store.listAgents(board), agentSessionDigest));
   }
   // Comparison observes immutable Git objects and records facts; it never owns the builder checkout.
   const boardOnly = ['shout', 'fact'].includes(command) ? command : command === 'verify' && values.compare ? 'fact' : null;
@@ -59,6 +62,8 @@ export async function bindWriteSession(io, positionals, values) {
     CHECKOUT_BOARD_ONLY.set(io, boardOnly);
     return;
   }
+  // The commit hooks only read: a checkout already bound to this session needs no lease, so they never queue for a slot.
+  if (command === 'hook' && ['pre-commit', 'commit-msg'].includes(first) && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) return;
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next', 'land'].includes(command), waitLimitMs: command === 'hook' ? HOOK_CHECKOUT_WAIT_MS : 0,
     /** Record the takeover; a linked main checkout takes the board's coordinator before its receipt shout, which the hold would refuse (#347). */
     recordTakeover: async () => (await import('../commands/takeover.js')).recordCheckoutTakeover(io, info),
