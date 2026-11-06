@@ -2,6 +2,7 @@ import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
+import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
@@ -28,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { itemUrgent } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -42,7 +44,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
   }]);
     // Keep the native move and reservation inside the machine ordering lock, before capture.
-    return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart }) } : queued;
+    return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart, urgent: itemUrgent(board, item.item_id) }) } : queued;
   }));
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, result.job));
   if (result.created) {
@@ -79,13 +81,53 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
 }
 
-/** An absent process or a different exact incarnation proves death; unavailable identity never does. */
+/** An absent process, a different exact incarnation or a worker the dispatcher could not start proves death; unavailable identity never does. */
 function deadWorker(worker, job) {
+  if (worker?.job === job.id && worker.unstarted && worker.pid === null) return true;
   if (worker?.job !== job.id || !Number.isSafeInteger(worker.pid) || worker.pid < 1) return false;
   try { process.kill(worker.pid, 0); }
   catch (error) { return error.code === 'ESRCH'; }
   const observed = exactStart(worker.pid);
   return Boolean(worker.started && observed && observed !== worker.started);
+}
+
+/** A queued job past its launch grace with no worker record and no place in line will never start. */
+export const LOST_LAUNCH_GRACE_MS = 2 * 60_000;
+
+/**
+ * Whether a queued job's launch was lost: it is older than the grace, so its submit reserved a place long ago, yet no
+ * place in line remains. Why: the dispatcher writes worker.json before it removes a ticket, so only a lost ticket
+ * (an abandoned reservation or a ticket kept aside) leaves neither, and such a job held its claim for 5 h (#3121).
+ */
+export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
+  const at = Date.parse(job?.at ?? '');
+  return job?.state === 'queued' && Number.isFinite(at) && now - at > LOST_LAUNCH_GRACE_MS && !waiting(job.id);
+}
+
+/** The job's worker record, or null while none is written. */
+function readWorkerRecord(directory) {
+  try { return JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
+  catch { return null; }
+}
+
+/**
+ * The worker record recovery judges: the written one, or a lost-launch record when the job has neither a worker nor a
+ * place in line; null leaves the job alone. Why the second read: the dispatcher writes worker.json and only then
+ * removes the ticket, outside this guard, so a first read can miss a worker that a later ticket check no longer
+ * sees; reading again after the ticket check finds it, and a live launch is never ended (#3153).
+ *
+ * @param {{ id: string, state: string, at: string }} job
+ * @param {{ readWorker: () => object | null, waiting?: (job: string) => boolean, now?: number }} ports
+ * @returns {object | null}
+ */
+export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWaiting, now = Date.now() }) {
+  const first = readWorker();
+  if (first) return first;
+  if (!lostQueuedLaunch(job, { now, waiting })) return null;
+  const again = readWorker();
+  if (again) return again;
+  return { version: 1, job: job.id, pid: null, started: null, relaunches: 0,
+    unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
 }
 
 /**
@@ -100,10 +142,27 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
-  let worker;
-  try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch { return; }
-  if (!deadWorker(worker, observed)) return;
+  const workerRecord = readWorkerRecord(directory);
+  if (!workerRecord && observed.state === 'queued') {
+    const unlaunched = await withHandoffQueueOrder(() => {
+      const current = withBoardRead(ctx, board => {
+        const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
+        const job = submitHandoff(board, itemId);
+        return job?.id === observed.id && job.state === 'queued' && item?.item_status === 'claimed'
+          && item.item_owner === actor && item.item_frozen_digest === observed.digest;
+      });
+      if (!current || existsSync(join(directory, 'request.json')) || handoffTicketWaiting(observed.id)) return false;
+      // The dispatcher writes worker.json before it removes the ticket. Recheck both artifacts after the ticket read so
+      // a just-started worker cannot be mistaken for a queue whose capture never began.
+      return !readWorkerRecord(directory) && !existsSync(join(directory, 'request.json')) && !handoffTicketWaiting(observed.id);
+    });
+    if (unlaunched) {
+      await failUnlaunchedSubmitHandoff(ctx, itemId, actor, observed, 'both request.json and worker.json are missing');
+      return;
+    }
+  }
+  const worker = queuedWorkerRecord(observed, { readWorker: () => readWorkerRecord(directory) });
+  if (!worker || !deadWorker(worker, observed)) return;
   let owned = false;
   const current = withBoardRead(ctx, board => {
     const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
@@ -117,6 +176,8 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
     // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
     if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
+    // A lost place in line ends as infrastructure rather than relaunching: nothing records how often it was lost (#3153).
+    if (worker.unstarted?.code === 'HANDOFF_TICKET_LOST') throw new Refused('SUBMIT_HANDOFF_RECOVERY', worker.unstarted.message);
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
@@ -153,6 +214,18 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
       }
     }
   }
+}
+
+/** End a queue whose captured request and worker were never created, so its owner can submit the same source again. */
+async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
+  const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_NOT_LAUNCHED',
+    `queued submit worker was not launched: ${cause}; no gate ran`,
+    'resubmit the same committed source to launch a fresh worker'), { caller: 'seat' }) };
+  const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
+  return withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+    { agentId: actor, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
 }
 
 /**

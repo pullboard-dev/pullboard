@@ -17,6 +17,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
@@ -137,15 +138,57 @@ export function trustedTooling() {
   } finally { installation?.cleanup(); }
 }
 
-/** Install pinned bytes first, then replace the SSH shell with the file-based worker. */
-export function remoteWorkerCommand(runner, worker, tooling, runtime, extra = '', recovery = null) {
+/** The largest capsule a remote installer reads from stdin; the installer's own gunzip bound stays 1 MiB. */
+export const CAPSULE_STDIN_LIMIT = 4 * 1024 ** 2;
+
+/**
+ * Read one length-prefixed capsule from the job's stdin, byte-exact, so the exec'd worker reads the rest.
+ * Why: the capsule rode in the SSH exec command, and OpenSSH resets any command over its 256 KiB packet bound.
+ */
+export function readCapsuleFromStdin() {
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  const read = (buffer, offset, length) => {
+    for (;;) {
+      try { return readSync(0, buffer, offset, length, null); }
+      catch (error) { if (error.code !== 'EAGAIN') throw error; Atomics.wait(pause, 0, 0, 5); }
+    }
+  };
+  const one = Buffer.alloc(1);
+  let header = '';
+  for (;;) {
+    if (read(one, 0, 1) !== 1) throw new Error('runner capsule ended before its length');
+    if (one[0] === 10) break;
+    header += String.fromCharCode(one[0]);
+    if (!/^[0-9]{1,8}$/u.test(header)) throw new Error('invalid runner capsule length');
+  }
+  const length = Number(header);
+  if (!Number.isSafeInteger(length) || length < 1 || length > 4 * 1024 ** 2) throw new Error('invalid runner capsule length');
+  const bytes = Buffer.alloc(length);
+  let received = 0;
+  while (received < length) {
+    const count = read(bytes, received, length - received);
+    if (count === 0) throw new Error('runner capsule ended early');
+    received += count;
+  }
+  return bytes.toString('ascii');
+}
+
+/**
+ * Install pinned bytes first, then replace the SSH shell with the file-based worker.
+ * The command stays small and fixed; the capsule goes first on stdin, ahead of anything the worker reads.
+ *
+ * @returns {{ command: string, input: Buffer }} The remote command and the stdin bytes to write before any other.
+ */
+export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '', recovery = null) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
   const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
+  if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
   const installer = `import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -154,10 +197,12 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 ${installRunnerPackage.toString()}
-installRunnerPackage(${JSON.stringify(payload)}, ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
+${readCapsuleFromStdin.toString()}
+installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
 ${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/src/runner-worker.js`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;
-  return `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`;
+  return { command: `${node} --input-type=module -e ${shellWord(installer)} && exec ${node} ${entry}${extra}`,
+    input: Buffer.from(`${Buffer.byteLength(payload)}\n${payload}`, 'ascii') };
 }

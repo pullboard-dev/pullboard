@@ -1384,6 +1384,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/process-ports.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-board.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-client.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/checks/changed-static.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1524,6 +1536,39 @@
     },
     {
       "path": "src/move-history/228.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/accepted-reland-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
+      "path": "src/move-history/229.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/ledger-quarantine-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/quarantine-backfill-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/230.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/231.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/resident-socket.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/232.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
