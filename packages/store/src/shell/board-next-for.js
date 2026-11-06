@@ -53,6 +53,7 @@ import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
+import { heldClaim } from './held-claim.js';
 
 /** Count each first eligibility refusal once; occupied reviews keep their separate lease diagnostics. */
 function skippedReviewReasons(failures) {
@@ -197,8 +198,7 @@ export function nextFor(board, options) {
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
   }
-  const claims = items.filter((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
-  const held = (rejectionReturnEnabled(board) ? claims.find(entry => entry.item_verdict === 'REJECT' && entry.item_built_by === agentId) : null) ?? claims[0];
+  const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   const ownRejectionFirst = held && plannedRelease === null && rejectionReturnEnabled(board)
@@ -305,6 +305,27 @@ export function nextFor(board, options) {
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
+}
+
+/**
+ * The green, unreserved submission this seat may review now, or null [C7, #2992].
+ * Finished work waits only on a reviewer, so a seat takes it before any new build with no
+ * starvation wait. Only a green gate at the submitted head with no live review reservation
+ * counts; every other submission is skipped, and nextFor's reviewer checks, the cross-family rule
+ * among them, still decide eligibility.
+ *
+ * @param {any} board
+ * @param {any} who - The nextFor options of the asking seat.
+ * @returns {any | null}
+ */
+export function greenReviewFor(board, who) {
+  const skip = new Set(who.skipIds ?? []);
+  for (const item of listItems(board)) {
+    if (item.item_status !== 'submitted') continue;
+    // Only a live reservation holds a review: one that expired or was released leaves the work waiting again.
+    if (reviewHolder(board, item) || !greenAtHead(board, item)) skip.add(item.item_id);
+  }
+  return nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] }).item ?? null;
 }
 
 /**
