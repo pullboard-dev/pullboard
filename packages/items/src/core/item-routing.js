@@ -15,11 +15,21 @@ const BRIEF_LIMIT = 8000;
  *
  * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
+/**
+ * The literal test files a check command names, in order and without repeats.
+ *
+ * @param {string} check
+ * @returns {string[]}
+ */
+export function checkTestFiles(check) {
+  return [...new Set((String(check ?? '').match(/(?:^|\s)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))(?:\s|$)/gu) ?? []).map(value => value.trim().split(/\s/u).at(-1)))];
+}
+
 /** Fill absent low-route file and test sections from literal test paths in the item's check. */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };
   const sections = briefSections(brief, referenceOptions);
-  const files = [...new Set((check.match(/(?:^|\s)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))(?:\s|$)/gu) ?? []).map(value => value.trim().split(/\s/u).at(-1)))];
+  const files = checkTestFiles(check);
   if (!files.length) return brief;
   const add = [];
   if (!briefFiles(brief, referenceOptions).length) add.push(`Files:\n${files.map(file => `- ${file}`).join('\n')}`);
