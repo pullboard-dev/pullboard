@@ -1411,30 +1411,30 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .window-keys i { display: inline-block; width: var(--space-3); height: var(--space-3); margin-right: var(--space-1); border-radius: var(--radius-xs); }
 .window-stage-build { background: var(--accent); fill: var(--accent); } .window-stage-rework { background: var(--reject); fill: var(--reject); } .window-stage-reviewWait { background: var(--ink-faint); fill: var(--ink-faint); } .window-stage-review { background: var(--blue); fill: var(--blue); } .window-stage-land { background: var(--accent-strong); fill: var(--accent-strong); }
 .window-comparison .dash-comparison { margin-top: var(--space-4); }
-.dash-pipeline-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-3); } .dash-pipeline-item { min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-2); }
-.dash-pipeline-item h3 { overflow-wrap: anywhere; } .dash-pipeline-item dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-2); margin: 0; }
-.dash-pipeline-item dl > div { min-width: 0; } .dash-pipeline-item dt, .dash-pipeline-item dd { margin: 0; color: var(--ink-muted); font-size: var(--text-xs); } .dash-pipeline-item dd { color: var(--ink); font-family: var(--mono); }
-.dash-pipeline-causes, .dash-pipeline-gaps, .dash-pipeline-retries { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-left: var(--space-5); font-size: var(--text-xs); }
 @media (max-width: 760px) { .window-tiles { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 /* Spec keeps the shared row frame, with its tier and citation count in one right column. */
 #spec-list .spec-section-head { border-top: 1px solid var(--line); padding-top: var(--space-5); margin-top: var(--space-5); }
 #spec-list .spec-section-head:first-child { border-top: 0; margin-top: var(--space-2); padding-top: 0; }
 #spec-list h4 { font-size: var(--text-spec-heading); font-weight: 600; color: var(--ink); }
-#spec-list .spec-record { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; grid-template-areas: "dot main side"; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
-#spec-list .spec-record > div:first-of-type { grid-area: main; min-width: 0; display: block; }
-#spec-list .spec-record > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; color: var(--warn); background: var(--warn-soft); font-size: var(--text-xs); }
-#spec-list .spec-record.s-verified > .dot { color: var(--accent-strong); background: var(--accent-soft); }
-#spec-list .spec-record.s-back > .dot { color: var(--reject); background: var(--reject-soft); }
-#spec-list .spec-record .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+:is(#spec-list, #doctrine-list) .spec-record { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; grid-template-areas: "dot main side"; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+:is(#spec-list, #doctrine-list) .spec-record > div:first-of-type { grid-area: main; min-width: 0; display: block; }
+:is(#spec-list, #doctrine-list) .spec-record > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; color: var(--warn); background: var(--warn-soft); font-size: var(--text-xs); }
+:is(#spec-list, #doctrine-list) .spec-record.s-verified > .dot { color: var(--accent-strong); background: var(--accent-soft); }
+:is(#spec-list, #doctrine-list) .spec-record.s-back > .dot { color: var(--reject); background: var(--reject-soft); }
+:is(#spec-list, #doctrine-list) .spec-record .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .row-id { font-family: var(--mono); margin-right: var(--space-3); font-weight: 500; }
-#spec-list .spec-record .meta { display: flex; flex-wrap: nowrap; gap: var(--space-3); }
+:is(#spec-list, #doctrine-list) .spec-record .meta { display: flex; flex-wrap: nowrap; gap: var(--space-3); }
 .spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
 .spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spec-gate.missing { color: var(--reject); }
-#spec-list .spec-row-side { display: grid; grid-area: side; display: grid; justify-items: end; align-content: start; gap: var(--space-1); }
+:is(#spec-list, #doctrine-list) .spec-row-side { display: grid; grid-area: side; display: grid; justify-items: end; align-content: start; gap: var(--space-1); }
 .spec-row-side small { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
 .spec-row-side .chip, #spec-detail .tier-must, #spec-detail .tier-aim { background: none; color: var(--ink-muted); }
 .spec-row-side .tier-must, #spec-detail .tier-must { border: 1px solid var(--line-strong); }
+/* One plain soft pill for the tier, in Spec and in Doctrine alike; not boxed mono text. */
+.chip.tier-pill { padding: 0 var(--space-3); border-radius: var(--radius-pill); font: 600 var(--text-xs)/var(--leading-body) var(--sans); letter-spacing: 0; text-transform: none; background: var(--surface-2); color: var(--ink); }
+.chip.tier-pill.tier-must { background: var(--surface); border: 1px solid var(--line-strong); }
+.chip.tier-pill.warn { background: var(--stage-review-soft, var(--warn-soft)); color: var(--warn); }
 .spec-detail-content { display: grid; gap: var(--space-5); }
 .spec-detail-section { color: var(--ink-faint); font: var(--text-2xs) var(--mono); text-transform: uppercase; letter-spacing: var(--tracking-label); }
 #spec-detail h2 { font-size: var(--text-spec-title); line-height: 1.5; margin: 0; }
@@ -1518,7 +1518,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .first-run-dia .node.now rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
 .first-run-dia .node.now text { fill: var(--accent-strong); }
 .first-run-dia path { fill: none; stroke: var(--ink-faint); stroke-width: 1.6; }
-.first-run-dia path.back { stroke: var(--reject); stroke-dasharray: 4 3; }
+.first-run-dia path.back { stroke: var(--reject); stroke-dasharray: 4 3; } .first-run-dia path.head-back { stroke: var(--reject); }
 .first-run-dia path.next { stroke-dasharray: 3 4; }
 .first-run-dia .lbl { fill: var(--ink-faint); font: 10.5px var(--sans); } .first-run-dia .lbl.back { fill: var(--reject); }
 .first-run-caption { min-height: 28px; margin: 8px 0 0; text-align: center; font-size: 15px; font-weight: 500; color: var(--ink); }
