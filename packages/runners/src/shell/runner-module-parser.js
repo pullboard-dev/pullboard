@@ -28,9 +28,9 @@ export function runnerModuleParserCompileCount() {
   return sourcesCompiled;
 }
 
-/** Content hash that keys the process cache, so a changed file is a different entry and is re-parsed. */
-function sourceKey(source) {
-  return createHash('sha256').update(source).digest('hex');
+/** Path plus content hash that keys the process cache, so a changed file is a different entry and is re-parsed. */
+function sourceKey(source, path = '') {
+  return `${path}\0${createHash('sha256').update(source).digest('hex')}`;
 }
 
 /** Read exact owned compiler bytes; a symlink or unbounded entry cannot become a trusted parser. */
@@ -97,19 +97,19 @@ export function createRunnerModuleParser() {
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
 
   /** Retain bounded compiler results for the life of the process, keyed by source content hash. */
-  function remember(source, result) {
+  function remember(source, result, path) {
     const bytes = Buffer.byteLength(source) + Buffer.byteLength(JSON.stringify(result));
     // Budget: memoization retains at most 4 MiB/4096 entries; oversized misses still compile normally.
-    const key = sourceKey(source);
+    const key = sourceKey(source, path);
     if (PROCESS_CACHE.has(key) || PROCESS_CACHE.size >= 4096 || processCacheBytes + bytes > 4 * 1024 ** 2) return;
     PROCESS_CACHE.set(key, Object.freeze({ compiles: result.compiles, imports: Object.freeze([...result.imports]) }));
     processCacheBytes += bytes;
   }
 
   /** Rebuild the caller's original order with independent rows and import arrays, including duplicates. */
-  function orderedResults(sources, fresh) {
-    return sources.map(source => {
-      const result = PROCESS_CACHE.get(sourceKey(source)) ?? fresh.get(source);
+  function orderedResults(sources, fresh, paths) {
+    return sources.map((source, index) => {
+      const result = PROCESS_CACHE.get(sourceKey(source, paths[index])) ?? fresh.get(source);
       return { compiles: result.compiles, imports: [...result.imports] };
     });
   }
@@ -145,15 +145,16 @@ export function createRunnerModuleParser() {
     if (!Number.isSafeInteger(child.pid)) throw parserFailure();
   }
 
-  /** Compile source text only, waiting on one atomic regular-file reply under the existing parser deadline. */
-  function parse(sources) {
+  /** Compile source text only (optional `paths` pair each source with its file for the cache key), waiting on one atomic regular-file reply under the existing parser deadline. */
+  function parse(sources, paths = []) {
     let request = null;
     let reply = null;
     try {
       assertRunnerModuleParserCurrent();
       if (closed || childFailed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw parserFailure();
-      const missing = [...new Set(sources.filter(source => !PROCESS_CACHE.has(sourceKey(source))))];
-      if (!missing.length) return orderedResults(sources, new Map());
+      if (!Array.isArray(paths) || paths.some(path => path !== undefined && typeof path !== 'string')) throw parserFailure();
+      const missing = [...new Set(sources.filter((source, index) => !PROCESS_CACHE.has(sourceKey(source, paths[index]))))];
+      if (!missing.length) return orderedResults(sources, new Map(), paths);
       sourcesCompiled += missing.length;
       const id = ++sequence;
       if (!Number.isSafeInteger(id)) throw parserFailure();
@@ -174,8 +175,8 @@ export function createRunnerModuleParser() {
           const rows = checkedResults(result, id, missing.length);
           assertRunnerModuleParserCurrent();
           const fresh = new Map(missing.map((source, index) => [source, rows[index]]));
-          for (const [source, row] of fresh) remember(source, row);
-          return orderedResults(sources, fresh);
+          sources.forEach((source, index) => { if (fresh.has(source)) remember(source, fresh.get(source), paths[index]); });
+          return orderedResults(sources, fresh, paths);
         }
         const remaining = Number(deadline - process.hrtime.bigint()) / 1e6;
         if (remaining <= 0) throw parserFailure();

@@ -29,4 +29,16 @@ test('clause 1: a second parser in one process parses nothing again and a change
   third.close();
   assert.equal(changed[0].compiles, true);
   assert.equal(runnerModuleParserCompileCount(), afterCold + 1, 'a changed file is parsed again');
+
+  const fourth = createRunnerModuleParser();
+  const before = runnerModuleParserCompileCount();
+  fourth.parse([source], ['a.js']);
+  fourth.parse([source], ['a.js']);
+  fourth.parse([source], ['b.js']);
+  fourth.close();
+  assert.equal(runnerModuleParserCompileCount(), before + 2, 'the key is path plus content: a path parses once, a new path parses again');
+  const fifth = createRunnerModuleParser();
+  fifth.parse([`${source}export const d = 1;\n`], ['a.js']);
+  fifth.close();
+  assert.equal(runnerModuleParserCompileCount(), before + 3, 'the same path with changed content is re-parsed');
 });
