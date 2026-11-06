@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import {
   acceptRunnerPlan,
   gateWithRunnerPlan,
+  runSubmitGateWithRunnerPlan,
 } from '../apps/cli/src/shell/submit-remote-gate.js';
 import {
   runSubmitGate,
@@ -50,6 +51,17 @@ const forbidden = { plan: () => assert.fail('the Mac planned the selection'), ad
 
 test('a runner plan bound to the pinned commits is used with its admission, so the Mac plans nothing [C7,H24]', () => {
   assert.deepEqual(acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] }), { plan: analysis.plan, admission: analysis.admission });
+});
+
+test('submit passes the accepted runner plan and admission to runSubmitGate without invoking local planning [C7,H24]', () => {
+  let received;
+  const runSubmitGate = (root, config, options) => { received = { root, config, options }; return 'gate'; };
+  const runnerPlan = acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] });
+  const result = runSubmitGateWithRunnerPlan(runSubmitGate, '/controller', { affectedTests: true }, runnerPlan, { staticChecked: true });
+  assert.equal(result, 'gate');
+  assert.deepEqual(received, { root: '/controller', config: { affectedTests: true }, options: {
+    staticChecked: true, plan: analysis.plan, admission: analysis.admission,
+  } });
 });
 
 test('a runner plan whose main or source differs refuses RUNNER_RESULT_INVALID [C7,H24]', () => {
