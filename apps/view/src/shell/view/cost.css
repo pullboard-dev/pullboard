@@ -51,7 +51,7 @@
   .cost-row { padding-inline: var(--space-3); }
 }
 /* Approved Cost overview (cost.html): quiet cards, vendor-coloured models, hours in plain words. */
-.cost-page { --line-soft: light-dark(#e4e8e5, #1b2420); --openai: light-dark(#3f6f9e, #6ba7d6); --anthropic: light-dark(#b2643a, #e39a6d); display: grid; gap: 14px; max-width: 1180px; }
+.cost-page { --openai: light-dark(#3f6f9e, #6ba7d6); --anthropic: light-dark(#b2643a, #e39a6d); display: grid; gap: 14px; max-width: 1180px; }
 .cost-page > * { min-width: 0; }
 .cost-card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 1px 2px light-dark(rgba(18,26,23,.05), rgba(0,0,0,.4)); }
 .cost-kicker { margin: 0; color: var(--ink-faint); font: 600 var(--text-2xs)/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; }

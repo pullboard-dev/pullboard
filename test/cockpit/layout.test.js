@@ -19,7 +19,7 @@ function sendBackWithClause(box, project, id, note, clause) {
 }
 
 
-test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
+test('clause 1: the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for the 320px check.');
 
@@ -118,7 +118,7 @@ test('the view has a light and a dark theme to choose [N26]', async () => {
   }
 });
 
-test('no box carries a coloured edge [N26]', async () => {
+test('clause 1: no box carries a coloured edge [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -128,10 +128,11 @@ test('no box carries a coloured edge [N26]', async () => {
   try {
     const page = await openPage(view);
     const style = await styleOf(view);
-    // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
+    // Every border drawn on one side of a box is nothing, or a 1px divider in a neutral line colour (--line, or the
+    // softer --line-soft the Cost, item panel and first-run dividers use since ad61bcc68c, 639c16dbb5 and 0de17112c6).
     const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
     assert.ok(sides.length > 0);
-    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line\))$/.test(side)), [], 'no coloured or thick bar on one edge');
+    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line(?:-soft)?\))$/.test(side)), [], 'no coloured or thick bar on one edge');
     assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
 
     await page.click({ go: 'item:1' });
@@ -141,7 +142,7 @@ test('no box carries a coloured edge [N26]', async () => {
     await view.stop();
   }
 });
-test("the authenticated local view assembles its shared and private styles [N26]", async () => {
+test("clause 1: the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -248,7 +249,7 @@ test('the status bar holds one line under no pointer [N26]', { timeout: 120_000 
   }
 });
 
-test('the board reads at a glance from the status bar [N26]', { timeout: 180_000 }, async (t) => {
+test('clause 1: the board reads at a glance from the status bar [N26]', { timeout: 180_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for status bar checks.');
 
@@ -271,8 +272,8 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   accept(box, alpha, 7);
   box.run(alpha.web, 'claim', '2');
   box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
-  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7');
-  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4');
+  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7', '--reason', 'Arrange fixture release');
+  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4', '--reason', 'Arrange fixture release');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
   box.run(second, 'join', 'web');
@@ -641,7 +642,7 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
   }
 });
 
-test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 150_000 }, async (t) => {
+test('clause 1: targets are 44px for touch and compact under a mouse [N26]', { timeout: 150_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for target size checks.');
   const box = machine();

@@ -21,4 +21,5 @@
 .row.item-row .item-seat.verify { background: var(--blue-soft); color: var(--blue); }
 .row.item-row .item-status { font-family: var(--sans); }
 .row.item-row .item-status.verified { background: var(--accent-soft); color: var(--accent-strong); }
-.row.item-row.gated:has(> .row-side > .chip.gate) { border-color: light-dark(#ca9d96, #86403b); }
+/* A lane hold keeps its warning edge; since 1484ea02be it is a Lane held mark on the stage chip, not a chip.gate. */
+.row.item-row.gated:has(.stage-mark.gate[aria-label^="Lane held"]) { border-color: light-dark(#ca9d96, #86403b); }

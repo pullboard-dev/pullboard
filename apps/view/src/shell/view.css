@@ -4,7 +4,7 @@
  */
 :root {
   color-scheme: light dark;
-  --ground: light-dark(#e9eceb, #0c110f); --surface: light-dark(#fdfefd, #121815); --surface-2: light-dark(#f2f4f1, #171f1b); --line: light-dark(#d3d9d5, #232e29); --line-strong: light-dark(#bcc5bf, #34423b);
+  --ground: light-dark(#e9eceb, #0c110f); --surface: light-dark(#fdfefd, #121815); --surface-2: light-dark(#f2f4f1, #171f1b); --line: light-dark(#d3d9d5, #232e29); --line-soft: light-dark(#e4e8e5, #1b2420); --line-strong: light-dark(#bcc5bf, #34423b);
   --ink: light-dark(#121a17, #e7ece9); --ink-muted: light-dark(#4c5852, #9caba3); --ink-faint: light-dark(#7a887f, #6a776f);
   --accent: light-dark(#08915f, #34d89e); --accent-strong: light-dark(#067049, #4ee3ac); --accent-soft: light-dark(#dcefe6, #10231c); --on-accent: light-dark(#f4fbf7, #05201a);
   --warn: light-dark(#a2660f, #e4b25a); --warn-soft: light-dark(#f2e6cf, #241d10); --reject: light-dark(#bd4437, #f0776b); --reject-soft: light-dark(#f4e0dc, #271613);
@@ -1550,7 +1550,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .first-run-tile b { display: block; font-size: 15px; line-height: 1.25; white-space: nowrap; }
 .first-run-tile a { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--accent-strong); text-decoration: none; }
 .first-run-later { margin: 0; text-align: center; color: var(--ink-faint); font-size: 13px; padding: 6px; }
-@media (max-width: 1240px) { .first-run-rules { grid-template-columns: 1fr; gap: 0; } .first-run-rules .arr { transform: rotate(90deg); height: 22px; } }
+@media (max-width: 1240px) { .first-run-rules { grid-template-columns: 1fr; gap: 0; } .first-run-rules .arr { transform: rotate(90deg); height: 22px; } .first-run-rules em { white-space: normal; } }
 @media (max-width: 1100px) { .first-run-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1000px) { .first-run-two { grid-template-columns: 1fr; padding: 20px; } .first-run-how { border-right: 0; padding: 0 0 20px; border-bottom: 1px solid var(--line-soft); } .first-run-start { padding: 20px 0 0; } }
 @media (max-width: 700px) { .first-run-checks li { flex-wrap: wrap; } .first-run-checks li small.hint { margin-left: 30px; flex-basis: 100%; } .first-run-line { flex-wrap: wrap; } }
