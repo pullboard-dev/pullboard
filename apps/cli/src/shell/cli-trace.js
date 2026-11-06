@@ -42,6 +42,26 @@ export function redactArgs(argv) {
   return out;
 }
 
+/** Flags whose value names an item, as in `next --verify 3214`. */
+const ITEM_FLAGS = new Set(['--verify', '--item', '--after']);
+
+/**
+ * The item id a command names: the first bare number after the command, or the value of an item flag such as
+ * `--verify`. A number that is the value of any other flag (`--wait 30`) is not an item id.
+ */
+export function itemOf(argv) {
+  for (let i = 1; i < argv.length; i += 1) {
+    const arg = String(argv[i]);
+    const inline = /^(--[^=]+)=#?([1-9][0-9]*)$/u.exec(arg);
+    if (inline && ITEM_FLAGS.has(inline[1])) return Number(inline[2]);
+    const bare = /^#?([1-9][0-9]*)$/u.exec(arg)?.[1];
+    const prev = i > 1 ? String(argv[i - 1]) : '';
+    if (bare && ITEM_FLAGS.has(prev)) return Number(bare);
+    if (bare && !(prev.startsWith('--') && !prev.includes('='))) return Number(bare);
+  }
+  return null;
+}
+
 /** The worktree root, its git dir and the common git dir for cwd, or null outside a repository. */
 function locate(cwd) {
   let root = resolve(cwd);
@@ -75,10 +95,10 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
     if (!where) return null;
     const at = new Date(startedAt);
     const refused = refusal ?? (error && typeof error.code === 'string' && error.name === 'Refused' ? error : null);
-    const item = /^#?([1-9][0-9]*)$/u.exec(String(argv[1] ?? ''))?.[1];
+    const item = itemOf(argv);
     const line = {
       at: at.toISOString(), agent: seat, model: firstEnv(MODEL_ENV, env), session: firstEnv(SESSION_ENV, env),
-      worktree: where.root, branch: branchOf(where.gitDir), command: argv[0] ?? 'help', item: item ? Number(item) : null,
+      worktree: where.root, branch: branchOf(where.gitDir), command: argv[0] ?? 'help', item,
       args: redactArgs(argv.slice(1)), exit: status,
       refusal: refused ? { code: refused.code, message: String(refused.message) } : null,
       error: error && !refused ? String(error.message ?? error) : undefined,

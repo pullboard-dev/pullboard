@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { appendTrace, redactArgs } from '../apps/cli/src/shell/cli-trace.js';
+import { appendTrace, itemOf, redactArgs } from '../apps/cli/src/shell/cli-trace.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -61,6 +61,14 @@ test('clause 1: every pullboard run appends one trace line with who, where, what
 function existsCount(repo) {
   try { return traceLines(repo).length; } catch { return 0; }
 }
+
+test('clause 1: the item id is traced whether it is a positional or the value of --verify, never a --wait number [C7]', () => {
+  assert.equal(itemOf(['show', '3214']), 3214);
+  assert.equal(itemOf(['next', '--verify', '3214']), 3214);
+  assert.equal(itemOf(['next', '--verify=#3214']), 3214);
+  assert.equal(itemOf(['next', '--wait', '30']), null);
+  assert.equal(itemOf(['inbox']), null);
+});
 
 test('clause 2: an unwritable trace folder keeps the command exit code and the append costs under 5 ms [C7]', () => {
   const { box, id } = scratch();
