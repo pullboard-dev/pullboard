@@ -470,8 +470,8 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
   assert.equal(unchangedLandingHead.code, 1);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
-  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'EMPTY_SUBMIT',
-    'the original head is refused before proof; a claim that merged main leaves no change against main, which 093cd32d5b refuses as EMPTY_SUBMIT');
+  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'GATE_RED',
+    'the original head is refused before proof; a claim that merged main still fails the unchanged red behavior');
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
