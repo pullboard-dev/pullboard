@@ -10,7 +10,7 @@ import { machine, project, build, accept, startView, openPage } from './fixture.
 const TABS = ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'cost'];
 const writes = source => source.match(/document\.title\s*=(?!=)/gu) ?? [];
 
-test('clause 1: one function builds the title from the tab and board: remaining on Roadmap, Cost label on Cost, needs elsewhere (#3200)', () => {
+test('clause 1: one function builds the title from the tab and board: remaining on Roadmap, Cost label on Cost, needs elsewhere (#3200) [N26,N38]', () => {
   const place = { shown: true, name: 'alpha', needs: 2, remaining: 3, cost: true };
   assert.equal(tabTitle({ ...place, tab: 'roadmap' }), '(3 remaining) alpha · Roadmap · Pullboard');
   assert.equal(tabTitle({ ...place, tab: 'roadmap', remaining: null }), 'alpha · Roadmap · Pullboard');
@@ -22,7 +22,7 @@ test('clause 1: one function builds the title from the tab and board: remaining 
   assert.equal(tabTitle({ shown: false, tab: 'roadmap' }), 'Pullboard');
 });
 
-test('clause 1: cockpit-sidebar.js and page-render.js no longer set the title separately; the page writes it once, only when it differs (#3200)', () => {
+test('clause 1: cockpit-sidebar.js and page-render.js no longer set the title separately; the page writes it once, only when it differs (#3200) [N26,N38]', () => {
   assert.equal(writes(readFileSync(new URL('../../apps/view/src/shell/view/page-render.js', import.meta.url), 'utf8')).length, 0, 'page-render.js sets no title');
   const page = cockpitPage('');
   assert.equal(writes(page).length, 1, 'the served page has one title write');
@@ -31,7 +31,7 @@ test('clause 1: cockpit-sidebar.js and page-render.js no longer set the title se
 });
 
 // budget: hang ceiling for native fixture setup and 24 in-process refreshes; no speed threshold.
-test('clause 2: refreshing each tab three times shows the same title every time, on Cost and Roadmap included (#3200)', { timeout: 120_000 }, async () => {
+test('clause 2: refreshing each tab three times shows the same title every time, on Cost and Roadmap included (#3200) [N26,N38]', { timeout: 120_000 }, async () => {
   const box = machine();
   const demo = project(box, 'tab-title');
   for (const title of ['Ready to land', 'Next work', 'Later work']) box.run(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The page shows the work.');
