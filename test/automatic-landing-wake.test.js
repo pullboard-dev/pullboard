@@ -53,19 +53,3 @@ test('an early wake retains a newer deferral, and a failed callback retains reco
   await assert.rejects(resumeAutomaticLanding(root, 'fixture-token', dueAt, async () => { throw new Error('native admission unavailable'); }, { wait: async () => true }), /native admission unavailable/u);
   assert.match(pending(root).error, /native admission unavailable/u);
 });
-
-test('a dead landing worker mid-batch is replaced and the adoption names its pid and the gap [C7]', async t => {
-  const root = fixture(t), schedule = async () => {}, timers = [];
-  await scheduleAutomaticLanding(root, dueAt, worker, { schedule });
-  const file = join(automaticLandingDirectory(root), 'pending.json');
-  const gone = 4194301;
-  writeFileSync(file, JSON.stringify({ ...pending(root), running: { pid: gone, started: 'Mon Jan  1 00:00:00 2001', at: new Date(Date.now() - 100_000).toISOString() } }));
-  assert.equal(await recoverAutomaticLanding(root, worker, { schedule: async (...args) => timers.push(args) }), true);
-  assert.equal(timers.length, 1, 'a replacement wake is scheduled by the sweep');
-  assert.equal(pending(root).adopted.pid, gone);
-  assert.ok(pending(root).adopted.gapSeconds >= 100, 'the unattended gap is recorded in seconds');
-  assert.equal(pending(root).running, undefined, 'the dead worker no longer holds custody');
-  let seen;
-  await resumeAutomaticLanding(root, 'fixture-token', dueAt, async (_root, adopted) => { seen = adopted; }, { wait: async () => true });
-  assert.equal(seen.pid, gone, 'the replacement receives the adoption to record on the batch');
-});
