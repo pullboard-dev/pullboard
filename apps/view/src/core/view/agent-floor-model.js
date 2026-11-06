@@ -52,7 +52,7 @@ export function agentFloorModel(model, history) {
     numbers: {
       live: agents.length - count('quiet'), seen: agents.length,
       building: count('building'), reviewing: count('reviewing'), between: count('between items'),
-      landed: model.totals.day, landedRecent: model.totals.recent,
+      landed: model.totals.day, landedRecent: model.totals.recent, peak: model.peak,
       accepted: model.totals.passed, sentBack: model.totals.sentBack,
       inReview: inReview.length,
       unreviewed: inReview.filter(({ item }) => !item.reviewer || !(Date.parse(item.reviewUntil) > now)).length,

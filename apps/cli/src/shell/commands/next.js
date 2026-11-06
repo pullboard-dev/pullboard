@@ -142,7 +142,7 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
-    const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
+    const takeMainRed = await progress.run('main-red routing', null, () => !values.take && !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;
     if (found.specMerged) {
@@ -173,7 +173,7 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -188,6 +188,12 @@ async function nextWithProgress(io, values, progress) {
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
+        if (found.waitingOffer) {
+          io.say(`available #${item.item_id}: ${item.item_title}`);
+          for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
+          io.say(`claim it when ready: ${here} pullboard claim ${item.item_id}`);
+          return 0;
+        }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
@@ -231,7 +237,7 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
-    if (found.retry) await progress.retry(found);
+    if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }
 }
