@@ -389,9 +389,9 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(itemClaim.err.includes(`held by ${coordinatorName}: Keep web-1 literal in item reason`), itemClaim.err);
     const noFree = box.run(second.path, 'next', '--build');
     assert.equal(noFree.code, 1);
-    assert.ok(noFree.err.includes(`#${id} is held by ${coordinatorName}: Keep web-1 literal in item reason`), noFree.err);
+    assert.ok(noFree.err.includes('1 item is held by coordinator'), noFree.err); // next folds held reasons to a count; claim, list and show above keep the full reason
     const noFreeJson = box.run(second.path, 'next', '--build', '--json');
-    assert.ok(JSON.parse(noFreeJson.out).error.message.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
+    assert.ok(JSON.parse(noFreeJson.out).error.message.includes('1 item is held by coordinator'));
     const available = box.run(repo.repo, 'add', 'web', 'Other model receipt', '--specs', 'G1', '--json');
     assert.equal(available.code, 0, available.err || available.out);
     const selected = box.run(second.path, 'next', '--build');
