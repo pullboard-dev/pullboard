@@ -8,7 +8,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   parseSpec,
   SIGNOFFS_FILE,
@@ -18,6 +17,7 @@ import {
   verifySignedRecords,
 } from './signature.js';
 import { Refused } from '../../../kernel/index.js';
+import { gitShowText } from '../../../git/index.js';
 import {
   CONFIG_FILE,
   configFromSource,
@@ -27,8 +27,7 @@ const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboar
 
 /** Read exact Git object bytes rather than an unrelated unstaged working copy. */
 function gitText(root, revision, file) {
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${revision}:${file}`], { cwd: root, encoding: 'utf8' });
-  return result.status === 0 ? result.stdout : null;
+  return gitShowText(root, revision, file);
 }
 
 /** Read the actual committed or staged file mapping even when unstaged config points elsewhere. */
