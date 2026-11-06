@@ -343,7 +343,7 @@ const STORE_BODY_HASHES = {
   "src/board-health-receipts.js": "22d41f344a1e51410effad4436ac37e082d3215820eac564e4a919be81f6135d", "src/board-recurring-jobs.js": "51bc12a731d46c5e38c62f4ec9e4e1138ce73c8a653a2ec8e9fde1029a1d1fb4",
   "src/board-release-claim.js": "30003731a82d1c52f221c0df9562a0c4baaeede6052d1f3f9442ede0e6b415a9", "src/board-stale-claim-release.js": "6b41ff40b89726a64ff829676bbbab6ce0c59d49a833f4fffa39ca91dbac77c6",
   "src/board-stale-state-maintenance.js": "47185b8d63d7c2e887b4660a144bfa5408279c44d4ede00c144eeb0228ce3468", "src/board-stale-state-policy.js": "176868212c5be77a3420defcb3dec5cf4a878e97025e53425f0eabb3f8d3087e",
-  "src/board-stale-state-store.js": "18f8e598ac9d995c45bd7d8169af8d5188cb18488136273ad4d2899ecc844408", "src/board-rigor-auto-source.js": "890678baea24e2161e831e84f00340e538dc5521ad32d5b05ba7b57a8d0c9b34",
+  "src/board-stale-state-store.js": "4ea33e81fce378214a41476995e15d2681b63fdfabedb76fc5a72ac4cc651382", "src/board-rigor-auto-source.js": "890678baea24e2161e831e84f00340e538dc5521ad32d5b05ba7b57a8d0c9b34",
   "src/board-rigor-source.js": "33f348cb275d515210e30ca5c0cc18ec79a9809ac0dce9583214357507422d55", "src/board-rigor.js": "f1fd397412327f4145500c1b7d52d928881bbf1dfbd94d0738077fc160a96bce",
   "src/board-claim.js": "83b4dcc19b354501f081e3ac2949da8375edce81d9bb0d3f38bb7769e2e5798c", "src/board-command-write.js": "b472d7a4bd0c4a19a23878945f5c80accb879712305fb4dc291b85882bafb760",
   "src/board-write-preparation.js": "41e353a4ac017be9dfe130b35e23d233ff93f7502d896a704c03cb129b5e5ded", "src/board-act-on-activity.js": "d0681f7d6c2ebd281e1a0ebd14251e516607c590713659a04aeb65448c27dc64",
