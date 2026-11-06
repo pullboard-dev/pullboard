@@ -238,7 +238,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   const box = fixture(t, { companion: true });
   const author = join(box.dir, 'companion-author');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', author, box.commit);
-  const authorId = document(box.run(author, 'join', 'api', '--json')).agent;
+  const authorId = document(box.run(author, 'join', 'api', '--model', 'Fixture', '--json')).agent;
   mkdirSync(join(author, 'api'), { recursive: true });
   writeFileSync(join(author, 'api', 'companion.txt'), 'required\n');
   box.git(author, 'add', 'api/companion.txt');
@@ -278,7 +278,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  document(box.run(reviewer, 'join', 'api', '--json'));
+  document(box.run(reviewer, 'join', 'api', '--model', 'Fixture', '--json'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
@@ -392,13 +392,14 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
   const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
   writeFileSync(worker, `{
     const fs = await import('node:fs');
-    if (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)})) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
+    if (process.argv[1]?.endsWith('submit-handoff-worker.js') && (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)}))) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
   }\n` + readFileSync(worker, 'utf8'));
   const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' }));
   assert.equal(queued.queued, true);
   const current = state(box, box.id);
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
+  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'first worker record', 120000); // budget: capped launch ceiling, not a timing assertion.
   const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
   await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
     try { process.kill(owner.pid, 0); return false; }
@@ -412,6 +413,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
   const contenders = [0, 1].map(() => box.helpers.launch(box, box.web, process.execPath, [box.helpers.BIN, 'next', '--json']));
   for (const contender of contenders) { const exit = await contender.closed; assert.equal(exit.code, 0, contender.stderrText); }
   if (mode === 'silent') {
+    await box.helpers.waitFor(() => JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')).relaunches === 1, 'recovery worker record', 120000); // budget: capped relaunch ceiling, not a timing assertion.
     const relaunched = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
     assert.equal(relaunched.relaunches, 1);
     await box.helpers.waitFor(() => { // budget: owned recovery process exit ceiling, not a timing assertion.
@@ -430,7 +432,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
     assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
     const other = join(box.dir, 'other-web');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-    document(box.run(other, 'join', 'web', '--json'));
+    document(box.run(other, 'join', 'web', '--model', 'Fixture', '--json'));
     const foreign = box.run(other, 'claim', String(box.id), '--json');
     assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
     if (mode === 'silent') rmSync(request.tools, { recursive: true, force: true });
@@ -465,7 +467,7 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  document(box.run(other, 'join', 'web', '--json'));
+  document(box.run(other, 'join', 'web', '--model', 'Fixture', '--json'));
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
