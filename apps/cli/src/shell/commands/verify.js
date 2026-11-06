@@ -296,7 +296,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (fromPacket) {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
       refuseUnverifiedStack(root, board, item, commit, requireTrunkMerge(root, commit));
-      check = { state: 'pass', checked: true, reused: true, executionNote: `\n${fromPacket}` };
+      check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\n${fromPacket}` };
       ctx.io.say(fromPacket);
     } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
