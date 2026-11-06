@@ -55,7 +55,7 @@ for (const failure of ['formats', 'docs', null]) test(`generated docs ${failure 
   assert.equal(box.git('worktree', 'list', '--porcelain').split('worktree ').length - 1, 1);
 });
 
-test('a formats guard that takes over two minutes can pass [A5,C7,B3]', async t => {
+test('clause 1: a formats guard that takes over two minutes can pass [A5,C7,B3]', async t => {
   const box = fixture(t, null, true);
   // The file's own process stays audible while the slow guard runs, so the idle watchdog sees a live test.
   const child = spawn(process.execPath, ['bin/guarded-docs-refresh.js'], { cwd: box.root, env: box.env });
