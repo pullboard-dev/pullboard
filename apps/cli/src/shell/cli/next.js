@@ -175,9 +175,18 @@ function nextPick(ctx, board, values) {
   const items = store.listItems(board), agents = store.listAgents(board);
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
-  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  if (!values.defaultLoop) for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
-  const findOffer = () => nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+  const findOffer = () => values.defaultLoop
+    ? (() => {
+      const item = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+        policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable,
+        routes: values.routes, observeIdle: values.observeIdle,
+        skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
+        priority: mainRedReviewItems(ctx.info.root, board) }).item;
+      return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
+    })()
+    : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
@@ -186,7 +195,7 @@ function nextPick(ctx, board, values) {
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
@@ -207,7 +216,7 @@ function nextPick(ctx, board, values) {
   const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' ? null : found;
+  const offer = held && found?.urgent !== 'age' && !values.defaultLoop ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,

@@ -81,7 +81,7 @@ export { insertShout, persistShout } from './src/shell/board-shout.js';
 export { RELEASE_REASONS, releaseReasonProblem } from './src/core/release-reasons.js';
 export { checkedSubmitOutcome } from './src/shell/submit-outcome.js';
 export { INFRASTRUCTURE_CODES, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
-export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
+export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
 export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';

@@ -99,7 +99,7 @@ export function queueSubmitHandoff(board, id, options) {
     const pending = pendingSubmitHandoff(board, item);
     if (pending) {
       if (pending.commit !== options.commit || pending.tree !== options.tree || pending.digest !== options.digest || pending.companionDigest !== options.companionDigest) {
-        throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original queued candidate is still running; wait for its terminal result before replacing the queued candidate');
+        throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original queued candidate is still running; leave it unchanged and take other work with pullboard next');
       }
       return { job: pending, created: false };
     }
