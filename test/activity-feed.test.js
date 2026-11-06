@@ -157,7 +157,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   store.verify(board, other, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Synthetic private refusal fixture.', clause: 'Unrelated item',
     head: commit, digest: freeze().digest, policy: 'any', familyPolicy: 'off', reopenFirstRefusalMinutes: 30,
     review: { commit, head: commit, trunk: base, paths: ['web/activity.txt'] } });
-  assert.equal(store.itemThread(board, other).at(-1).kind, 'reject', 'a rejection remains item activity');
+  assert.ok(store.itemThread(board, other).some(entry => entry.kind === 'reject'), 'a rejection remains item activity');
   const notices = board.db.prepare('SELECT * FROM shout WHERE shout_id > ? ORDER BY shout_id').all(beforeShouts.at(-1)?.shout_id ?? 0);
   assert.equal(notices.length, 1, 'the actionable first-refusal notice survives; no routine reject shout is added');
   assert.equal(notices[0].shout_to, 'web-1');

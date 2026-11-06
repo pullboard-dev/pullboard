@@ -570,7 +570,7 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   if (sessionStart) for (const event of board.db.prepare(`SELECT * FROM event WHERE event_id>? AND event_id<=? AND event_kind='shout_news'
     ORDER BY event_id`).all(newsAfter, cursor)) rows.set(event.event_id, event);
   const query = workerInboxQuery(board, agent);
-  const messages = board.db.prepare(`SELECT * FROM (${query.sql}) WHERE shout_id<=? ORDER BY shout_id`)
+  const messages = board.db.prepare(`${query.sql} AND shout_id<=? ORDER BY shout_id`)
     .all(...query.bindings, shoutCursor);
   // News delivery uses its own cursor so ordinary inbox reads cannot consume a future session's digest.
   const possibleNewsIds = [...rows.values()].filter(event => event.event_kind === 'shout_news')
