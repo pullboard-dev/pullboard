@@ -284,7 +284,7 @@ function tick(socket) {
   });
 }
 
-test('an idle resident process closes its board connections and exits [H24]', async () => {
+test('clause 1: an idle resident process closes its board connections and exits [H24]', async () => {
   // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
   const bin = join(fx.code, 'bin', 'pullboard.js');
   const place = residentSocket(fx.repo, bin);
