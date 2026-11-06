@@ -716,7 +716,7 @@ async function threeReplicaFixture(t, timing) {
   try {
     store.register(seedBoard, { lane: 'coordinator', path: seed });
     for (let index = 0; index < worktrees.length; index += 1) {
-      const seat = store.register(seedBoard, { lane: 'web', path: worktrees[index], route: 'light', createdBy: 'coordinator' });
+      const seat = store.register(seedBoard, { lane: 'web', path: worktrees[index], route: 'mid', createdBy: 'coordinator' });
       // The seed stands in for seats the coordinator enrolled through the relay, so they may verify (#579).
       seedBoard.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${seat}`, 'coordinator');
     }
@@ -724,7 +724,7 @@ async function threeReplicaFixture(t, timing) {
       store.addItem(seedBoard, {
         by: 'coordinator', lane: 'web', title: `Concurrent claim ${id}`,
         criterion: 'one clone claims this item once', specIds: ['G1'],
-        brief: 'Files: web/README.md\nTest: exactly one ordered claim event is recorded.', route: 'light', check: 'true',
+        brief: 'Files: web/README.md\nTest: exactly one ordered claim event is recorded.', route: 'mid', check: 'true',
       });
     }
     boardId = store.boardId(seedBoard);
