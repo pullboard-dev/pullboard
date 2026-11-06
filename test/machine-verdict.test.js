@@ -33,7 +33,7 @@ function fixture(t, { failing = false, sensitive = false, strict = false, advanc
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure machine fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const id = json(box, box.repo, 'add', 'web', 'Machine fixture', '--specs', 'G1',
-    '--criterion', '1. the result exists [command]\n2. the result is built [command]', '--check', 'test -f web/result.txt',
+    '--brief', 'Files: web/result.txt\nTest: the result file exists and says built\n', '--criterion', '1. the result exists [command]\n2. the result is built [command]', '--check', 'test -f web/result.txt',
     ...(sensitive ? ['--sensitive'] : [])).item.item_id;
   const commands = [{ clause: 1, command: 'test -f web/result.txt' },
     { clause: 2, command: failing ? 'test -f web/missing.txt' : 'test "$(cat web/result.txt)" = built' }];
@@ -104,7 +104,7 @@ test('machine authorization is coordinator-only, visible, reversible and off by 
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = json(box, box.repo, 'add', 'web', 'Opt-in fixture', '--criterion', '1. one [command]\n2. two [command]', '--check', 'true').item.item_id;
+  const id = json(box, box.repo, 'add', 'web', 'Opt-in fixture', '--brief', 'Files: web/result.txt\nTest: the result file exists and says built\n', '--criterion', '1. one [command]\n2. two [command]', '--check', 'true').item.item_id;
   assert.equal(json(box, box.repo, 'show', String(id)).machineVerification, null);
   const path = join(box.dir, 'commands.json');
   writeFileSync(path, JSON.stringify([{ clause: 1, command: 'true' }, { clause: 2, command: 'true' }]));
