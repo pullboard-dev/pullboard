@@ -1383,6 +1383,9 @@ async function main(args) {
       }, {
         executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
         kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
+        // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
+        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
         shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
