@@ -85,7 +85,7 @@ async function fixture(t, state) {
 
 for (const command of ['next', 'status', 'show']) {
   for (const state of ['dead', 'alive', 'empty']) {
-    test(`clause 1: ${command} recovers only a dead dispatcher with queued launches (${state}) [C7]`, async t => {
+    test(`clause ${state === "dead" ? 1 : 2}: ${command} recovers only a dead dispatcher with queued launches (${state}) [C7]`, async t => {
       const f = await fixture(t, state);
       const result = f.box.run(f.box.web, command, ...(command === 'show' ? [String(f.id)] : []));
       assert.equal(result.code, 0, result.err + result.out);
