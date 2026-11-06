@@ -1,5 +1,6 @@
 import { prepareFlakeLanding } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
+import { selectAffectedTests } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
@@ -9,6 +10,7 @@ import { requireLocalGuardClassification } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
+import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -42,9 +44,18 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
-async function quickGuards(state, label = 'local-trunk') {
-  await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
-  const gate = await gateGroup(state, label, { localTrunk: true });
+async function quickGuards(state, label = 'local-trunk', options = {}) {
+  // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
+  // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
+  // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
+  // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
+  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
+    .then(result => ({ result }), error => ({ error }));
+  let gate;
+  try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
+  finally { await staticChecks; }
+  const checked = await staticChecks;
+  if (checked.error) throw checked.error;
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
@@ -73,6 +84,36 @@ async function quickGuards(state, label = 'local-trunk') {
 }
 
 /**
+ * Main moved while the batch gated. When every commit main gained touches no file the batch changes, the batch is
+ * rebuilt on the new tip and gated again on its own plan, focused on the tests those commits reach; a move that
+ * touches the batch's files, or a rebuilt batch that is red, is refused as before. Why: a 7-item batch that went green
+ * after a 51-minute bisection was refused LAND_TRUNK_MOVED for two commits outside its files, and the rebuild re-gated
+ * and re-bisected everything [C7].
+ */
+async function followMovedTrunk(state, gate) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const moved = mainCheckout(state.root)?.commit;
+    if (moved === state.batch.base) return gate;
+    const names = (from, to) => new Set(git(state.root, ['diff', '--no-renames', '--name-only', '-z', from, to]).split('\0').filter(Boolean));
+    const trunkFiles = names(state.batch.base, moved);
+    const batchFiles = names(state.batch.base, state.batch.tip);
+    const shared = [...trunkFiles].filter(file => batchFiles.has(file));
+    if (shared.length) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and changed ${shared.slice(0, 3).join(', ')}; rebuild the batch from its new tip`);
+    state.say(`main moved to ${moved.slice(0, 12)} outside this batch's files; rebuilding the batch on it`);
+    const previous = state.batch.base;
+    await save(state, { base: moved });
+    const rebuilt = await mergeGroup(state, state.batch.items);
+    await save(state, { ...rebuilt });
+    const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
+    const focus = !affected.full && affected.files.length ? { focus: affected.files } : {};
+    gate = await quickGuards(state, `trunk-moved-${attempt + 1}`, focus);
+    if (!accepted(state, gate)) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and the batch rebuilt on ${moved.slice(0, 12)} is red in ${[...new Set((gate.failures ?? []).map(failure => failure.file).filter(Boolean))].slice(0, 3).join(', ') || 'its gate'}; rebuild the batch from its new tip`);
+  }
+  if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved twice during the landing; rebuild the batch from its new tip');
+  return gate;
+}
+
+/**
  * Run every affected test file a submit deferred over submitDeferAbove on the merged tree, before anything lands.
  * A red sends back each item whose own deferred selection holds a failing file, the way a red submit would.
  */
@@ -94,6 +135,23 @@ export async function inlineDeferredGuards(state) {
  * Tier 1 (#801): after a clean merge and its quick guards, the batch lands on the local trunk in seconds, with each
  * item's merged receipt; nothing is pushed. pullboard publish runs the whole suite on the trunk head and pushes it.
  */
+/**
+ * Bind the flake ratchet to the batch, or record its refusal as a blocked batch; true when the landing may go on.
+ * Why: an unrecorded ratchet refusal ended the worker with the batch still gating, so each restart adopted it and ran
+ * its gate again (5 Nov: one item gated three times in 20 minutes behind one unquarantined flake) [C7].
+ */
+export async function flakeRatchetOrBlock(state) {
+  try {
+    await prepareFlakeLanding(state);
+    return true;
+  } catch (error) {
+    if (error?.code !== 'FLAKE_RATCHET') throw error;
+    await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    state.say(`nothing landed: ${error.message}`);
+    return false;
+  }
+}
+
 export async function landOnTrunk(state) {
   await save(state, { state: 'gating', tip: headCommit(state.batch.root) });
   let gate;
@@ -101,7 +159,8 @@ export async function landOnTrunk(state) {
     gate = await quickGuards(state);
     if (!accepted(state, gate) && singleItemLanding(state)) {
       // One item's red sends that item alone back to open with the evidence; no bisection, no trunk hold [C7,#2901].
-      await returnCulprit(state, state.batch.items[0], namedFailures(gate));
+      // A complete gate had its known-main account: what remains red is the one item's, in any file [C7].
+      await returnCulprit(state, state.batch.items[0], namedFailures(gate), { isolated: Boolean(gate.complete) });
       await save(state, { state: 'blocked', failures: gate.failures, culprits: state.culprits });
       return;
     }
@@ -142,10 +201,12 @@ export async function landOnTrunk(state) {
     requireOutsideOwner(state.board, item);
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
-  if (mainCheckout(state.root)?.commit !== state.batch.base) throw new Refused('LAND_TRUNK_MOVED', 'main moved during the landing; rebuild the batch from its new tip');
+  gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
-  await prepareFlakeLanding(state);
+  state.say('trunk: gate proved; binding the flake ratchet');
+  if (!await flakeRatchetOrBlock(state)) return;
+  state.say('trunk: ratchet bound; recording trunk and finishing');
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }
