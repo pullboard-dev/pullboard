@@ -35,6 +35,7 @@ test('clause 1: each pattern is flagged and a clean file is not [C7]', () => {
     "const c = 'a'.repeat(64) + '" + 'a'.repeat(64) + "';",
     "assert.deepEqual(row, { model: 'unknown' });",
     "git(dir, ['add', '-A']);",
+    "box.git(dir, 'add', '-A');",
   ].join('\n');
   assert.deepEqual(kinds(clean), []);
   assert.deepEqual(kinds("/** @pullboard-world-pin spec */\nreadFileSync(new URL('../SPEC.md', import.meta.url));"), []);

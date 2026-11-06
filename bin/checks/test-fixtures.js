@@ -17,7 +17,7 @@ const CEILINGS_URL = new URL('./test-fixtures.json', import.meta.url);
 const TEST_SOURCE = /(?:^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/tests\/).*\.[cm]?js$|\.(?:test|spec)\.[cm]?js$)/u;
 const KIT = /^test\/kit\//u;
 const GIT_CALLEE = /(?<![\w$.])(?:git|tryGit|runFixtureGit|execFileSync|spawnSync)\s*\(\s*(?:[^,()]*,\s*)?\[?\s*(['"`])init\1/gu;
-const RAW_CALL = /(?:\.\s*\w*run\w*\s*\(\s*[^,()]+,\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\1/gu;
+const RAW_CALL = /(?:((?:[\w$]+\s*\.\s*)*[\w$]*run[\w$]*)\s*\(\s*[^,()]+,\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\2/gu;
 const MODEL = /(['"`])--model\1\s*,\s*['"`]|\bPULLBOARD_MODEL\s*(?:\?\?=|\|\|=|=|:)\s*['"`]|\bmodel\s*:\s*['"`][^'"`]/gu;
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|existsSync|createReadStream|cpSync|copyFileSync)\s*\(/gu;
 const ANCHOR = /import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
@@ -61,7 +61,7 @@ export function fixtureSites(source, path) {
     && code[match.index] !== ' ';
   for (const match of code.matchAll(/\bmkdtemp(?:Sync)?\s*\(/gu)) add(match.index, 'tempdir');
   for (const match of source.matchAll(GIT_CALLEE)) if (live(match)) add(match.index, 'tempdir');
-  for (const match of source.matchAll(RAW_CALL)) if (live(match)) add(match.index, 'raw-cli');
+  for (const match of source.matchAll(RAW_CALL)) if (live(match) && !/git/iu.test(match[1] ?? '')) add(match.index, 'raw-cli');
   for (const match of source.matchAll(MODEL)) {
     if (!live(match)) continue;
     const line = source.slice(source.lastIndexOf('\n', match.index) + 1, match.index);

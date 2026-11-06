@@ -372,7 +372,7 @@
     "tempdir": 2
   },
   "packages/stats/tests/stats-time.test.js": {
-    "raw-cli": 1,
+    "raw-cli": 2,
     "tempdir": 2,
     "model": 1
   },
@@ -729,7 +729,8 @@
   },
   "test/cli-startup.test.js": {
     "tempdir": 2,
-    "model": 1
+    "model": 1,
+    "raw-cli": 1
   },
   "test/cockpit/activity-data.js": {
     "model": 1
@@ -840,7 +841,6 @@
     "tempdir": 1
   },
   "test/cockpit/home.test.js": {
-    "raw-cli": 1,
     "tempdir": 2
   },
   "test/cockpit/import-style.test.js": {
@@ -873,7 +873,7 @@
     "model": 1
   },
   "test/cockpit/items.test.js": {
-    "raw-cli": 39,
+    "raw-cli": 38,
     "tempdir": 10,
     "model": 1
   },
@@ -901,7 +901,7 @@
     "tempdir": 1
   },
   "test/cockpit/live.test.js": {
-    "raw-cli": 10,
+    "raw-cli": 9,
     "tempdir": 2
   },
   "test/cockpit/local-origin.test.js": {
@@ -1038,7 +1038,7 @@
     "tempdir": 1
   },
   "test/cockpit/roadmap.test.js": {
-    "raw-cli": 26,
+    "raw-cli": 25,
     "tempdir": 15
   },
   "test/cockpit/row-component.test.js": {
@@ -1051,7 +1051,7 @@
   },
   "test/cockpit/search.test.js": {
     "tempdir": 4,
-    "raw-cli": 5
+    "raw-cli": 4
   },
   "test/cockpit/seg-toggle.test.js": {
     "raw-cli": 1,
@@ -1485,7 +1485,7 @@
     "raw-cli": 1
   },
   "test/item-patches.test.js": {
-    "raw-cli": 1
+    "raw-cli": 2
   },
   "test/item-session-port.test.js": {
     "tempdir": 1
@@ -1707,7 +1707,8 @@
   },
   "test/machine.test.js": {
     "repo-read": 2,
-    "tempdir": 4
+    "tempdir": 4,
+    "raw-cli": 2
   },
   "test/main-audit-attribution.test.js": {
     "tempdir": 2
@@ -1986,7 +1987,7 @@
     "tempdir": 2
   },
   "test/references.test.js": {
-    "raw-cli": 3
+    "raw-cli": 5
   },
   "test/refreeze.test.js": {
     "tempdir": 2,
@@ -2035,7 +2036,8 @@
     "model": 3
   },
   "test/relay-client-fixture.js": {
-    "tempdir": 3
+    "tempdir": 3,
+    "raw-cli": 1
   },
   "test/relay-client.test.js": {
     "tempdir": 5,
@@ -2265,7 +2267,8 @@
   },
   "test/roadmap.test.js": {
     "tempdir": 4,
-    "model": 2
+    "model": 2,
+    "raw-cli": 5
   },
   "test/route-calibration.test.js": {
     "model": 1,
@@ -2709,7 +2712,7 @@
   },
   "test/sync.test.js": {
     "model": 1,
-    "raw-cli": 4
+    "raw-cli": 7
   },
   "test/team-device-link.test.js": {
     "model": 1
@@ -2764,6 +2767,9 @@
   },
   "test/test-value.test.js": {
     "tempdir": 2
+  },
+  "test/testkit-fixture.js": {
+    "raw-cli": 1
   },
   "test/testkit-fixture.test.js": {
     "repo-read": 2
