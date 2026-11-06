@@ -43,3 +43,15 @@ export function proofMainFailures(failures, comparison, main, bar) {
   const named = neighbours.length ? matchingMainFailures(neighbours, comparison, main, { byCase: true }) : { main, failures: [] };
   return exact && named ? { main, failures } : null;
 }
+
+/**
+ * Whether base main fails every one of these gate failures by file and case name, so a red gate made only of them is
+ * main's red and no sign the item's code is looping [C7].
+ *
+ * @param {{ file: string, name: string }[]} failures - The cases one red gate recorded.
+ * @param {object} comparison - What is known of main's failures in those files.
+ * @param {string} main - The main commit the comparison was taken at.
+ */
+export function redsAreMains(failures, comparison, main) {
+  return Boolean(failures?.length) && matchingMainFailures(failures, comparison, main, { byCase: true }) !== null;
+}

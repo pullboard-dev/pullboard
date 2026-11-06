@@ -198,7 +198,9 @@ import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
+import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit-neighbour-reds.js';
+import { redsAreMains } from '../submit-neighbour-reds.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { unownedMainReds } from '../../../../../packages/store/index.js';
@@ -287,9 +289,16 @@ function redSubmitTestRuns(board, id, digest, root) {
   return red;
 }
 
+/** Whether the local cache records main failing every case of a red gate, by file and case name. */
+function knownMainReds(root, failures, main) {
+  if (!failures?.length) return false;
+  try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
+}
+
 /** Stop unchanged third red submissions while naming the two test failures that need repair. */
 function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
-  const red = redSubmitTestRuns(board, id, digest, root);
+  // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
+  const red = redSubmitTestRuns(board, id, digest, root).filter(row => !knownMainReds(root, row.failures, main));
   if (red.length < 2) return;
   const latest = red.slice(-2);
   const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact'").get(id).id;

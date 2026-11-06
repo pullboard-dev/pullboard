@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ownCase } from '../apps/cli/src/shell/submit-neighbour-reds.js';
-import { proofMainFailures } from '../apps/cli/src/shell/submit-neighbour-reds.js';
+import { proofMainFailures, redsAreMains } from '../apps/cli/src/shell/submit-neighbour-reds.js';
 import '../apps/cli/index.js'; // The end-to-end case invokes the real CLI through its public executable.
 import { cli, fixture, source, submittedProof } from './submit-main-red-fixture.js';
 
@@ -57,4 +57,13 @@ test('clause 1: a real submit queues green when its only red is a neighbouring c
   const recorded = submittedProof(box).submissionProof.knownMainFailures;
   assert.equal(recorded.main, box.main);
   assert.deepEqual(recorded.failures.map(({ file, name }) => ({ file, name })), [{ file: 'test/inherited.test.js', name: 'shared failure [G1]' }], 'the board records that case as known main');
+});
+
+test('clause 4: the red-loop guard ignores a red gate whose every failure main fails by the same name [C7]', () => {
+  const red = [{ file: 'test/other.test.js', name: 'lists the board' }, { file: 'test/other.test.js', name: 'shows lanes' }];
+  const main = comparison([{ file: 'test/other.test.js', cases: [['lists the board', 'a'], ['shows lanes', 'b']] }]);
+  assert.equal(redsAreMains(red, main, MAIN), true, 'main fails both cases by name');
+  assert.equal(redsAreMains([...red, { file: 'test/other.test.js', name: 'new case' }], main, MAIN), false, 'one case main passes keeps the red counted');
+  assert.equal(redsAreMains([], main, MAIN), false, 'a red with no named case is never excused');
+  assert.equal(redsAreMains(red, { main: MAIN, files: [] }, MAIN), false, 'a file the cache lacks proves nothing');
 });

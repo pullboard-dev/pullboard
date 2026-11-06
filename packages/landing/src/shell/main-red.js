@@ -499,6 +499,21 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
+/**
+ * What the local cache already knows of main's failures in these files at one commit, without running anything. A file
+ * the cache lacks is left out, so a case in it is never matched as main's [C7].
+ *
+ * @param {string} root
+ * @param {string} commit - The main commit whose recorded outcomes to read.
+ * @param {string[]} files - Repository-relative test files.
+ */
+export function cachedMainComparison(root, commit, files) {
+  try {
+    const entries = readCache(cacheFile(root)).entries[commit] ?? {};
+    return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
+  } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
+}
+
 /** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
 function recentGenerations(cache, count, except = []) {
   return Object.keys(cache.entries).filter(key => /^[0-9a-f]{40}$/u.test(key) && !except.includes(key)).slice(-count).reverse();
