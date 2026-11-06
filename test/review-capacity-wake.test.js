@@ -87,7 +87,7 @@ test('an eligible awake reviewer needs no new wake or person request [C7]', asyn
   assert.deepEqual(box.requests(), []);
 });
 
-test('missing or failed eligible reviewer wake commands ask the person once per item [C7]', async t => {
+test('clause 1: missing or failed eligible reviewer wake commands ask the person once per item [C7]', async t => {
   for (const options of [{ command: false }, { fails: true }]) {
     await t.test(options.fails ? 'registered command fails [C7]' : 'no registered command [C7]', async child => {
       const box = await fixture(child, options);

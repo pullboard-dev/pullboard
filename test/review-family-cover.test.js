@@ -39,7 +39,7 @@ process.exitCode = 0;
   registerSeatWake(repoInfo(seat.path), store.boardId(box.board), seat.id, executable);
 }
 
-test('three waiting green reviews pause new builds at five minutes, with an explanation and no claim [C7,#3076]', async t => {
+test('clause 2: three waiting green reviews pause new builds at five minutes, with an explanation and no claim [C7,#3076]', async t => {
   const box = await reviewFamilyFixture(t);
   const candidate = box.add('New build waits for independent cover', { route: 'strong', brief: 'Files: web/candidate.js\nTest: the review stays available.' });
   assert.equal(REVIEW_WAKE_WAIT_MS, REVIEW_COVER_WAIT_MS, 'sweep and build advice use the same five-minute deadline');
@@ -97,7 +97,7 @@ test('same-parent wake capabilities never count as independent family cover [C7,
   assert.ok(reviewFamilyBuildPause(box.info, box.board, box.config, box.seats.actor), 'another vendor in the author parent session is still ineligible');
 });
 
-test('doctor names missing registered family wakes and clears each restored family [C7,#3076]', async t => {
+test('clause 3: doctor names missing registered family wakes and clears each restored family [C7,#3076]', async t => {
   const box = await reviewFamilyFixture(t, 1);
   const family = store.canonicalFamily(box.board, 'Family Alpha');
   assert.ok(reviewFamilyCover(box.info, box.board, box.config).missingFamilies.includes(family));

@@ -39,7 +39,7 @@ process.exitCode = code;
   return { id, path, lane: 'web' };
 }
 
-test('recorded Nov3 green submissions get an automatic independent wake reservation within fifteen replay minutes [C7,#3076]', async t => {
+test('clause 4: recorded Nov3 green submissions get an automatic independent wake reservation within fifteen replay minutes [C7,#3076]', async t => {
   const trace = JSON.parse(readFileSync(new URL('./review-family-cover-replay.json', import.meta.url), 'utf8'));
   assert.equal(trace.submissions.length, 23);
   const box = await fixture(t, { family: 'require' });
