@@ -105,7 +105,8 @@ export async function nextOnce(ctx, values) {
   if (!looked.claim) return looked;
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
   // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
-  const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  const { me: holder, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  let item = looked.item;
   if (Number(values.wait) > 0 && !looked.held) {
     const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
     if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
@@ -115,21 +116,22 @@ export async function nextOnce(ctx, values) {
     const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
-      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
+      const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
+      item = { ...item, renewed: claim.renewed };
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
-    const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+    const itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: item.renewed });
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
 }
 
 /** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
-function openNextFolder(ctx, board, me, id) {
-  return openItemFolder(ctx, me, id, { board,
+function openNextFolder(ctx, board, me, id, options = {}) {
+  return openItemFolder(ctx, me, id, { board, ...options,
     onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
       text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
       ref: null }]) });
