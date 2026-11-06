@@ -21,19 +21,25 @@ export function repeatedLandingHold(reason) {
 }
 
 /**
- * Whether a refusal's own condition still holds at an unchanged head and base.
- * Why: a LAND_DIRTY hold must lift once its landing worktree is clean again, though neither commit moved; a code with no
- * probe keeps holding until the head or the base changes [C7].
+ * Whether a refusal's own condition still holds, or null when no probe exists for its code.
+ * Why: a LAND_DIRTY hold stays while its landing worktree is dirty even if main moved, and lifts once it is clean [C7].
  */
 export function refusalConditionHolds(hold, facts) {
   if (hold.key === 'LAND_DIRTY' && facts && typeof facts.worktreeDirty === 'boolean') return facts.worktreeDirty;
-  return true;
+  return null;
 }
 
-/** Decide whether an automatic repeat hold's original refusal or failing case has cleared. */
+/**
+ * Decide whether an automatic repeat hold's recorded cause has cleared.
+ * Why: the cause is evaluated first; a moved main base or a new item commit alone lifts nothing. Only a refusal code
+ * with no probe, whose cause cannot be read, falls back to a moved base or head as its sole signal.
+ */
 export function repeatedLandingHoldCleared(hold, item, base, comparison, facts = null) {
-  if (item.item_commit !== hold.commit) return true;
-  if (hold.kind === 'refusal') return base !== hold.base || !refusalConditionHolds(hold, facts);
+  if (hold.kind === 'refusal') {
+    const holds = refusalConditionHolds(hold, facts);
+    if (holds === null) return base !== hold.base || item.item_commit !== hold.commit;
+    return !holds;
+  }
   if (hold.kind !== 'case') return false;
   const [file, ...rest] = hold.key.split('::');
   const name = rest.join('::');

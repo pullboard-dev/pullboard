@@ -102,16 +102,25 @@ test('clause 1: two consecutive blocked batches with the same named failing case
   assert.equal(repeatedBlockedCause([batch('one', 'first case'), batch('two', 'second case')], ITEM), null);
 });
 
-test('clause 2: a repeated refusal hold clears when its item head or main base changes [C7]', () => {
+test('clause 2: a LAND_DIRTY hold lifts only when its worktree is clean, never on a moved base or new head alone [C7]', () => {
   const hold = { kind: 'refusal', key: 'LAND_DIRTY', base: BASE, commit: ITEM.item_commit };
-  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
-  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), true);
-  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), true);
-  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: true }), false, 'the worktree is still dirty');
-  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), true, 'cleaned at the same head and base, the refusal no longer holds');
-  assert.equal(repeatedLandingHoldCleared({ ...hold, key: 'LAND_ADOPT' }, ITEM, BASE, null, { worktreeDirty: false }), false, 'a code with no probe waits for a new head or base');
+  const MOVED = 'c'.repeat(40);
+  const NEWHEAD = { ...ITEM, item_commit: 'd'.repeat(40) };
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: true }), false, 'dirty at the same base stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null, { worktreeDirty: true }), false, 'dirty after the base moved stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, NEWHEAD, MOVED, null, { worktreeDirty: true }), false, 'dirty after a new head and base stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null, { worktreeDirty: false }), true, 'clean lifts the hold');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), true, 'clean at the same base lifts the hold');
   const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ ...hold, root: '/tmp/landing-batch' })} the landing worktree has uncommitted changes`;
   assert.equal(repeatedLandingHold(reason).root, '/tmp/landing-batch', 'the hold remembers the worktree it named');
+});
+
+test('clause 2: a refusal code with no probe waits for a new head or base, the only signal it has [C7]', () => {
+  const hold = { kind: 'refusal', key: 'LAND_ADOPT', base: BASE, commit: ITEM.item_commit };
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), true);
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), true);
 });
 
 test('clause 2: a repeated named-case hold clears only when main no longer reproduces that exact case [C7]', () => {
@@ -123,6 +132,7 @@ test('clause 2: a repeated named-case hold clears only when main no longer repro
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: 'c'.repeat(40), unavailable: 'source changed', files: [] }), false);
   const MOVED = 'c'.repeat(40);
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null), false, 'a moved main alone does not lift a case hold');
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, comparison([{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }])), false, 'a new item commit alone does not lift a case hold');
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'red', failures: [{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }] }] }), false, 'main moved and still reproduces the case');
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true, 'main moved and the case now passes');
 });
