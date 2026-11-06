@@ -47,7 +47,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
-
+const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
  * they answer for its refusals together.
@@ -478,6 +478,11 @@ test('clause 1: every refusal a move raises today is declared on that move, and 
   }
 });
 
+test('clause 1: submit refusals are declared or classified as setup [M1]', () => {
+  const declared = declaredCodes(machineRules.MACHINE, ['submit']);
+  for (const code of SUBMIT_REFUSALS) assert.ok(declared.has(code) || code in NOT_MOVES, `${code} is covered by M1`);
+  assert.deepEqual(codeProblems(machineRules.MACHINE), [], 'no submit refusal is raised but undeclared');
+});
 test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
