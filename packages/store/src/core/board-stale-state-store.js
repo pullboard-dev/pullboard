@@ -97,7 +97,14 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const item = itemById(board, row.id);
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
-  if (!['stall', 'release', 'waiting', 'progress'].includes(row.idle)) invalid();
+  if (!['stall', 'release', 'waiting', 'progress', 'seat-gone'].includes(row.idle)) invalid();
+  if (row.idle === 'seat-gone') {
+    const signal = row.deadSeat?.heartbeatAt ?? row.claimAt;
+    const at = Date.parse(snapshot.observedAt), last = Date.parse(signal ?? '');
+    if (row.deadSeat?.observedAt !== snapshot.observedAt || row.deadSeat?.quietMs !== 120_000
+      || row.deadSeat?.worktreeMissing !== true && (!Number.isFinite(last) || at - last < 120_000)) invalid();
+    return { row, item };
+  }
   if (row.idle === 'waiting') {
     if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
     const after = String(item.item_after ?? '').split(',').map(Number);
@@ -232,7 +239,9 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           (result.stalled ??= []).push(row.id);
           continue;
         }
-        const reason = row.idle === 'progress'
+        const reason = row.idle === 'seat-gone'
+          ? `Seat ${row.actor} has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.`
+          : row.idle === 'progress'
           ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
           : row.idle === 'waiting'
           ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
@@ -244,6 +253,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
           id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
         logEvent(board, agentId, 'release', row.id, { reason,
+          ...(row.idle === 'seat-gone' ? { reclaim: { seat: row.actor, heartbeatAt: row.deadSeat.heartbeatAt, worktreeMissing: row.deadSeat.worktreeMissing,
+            observedAt: snapshot.observedAt } } : {}),
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
@@ -253,7 +264,10 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         result.claims.push(row.id);
       }
     }
-    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || result.claimScan) {
+    // A scan that found nothing and moved nothing is not a board event: with a seat command every few seconds, the
+    // empty record was written 3,609 times on 6 Nov, each one a board write every reader waited behind [C7].
+    const scanned = result.claimScan && result.claimScan.previous !== result.claimScan.next;
+    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || scanned) {
       logEvent(board, agentId, 'stale_maintenance', null, { observedAt: snapshot.observedAt, ...result });
     }
     return result;

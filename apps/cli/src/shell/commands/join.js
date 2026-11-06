@@ -23,6 +23,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
+import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import {
@@ -36,6 +37,13 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard join` and return its exit code. */
+/**
+ * Whether a model is a small, light-route model: a claude-haiku-* model or gpt-6-luna.
+ * A seat on such a model joins the light route unless it names --route, so it never claims strong work.
+ */
+export function lightModel(model) {
+  return /^claude-haiku-/u.test(String(model ?? '')) || model === 'gpt-6-luna';
+}
 export async function run(io, { first, values }) {
   const ctx = context(io);
   const wake = seatWakeCommand(values.wake, ctx.info.root);
@@ -48,36 +56,37 @@ export async function run(io, { first, values }) {
     const route = values.route ?? 'strong';
     const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
-    const joined = await withBoard(ctx, async (board) => ({
-      id: await ordered(ctx, board, 'register', [
+    const joined = await withBoard(ctx, async (board) => {
+      const id = await ordered(ctx, board, 'register', [
         { lane: COORDINATOR, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest },
-      ]),
-      boardId: store.boardId(board),
-    }));
+      ]);
+      return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
+    });
     registerProject(ctx.info.root, new Date(), ctx.config, projectBoardIdentity(ctx.info.root, joined.boardId));
     const id = joined.id;
     registerSeatWake(ctx.info, joined.boardId, id, wake);
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-    io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName });
-    io.say(`declared ${displayName} in the coordinator lane`);
+    io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
+    io.say(`declared ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the coordinator lane`);
     return 0;
   }
   if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
-  const route = values.route ?? 'strong';
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? (lightModel(model) ? 'light' : 'strong');
   const projectRoot = primaryCheckoutRoot(ctx.info);
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
-  const joined = await withBoard(ctx, async (board) => ({
-    id: await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]),
-    boardId: store.boardId(board),
-  }));
+  // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
+  const joined = await withBoard(ctx, async (board) => {
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]);
+    return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
+  });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName });
-  io.say(`joined as ${displayName} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null });
+  io.say(`joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
   return 0;
 }

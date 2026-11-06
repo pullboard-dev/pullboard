@@ -17,6 +17,42 @@ function readGit(root, args) {
   return result.stdout;
 }
 
+/**
+ * The stable patch id of one path's change between two revisions; empty when the path did not change. The diff carries
+ * no context lines: main editing other lines of the same file changes the context around an unchanged hunk, and on
+ * 6 Nov that read as a rewrite and sent accepted items back for an identical re-review. The gate still runs the merged
+ * tree, so a hunk whose meaning depends on its neighbours is caught there, not here [E8,V8].
+ */
+function pathPatchId(root, from, to, path) {
+  const diff = readGit(root, ['diff', '--no-renames', '--full-index', '--binary', '--unified=0', from, to, '--', path]);
+  if (!diff) return '';
+  const id = spawnSync('git', ['--no-replace-objects', 'patch-id', '--verbatim'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
+  if (id.status !== 0) throw new Error('Git patch ids are unavailable');
+  return id.stdout.split(' ')[0];
+}
+
+/**
+ * True when the checked change merges onto main without conflict and every path it touched carries the same
+ * patch after the merge as it did against its reviewed trunk [E8,V8,#2896].
+ * Why: main touching a shared file (bin/cells-plan.json) said nothing about the reviewed change, yet it made
+ * every other accept stale and each needed a re-review of identical work.
+ */
+export function composesUnchanged(root, { base, checked, tip, paths }) {
+  const merged = spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
+    { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  if (merged.status !== 0) return false;
+  const tree = merged.stdout.trim().split('\n')[0];
+  return paths.every(path => pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path));
+}
+
+/**
+ * True when main already carries the checked bytes on every reviewed path, so landing adds nothing [C7,#2980].
+ * Why: #1939's change reached main through #1938; its empty post-merge patch read as a rewrite and stayed stale.
+ */
+export function mainContains(root, { checked, tip, paths }) {
+  return paths.length > 0 && !readGit(root, ['diff', '--no-renames', '--name-only', checked, tip, '--', ...paths]).trim();
+}
+
 /** Read the actual retained trunk tip, rather than a cached checkout HEAD used during review. */
 export function verdictTrunk(root, { trunkRef }) {
   try {
@@ -140,6 +176,8 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       const paths = new Set(review.paths);
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
+        if (file && mainContains(root, { checked, tip, paths: [...paths] })) return null;
+        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] })) return null;
         if (file) return { code: 'STALE_VERDICT', file, commit, reviewedTrunk: review.trunk, main: tip,
           ...(review.legacy ? { legacy: true } : {}) };
       }

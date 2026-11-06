@@ -319,7 +319,7 @@ async function landingGate(box, label, deadlineMs, repo = box.repo) {
 
 /** Start a landing immediately; callers may start several before lending their one place serially. */
 function startLandingGate(box, label, deadlineMs, repo = box.repo) {
-  const gateUrl = pathToFileURL(join(repo, 'src', 'gate.js')).href;
+  const gateUrl = pathToFileURL(join(repo, 'packages', 'gate', 'index.js')).href;
   const configUrl = pathToFileURL(join(repo, 'src', 'config.js')).href;
   const script = `const { runGate } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
