@@ -8,9 +8,10 @@ import { checkPerItemCriterion } from '../packages/items/index.js';
 import { PER_ITEM_FULL_SUITE_ENGINE } from '../src/per-item-full-suite-engine.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { createE2eHelpers, LIGHT_BRIEF } from './e2e-helpers.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
+const { LIGHT_BRIEF } = e2e;
 after(e2e.cleanup);
 
 /** Assert that an add or edit refusal names S10 and tells the author how to fix the bar. */
