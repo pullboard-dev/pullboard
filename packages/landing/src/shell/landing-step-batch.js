@@ -421,7 +421,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
     const single = state.batch.state !== 'landed' && oneItemBatch(state);
-    const returned = single && await returnRefusedItem(state, error);
+    const returned = state.batch.state !== 'landed' && (single || error.code === 'LAND_MODULE_PARSE') && await returnRefusedItem(state, error);
     // A landing fault (BOARD_BUSY) keeps the batch merging or gating with its worktree and log, so adoption resumes it.
     if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error)
       && ['merging', 'gating'].includes(state.batch.state))) await save(state, { state: 'blocked' });

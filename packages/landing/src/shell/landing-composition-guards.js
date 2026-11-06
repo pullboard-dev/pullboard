@@ -62,7 +62,9 @@ function parseRefusal(root, tip, changed) {
     if (shown.status !== 0) return false;
     try { importsIn([shown.stdout], undefined); return false; } catch { return true; }
   });
-  return new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
+  const refusal = new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
+  refusal.broken = broken;
+  return refusal;
 }
 
 /** Inspect source only: no candidate module is imported or evaluated before main moves. */
