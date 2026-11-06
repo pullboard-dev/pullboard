@@ -1631,6 +1631,26 @@
     {
       "path": "src/move-history/239.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/infra-handoff-recovery-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/main-red-withdraw-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/per-item-full-suite-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-twice-route-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-gone-release-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
