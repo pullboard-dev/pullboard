@@ -467,6 +467,9 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
 
   const firstClaim = (await fixtureCommand(box, item.cwd, 'claim', String(item.id)));
   assert.equal(firstClaim.code, 0, firstClaim.err);
+  // A resubmit with no diff against main is EMPTY_SUBMIT before any proof; carry a real change so the red gate decides.
+  const stillRed = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "RED"; // unchanged behavior\n', 'fix(web): retry without fixing the landing behavior [G1]');
+  assert.equal(stillRed.status, 0, stillRed.stderr);
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
   assert.equal(unchangedLandingHead.code, 1);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
