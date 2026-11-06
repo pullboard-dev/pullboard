@@ -46,7 +46,7 @@ export async function submitHandoffEventContract(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: native handoff event fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   id = document(box.run(box.repo, 'add', 'web', 'Real handoff event contract', '--specs', 'G1',
-    '--criterion', 'A real failing check returns the captured candidate.', '--check', 'false', '--wait', '--json')).item.item_id;
+    '--criterion', 'A real failing check returns the captured candidate.', '--brief', 'Files:\n- web/event-contract.txt\nTest:\n- The check fails and returns the candidate', '--check', 'false', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/event-contract.txt', 'captured\n', 'feat(web): native handoff contract [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);

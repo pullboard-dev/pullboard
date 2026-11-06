@@ -403,7 +403,7 @@ function recordEventContract() {
   for (const [head, clause] of [['6'.repeat(40), 'The title renders.'], ['7'.repeat(40), 'The footer renders.']]) {
     claim(board, ceiling, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: ceilingFreeze });
     submitFixture(board, ceiling, { agentId: builder, commit: head, tree: '8'.repeat(40) });
-    verify(board, ceiling, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    verify(board, ceiling, { agentId: reviewer, decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH',
       note: 'the named rendered part is missing', clause, head, digest: 'strong-notice', policy: 'agents' });
   }
 
@@ -771,7 +771,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
   }
 });
 
-test('[A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
+test('clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
   const board = openBoard(':memory:');
   try {
     const version = board.db.prepare('PRAGMA user_version').get().user_version;
@@ -834,6 +834,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     answer: 'answerer',
     'flake-observation': 'reporting agent',
     'flake-repair': 'reporting agent',
+    'test-quarantine': 'reporting agent',
     'health-scan': 'observing agent',
     'health-failure': 'sentinel',
     'health-resolved': 'sentinel',
