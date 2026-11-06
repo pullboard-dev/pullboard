@@ -193,7 +193,7 @@ function requireLandingCarries(state, batch) {
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
-  await state.checkLease();
+  await timedPhase(state.say, 'lease check', () => state.checkLease());
   state.say?.('finish: envelope recorded; checking module resolution');
   await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
@@ -203,7 +203,9 @@ export async function finishTrunk(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  await timedPhase(state.say, 'push', () => {
+    if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
+  });
   state.say?.('finish: main fast-forwarded; refreshing the code map');
   refreshPublishedMainReds(state, state.batch.base);
   await refreshLandedCodeMap(state);
