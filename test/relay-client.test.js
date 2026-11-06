@@ -337,7 +337,7 @@ test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, ref
   await cli(root, relayEnv, 'add', lane, 'mirrored private move');
   await cli(root, relayEnv, 'shout', 'person', 'mirrored private shout');
   const firstMoves = localEvents(boardFile).slice(beforeLink.tables.event.length);
-  assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'shout']);
+  assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'milestone_placed', 'shout']);
   const nativeAfterMoves = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(nativeAfterMoves.body.state.sequence, 2, 'the checkpoint covers both acknowledged operations');
   const checkpoint = snapshotDocument(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 }));
@@ -1091,6 +1091,10 @@ async function recoverReplicaReplies(fixture, timing) {
     cli(worktrees[0], envs[0], 'status'));
   assert.equal(beforeLostSubmit.relay.linked, true);
   assert.deepEqual(beforeLostSubmit.relay.outbox ?? [], [], 'the armed submit reply loss cannot hit a queued setup move');
+  // Submit refuses an empty head (EMPTY_SUBMIT), so item 2 needs a commit before its submission can post.
+  writeFileSync(join(worktrees[0], 'web', 'lost-submit.txt'), 'the work whose submission reply is lost\n');
+  gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
+  gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
   const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
