@@ -1,4 +1,5 @@
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
+import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
@@ -267,7 +268,9 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
-  let unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  const batches = store.landingBatches(board);
+  let unfinished = batches.findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  if (!unfinished && automatic) unfinished = batches.findLast(batch => retryableLandingBatch(batch, trunk?.commit));
   // A dropped batch leaves nothing to adopt; the run continues as an ordinary landing.
   if (!dryRun && unfinished && await dropLandedElsewhere(root, board, write, say, unfinished)) { unfinished = null; adopt = false; }
   if (fence && unfinished && unfinished.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the interrupted batch belongs to another trunk branch; restore that branch and start a fresh land --adopt');
