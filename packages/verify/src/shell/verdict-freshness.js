@@ -17,9 +17,14 @@ function readGit(root, args) {
   return result.stdout;
 }
 
-/** The stable patch id of one path's change between two revisions; empty when the path did not change. */
+/**
+ * The stable patch id of one path's change between two revisions; empty when the path did not change. The diff carries
+ * no context lines: main editing other lines of the same file changes the context around an unchanged hunk, and on
+ * 6 Nov that read as a rewrite and sent accepted items back for an identical re-review. The gate still runs the merged
+ * tree, so a hunk whose meaning depends on its neighbours is caught there, not here [E8,V8].
+ */
 function pathPatchId(root, from, to, path) {
-  const diff = readGit(root, ['diff', '--no-renames', '--full-index', '--binary', from, to, '--', path]);
+  const diff = readGit(root, ['diff', '--no-renames', '--full-index', '--binary', '--unified=0', from, to, '--', path]);
   if (!diff) return '';
   const id = gitSpawnSync(['--no-replace-objects', 'patch-id', '--verbatim'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', input: diff });
   if (id.status !== 0) throw new Error('Git patch ids are unavailable');
