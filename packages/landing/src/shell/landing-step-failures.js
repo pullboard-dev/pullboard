@@ -13,8 +13,9 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
   const cases = [];
   /** A reported path relative to the root, or null when it lies outside it. */
   const inRoot = (path) => {
-    // A runner reports its own checkout path; the part after checkout/ is the repo file.
-    const runner = /\/\.pullboard-runner\/jobs\/[^/]+\/checkout\/(.+)$/u.exec(path);
+    // A runner reports its own checkout path; the part after checkout/ is the repo file. The runner root is
+    // `.pullboard-runner` on the minis and `pullboard-runner` on vanilla: a red there lost its file and held #3126 [C7].
+    const runner = /\/\.?pullboard-runner\/jobs\/[^/]+\/checkout\/(.+)$/u.exec(path);
     if (runner) return runner[1];
     const file = isAbsolute(path) ? relative(root, path) : path.replace(/^\.\//u, '');
     return file && !file.startsWith('../') && !file.includes('\\') ? file : null;
