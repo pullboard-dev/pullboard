@@ -195,7 +195,14 @@ export async function serveRunnerController(ports) {
   const stopWatching = controllerWake(request, { roots, itemFiles, needsBoard: Boolean(item), abort, observe });
   observe();
   try {
-    const result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
+    let result;
+    try { result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody }); }
+    catch (error) {
+      if (error.code !== 'RUNNER_WORK_SPEC' || !error.workSpecVersions) throw error;
+      // A new request rebuilds and sends the pinned capsule, whose installer checks every runtime byte.
+      // Only an explicit pre-execution version mismatch gets this one refresh; malformed specs never retry [C7,#2855].
+      result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
+    }
     if (cancellation) throw new Error('source cancellation completed without a transport failure');
     process.stdout.write(JSON.stringify({ result }));
   }
@@ -223,7 +230,9 @@ async function runInController(root, command, options, ports) {
   let rawFd = null;
   try {
     if (request.rawOutputPath) rawFd = openSync(request.rawOutputPath, 'wx', 0o600);
-    request.phase = 'connect';
+    /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
+    const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
+    mark('connect');
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
@@ -307,7 +316,7 @@ async function runInController(root, command, options, ports) {
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
         if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
-          request.phase = 'ready'; heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
+          mark('ready'); heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
           try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
           catch (failure) { error ??= failure; abort(); }
         }
@@ -330,7 +339,7 @@ async function runInController(root, command, options, ports) {
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
         if (!line.startsWith(prefix)) continue;
         if (requested) { error = new Error('duplicate runner inventory'); transport.stop(); return; }
-        requested = true; request.phase = 'inventory';
+        requested = true; mark('inventory');
         transfer = (async () => {
           const inventory = JSON.parse(Buffer.from(line.slice(prefix.length), 'base64').toString('utf8'));
           if (!Array.isArray(inventory.tips) || inventory.tips.length > 1024
@@ -341,10 +350,10 @@ async function runInController(root, command, options, ports) {
             || inventory.tagObjects.some(object => typeof object !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(object))) {
             throw new Error('invalid runner tag inventory');
           }
-          request.phase = 'pack';
+          mark('pack');
           const pack = historyPack(root, request.source, inventory.tips, request.directory, request.spec.tags, inventory.tagObjects);
           await pipeline(createReadStream(pack), child.stdin);
-          if (request.phase !== 'ready') request.phase = 'source-sent';
+          if (request.phase !== 'ready') mark('source-sent');
         })().catch(failure => { error ??= failure; transport.stop(); });
       }
     });

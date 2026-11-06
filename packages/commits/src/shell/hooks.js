@@ -524,6 +524,8 @@ export function preCommitProblems(context) {
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
+  const touchedPaths = new Set(touched);
+  const writtenPaths = new Set(written);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -593,8 +595,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
-      && !treeRaw(root, 'HEAD', path)
-      && Boolean(importFileEntry(root, ':index', path)),
+      && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
+        || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },

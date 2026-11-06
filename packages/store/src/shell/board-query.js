@@ -171,16 +171,17 @@ export function listItems(board, { lane, all = false } = {}) {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
-    // A claim whose lease lapsed reads as open (B4), exactly as current() reads it.
-    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at)) {
+    // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
+    if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
     }
     if (expectedBuilds && expected !== null) item.item_expected_build_minutes = JSON.parse(expected);
     if (imported) item.item_rehome_import = JSON.parse(imported);
     return item;
   });
-  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first lease ends.
-  const expires = items.filter(item => item.item_status === 'claimed' && item.item_lease_until).map(item => item.item_lease_until).sort()[0];
+  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
+  // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
+  const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
   LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
