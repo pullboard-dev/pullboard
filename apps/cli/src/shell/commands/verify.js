@@ -506,7 +506,10 @@ export async function verifyHere(ctx, id, { second, values }) {
  * reviewed tree, so they always take the full path.
  */
 function packetAcceptance(ctx, board, item, decision, reReview, read) {
-  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
     || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;

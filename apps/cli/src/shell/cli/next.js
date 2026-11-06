@@ -213,7 +213,7 @@ function nextPick(ctx, board, values) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
     return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
-      ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
+      ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown', skips: [...(!values.build ? offer?.skips ?? [] : []), ...(own.skips ?? []), ...(picked.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3) } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
