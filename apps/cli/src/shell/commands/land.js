@@ -1,6 +1,8 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { replayLanding } from '../../../../../packages/landing/index.js';
+import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { landAcceptedItems } from '../../../../../packages/merge/index.js';
@@ -57,6 +59,14 @@ import {
 export async function run(io, { first, second, rest, values }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
+  if (values.replay) {
+    if (first || second || rest.length || values.due || values.adopt || values['dry-run'] || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', 'pullboard land --replay [--since <time>] takes no other option');
+    const rows = replayLanding(board, { since: values.since });
+    io.result?.({ replay: rows });
+    for (const row of rows) io.say(replayLine(row));
+    if (!rows.length) io.say('no recorded landing batches to replay');
+    return 0;
+  }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
