@@ -60,6 +60,7 @@ function toolingRepo(t) {
 
 /** Wait for the detached producer to exit, then read its ready record if it published one. */
 async function published(child, file) {
+  child.ref();
   await once(child, 'exit');
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
