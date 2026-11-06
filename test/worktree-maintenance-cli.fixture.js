@@ -53,7 +53,7 @@ export function registerMaintenanceCliTests() {
     assert.equal(JSON.parse(json.out).enabled, false);
   });
 
-  test('ordinary release archives ignored owner files before cleaning and records its recovery fact [B3,C7,N26]', t => {
+  test('clause 1: ordinary release archives ignored owner files before cleaning and records its recovery fact [B3,C7,N26]', t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
     enable(box);
