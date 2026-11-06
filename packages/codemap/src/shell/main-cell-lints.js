@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,13 +5,14 @@ import { join } from 'node:path';
 import { cellLintReport } from './cell-lints.js';
 import { cellLintBaseline } from './cell-lint-ratchet.js';
 import { Refused } from '../../../kernel/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 const MAIN_REFS = ['refs/heads/main', 'refs/remotes/origin/main'];
 
 /** Run Git with inherited repository selectors cleared, so a hook's GIT_DIR never redirects the read. */
 function gitRun(cwd, args) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
-  return spawnSync('git', args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  return gitSpawnSync(args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 }
 
 /** Name the current main commit of the repository at root, or null when it has no main branch [C7]. */
