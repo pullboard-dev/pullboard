@@ -11,12 +11,12 @@ import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
 import { retiredRows } from '../packages/codemap/src/core/cells-plan-cuts.js';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
 import { lex } from '../packages/kernel/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
