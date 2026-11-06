@@ -12,6 +12,8 @@ import { legacyRelayClientFixture as relayClientFixture } from './relay-client-f
 
 // The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
 test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, async (t) => {
+  const pending = [];
+  const sub = (...args) => { const run = t.test(...args); pending.push(run); return run; };
   const box = await relayClientFixture(t);
   const buildLane = 'fixture-build';
   const gate = 'node --check src/relay-pause-fixture.js';
@@ -110,7 +112,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
 
 
   /** Each internal move in a long-running command retains its own loud pause notice. */
-  t.test('multiple local moves in one session do not repeat the refused baseline notice [H16,B26]', async subtest => {
+  sub('multiple local moves in one session do not repeat the refused baseline notice [H16,B26]', async subtest => {
     const repeated = await relayClientFixture(subtest);
     repeated.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'fixture refuses the initial baseline until repaired' });
     await repeated.link();
@@ -144,7 +146,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   });
 
   /** Two authenticated device sessions contend for one real SQLite baseline slot. */
-  t.test('concurrent initial baseline uploads accept exactly one device [H16]', async subtest => {
+  sub('concurrent initial baseline uploads accept exactly one device [H16]', async subtest => {
     const race = await relayClientFixture(subtest);
     race.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture retains two native baseline candidates' });
     await race.link();
@@ -177,7 +179,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   });
 
   /** A competing native snapshot arrives after absence was checked but before the client PUT. */
-  t.test('a baseline race fences the native retry without discarding local work [H16]', async subtest => {
+  sub('a baseline race fences the native retry without discarding local work [H16]', async subtest => {
     const race = await relayClientFixture(subtest);
     race.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture baseline pause before a competing device' });
     await race.link();
@@ -215,7 +217,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   });
 
   /** Prove that malformed permanent refusals pause and recover from a fresh snapshot. */
-  t.test('malformed baseline refusals carry their reason and recover [H16]', async (subtest) => {
+  sub('malformed baseline refusals carry their reason and recover [H16]', async (subtest) => {
     const malformed = await relayClientFixture(subtest);
     malformed.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'send only a sequence and sealed payload' });
     const linked = await malformed.link();
@@ -234,7 +236,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
 
   /** Preserve ordinary retry behavior for every retryable HTTP response status. */
   for (const status of [408, 425, 429, 503]) {
-    t.test(`transient snapshot HTTP ${status} keeps retry behavior [H16]`, async (subtest) => {
+    sub(`transient snapshot HTTP ${status} keeps retry behavior [H16]`, async (subtest) => {
       const transient = await relayClientFixture(subtest);
       transient.rejectSnapshots({ status, code: 'RELAY_UNAVAILABLE', message: `fixture snapshot HTTP ${status}` });
       await transient.link();
@@ -255,7 +257,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
 
   /** A durable pre-ACK local intent cannot prove that the remote board is empty. */
   for (const sequence of [0, 1]) {
-    t.test(`an existing remote baseline at sequence ${sequence} never pauses locally [H16]`, async subtest => {
+    sub(`an existing remote baseline at sequence ${sequence} never pauses locally [H16]`, async subtest => {
       const existing = await relayClientFixture(subtest);
       await existing.link();
       const first = JSON.parse(readFileSync(existing.linkFile, 'utf8'));
@@ -307,7 +309,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
 
   /** A remote baseline appearing after a durable pause must end local-only fallback. */
   for (const sequence of [0, 1]) {
-    t.test(`a previously paused board with remote sequence ${sequence} never diverges locally [H16]`, async subtest => {
+    sub(`a previously paused board with remote sequence ${sequence} never diverges locally [H16]`, async subtest => {
       const existing = await relayClientFixture(subtest);
       existing.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture refused initial baseline' });
       await existing.link();
@@ -366,7 +368,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
     { label: 'unavailable-absence', status: 503, code: 'NO_BOARD', transient: true },
     { label: 'auth-absence', status: 401, code: 'NO_SNAPSHOT' },
   ]) {
-    t.test(`uncertain ${refusal.label} remote state never authorizes local fallback [H16]`, async subtest => {
+    sub(`uncertain ${refusal.label} remote state never authorizes local fallback [H16]`, async subtest => {
       const uncertain = await relayClientFixture(subtest);
       uncertain.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture refused initial baseline' });
       await uncertain.link();
@@ -391,7 +393,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
   }
 
   /** A refused checkpoint after an accepted baseline does not switch moves to local-only mode. */
-  t.test('a refused later checkpoint keeps ordered moves [H16]', async (subtest) => {
+  sub('a refused later checkpoint keeps ordered moves [H16]', async (subtest) => {
     const accepted = await relayClientFixture(subtest);
     await accepted.link();
     accepted.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture checkpoint refusal' });
@@ -408,6 +410,7 @@ test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, 
     const events = (await response.json()).events;
     assert.deepEqual(events.map(event => event.event_id), [1, 2], 'both post-baseline moves keep their relay positions');
   });
+  await Promise.all(pending);
 });
 
 /** The session's link already named its pause; later local commands keep working without repeating it. */
