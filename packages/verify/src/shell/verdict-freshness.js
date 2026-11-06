@@ -40,6 +40,14 @@ export function composesUnchanged(root, { base, checked, tip, paths }) {
   return paths.every(path => pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path));
 }
 
+/**
+ * True when main already carries the checked bytes on every reviewed path, so landing adds nothing [C7,#2980].
+ * Why: #1939's change reached main through #1938; its empty post-merge patch read as a rewrite and stayed stale.
+ */
+export function mainContains(root, { checked, tip, paths }) {
+  return paths.length > 0 && !readGit(root, ['diff', '--no-renames', '--name-only', checked, tip, '--', ...paths]).trim();
+}
+
 /** Read the actual retained trunk tip, rather than a cached checkout HEAD used during review. */
 export function verdictTrunk(root, { trunkRef }) {
   try {
@@ -163,6 +171,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       const paths = new Set(review.paths);
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
+        if (file && mainContains(root, { checked, tip, paths: [...paths] })) return null;
         if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] })) return null;
         if (file) return { code: 'STALE_VERDICT', file, commit, reviewedTrunk: review.trunk, main: tip,
           ...(review.legacy ? { legacy: true } : {}) };
