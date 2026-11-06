@@ -222,7 +222,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
   box.git(box.repo, 'add', 'pullboard.json', 'test/private-exit-repeat.test.cjs');
   box.git(box.repo, 'commit', '-qm', 'test: enable private repeated native proof');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--json');
+  const added = box.run(box.repo, 'add', 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id), '--json');

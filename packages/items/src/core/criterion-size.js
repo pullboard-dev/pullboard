@@ -25,3 +25,12 @@ export function criterionSize(criterion = '', catalog = []) {
   return { version: 1, score: files.length + cells.size + clauses, files, cells: [...cells].sort(), clauses,
     oversized: cells.size > 1 || clauses > 3 };
 }
+
+/**
+ * Route new work mid. A light item now needs a recorded diagnosis (#2760), so defaulting small work to light made
+ * every plain add and the post-land Main-red filer refuse DIAGNOSIS_REQUIRED; a capable seat's diagnosis makes it
+ * light (#3115).
+ */
+export function defaultItemRoute() {
+  return 'mid';
+}

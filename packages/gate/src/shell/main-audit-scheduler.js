@@ -13,6 +13,8 @@ import {
   join,
 } from 'node:path';
 import {
+  closeSync,
+  openSync,
   rmSync,
 } from 'node:fs';
 import {
@@ -35,6 +37,9 @@ function started(pid) {
   catch { return null; }
 }
 
+/** The append-only log a scheduled wake writes its stdout and stderr to, inside its own private directory [C7,#2913]. */
+export function wakeLogFile(directory) { return join(directory, 'worker.log'); }
+
 /** Schedule one durable wake without borrowing foreground admission or stopping somebody else's process. */
 export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
   const due = Date.parse(dueAt);
@@ -52,9 +57,14 @@ export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
     }
     const token = randomUUID(), env = gitChildEnv(root);
     for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];
-    const child = spawn(process.execPath, [fileURLToPath(workerUrl), root, token, '--scheduled', '--wake-at', dueAt],
-      { cwd: root, env, detached: true, stdio: 'ignore' });
-    await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+    // The wake keeps its output, so a worker that dies mid-landing leaves its reason in worker.log [C7,#2913].
+    const log = openSync(wakeLogFile(directory), 'a', 0o600);
+    let child;
+    try {
+      child = spawn(process.execPath, [fileURLToPath(workerUrl), root, token, '--scheduled', '--wake-at', dueAt],
+        { cwd: root, env, detached: true, stdio: ['ignore', log, log] });
+      await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+    } finally { closeSync(log); }
     saveMainAudit(file, { version: 1, pid: child.pid, started: started(child.pid), token, dueAt });
     child.unref();
   });
