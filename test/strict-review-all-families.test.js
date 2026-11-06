@@ -19,6 +19,7 @@ import { refuseUnreviewable } from '../packages/verify/index.js';
 import { submitPreflight } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../src/review-head-builder-family-engine.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-composition-bar' });
@@ -28,6 +29,8 @@ const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n
 /** Private fixture authors and independent reviewers have persisted, explicitly distinct parents. */
 function fixture(t, { third = false, noIndependentClaude = false } = {}) {
   const board = fixtureBoard(t);
+  // These cases prove the composition-fallback rules that the head-builder-family engine replaced.
+  board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   const seats = [['coordinator', 'coordinator', undefined, 'f'], ['core-1', 'core', 'openai', 'a'],
     ['core-2', 'core', 'claude', 'b'], ['core-3', 'core', 'openai', 'c'], ['core-4', 'core', 'claude', 'd'],
     ['core-5', 'core', 'claude', 'b']];
@@ -156,7 +159,7 @@ test('real submit preflight uses candidate size for companion-owned reachability
   // A real legacy attachment predates the reachability guard; upgrading must not strand its composition.
   f.board.executionEngineVersion = NO_ELIGIBLE_REVIEWER_ENGINE - 1;
   f.attach('core-2');
-  delete f.board.executionEngineVersion;
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   const ports = { atomic: store.atomic, submit: store.submit };
   const review = { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) };
   const before = exportBoard(f.board);
