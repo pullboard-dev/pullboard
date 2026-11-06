@@ -110,6 +110,7 @@ import { applyRehomeItem } from "./board-apply-rehome-item.js";
 import { approveOutside } from "./board-approve-outside.js";
 import { setLaneLead } from "./board-set-lane-lead.js";
 import { activityDeliveryState } from "./board-activity-delivery.js";
+import { activityInterruptWasDelivered } from "./board-activity-delivery.js";
 import { recordActivityDelivery } from "./board-activity-delivery.js";
 import { actOnActivity } from "./board-act-on-activity.js";
 import { openHandoff } from "./board-open-handoff.js";
@@ -151,6 +152,7 @@ export { atomic, logEvent };
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect } from "../core/board-landing-test-defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../core/board-selector-gap.js";
+export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../core/board-accepted-reland.js";
 export { landingLeaseMove, landingLeaseState } from "../core/board-landing-lease.js";
 export { boardBusyError } from "./board-access.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
@@ -460,6 +462,7 @@ export {
   approveOutside,
   setLaneLead,
   activityDeliveryState,
+  activityInterruptWasDelivered,
   recordActivityDelivery,
   actOnActivity,
   openHandoff,
@@ -473,9 +476,16 @@ export function prepareClaim(board, id, options) {
   return preparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-/** Claim with the original guards, revalidated against the prepared database snapshot. */
+/** Claim with the original guards, retrying stale snapshots caused by concurrent native writes. */
 export function claim(board, id, options) {
-  return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
+    } catch (error) {
+      if (!(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= 5) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(attempt + 1, 5));
+    }
+  }
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit-handoff-state.js";

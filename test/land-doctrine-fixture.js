@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 function configure(box, command, count) {
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem: false, manualOverride: true, publish: 'separate' } }, null, 2));
   appendFileSync(join(box.repo, 'DOCTRINE.md'),
     `\n## Q · Quality\n- Q1 [approved, must] The quality count only falls. | gate: check ${command} | count: ${count}\n`);
   box.git(box.repo, 'add', '-A');
