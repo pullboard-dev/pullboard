@@ -52,6 +52,7 @@ async function checkFinishedItems(executable, address, readOnly, label, box, tou
       await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
       await chrome.waitFor("innerWidth === 390 && matchMedia('(pointer: coarse)').matches");
     }
+    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor("document.querySelector('#chain .empty') || document.querySelector('#chain .row[data-item=\"1\"]')");
     const initial = JSON.parse(await chrome.stable(`JSON.stringify({
       state: view.state,
