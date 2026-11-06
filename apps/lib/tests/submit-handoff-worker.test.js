@@ -54,7 +54,7 @@ test('queued handoff retries an explicitly named locked database refusal [C7]', 
   assert.deepEqual(out.busyWaits, [{ code: 'DATABASE_LOCKED', seconds: 5 }]);
 });
 
-test('queued handoff retries each busy storage code on the same pinned write and records every wait [C7]', async () => {
+test('clause 3: queued handoff retries each busy storage code on the same pinned write and records every wait [C7]', async () => {
   const failures = [
     new Refused('BOARD_BUSY', 'fixture board is busy'),
     Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' }),
@@ -86,6 +86,21 @@ test('clause 1: a queued submit stops waiting on a busy board at the lease end a
   const busy = waits.slice(0, 3);
   assert.deepEqual(busy, [1_000, 2_000, 1_000], 'busy waits sum to exactly the lease budget');
   assert.equal(busy.reduce((sum, ms) => sum + ms, 0), 4_000);
+});
+
+test('clause 2: only runner or gate failures count toward GATE_INFRA_EXHAUSTED, busy codes never do [C7]', async () => {
+  let calls = 0;
+  const run = async () => {
+    calls += 1;
+    if (calls <= 3) throw new Refused(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED'][calls - 1], 'fixture storage is busy');
+    return 'green';
+  };
+  const out = await submitUntilSettled(run, { wait: async () => {}, healthy: async () => true, retries: 1, lockPauseMs: 1 });
+  assert.equal(out.result, 'green');
+  assert.deepEqual(out.attempts, [], 'three busy stops counted no infrastructure attempt');
+  let runnerCalls = 0;
+  await assert.rejects(submitUntilSettled(async () => { runnerCalls += 1; throw new Refused('RUNNER_UNAVAILABLE', 'fixture runner is gone'); },
+    { wait: async () => {}, healthy: async () => true, retries: 1 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && runnerCalls === 2);
 });
 
 test('launched submit worker completes a native queued request without unsettled await [V4,H16,E18]', async t => {

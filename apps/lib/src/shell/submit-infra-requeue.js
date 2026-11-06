@@ -38,7 +38,7 @@ const LOCK_MAX_PAUSE_MS = 30_000;
  */
 export function infrastructureFailure(error) {
   if (!error || typeof error !== 'object') return null;
-  if (INFRASTRUCTURE_CODES.has(error.code)) return error.code;
+  if (INFRASTRUCTURE_CODES.has(error.code) || BUSY_CODES.has(error.code)) return error.code;
   if (error.name === 'RunnerDropped') return 'TRANSPORT_LOST';
   if ((error.code === undefined || error.code === 'ERR_SQLITE_ERROR') && LOCKED.test(String(error.message ?? ''))) return 'DATABASE_LOCKED';
   return null;
