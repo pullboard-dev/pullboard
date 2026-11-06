@@ -25,7 +25,8 @@ import { isStampedGreen } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
-import { refreshMainRedComparisons } from './main-red.js';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -46,16 +47,24 @@ function pushRefused(reason, next = 'inspect the remote and hooks, then run pull
   return new Refused('LAND_PUSH', `the landing push failed: ${reason}; ${next}`);
 }
 
-/** Start comparisons for the previous main's named red files after publication, without holding up the landing. */
-function refreshPublishedMainReds(state, previousMain) {
+/**
+ * Start comparisons for the previous main's named red files after publication in a detached child, so the landing
+ * worker exits the moment it has landed. Why: run in this process, a 9-minute comparison kept the worker alive and the
+ * scheduler held the next batch behind it on 6 Nov; the child logs to automatic-landing/main-red-refresh.log [C7].
+ */
+export function refreshPublishedMainReds(state, previousMain, { launch = spawnDetachedRefresh } = {}) {
   const publishedMain = mainCheckout(state.root)?.commit;
-  if (!publishedMain || publishedMain === previousMain) return;
-  void refreshMainRedComparisons(state.root, previousMain, publishedMain, state.onWait).then(results => {
-    const unavailable = results.filter(result => result.unavailable);
-    if (unavailable.length) state.say(`background main-red refresh incomplete for ${unavailable.length} file(s) at ${publishedMain.slice(0, 12)}`);
-  }).catch(error => {
-    state.say(`background main-red refresh unavailable: ${String(error?.message ?? error).slice(0, 180)}`);
-  });
+  if (!publishedMain || publishedMain === previousMain) return null;
+  try { launch(state.root, previousMain, publishedMain); }
+  catch (error) { state.say(`background main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
+  return { previousMain, publishedMain };
+}
+
+/** The detached refresh child: its own process group, no inherited stdio, never awaited. */
+function spawnDetachedRefresh(root, previousMain, publishedMain) {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../../../../bin/main-red-refresh.js', import.meta.url)), root, previousMain, publishedMain],
+    { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env } });
+  child.unref();
 }
 
 /**
