@@ -352,9 +352,9 @@ export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(
 }
 
 /** Give native read consumers the same capabilities without migrating or changing the light CLI read path. */
-export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts() } = {}) {
+export function openBoardForRead(file, clock = systemClock, { ports = nativeBoardPorts(), connection = null } = {}) {
   const runtimePorts = freezeRuntimePorts(ports);
-  const board = readBoard(file, clock);
+  const board = readBoard(file, clock, { connection });
   return board && Object.assign(board, { runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts });
 }
 

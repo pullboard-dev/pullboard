@@ -27,7 +27,7 @@ function onBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-test('check-repoint moves retain their feature floor in a later engine and refuse on the prior engine [H16]', async t => {
+test('clause 1: a future client replays move floors while refusal guidance loads [C7,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-check-repoint-engine-'));
   const oldClient = join(directory, 'old-client');
   const futureClient = join(directory, 'future-client');
@@ -46,10 +46,11 @@ test('check-repoint moves retain their feature floor in a later engine and refus
 
   const oldClientUrl = pathToFileURL(join(oldClient, 'src/'));
   const futureClientUrl = pathToFileURL(join(futureClient, 'src/'));
-  const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves] = await Promise.all([
+  const [oldMachine, oldEngine, futureMachine, futureEngine, futureMoves, futureWords] = await Promise.all([
     import(new URL('machine.js', oldClientUrl)), import(new URL('engine.js', oldClientUrl)),
     import(new URL('machine.js', futureClientUrl)), import(new URL('engine.js', futureClientUrl)),
     import(new URL('move-registry.js', futureClientUrl)),
+    import(pathToFileURL(join(futureClient, 'apps/cli/src/core/next-step-words.js'))),
   ]);
   assert.ok(oldMachine.ENGINE_VERSION < featureEngine,
     'the genuine older executable refuses a move above its actual engine');
@@ -62,16 +63,21 @@ test('check-repoint moves retain their feature floor in a later engine and refus
     'the later executable accepts the original feature-engine envelope');
   assert.equal(futureMoves.minimumMoveEngine(move.operation, move.args), featureEngine,
     'the later executable keeps the move at its fixed introduction floor');
+  assert.equal(futureWords.NEXT_STEPS.PROOF_RUN_UNBOUND, futureMoves.MOVE_REGISTRY.recordProofRun.nextSteps.PROOF_RUN_UNBOUND,
+    'the future client reads discovered move guidance after registry discovery without an import cycle');
   assert.equal(minimumMoveEngine(move.operation, move.args), featureEngine,
     'the current runtime uses the same recorded feature floor');
 });
 
-test('a split train landing repoints open and claimed checks and reports submitted checks unchanged [H16]',
+test('clause 2: a split train landing repoints open and claimed checks and reports submitted checks unchanged [C7,H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
     const helpers = createE2eHelpers();
-    const box = helpers.project('node bin/run-tests.js', undefined, { withWorktree: false });
+    const box = helpers.project('node bin/run-tests.js web/legacy-a.test.js web/legacy-b.test.js', undefined, { withWorktree: false });
     t.after(async () => helpers.cleanup());
     delete box.env.NODE_TEST_CONTEXT;
+    const fixtureHooks = join(box.dir, 'fixture-hooks');
+    mkdirSync(fixtureHooks);
+    box.git(box.repo, 'config', 'core.hooksPath', fixtureHooks);
     copyCommittedPackageFiles(box, import.meta.dirname + '/..');
     mkdirSync(join(box.repo, 'web'), { recursive: true });
     writeFileSync(join(box.repo, 'web/legacy.test.js'),
@@ -79,10 +85,11 @@ test('a split train landing repoints open and claimed checks and reports submitt
     const configPath = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config,
-      landing: { manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+      landing: { perItem: false, manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
     box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/legacy.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+    const baseTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
     const check = 'node bin/run-tests.js web/legacy.test.js';
     const freeze = criterion => {
       const text = JSON.stringify({ criterion, rows: [], policy: { version: 1, commit: base,
@@ -104,15 +111,15 @@ test('a split train landing repoints open and claimed checks and reports submitt
       const trainId = makeItem(board, 'Landing carrier');
       store.claim(board, openId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Open check') });
-      store.release(board, openId, openBuilder);
-      store.claim(board, claimedId, { agentId: claimedBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
+      store.release(board, openId, openBuilder, 'Return the fixture claim to open for split repair.', undefined, 'OTHER');
+      store.claim(board, claimedId, { agentId: claimedBuilder, lane: 'web', leaseMs: 86_400_000, head: base,
         freeze: () => freeze('Claimed check') });
       store.claim(board, submittedId, { agentId: submittedBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Submitted check') });
-      submitFixture(board, submittedId, { agentId: submittedBuilder, commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+      submitFixture(board, submittedId, { agentId: submittedBuilder, commit: base, tree: baseTree });
       store.claim(board, malformedId, { agentId: openBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Malformed check') });
-      store.release(board, malformedId, openBuilder);
+      store.release(board, malformedId, openBuilder, '', undefined, 'BLOCKED');
       store.claim(board, trainId, { agentId: trainBuilder, lane: 'web', leaseMs: 3_600_000, head: base,
         freeze: () => freeze('Landing carrier') });
       return { trainBuilder, openId, claimedId, submittedId, malformedId, trainId };

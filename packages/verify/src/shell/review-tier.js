@@ -1,4 +1,4 @@
-import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
+import { STRICT_RENAME_ENGINE } from '../../../../src/strict-rename-engine.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
 import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';

@@ -1,3 +1,4 @@
+import { beginImmediateQueued } from './board-busy.js';
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board-store-guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
@@ -259,7 +260,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
   validateDocument(db, document, names);
   prepareBoardWriteIdentity();
   const marker = prepareBoardWriteMarker(db, board.writeContext);
-  try { db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE'); }
+  try { db.exec('PRAGMA defer_foreign_keys = ON'); beginImmediateQueued(db, Date.now(), marker); }
   catch (error) { discardBoardWriteMarker(marker); throw error; }
   const writeRecord = beginBoardWrite(db, board.writeContext, marker);
   let released = false;

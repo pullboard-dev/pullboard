@@ -23,10 +23,6 @@ import { runnerPolicyRecord } from '../../../sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../sandbox/index.js';
 import { acceptedBudgetTrunk } from './test-file-budget-policy.js';
 import {
-  runProfiledShellAsync,
-  withGateSlot,
-} from './gate.js';
-import {
   cleanGitEnvironment,
   git as readGit,
   headCommit,
@@ -36,13 +32,11 @@ import {
   testsNeedGui,
 } from './gui-admission.js';
 import { Refused } from '../../../kernel/index.js';
-import { runnerSource } from '../core/gate-policy-load.js';
 import {
   retainTestOutput,
   renderTestSummary,
 } from './test-output-summary.js';
 import { readFileSync } from 'node:fs';
-import { fullGateRun } from './gate-execution.js';
 import { timingSource } from './run-timing.js';
 import { trackedDefaultTestFiles } from './test-selection.js';
 import {
@@ -57,6 +51,7 @@ export async function runFullSuite(root, runner, executionServices) {
   if (relative(root, runner).split(sep).join('/') !== 'bin/run-tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
+  const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('./gate.js'), import('./gate-execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('./cpu-load-admission.js');
   const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node ./bin/run-tests.js' }, false,
@@ -100,7 +95,8 @@ function git(root, args, env) {
  * The commit a runner checks out: HEAD when the tree is clean, else a snapshot commit of the working tree, made
  * with a private index so the checkout's own index and branches stay as they are. Ignored files stay out.
  */
-function snapshotCommit(root) {
+async function snapshotCommit(root) {
+  const { runnerSource } = await import('../core/gate-policy-load.js');
   if (runnerSource(root)) return { commit: headCommit(root), clean: true };
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-test-index-'));
   try {
@@ -116,7 +112,7 @@ function snapshotCommit(root) {
 
 /** Run the files where the work is: this clean checkout, or a clean temporary checkout of its snapshot. */
 export async function inCleanCheckout(root, work, withMainCheckout) {
-  const { commit, clean } = snapshotCommit(root);
+  const { commit, clean } = await snapshotCommit(root);
   if (clean) return work(root);
   const accepted = acceptedBudgetTrunk(root);
   const result = await withMainCheckout(root, commit, async checkout => {
@@ -157,6 +153,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
   }
   let paths = affected ? [] : testFiles(root, files);
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
+  const { runProfiledShellAsync, withGateSlot } = await import('./gate.js');
   const started = Date.now();
   const admission = testRunnerAdmission();
   const run = await inCleanCheckout(root, async (checkout) => {

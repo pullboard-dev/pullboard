@@ -16,13 +16,14 @@ import { openBoard } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
   /** Remove this test file's fixtures after its tests finish. */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true });
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');
@@ -79,7 +80,7 @@ const CONFIG = {
   spec: 'SPEC.md',
   verify: 'any',
   lease: '2h',
-  landing: { manualOverride: true },
+  landing: { perItem: false, manualOverride: true },
   lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   shared: ['docs/'],
 };
@@ -118,7 +119,13 @@ function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, 
   if (!withWorktree) return { ...box, repo };
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').out, /joined as web-1/);
+  const joined = joinFixtureSeat(box, web, 'web', { model: 'Fixture' });
+  assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
+  const seat = JSON.parse(joined.out);
+  assert.equal(seat.agent, 'web-1');
+  assert.equal(seat.lane, 'web');
+  assert.equal(seat.route, 'strong');
+  assert.equal(seat.model, 'Fixture');
   return { ...box, repo, web };
 }
 
@@ -289,7 +296,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Private check', '--specs', 'G1', '--criterion', 'the installed check passes', '--check', check).code, 0);
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private check', criterion: 'the installed check passes', check, args: ['--specs', 'G1'] });
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/.gitignore'), '.deps/\n');
@@ -298,7 +305,7 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
   historicalCheckSubmission(box, commit);
   const review = join(box.dir, 'private-check-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.equal(box.run(review, 'join', 'api').code, 0);
+  assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
   const reserved = box.run(review, 'next', '--verify', '1', '--json');
   assert.equal(reserved.code, 0, reserved.out || reserved.err);
   return { ...box, review, commit };
@@ -316,7 +323,9 @@ function privateCheckSubmission({ install = '', timeout = '5m', check }) {
 export function crossLaneFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true');
+  const fixture = helpers.sandbox();
+  fixture.env.PULLBOARD_MODEL = 'Cross-lane test';
+  const box = helpers.project('true', fixture);
   const session = 'cross-lane-owner-session';
   /** Each command gets its actual invoking session, and the surrounding fixture keeps none. */
   function runAs(identity, cwd, ...args) {
@@ -340,13 +349,14 @@ export function crossLaneFixture(t) {
   function seat(name, lane, identity, route = 'strong') {
     const root = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    return { ...json(runAs(identity, root, 'join', lane, '--route', route, '--model', 'Cross-lane test', '--json')), root };
+    return { ...json(joinFixtureSeat(box, root, lane, { route, model: 'Cross-lane test', run: (cwd, ...args) => runAs(identity, cwd, ...args) })), root };
   }
-  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row. */
+  /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {
-    return json(box.run(box.repo, 'add', lane, title, '--specs', lane === 'api' ? 'G2' : 'G1', '--route', route,
-      ...(route === 'strong' ? [] : ['--criterion', 'The item can be built and checked from its brief.', '--check', 'true',
-        '--brief', `Files: ${lane}/${route}.js\nChange: build the fixture item\nTest: the check proves the fixture`]), '--json')).item.item_id;
+    return fileFixtureItem(box, box.repo, { lane, title, route,
+      criterion: 'The item can be built and checked from its brief.', check: 'true', diagnose: false,
+      brief: `Files: ${lane}/${route}-${title.toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
+      args: ['--specs', lane === 'api' ? 'G2' : 'G1'] }).item_id;
   }
   /** Keep the test's queue order explicit without touching a production board. */
   function milestone(name, id) {
