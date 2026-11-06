@@ -70,12 +70,14 @@ const watchdogSource = `
 const { parentPort } = require('node:worker_threads');
 const { writeSync } = require('node:fs');
 const timers = new Map();
+const finished = [];
 parentPort.on('message', (message) => {
   if (message.type === 'stop') {
     const active = timers.get(message.id);
     if (active) {
       clearTimeout(active.timer);
       if (active.probe) clearTimeout(active.probe);
+      if (active.name !== undefined) finished.push({ name: active.name, ms: Date.now() - active.startedAt });
     }
     timers.delete(message.id);
     return;
@@ -113,10 +115,10 @@ parentPort.on('message', (message) => {
     const elapsedMs = Date.now() - startedAt;
     writeSync(2, 'run-tests: test "' + message.name + '" in ' + message.file +
       ' failed: it ran ' + (elapsedMs / 1000).toFixed(1) + 's, past the ' +
-      message.timeoutMs + 'ms per-test timeout\\n');
+      message.timeoutMs + 'ms per-test timeout; finished cases ' + JSON.stringify(finished) + '\\n');
     try { process.kill(message.pid, 'SIGKILL'); } catch { /* The timed-out test process already exited. */ }
   }, message.timeoutMs);
-  timers.set(message.id, { timer });
+  timers.set(message.id, { timer, name: message.name, startedAt });
 });
 `;
 
@@ -166,7 +168,7 @@ function installTestWatchdog() {
     }
     const id = `${process.pid}:${++nextTestId}`;
     const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
-    reportFileTest(id, name);
+    reportFileTest(id, name, timeoutMs);
     activeTests.set(context, id);
     runningTests.add(id);
     watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });
@@ -1383,6 +1385,9 @@ async function main(args) {
       }, {
         executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
         kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
+        // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
+        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
         shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {

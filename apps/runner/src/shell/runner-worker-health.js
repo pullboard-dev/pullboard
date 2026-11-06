@@ -148,7 +148,8 @@ function idleWorkerSnapshot(root, diagnostic) {
       const db = new DatabaseSync(resourceFile, { readOnly: true });
       try {
         // A dead holder is a leak for the machine's next write to reclaim, never proof of work in progress [C7].
-        const holders = db.prepare("SELECT pid FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
+        // Every column, since an older or minimal holder table may lack pid; a holder without one still counts as active.
+        const holders = db.prepare("SELECT * FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
         if (holders.some(holder => holderProcessAlive(holder.pid))) return unknown(diagnostic, 'runner resource lease is active');
       } finally { db.close(); }
     } catch (error) { return unknown(diagnostic, 'resource SQLite idle query failed', error); }

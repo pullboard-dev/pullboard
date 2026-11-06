@@ -384,7 +384,8 @@ export function runnerIdleReply(root, request, processCensus) {
       try {
         // A holder whose process is gone is a leak the machine reclaims on its next write; it must not keep the
         // runner "busy" forever, which idled the largest runner for a day on three dead pids [C7].
-        const holders = db.prepare("SELECT pid FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
+        // Every column, since an older or minimal holder table may lack pid; a holder without one still counts as active.
+        const holders = db.prepare("SELECT * FROM holder WHERE name='gate' OR agent LIKE 'pullboard-ssh-%'").all();
         if (holders.some(holder => holderProcessAlive(holder.pid))) return { ...base, reason: 'runner resource lease is active' };
       } finally { db.close(); }
     }
