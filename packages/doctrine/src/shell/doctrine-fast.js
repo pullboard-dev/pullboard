@@ -1,3 +1,4 @@
+/** @pullboard-module-loads bin/checks/*.js */
 /**
  * The fast doctrine path for submit [C7]. A rule whose command is `node bin/checks/<name>.js`, with
  * a script marked `@file-local`, reads only the files it walks, so submit imports that check and
