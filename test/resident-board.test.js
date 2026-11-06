@@ -54,6 +54,8 @@ function copyCode(code, env) {
     cpSync(join(REPO, file), join(code, file));
   }
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: code, env });
+  // The copied code is committed, so the resident process names it by its code trees [#3249].
+  runFixtureGit(['add', '-A'], { cwd: code, env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code one'], { cwd: code, env });
 }
 
@@ -244,6 +246,7 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   const data = JSON.parse(readFileSync(packageFile, 'utf8'));
   data.version = '0.0.0-resident-new';
   writeFileSync(packageFile, JSON.stringify(data, null, 2) + '\n');
+  runFixtureGit(['add', 'package.json'], { cwd: fx.code, env: fx.env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code two'], { cwd: fx.code, env: fx.env });
   const next = fx.runIn(fx.repo, ['version']);
   const release = (result) => result.stdout.split('\n')[0];
