@@ -338,10 +338,10 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
+ * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [], contentCache = true } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, allowCancelled = false, onMeasuredReceipt, onStart, runnerAdmission = {}, execution, recordedRuns = [], contentCache = true } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -415,6 +415,8 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         const gui = testsNeedGui(checkout, [path]);
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
         const measure = remote => withGateSlot(checkout, async lease => {
+          // The runner is known only now: tell the caller before the run starts [C7,#3268].
+          onStart?.({ file: path, runner: lease.runner?.host ?? null });
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
@@ -499,9 +501,56 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     ? outcomeOf(cache.entries, path) : { result: outcomeOf(cache.entries, path).result }) })) };
 }
 
+/**
+ * What the local cache already knows of main's failures in these files at one commit, without running anything. A file
+ * the cache lacks is left out, so a case in it is never matched as main's [C7].
+ *
+ * @param {string} root
+ * @param {string} commit - The main commit whose recorded outcomes to read.
+ * @param {string[]} files - Repository-relative test files.
+ */
+export function cachedMainComparison(root, commit, files) {
+  try {
+    const entries = readCache(cacheFile(root)).entries[commit] ?? {};
+    return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
+  } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
+}
+
 /** The newest commit-keyed generations of the cache, newest first; content-keyed records are not generations. */
 function recentGenerations(cache, count, except = []) {
   return Object.keys(cache.entries).filter(key => /^[0-9a-f]{40}$/u.test(key) && !except.includes(key)).slice(-count).reverse();
+}
+
+/**
+ * The newest recorded main outcome for one file across the latest commit generations, with the main it was measured
+ * at; null when none of them holds a usable named result. Why: a proof keyed on a test's whole import closure dies
+ * with every commit to main, since the gate code sits in every closure, so a landing re-proved the same main reds
+ * after every landing. A red that main failed by the same case names at the last measured main, in a file the batch
+ * did not touch, is carried forward; the detached refresh re-measures it at the new main behind the landing [C7].
+ */
+export function carriedMainOutcome(root, file, { generations = REFRESH_GENERATIONS } = {}) {
+  let cache;
+  try { cache = readCache(cacheFile(root)); } catch { return null; }
+  for (const main of recentGenerations(cache, generations)) {
+    const outcome = cache.entries[main]?.[file];
+    if (outcome?.result === 'red' && outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION && Array.isArray(outcome.failures) && outcome.failures.length) {
+      return { main, files: [{ file, ...outcome }], carried: true };
+    }
+    if (outcome?.result === 'green') return { main, files: [{ file, ...outcome }], carried: true };
+  }
+  return null;
+}
+
+/**
+ * The newest cached generation to refresh from when a batch base has no generation of its own; null when the base is
+ * cached or no commit generation exists. Why: a hand-moved main has no cached comparisons, so the first red batch on it
+ * re-measured every known red for minutes [C7,#3268].
+ */
+export function refreshSource(root, base) {
+  let cache;
+  try { cache = readCache(cacheFile(root)); } catch { return null; }
+  if (cache.entries[base]) return null;
+  return recentGenerations(cache, 1, [base])[0] ?? null;
 }
 
 /**
