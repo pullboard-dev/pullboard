@@ -31,8 +31,14 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const callsBeforePrivate = box.calls.length;
   const local = await box.cli('add', box.lane, 'private item', '--private');
   assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
-  assert.equal(box.calls.length, callsBeforePrivate, 'private add makes no relay request');
   const privateFile = privateBoardPath(repoBoardId, box.env.PULLBOARD_HOME);
+  const privateIdBoard = openBoard(privateFile);
+  let privateBoardId;
+  try { privateBoardId = store.boardId(privateIdBoard); } finally { store.closeBoard(privateIdBoard); }
+  // The private add's CLI start may flush the shared add's pending outbox to the repo board: those calls are a fixture race, so only private-board requests count.
+  const laterCalls = box.calls.slice(callsBeforePrivate);
+  assert.deepEqual(laterCalls.filter(call => call.path.includes(privateBoardId)), [], 'private add makes no relay request');
+  assert.deepEqual(laterCalls.filter(call => !call.path.includes(repoBoardId) && !call.path.includes(privateBoardId)), [], 'private add makes no unexpected relay request');
   assert.ok(privateFile.startsWith(box.env.PULLBOARD_HOME + '/'), 'the private board is kept under this device’s Pullboard home');
   assert.equal(lstatSync(join(box.env.PULLBOARD_HOME, 'private')).mode & 0o777, 0o700, 'the private-board root is owner-only');
   assert.equal(lstatSync(join(box.env.PULLBOARD_HOME, 'private', repoBoardId)).mode & 0o777, 0o700, 'the private board directory is owner-only');
