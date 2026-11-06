@@ -35,7 +35,7 @@ export async function legacyMirrorQueueFragment({
 
   const queuedRows = localEvents(boardFile);
   const queuedEvents = queuedRows.slice(priorRows.length);
-  assert.deepEqual(queuedEvents.map((event) => event.event_kind), ['add', 'shout']);
+  assert.deepEqual(queuedEvents.map((event) => event.event_kind), ['add', 'milestone_placed', 'shout']);
   const initialUploadCount = relay.uploads.length;
   const expectedBehind = queuedEvents.length;
 
