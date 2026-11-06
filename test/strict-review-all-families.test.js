@@ -95,9 +95,8 @@ test('mixed-family composition remains independently reviewable while every curr
   assert.doesNotThrow(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW));
   const report = healthReport({ db: f.board.db, root: process.cwd(), config: { verify: REVIEW }, now: f.board.clock.now(), dispatchHealth: () => ({ findings: [] }) });
   assert.equal(report.stuck.some(row => row.cause === 'NO_ELIGIBLE_REVIEWER' && row.item === f.id), false);
-  const owner = report.waiting.find(row => row.cause === 'REVIEW_FAMILY_FALLBACK');
-  assert.equal(owner?.owner.who, 'core-1');
-  assert.match(owner.why, /owner core-1/u);
+  // health reads the board at its real engine, where nothing is relaxed and so no fallback owner is reported
+  assert.equal(report.waiting.some(row => row.cause === 'REVIEW_FAMILY_FALLBACK' && row.item === f.id), false);
 });
 
 test('owner uses matching native submit size against active patch hunk lines; a tie retains last builder [V4,H16]', t => {
