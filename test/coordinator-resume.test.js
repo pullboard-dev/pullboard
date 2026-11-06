@@ -125,7 +125,7 @@ function integrationEvidence(box, cwd, id, kind, outcome, commitId, text) {
   return JSON.parse(result.out).id;
 }
 
-test("the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3,C7]", () => {
+test("clause 1: the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3,C7]", () => {
   const box = fixture();
   const cleanBuilder = box.web;
   const cleanId = addAndClaim(box, cleanBuilder, 'Clean item', 'G1');
