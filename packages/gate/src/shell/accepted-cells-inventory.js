@@ -78,7 +78,9 @@ export function pinnedCheckerFingerprint(root, commit) {
     if (mode !== '100644' && mode !== '100755') throw new Error('accepted cells tooling contains a nonregular path');
     if (CODE_FILE.test(path)) rows.push({ path, sha });
   }
+  const group = row => TOOLING_PATHS.findIndex(path => row.path.startsWith(`${path}/`));
   rows.sort((left, right) => {
+    if (group(left) !== group(right)) return group(left) - group(right);
     const a = left.path.split('/'), b = right.path.split('/');
     for (let index = 0; index < Math.min(a.length, b.length); index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
     return a.length - b.length;
