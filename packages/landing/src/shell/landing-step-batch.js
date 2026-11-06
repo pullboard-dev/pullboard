@@ -34,6 +34,7 @@ import { candidates } from './landing-step-selection.js';
 import { relandAcceptedItems } from './accepted-reland.js';
 import { landingMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
+import { oneItemBatch } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
 import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -410,7 +411,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     }
     // A per-item refusal of the item's own content sends it back to open; an infrastructure refusal leaves it verified.
     // Either way its unpublished batch stops blocked, so the next run moves on and nothing is held [C7,#2901,#2967].
-    const single = state.batch.state !== 'landed' && singleItemLanding(state);
+    const single = state.batch.state !== 'landed' && oneItemBatch(state);
     const returned = single && await returnRefusedItem(state, error);
     // A landing fault (BOARD_BUSY) keeps the batch merging or gating with its worktree and log, so adoption resumes it.
     if (returned || (single && error instanceof Refused && error.code !== 'LAND_LEASE_LOST' && !landingFault(error)
