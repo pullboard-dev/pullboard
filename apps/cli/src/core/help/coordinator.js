@@ -4,6 +4,7 @@ export const coordinatorHelp = `Coordinator
                                         file one item per file a linter, type checker or test reporter flags
   pullboard land [--max N] [--dry-run] [--adopt]  manual override: gate and land a durable batch of accepted items
   pullboard land --due [--dry-run]       manual override: use configured age/count; no --max or --adopt; explain when not due
+  pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
   pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
   pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3]  record verified work with its native batch receipt
