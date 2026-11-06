@@ -40,6 +40,10 @@ export async function knownMainAccount(state, gate) {
         // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
       if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
+      else {
+        const row = comparison?.files?.find(entry => entry.file === file);
+        state.say?.(`main comparison for ${file} at ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+      }
       return comparison;
     } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
   }));
