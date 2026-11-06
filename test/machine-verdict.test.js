@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { waitForCondition } from './runner-fixture-state.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { machineClauseCommands } from '../packages/verify/index.js';
 import { machineProofProblem } from '../packages/verify/index.js';
@@ -56,12 +57,15 @@ function fixture(t, { failing = false, sensitive = false, strict = false, advanc
   return { box, id, path, commands };
 }
 
-test('machine-verified all-green clauses land with command receipts and no reviewer [V1,V4,H16]', t => {
+test('machine-verified all-green clauses land with command receipts and no reviewer [V1,V4,H16]', async t => {
   const { box, id, commands } = fixture(t, { advanceMain: true });
   const uncomposed = box.git(box.web, 'rev-parse', 'HEAD');
   const acceptedMain = box.git(box.repo, 'rev-parse', 'main');
   const submitted = box.run(box.web, 'submit', String(id), '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  // Automatic landing may run in the board's worker after submit returns, so wait for it instead of reading once.
+  await waitForCondition(() => json(box, box.repo, 'show', String(id)).item_merged_commit, 'the board lands the machine-verified item',
+    { signal: AbortSignal.timeout(120_000), state: () => ({ submitted: submitted.out + submitted.err }) });
   const shown = json(box, box.repo, 'show', String(id));
   assert.equal(shown.item_status, 'verified');
   assert.notEqual(shown.item_commit, uncomposed, 'machine proof is for an actual composed merge, not the old builder head');
