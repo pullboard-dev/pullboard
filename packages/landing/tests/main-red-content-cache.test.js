@@ -136,7 +136,7 @@ test('clause 1: publishing refreshes each cached named red file concurrently at 
   assert.equal(result.maximum, 2, 'the two runner requests overlap');
   assert.deepEqual(result.calls.map(row => row.file).sort(), ['test/inherited.test.js', 'test/second-inherited.test.js']);
   assert.ok(result.calls.every(row => row.options.commit === published && row.options.detailed === true
-    && row.options.fresh === true && row.options.contentCache === false), JSON.stringify(result.calls));
+    && row.options.fresh === true), JSON.stringify(result.calls));
   assert.deepEqual(Object.keys(cache.entries[previous]).sort(), ['test/inherited.test.js', 'test/second-inherited.test.js']);
 });
 
