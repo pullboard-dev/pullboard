@@ -105,7 +105,7 @@ try {
     readCutItems: () => input.cutRows,
     onInventory: mode => result.notes.push('submit cells inventory: ' + mode),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) }));
-  if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source }));
+  if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
   if (selected('selection') && typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
@@ -141,20 +141,23 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   if (!OID.test(source ?? '') || source.length !== main?.length) throw new TypeError('a trusted runner step needs a pinned candidate');
   const shell = trustedStepCommand({ main, entry, data, node: lease.runner.node ?? 'node' });
   const checkedSource = { commit: source, tree: git(root, ['rev-parse', `${source}^{tree}`]).trim() };
+  // The analysis reads data.trunk, the trunk the candidate merged; packing only main left the runner without its
+  // objects whenever main had moved, and every such gate stopped GIT_READ_INFRASTRUCTURE (#2839).
+  const trunkCommit = OID.test(data?.trunk ?? '') && data.trunk.length === main.length ? data.trunk : main;
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
-    policyCommit: main, trunk: { ref: trunkRef(root), commit: main } });
+    policyCommit: main, trunk: { ref: trunkRef(root), commit: trunkCommit } });
   const parent = artifactDirectory ? join(artifactDirectory, stage) : gitPath(root, `pullboard-${stage}-output`);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'remote-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
     runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-    metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log') });
+    metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
-    privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
+    toolingSource: { kind: 'pinned-main', commit: main }, privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
     executionAdmission: result.executionAdmission ?? null, privateCheck: receipt ?? null }) + '\n', { mode: 0o600 });
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
     || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256
@@ -188,7 +191,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    browserFreeChecks: request.browserFreeChecks === true, collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
+    browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
@@ -206,6 +209,43 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   return { ...value, directory, sha256, runner: lease.runner.host };
+}
+
+/**
+ * Accept a runner's test plan and browser admission for the controller's gate only when they bind the pinned commits and
+ * cover the tests this submit must prove; anything else refuses and never runs a smaller selection (#3006).
+ *
+ * @param {{main?: string, source?: string, plan?: {proofFiles?: string[]}, admission?: object}} analysis
+ * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @returns {{plan: object, admission: object|undefined}}
+ */
+export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] }) {
+  if (analysis?.main !== main || analysis.source !== source) {
+    throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan is not bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; submit again`);
+  }
+  const files = analysis.plan?.proofFiles;
+  if (!Array.isArray(files)) throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan names no proof files; submit again');
+  const missing = crossRunTests.filter(path => !files.includes(path));
+  if (missing.length) throw new Refused('RUNNER_RESULT_INVALID', `the runner test plan omits call-adjacent tests ${missing.join(', ')}; submit again`);
+  // Why: a missing admission would let runSubmitGate admit browser and GUI files on the Mac, the work this item moves off it.
+  const admission = analysis.admission;
+  if (typeof admission?.browser !== 'boolean' || typeof admission.gui !== 'boolean') {
+    throw new Refused('RUNNER_RESULT_INVALID', 'the runner test plan carries no browser and GUI admission; update the runner tooling and submit again');
+  }
+  return { plan: analysis.plan, admission };
+}
+
+/**
+ * Run the controller's gate with the runner's plan in a handoff worker, or with none in a foreground submit so it plans
+ * locally as before. A refused runner plan throws before the gate starts, so it records no proof.
+ *
+ * @param {boolean} remoteMode
+ * @param {Promise<object>|null} selection The runner selection stage's analysis.
+ * @param {{main: string, source: string, crossRunTests?: string[]}} pinned
+ * @param {(runnerPlan: object) => Promise<any>} runGate
+ */
+export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
+  return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
@@ -238,7 +278,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
       try {
         result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
           runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
-          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
+          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
       } catch (error) {
         writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
           code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });

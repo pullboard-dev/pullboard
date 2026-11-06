@@ -121,15 +121,30 @@ const STAND_IN_PROOF = Object.freeze({ version: 1, files: [], full: false, defer
  * @param {number} id
  * @param {{ agentId: string, commit: string, tree: string }} submission
  */
-export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit }, review = {}) {
-  try {
-    atomic(board, () => {
-      submit(board, id, { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) });
-      // The item is submitted only inside this rolled-back transaction, which is what the native eligibility projection reads.
-      review.refuse?.(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id));
-      throw PASSED;
-    });
-  } catch (error) {
-    if (error !== PASSED) throw error;
+export function submitPreflight(board, id, { agentId, commit, tree, submissionSize, inspectClauses }, { atomic, submit, prepareSubmit }, review = {}) {
+  // Another seat's commit between preparation and the dry-run makes the prepared snapshot stale; prepare again from
+  // the new board, bounded so a board that changes on every attempt still refuses BOARD_BUSY (#3100).
+  for (let attempt = 1; ; attempt++) {
+    const options = { agentId, commit, tree, files: [], ...(inspectClauses ? { inspectClauses: true } : {}), submissionProof: STAND_IN_PROOF, ...(submissionSize ? { submissionSize } : {}) };
+    try {
+      const prepared = prepareSubmit ? prepareSubmit(board, id, options) : options;
+      atomic(board, () => {
+        submit(board, id, prepared);
+        // The item is submitted only inside this rolled-back transaction, which is what the native eligibility projection reads.
+        review.refuse?.(board, board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id));
+        throw PASSED;
+      });
+    } catch (error) {
+      if (error === PASSED) return;
+      if (!staleSnapshot(error) || attempt >= PREFLIGHT_ATTEMPTS) throw error;
+    }
   }
+}
+
+/** Dry-run preparations before a still-changing board is reported BOARD_BUSY. */
+const PREFLIGHT_ATTEMPTS = 6;
+
+/** Only a stale prepared snapshot is retried; a held write lock or any other refusal is reported as it stands. */
+function staleSnapshot(error) {
+  return error instanceof Refused && error.code === 'BOARD_BUSY' && /the board changed while preparing/u.test(String(error.message));
 }

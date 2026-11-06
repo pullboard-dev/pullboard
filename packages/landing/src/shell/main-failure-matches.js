@@ -61,16 +61,17 @@ export function cachedFailureSignatures(outcome, file) {
 }
 
 /** Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance. */
-export function failureSignatures(run, root, { raw = false } = {}) {
+export function failureSignatures(run, root, { raw = false, allowCancelled = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
+  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict), allowCancelled });
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
+    .filter(row => !allowCancelled || !row.lines.some(line => /^failureType:\s*['"]?cancelledByParent['"]?\s*$/u.test(line)))
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
@@ -82,7 +83,7 @@ export function failureSignatures(run, root, { raw = false } = {}) {
 }
 
 /** Every actual candidate failure must match the exact main test and its failure details. */
-export function matchingMainFailures(failures, comparison, main) {
+export function matchingMainFailures(failures, comparison, main, { byCase = false } = {}) {
   if (!failures?.length || comparison.main !== main || comparison.unavailable) return null;
   for (const failure of failures) {
     if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
@@ -90,8 +91,11 @@ export function matchingMainFailures(failures, comparison, main) {
     // A case defined in a helper reports the helper as its file; main ran it under the test file that imports the helper.
     const file = comparison.files.find(row => row.file === failure.file)
       ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
+    if (file?.result === 'red' && file.fileIsolation === true && file.file === failure.file) continue;
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
-    if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
+    // Landing asks only whether main fails this exact case: a case red on main cannot be one the item broke, however its
+    // run-specific details (checkout paths, timings) read. Submit and verify keep the exact failure signature [C7,#3073].
+    if (file?.result !== 'red' || matches?.length !== 1 || (!byCase && matches[0].signature !== failure.signature)) return null;
   }
   return { main, failures };
 }

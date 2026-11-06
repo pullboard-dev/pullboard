@@ -1,5 +1,6 @@
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { now } from "./board-query.js";
+import { liftInfraHold } from "../core/board-infra-release.js";
 import { liftConditionalHold } from "../core/board-conditional-holds.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
@@ -11,6 +12,7 @@ import { appendProofCounter } from "../../../verify/index.js";
 import { ensureProofCounters } from "../../../verify/index.js";
 
 import { beginImmediateQueued } from "./board-busy.js";
+import { boardTransactionBusyError } from "./board-busy.js";
 import { beginCapture } from "./board-capture.js";
 import {
   beginBoardWrite,
@@ -136,7 +138,7 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
       board.reviewDefaultNotice = reviewDefaultNotice;
       board.emittedEvents?.splice(emitted);
     }
-    throw error;
+    throw boardTransactionBusyError(board.db, startedAt, error);
   } finally {
     try { capture?.close(); }
     catch {
@@ -190,6 +192,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
+    liftInfraHold(board, event, logEvent, setItem);
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
       notifyUnblocked(board, event, logEvent);
     }
