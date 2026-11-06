@@ -27,8 +27,13 @@ export function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
 }
 
+/** How long a starter waits on the path lock: a holder keeps it only from the bind until its pid file names it. */
+export const LOCK_WAIT_MS = 250;
+
 /**
- * Take the socket path's lock without waiting, or return null when another process holds it.
+ * Take the socket path's lock, waiting at most LOCK_WAIT_MS, or return null when another process still holds it.
+ * Why the wait: two starters opening a fresh lock file at once could each find the other busy with no wait, so both
+ * left and no resident served the path (#3168); a holder keeps the lock for only a few milliseconds.
  *
  * @param {string} path The socket path the lock guards.
  * @returns {(() => void)|null} The release function; calling it again does nothing.
@@ -37,7 +42,7 @@ export function lockPath(path) {
   let db = null;
   try {
     DatabaseSync ??= createRequire(import.meta.url)('node:sqlite').DatabaseSync;
-    db = new DatabaseSync(`${path}.lock`, { timeout: 0 });
+    db = new DatabaseSync(`${path}.lock`, { timeout: LOCK_WAIT_MS });
     db.exec('BEGIN EXCLUSIVE');
   } catch {
     try { db?.close(); } catch { /* Never opened. */ }
