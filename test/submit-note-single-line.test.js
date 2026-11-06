@@ -36,7 +36,8 @@ test('deferred suite and cross-lane mechanical edit submit both notices on one l
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   json(box, builder, 'join', 'web');
-  const item = json(box, box.repo, 'add', 'web', 'Repoint the consumer import', '--specs', 'G1', '--check', 'node --test test/import.test.js').item.item_id;
+  const item = json(box, box.repo, 'add', 'web', 'Repoint the consumer import', '--specs', 'G1', '--check', 'node --test test/import.test.js',
+    '--criterion', '1. The consumer imports the renamed module and test/import.test.js passes [test].').item.item_id;
   json(box, builder, 'claim', String(item));
   box.git(builder, 'mv', 'web/old.js', 'web/new.js');
   writeFileSync(join(builder, 'api/consumer.js'), "import { value } from '../web/new.js';\nexport const result = value;\n");
