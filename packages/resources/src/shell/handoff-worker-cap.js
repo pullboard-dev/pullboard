@@ -37,6 +37,8 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 
 /** The environment variable that overrides the worker cap. */
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
+/** The most hand-off workers this machine runs at once, whatever the runner fleet offers. */
+export const DISPATCH_WORKER_BOUND = 16;
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
@@ -56,7 +58,11 @@ export function handoffWorkerCapacity({ env = process.env, cores = availablePara
   }
   const local = Math.max(1, Math.min(4, cores));
   if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return local;
-  return Math.max(local, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5));
+  // Each worker holds a Node process, a tool-tree copy and an SSH controller on this machine for its gate's whole run,
+  // so the cap is bounded whatever the runner count: at 55 (every runner slot) the coordinator Mac ran 46 such
+  // processes at load 47 on 6 Nov and every board command took seconds; at 12 the queue reached 70 submits an hour later, and at 20 the Mac went disk-bound (9,000 IOPS: each worker checks out the source and copies the tools) and every runner was quarantined; with the per-admission SSH probes off (loadAwareDispatch, measuredSlots) the Mac held load 32 at 20 workers, so 16 keeps the runners fed without the thrash. The bound lifts when gates become records
+  // served by one dispatcher connection per runner [C7].
+  return Math.max(local, Math.min(DISPATCH_WORKER_BOUND, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5)));
 }
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
