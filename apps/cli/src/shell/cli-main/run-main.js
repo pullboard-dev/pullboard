@@ -119,6 +119,8 @@ async function runMain(argv, streams) {
   };
   io.hookWorker = streams.hookWorker;
   io.submitHandoffWorker = streams.submitHandoffWorker;
+  // In-process tests replace the detached audit launch; production always starts bin/main-audit.js.
+  io.nudgeMainAudit = streams.nudgeMainAudit;
   /** Bind recursive CLI operations to this process root's native provider. */
   io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
@@ -202,9 +204,12 @@ async function runMain(argv, streams) {
     traceServeStartup('cli-command-preamble-ready');
     const code = await (await import('./run-command.js')).runCommand(argv, io);
     if (io.submitToolingAttempt?.retry) return code;
+    // A sweep nudges whenever main left its last audited tip, so a hotfix or plain merged is audited too.
+    const sweep = parsed?.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run' && parsed.positionals.length === 2;
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined)
-      || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined));
+      || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined)
+      || (sweep && (await import('../../../../../packages/gate/index.js')).mainMovedSinceAudit(io.cwd)));
     advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
       || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
@@ -254,8 +259,8 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (await import('../../../../../packages/gate/index.js')).nudgeMainAudit(io.cwd, new URL('../../../../../bin/main-audit.js', import.meta.url)); }
-      catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
+      try { await (io.nudgeMainAudit ?? (await import('../../../../../packages/gate/index.js')).nudgeMainAudit)(io.cwd, new URL('../../../../../bin/main-audit.js', import.meta.url)); }
+      catch { io.err('pullboard: the full-suite audit could not start; run pullboard sentinel run to retry'); }
     }
   }
 }

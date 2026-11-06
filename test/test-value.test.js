@@ -177,9 +177,11 @@ test('[C7] costs are validated board configuration with safe defaults, exposed i
   const f = fixture(t);
   assert.deepEqual(configFromSource('{"testEconomics":{"costOfWaiting":2}}').testEconomics,
     { costOfEscape: 3600, costOfWaiting: 2, costOfFalseRed: 300 });
-  for (const value of [null, [], { costOfWaiting: -1 }, { costOfEscape: 'large' }, { unknown: 1 }]) {
+  for (const value of [null, [], { costOfWaiting: -1 }, { costOfEscape: 'large' }]) {
     assert.throws(() => configFromSource(JSON.stringify({ testEconomics: value })), error => error.code === 'BAD_CONFIG');
   }
+  assert.deepEqual(configFromSource('{"testEconomics":{"unknown":1}}').testEconomics, defaults().testEconomics,
+    'forward-compatible unknown keys leave the safe defaults unchanged');
   const config = JSON.parse(readFileSync(join(f.root, 'pullboard.json'), 'utf8'));
   writeFileSync(join(f.root, 'pullboard.json'), JSON.stringify({ ...config, testEconomics: { costOfEscape: 10, costOfWaiting: 0, costOfFalseRed: 0 } }));
   const json = await f.cli('test-value', '--json');

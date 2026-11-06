@@ -81,7 +81,8 @@ async function controllerCase(t, { invalidSpec, browser }) {
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
     requests, invalidSpec });
-  const moduleURL = name => pathToFileURL(resolve(import.meta.dirname, '../src', name)).href;
+  const FRONT_DOORS = { 'gate.js': 'packages/gate/index.js', 'runners.js': 'packages/runners/index.js', 'resources.js': 'packages/resources/index.js' };
+  const moduleURL = name => pathToFileURL(resolve(import.meta.dirname, '..', FRONT_DOORS[name])).href;
   const script = `
     import assert from 'node:assert/strict';
     import { withGateSlot } from ${JSON.stringify(moduleURL('gate.js'))};
