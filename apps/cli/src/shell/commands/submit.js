@@ -188,6 +188,7 @@ import {
   queuedItemLease,
   refuseUnsubmittableStack,
   reportSubmission,
+  refuseUnverifiedStack,
   resourceAgent,
   whoAmI,
   claimOrdered,
