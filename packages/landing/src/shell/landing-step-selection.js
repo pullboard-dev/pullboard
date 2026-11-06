@@ -182,6 +182,16 @@ export function singleItemLanding(state) {
   return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
 }
 
+/**
+ * True when the batch holds exactly one item, whatever the trunk policy. A refusal of that item's own content (a red
+ * static check, a CLI smoke naming it) is the item's to fix, so it returns to its builder instead of being adopted
+ * again every wake. Why: with per-item off and a batch size of 1, #2566 was retried seven times in 20 minutes on
+ * 6 Nov and starved 24 other accepted items [C7,#2901,#2967].
+ */
+export function oneItemBatch(state) {
+  return (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
 /** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
 export function landingHooks(config) {
   // Every landing commit is the board's own: the items' hooks ran when they were built, and a batch merge that ran the

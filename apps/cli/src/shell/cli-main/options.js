@@ -99,6 +99,7 @@ const OPTIONS = {
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
   why: { type: 'boolean' },
+  replay: { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
   overflow: { type: 'string' },

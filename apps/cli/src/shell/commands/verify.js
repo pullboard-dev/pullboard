@@ -276,7 +276,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
-    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview);
+    const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
     if (!commit || !contains(root, commit, head)) {
@@ -505,8 +505,11 @@ export async function verifyHere(ctx, id, { second, values }) {
  * still composes main and runs the landing gate. Companions, a source advance and a re-review change the
  * reviewed tree, so they always take the full path.
  */
-function packetAcceptance(ctx, board, item, decision, reReview) {
-  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+function packetAcceptance(ctx, board, item, decision, reReview, read) {
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
     || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;
@@ -514,11 +517,18 @@ function packetAcceptance(ctx, board, item, decision, reReview) {
     ctx.io.say(`review packet ${packet.head.slice(0, 12)} records failures at head; running the frozen check`);
     return null;
   }
-  if (packet.rerun.length) {
-    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${packet.rerun.join(', ')} has no recorded run; running the frozen check`);
+  // An uncovered clause the reviewer lists in --read is read evidence. Rerunning the frozen check here repeats the
+  // run the gate already recorded green at this head, so it can never cover a clause the gate did not; it only
+  // costs the reviewer 2 to 4 minutes. Why: 82 of the last 150 packets had an uncovered clause on 6 Nov [V4,C7].
+  const readClauses = read === undefined ? new Set() : String(read).trim() === 'all' ? new Set(packet.rerun) : new Set(String(read).split(',').map(part => Number(part.trim())));
+  const readUncovered = packet.rerun.filter(n => readClauses.has(n));
+  const forced = packet.rerun.filter(n => !readClauses.has(n));
+  if (forced.length) {
+    ctx.io.say(`review packet ${packet.head.slice(0, 12)}: clause ${forced.join(', ')} has no recorded run and was not read; running the frozen check`);
     return null;
   }
-  return `accepted from review packet ${packet.head.slice(0, 12)}: every clause is covered by a recorded green run at the submitted head; no checkout, test run or main merge`;
+  const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
 }
 
 /** Run `pullboard verify` and return its exit code. */
