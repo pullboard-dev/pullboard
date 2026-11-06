@@ -23,6 +23,7 @@ import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
+import { ROUTE_CALIBRATION_ENGINE } from '../src/route-calibration-engine.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
@@ -756,8 +757,16 @@ const BRIEF = 'Files:\n- web/a.js\nChange:\n- rename x to y\nTest:\n- test/a.tes
 /**
  * Add a web item routed below strong, complete unless a field is overridden.
  */
-const routed = (title, route, extra = {}) =>
-  store.addItem(board, { by: 'coordinator', lane: 'web', title, route, brief: BRIEF, criterion: 'y is exported', check: 'node --test', ...extra });
+const DIAGNOSIS = 'Files: web/a.js Change: rename x to y Test case: test/a.test.js asserts y is exported';
+/**
+ * Add a web item at a route; light work is added mid, then diagnosed by the coordinator, as the
+ * diagnosis rule of 7a964958ab and the mid default of e552095cfa require [B13,C7].
+ */
+const routed = (title, route, extra = {}) => {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title, route: route === 'light' ? 'mid' : route, brief: BRIEF, criterion: 'y is exported', check: 'node --test', ...extra });
+  if (route === 'light') store.appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: DIAGNOSIS });
+  return id;
+};
 
 test('routes are tiers: an agent claims and verifies its tier and below, its own first [B13]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
@@ -766,7 +775,7 @@ test('routes are tiers: an agent claims and verifies its tier and below, its own
   assert.throws(() => store.register(board, { lane: 'web', path: '/repo-web-9', route: 'cheap' }), /BAD_ROUTE/);
   const light = routed('Rename', 'light');
   const mid = routed('Small feature', 'mid');
-  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache', route: 'strong' });
   assert.throws(() => claimAs(strong, 'web-3', 'web'), /ROUTE.*needs a strong model; you joined on the light route/);
   assert.throws(() => claimAs(mid, 'web-3', 'web'), /ROUTE.*needs a mid model/);
   assert.equal(store.nextFor(board, { agentId: 'web-3', lane: 'web' }).item.item_id, light);
@@ -788,7 +797,7 @@ test('below strong, an item is buildable cold: files, a test, a criterion and a 
   assert.throws(() => routed('No files', 'light', { brief: 'Change: x' }), /NO_BRIEF.*Files: section.*Test: section/);
   assert.throws(() => routed('No check', 'mid', { check: '' }), /NO_BRIEF.*--check, the command that proves it/);
   assert.throws(() => routed('No criterion', 'light', { criterion: ' ' }), /NO_BRIEF.*--criterion/);
-  const id = routed('Rename', 'light');
+  const id = routed('Rename', 'mid');
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', brief: '' }), /NO_BRIEF/);
   assert.equal(store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Loose', route: 'strong' }) > id, true);
 });
@@ -811,10 +820,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
     { title: 'Route', change: { route: 'mid' } },
   ];
   for (const { title, change } of edits) {
-    const id = store.addItem(board, {
-      by: 'coordinator', lane: 'web', title, route: 'light', brief: BRIEF,
-      criterion: 'the old criterion', check: 'true',
-    });
+    const id = routed(title, change.route ? 'light' : 'mid', { criterion: 'the old criterion', check: 'true' });
     claimAs(id, 'web-1', 'web');
     clock.advance(2 * HOUR + 1);
     assert.doesNotThrow(
@@ -830,10 +836,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
     assert.equal(JSON.parse(event.event_detail).unfrozen, `digest:${title}`);
   }
 
-  const live = store.addItem(board, {
-    by: 'coordinator', lane: 'web', title: 'Live', route: 'light', brief: BRIEF,
-    criterion: 'the old criterion', check: 'true',
-  });
+  const live = routed('Live', 'light', { criterion: 'the old criterion', check: 'true' });
   claimAs(live, 'web-1', 'web');
   const digest = store.itemById(board, live).item_frozen_digest;
   assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', route: 'mid' }), /HELD/);
@@ -926,6 +929,7 @@ test('a coordinator route edit starts a new rejection count [B15,B13]', () => {
 });
 
 test('two send-backs at the strongest route record no escalation [B15,B13,H16]', () => {
+  board.executionEngineVersion = ROUTE_CALIBRATION_ENGINE - 1; // 45922a6670 escalates a same-route TEST_FAILURE at once from this engine
   const id = routed('Strong rework notice', 'strong');
   rejectRevision(id, SHA_A, 'first strong send-back: missing output');
   rejectRevision(id, SHA_B, 'second strong send-back: output still wrong');
@@ -1182,7 +1186,7 @@ test('peeking shows the newest unread shouts and leaves them unread [N19]', () =
 
 test('with only work above its tier open in its lane, next names it and the reroute [B16]', () => {
   const light = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
-  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache', route: 'strong' });
   assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
     'no open light items in the web lane',
     `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,
