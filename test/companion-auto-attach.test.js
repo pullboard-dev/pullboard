@@ -33,7 +33,7 @@ function companionFixture(t) {
   return { box, id, owner, ownerSeat, patchFile };
 }
 
-test('submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', t => {
+test('clause 1: submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', t => {
   const { box, id, owner, ownerSeat, patchFile } = companionFixture(t);
   const submitted = document(box.run(box.web, 'submit', String(id), '--companion', patchFile, '--key', 'api-view', '--author', ownerSeat, '--wait', '--json'));
   assert.equal(submitted.item, id);
