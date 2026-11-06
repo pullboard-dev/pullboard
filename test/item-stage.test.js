@@ -16,7 +16,7 @@ test('clause 1: show, list and the board read name building, in the gate, back w
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [building, gated, running, red, review, accepted, landed] = ['b', 'g', 'r', 'x', 'v', 'a', 'l'].map(make);
-  for (const id of [building, gated, running, red]) store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, freeze });
+  [building, gated, running, red].forEach((id, n) => store.claim(board, id, { agentId: `web-${n + 1}`, lane: 'web', leaseMs: 3_600_000, freeze }));
   handoff(board, gated, { state: 'queued' });
   handoff(board, running, { state: 'running' });
   handoff(board, red, { state: 'red' });
@@ -38,7 +38,7 @@ test('clause 2: status counts items per stage, not per raw status [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [a, b, c] = ['a', 'b', 'c'].map(make);
-  for (const id of [a, b, c]) store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, freeze });
+  [a, b, c].forEach((id, n) => store.claim(board, id, { agentId: `web-${n + 1}`, lane: 'web', leaseMs: 3_600_000, freeze }));
   handoff(board, a, { state: 'queued' });
   handoff(board, b, { state: 'running' });
   const { stages, items } = store.stats(board);
