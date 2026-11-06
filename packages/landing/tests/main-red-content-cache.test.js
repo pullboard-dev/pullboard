@@ -71,16 +71,18 @@ function runs(box) {
  * Compare the red file at main the way submit does (detailed, fresh) or the way a landing does (knownMainAccount on a
  * real red gate run), in a child with the fixture's machine home; return the parsed result.
  */
-function compare(box, mode, commitId) {
+function compare(box, mode, commitId, publishedId) {
   const driver = join(box.directory, 'driver.mjs');
   writeFileSync(driver, [
     `import { compareMainFailures } from ${JSON.stringify(MAIN_RED)};`,
+    `import { refreshMainRedComparisons } from ${JSON.stringify(MAIN_RED)};`,
     `import { knownMainAccount } from ${JSON.stringify(KNOWN_MAIN)};`,
     `import { executionEnvironment } from ${JSON.stringify(ENVIRONMENT)};`,
     "import { spawnSync } from 'node:child_process';",
-    'const [root, mode, commit] = process.argv.slice(2);',
+    'const [root, mode, commit, published] = process.argv.slice(2);',
     "const file = 'test/inherited.test.js';",
     "if (mode === 'submit') console.log(JSON.stringify(await compareMainFailures(root, { tests: [{ file, passed: false }] }, undefined, '', { commit, detailed: true, fresh: true })));",
+    "else if (mode === 'refresh') console.log(JSON.stringify(await refreshMainRedComparisons(root, commit, published)));",
     // Submit's real call: pinned to the candidate check's executor and runtime, collecting each measured receipt.
     "else if (mode.startsWith('pinned')) { const environment = executionEnvironment(); const receipts = [];",
     "  const execution = { executor: { kind: 'local' }, environment: mode === 'pinned-other' ? { ...environment, node: '99.0.0' } : environment };",
@@ -92,10 +94,69 @@ function compare(box, mode, commitId) {
     '  console.log(JSON.stringify(await knownMainAccount({ batch: { root, base: commit } }, gate)));',
     '}',
   ].join('\n'));
-  const result = runFixtureChild(process.execPath, [driver, box.root, mode, commitId], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const result = runFixtureChild(process.execPath, [driver, box.root, mode, commitId, publishedId ?? ''], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context ?? result.stdout + result.stderr);
   return JSON.parse(result.stdout.trim().split('\n').at(-1));
 }
+
+/** Refresh two previously named red files through concurrent comparison requests and retain the per-file cache keys. */
+function probeRefresh(box, previous, published) {
+  const driver = join(box.directory, 'refresh-probe.mjs');
+  writeFileSync(driver, [
+    `import { refreshMainRedComparisons } from ${JSON.stringify(MAIN_RED)};`,
+    "const [root, previous, published] = process.argv.slice(2);",
+    'let active = 0, maximum = 0; const calls = [];',
+    'const compared = await refreshMainRedComparisons(root, previous, published, undefined, async (_root, profile, _wait, _output, options) => {',
+    '  active += 1; maximum = Math.max(maximum, active);',
+    '  await new Promise(resolve => setTimeout(resolve, 25));',
+    '  const file = profile.tests[0].file; calls.push({ file, options }); active -= 1;',
+    '  return { main: options.commit, files: [{ file, result: "red", failures: [{ file, name: "case for " + file }] }] };',
+    '});',
+    'console.log(JSON.stringify({ maximum, calls, compared }));',
+  ].join('\n'));
+  const result = runFixtureChild(process.execPath, [driver, box.root, previous, published], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.context ?? result.stdout + result.stderr);
+  return JSON.parse(result.stdout.trim().split('\n').at(-1));
+}
+
+test('clause 1: publishing refreshes each cached named red file concurrently at the new main while keeping per-file cases [C7]', t => {
+  const box = fixture(t);
+  const previous = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  assert.equal(compare(box, 'submit', previous).files[0].result, 'red');
+  const cachePath = join(box.root, '.git', 'pullboard', 'main-red.json');
+  const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
+  const priorOutcome = cache.entries[previous]['test/inherited.test.js'];
+  assert.ok(priorOutcome.failures?.length, 'the previous main entry retains named cases');
+  cache.entries[previous]['test/second-inherited.test.js'] = { ...priorOutcome,
+    failures: priorOutcome.failures.map(row => ({ ...row, file: 'test/second-inherited.test.js', ran: 'test/second-inherited.test.js' })) };
+  writeFileSync(cachePath, JSON.stringify(cache, null, 2) + '\n');
+  put(box.root, 'docs/unrelated.md', 'main moves before publication refresh\n');
+  const published = commit(box, 'docs: publish a new main');
+  const result = probeRefresh(box, previous, published);
+  assert.equal(result.maximum, 2, 'the two runner requests overlap');
+  assert.deepEqual(result.calls.map(row => row.file).sort(), ['test/inherited.test.js', 'test/second-inherited.test.js']);
+  assert.ok(result.calls.every(row => row.options.commit === published && row.options.detailed === true
+    && row.options.fresh === true), JSON.stringify(result.calls));
+  assert.deepEqual(Object.keys(cache.entries[previous]).sort(), ['test/inherited.test.js', 'test/second-inherited.test.js']);
+});
+
+test('clause 2: a landing after refresh reuses the new per-file named result without another comparison run [C7]', t => {
+  const box = fixture(t);
+  const previous = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env }).trim();
+  assert.equal(compare(box, 'submit', previous).files[0].result, 'red');
+  put(box.root, 'docs/unrelated.md', 'main moves before the background refresh\n');
+  const published = commit(box, 'docs: publish a new main');
+  compare(box, 'refresh', previous, published);
+  const afterRefresh = runs(box);
+  const cachePath = join(box.root, '.git', 'pullboard', 'main-red.json');
+  const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
+  const outcome = cache.entries[published]?.['test/inherited.test.js'];
+  assert.equal(outcome?.result, 'red');
+  assert.ok(outcome.failures?.some(row => row.name === 'inherited red [G1]'), JSON.stringify(outcome));
+  const account = compare(box, 'landing', published);
+  assert.deepEqual(account.known?.map(row => [row.file, row.name]), [['test/inherited.test.js', 'inherited red [G1]']]);
+  assert.equal(runs(box), afterRefresh, 'the later landing records zero comparison runs after the background refresh');
+});
 
 test('clause 1 and clause 3: a red recorded by submit is a landing\'s known-main case at a moved main, with no main rerun [C7,#3166]', t => {
   const box = fixture(t);

@@ -32,6 +32,7 @@ import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
 import { singleItemLanding } from './landing-step-selection.js';
+import { oneItemBatch } from './landing-step-selection.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
@@ -45,8 +46,17 @@ function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainPr
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
 async function quickGuards(state, label = 'local-trunk', options = {}) {
-  await runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait });
-  const gate = await gateGroup(state, label, { localTrunk: true, ...options });
+  // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
+  // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
+  // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
+  // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
+  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
+    .then(result => ({ result }), error => ({ error }));
+  let gate;
+  try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
+  finally { await staticChecks; }
+  const checked = await staticChecks;
+  if (checked.error) throw checked.error;
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
@@ -92,7 +102,7 @@ async function followMovedTrunk(state, gate) {
     if (shared.length) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and changed ${shared.slice(0, 3).join(', ')}; rebuild the batch from its new tip`);
     state.say(`main moved to ${moved.slice(0, 12)} outside this batch's files; rebuilding the batch on it`);
     const previous = state.batch.base;
-    await save(state, { base: moved });
+    await save(state, { base: moved, rebasedFrom: previous });
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
@@ -126,6 +136,23 @@ export async function inlineDeferredGuards(state) {
  * Tier 1 (#801): after a clean merge and its quick guards, the batch lands on the local trunk in seconds, with each
  * item's merged receipt; nothing is pushed. pullboard publish runs the whole suite on the trunk head and pushes it.
  */
+/**
+ * Bind the flake ratchet to the batch, or record its refusal as a blocked batch; true when the landing may go on.
+ * Why: an unrecorded ratchet refusal ended the worker with the batch still gating, so each restart adopted it and ran
+ * its gate again (5 Nov: one item gated three times in 20 minutes behind one unquarantined flake) [C7].
+ */
+export async function flakeRatchetOrBlock(state) {
+  try {
+    await prepareFlakeLanding(state);
+    return true;
+  } catch (error) {
+    if (error?.code !== 'FLAKE_RATCHET') throw error;
+    await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
+    state.say(`nothing landed: ${error.message}`);
+    return false;
+  }
+}
+
 export async function landOnTrunk(state) {
   await save(state, { state: 'gating', tip: headCommit(state.batch.root) });
   let gate;
@@ -160,7 +187,7 @@ export async function landOnTrunk(state) {
     if (!(error instanceof Refused)) throw error;
     // A landing fault keeps the batch merging or gating with its worktree, so the next wake adopts and resumes it [C7].
     if (landingFault(error)) throw error;
-    if (singleItemLanding(state) && await returnRefusedItem(state, error)) {
+    if (oneItemBatch(state) && await returnRefusedItem(state, error)) {
       await save(state, { state: 'blocked', ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
       state.say(`nothing landed: ${error.message}`);
       return;
@@ -178,7 +205,9 @@ export async function landOnTrunk(state) {
   gate = await followMovedTrunk(state, gate);
   const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
-  await prepareFlakeLanding(state);
+  state.say('trunk: gate proved; binding the flake ratchet');
+  if (!await flakeRatchetOrBlock(state)) return;
+  state.say('trunk: ratchet bound; recording trunk and finishing');
   await save(state, { state: 'trunk', proof });
   await finishTrunk(state);
 }

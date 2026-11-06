@@ -24,7 +24,8 @@ export function wakeIo(root) {
     openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
     nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
     outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
-    say: console.log, err: console.error };
+    // Every lander line carries its time, so a batch's phases read back from worker.log [C7].
+    say: (...parts) => console.log(new Date().toISOString(), ...parts), err: (...parts) => console.error(new Date().toISOString(), ...parts) };
 }
 
 if (process.argv[1] === FILE) {
