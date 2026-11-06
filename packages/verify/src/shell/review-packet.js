@@ -120,12 +120,12 @@ function words(text) {
  * The per-test outcomes the gate observed for one receipt, read from the gate's own receipt file at this head.
  * Only executed tests count: a declared test the run skipped, or a run with no per-test record, maps to no run.
  */
-function receiptOutcomes(commonDir, receipt, head) {
+function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
     const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${receipt.id}.json`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
-    return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => !row.skipped);
+    return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }
 }
 
@@ -216,6 +216,9 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
   const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
     .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
+  // Every declared case, skipped ones included: a clause with a case written for it is judged by that case alone.
+  const declared = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head, { declared: true }).filter(row => candidates.includes(row.file)).map(row => row.name));
+  const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
@@ -231,6 +234,13 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
       const testWords = words(run.test);
       const shared = [...testWords].filter(word => clauseWords.has(word)).length;
       if (cited || (shared >= 3 && shared * 2 >= testWords.size)) evidence.push({ ...run, why: cited ? 'test cites the clause' : `${shared} shared words` });
+    }
+    // A test clause that names no file and no case still has the item's own check: the executed cases of the check's
+    // files, run by the submit gate at this head, are its recorded run. Why: on 6 Nov 18 of 28 rejects in 90 minutes
+    // were "no recorded run for clause N" on items whose gate had run exactly those files green [V4,C7].
+    if (!evidence.length && clause.kind === 'test' && checkFiles.length && !declared.some(name => citesClause(name, clause.n))) {
+      evidence = executed.filter(run => checkFiles.includes(run.file) && run.test.replace(/^\.\//u, '') !== run.file)
+        .map(run => ({ ...run, why: "the item's check ran" }));
     }
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {
