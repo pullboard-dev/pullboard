@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
+  existsSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -69,6 +70,7 @@ function mergeTwo(t, { files, additions, register, complete = false }) {
 function listed(file, anchor, line) {
   return (root) => {
     const path = join(root, 'src', file);
+    if (!existsSync(path)) return;
     const text = readFileSync(path, 'utf8');
     if (text.split('\n').filter((candidate) => candidate.startsWith(anchor)).length === 1) {
       writeFileSync(path, text.replace(anchor, `${line}\n${anchor}`));
