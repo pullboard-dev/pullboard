@@ -33,6 +33,7 @@ import {
 import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import * as store from '../../../../packages/store/index.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
@@ -51,6 +52,31 @@ function workerRequest(requestFile) {
   return { request, directory, root };
 }
 
+/** Pure source/claim predicate shared by admission and its contract regression. */
+export function submitHandoffClaimProblem(request, job, item, now) {
+  if (job?.id !== request.job || job.state !== 'running' || job.commit !== request.commit) {
+    return 'queued submit dropped: its original job or captured commit is no longer current';
+  }
+  if (!item || item.item_status !== 'claimed' || item.item_owner !== job.agentId || item.item_frozen_digest !== job.digest
+    || !(Date.parse(item.item_lease_until) > now)) {
+    return `queued submit dropped: #${request.item} is no longer claimed by ${job.agentId} at its frozen bar`;
+  }
+  return null;
+}
+
+/** Revalidate the immutable native queue and its live claimant immediately before each runner admission. */
+export function assertCurrentSubmitHandoff(ctx, request) {
+  const current = withBoard(ctx, board => {
+    const job = submitHandoff(board, request.item);
+    let item = null;
+    try { item = store.getItem(board, request.item); } catch (error) { if (error?.code !== 'NO_ITEM') throw error; }
+    return { job, item, now: board.clock.now().getTime() };
+  });
+  const problem = submitHandoffClaimProblem(request, current.job, current.item, current.now);
+  if (problem) throw new Refused('SUBMIT_HANDOFF_CHANGED', problem);
+  return true;
+}
+
 /** Bind this process to the exact native queue before it can record even a failure. */
 function workerContext(request, directory, root, nativeBoard) {
   const ctx = context({ cwd: root, nativeBoard, relayJson: true,
@@ -60,6 +86,7 @@ function workerContext(request, directory, root, nativeBoard) {
   const job = withBoard(ctx, board => submitHandoff(board, request.item));
   if (!job || job.id !== request.job) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the original queued request is no longer current');
   withBoard(ctx, board => bindSubmitHandoffOrigin(ctx, board, request.item, request.job));
+  ctx.submitHandoffAdmissionCheck = () => assertCurrentSubmitHandoff(ctx, request);
   return { ctx, job };
 }
 
