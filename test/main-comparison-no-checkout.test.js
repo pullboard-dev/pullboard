@@ -69,8 +69,11 @@ test('clause 1: a main comparison writes no working tree and the runner job reco
   const log = (existsSync(requests) ? readFileSync(requests, 'utf8') : '') + (existsSync(stderrLog) ? readFileSync(stderrLog, 'utf8') : '');
   assert.doesNotMatch(log, /SPEC_REFUSED/u, log);
   assert.equal(out.main, main);
-  assert.match(log, new RegExp(main, 'u'), 'the runner job names the exact main commit');
-  assert.match(log, new RegExp(tree, 'u'), 'the runner job names the exact main tree');
+  const encoded = /PULLBOARD_RUNNER_RESULT \S+ (\S+)/u.exec(log)?.[1];
+  assert.ok(encoded, `the runner returned a result: ${log}`);
+  const job = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+  assert.equal(job.commit, main, 'the runner job records the exact main commit');
+  assert.equal(job.tree, tree, 'the runner job records the exact main tree');
 });
 
 test('clause 2: the comparison result and cache entry keep their shape: result, failures, signatureVersion, receiptId [C7]', async () => {
