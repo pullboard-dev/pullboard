@@ -327,7 +327,7 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
+test('clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.
