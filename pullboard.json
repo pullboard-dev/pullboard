@@ -11,7 +11,17 @@
   "landingShards": 6,
   "landing": {
     "manualOverride": false,
-    "publish": "separate"
+    "publish": "separate",
+    "perItem": false,
+    "parallel": false,
+    "first": [
+      3175,
+      3176
+    ],
+    "auditOnly": [
+      "test/machine.test.js",
+      "test/refusal-next-steps.test.js"
+    ]
   },
   "submit": {
     "requireInfraNote": true,
