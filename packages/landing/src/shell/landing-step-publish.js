@@ -25,6 +25,7 @@ import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
 import { spawn } from 'node:child_process';
+import { refreshSource } from './main-red.js';
 import { fileURLToPath } from 'node:url';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
@@ -59,8 +60,23 @@ export function refreshPublishedMainReds(state, previousMain, { launch = spawnDe
   return { previousMain, publishedMain };
 }
 
+/**
+ * At batch start, refresh the main-red cache for a base that has none, from the newest cached generation, in a detached
+ * child; returns the record to keep on the batch, or null when nothing starts. Why: a hand-moved main had no generation, so
+ * the batch's red split re-measured known reds on runners for 18 minutes [C7,#3268].
+ */
+export function startBaseRefresh(state, batch, { source = refreshSource, launch = spawnDetachedRefresh } = {}) {
+  if (batch.refreshStarted) return null;
+  try {
+    const previous = source(state.root, batch.base);
+    if (!previous) return null;
+    launch(state.root, previous, batch.base);
+    return { previous, published: batch.base };
+  } catch (error) { state.say?.(`base main-red refresh could not start: ${String(error?.message ?? error).slice(0, 180)}`); return null; }
+}
+
 /** The detached refresh child: its own process group, no inherited stdio, never awaited. */
-function spawnDetachedRefresh(root, previousMain, publishedMain) {
+export function spawnDetachedRefresh(root, previousMain, publishedMain) {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../../../../bin/main-red-refresh.js', import.meta.url)), root, previousMain, publishedMain],
     { cwd: root, detached: true, stdio: 'ignore', env: { ...process.env } });
   child.unref();
