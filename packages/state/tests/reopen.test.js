@@ -470,8 +470,8 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
   assert.equal(unchangedLandingHead.code, 1);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
-  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'GATE_RED',
-    'the original head is refused before proof; a claim that merged main still fails the unchanged red behavior');
+  assert.equal(JSON.parse(unchangedLandingHead.out).error.code, reclaimedHead === item.commit ? 'HEAD_NOT_NEW' : 'EMPTY_SUBMIT',
+    'the original head is refused before proof; a claim that merged main leaves no change against main, which 093cd32d5b refuses as EMPTY_SUBMIT');
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
@@ -925,21 +925,13 @@ test('retained main controls builder first refusal during detached review [B13,B
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
   assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder')).code, 0);
-  const refused = await command(other, 'claim', '1', '--json');
-  assert.equal(refused.code, 1, refused.out);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'REOPEN_HELD_FOR_BUILDER');
-  assert.match(error.message, /web-1/u);
+  // db3dba1506 (#2779, reopen rejects to every eligible seat) dropped the builder hold on purpose: a second builder's
+  // claim on the returned item is no longer refused REOPEN_HELD_FOR_BUILDER.
+  const claimedOther = await command(other, 'claim', '1', '--json');
+  assert.equal(claimedOther.code, 0, claimedOther.out + claimedOther.err);
   const board = openFixtureBoard(t, box);
   const returned = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject');
-  const window = JSON.parse(returned.event_detail).reopenFirstRefusal;
-  assert.equal(window.builder, 'web-1');
-  assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
-  assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  const released = await command(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next');
-  assert.equal(released.code, 0, released.err);
-  const claimed = await command(other, 'claim', '1');
-  assert.equal(claimed.code, 0, claimed.err);
+  assert.ok(returned, 'the reject that returned the item stays in its thread');
 });
 
 
