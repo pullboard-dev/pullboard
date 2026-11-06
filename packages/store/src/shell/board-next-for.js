@@ -211,8 +211,12 @@ export function nextFor(board, options) {
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
+    // Every submission left out only because this seat's session built it: name it so the coordinator adds a seat from another session.
+    const sameSession = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId
+      && (skipIds.includes(entry.item_id) || failures.get(entry)?.problem?.code === 'SELF_SESSION_VERIFY'))
+      .map((entry) => `REVIEWER_SAME_SESSION: #${entry.item_id} was built under this seat's parent session, so it is never offered here; the coordinator adds a reviewer seat from another session`);
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
-      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
+      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling, ...sameSession] }));
   }
   const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
