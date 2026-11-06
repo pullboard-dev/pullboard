@@ -326,7 +326,10 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
   }
   if (process.platform !== 'darwin') return false;
   const observed = spawnSync('/usr/sbin/lsof', ['-nP', '-a', '-u', String(process.getuid()), '-d', 'cwd', '-Fpn'], options);
-  if (observed.error || observed.status !== 0 || observed.signal || observed.stderr.trim()) return false;
+  // lsof warns on stderr about a file system it cannot stat (an NFS volume on vanilla) and still lists every cwd;
+  // only a line outside such a WARNING block is an error. The warning alone kept the largest runner "unverifiable" [C7].
+  const errors = observed.stderr.split('\n').filter(line => line.trim() && !/^lsof: WARNING:/u.test(line) && !/^\s/u.test(line));
+  if (observed.error || observed.status !== 0 || observed.signal || errors.length) return false;
   let pid = null, ownSeen = false, complete = false;
   for (const line of observed.stdout.trim().split('\n')) {
     if (/^p[1-9][0-9]*$/u.test(line)) {
