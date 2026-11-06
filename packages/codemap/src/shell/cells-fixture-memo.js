@@ -7,6 +7,7 @@ import { deserialize } from 'node:v8';
 import { gzipSync } from 'node:zlib';
 import { gunzipSync } from 'node:zlib';
 import { gitSpawnSync } from '../../../git/index.js';
+import { cellSourceSnapshot } from './cell-source-snapshot.js';
 
 /** Own one analysis session; the entry point supplies its trusted analyzer, cache policy and publication ports. */
 export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest, eligible, onTreeRead } = {}) {
@@ -82,7 +83,16 @@ export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, pub
     const key = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(commit) ? root + '\0' + commit : null;
     if (key && trees.has(key)) return new Map(trees.get(key));
     onTreeRead?.();
-    const listed = gitSpawnSync(['--no-replace-objects', 'ls-tree', '-r', '-z', commit], { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+    const snapshot = cellSourceSnapshot(root);
+    if (snapshot && commit === snapshot.commit) {
+      const blobs = new Map();
+      for (const [path, entry] of snapshot.entries) {
+        if (['100644', '100755'].includes(entry.mode) && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(entry.object ?? '')) blobs.set(path, entry.object);
+      }
+      if (key) trees.set(key, blobs);
+      return new Map(blobs);
+    }
+    const listed = gitSpawnSync(['ls-tree', '-r', '-z', commit], { cwd: snapshot?.repoRoot ?? root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
     const blobs = new Map();
     if (listed.status !== 0) return blobs;
     for (const row of listed.stdout.split('\0')) {
@@ -110,13 +120,14 @@ export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, pub
     const counts = new Map();
     if (!base) return counts;
     const blobs = treeBlobs(root, base);
+    const repository = cellSourceSnapshot(root)?.repoRoot ?? root;
     /** The regular blob a path names at the base commit, or null. */
     const objectOf = path => (/^[\w./-]+$/u.test(path) && !path.split('/').some(part => !part || part === '.' || part === '..') && blobs.get(path)) || null;
     /** Read one regular blob at the base commit, never the working tree. */
     function readBase(path) {
       const object = objectOf(path);
       // Exact bytes come from Git directly; the analyzer re-hashes them against the object.
-      const shown = object && gitSpawnSync(['cat-file', 'blob', object], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
+      const shown = object && gitSpawnSync(['cat-file', 'blob', object], { cwd: repository, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
       return shown?.status === 0 ? { source: shown.stdout, object } : null;
     }
     const original = readBase(file);
