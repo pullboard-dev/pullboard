@@ -17,7 +17,7 @@ function leanLoop() {
   return run.slice(start, end < 0 ? run.length : end).replace(/\s+/gu, ' ');
 }
 
-test('clause 1: the run skill has a lean-loop section with one pullboard test, no sleep loop and no main checkout', () => {
+test('clause 1: the run skill has a lean-loop section with one pullboard test, no sleep loop and no main checkout [N31]', () => {
   const section = leanLoop();
   assert.match(section, /Never build or run commands in the main checkout/u, 'builders stay out of the main checkout');
   assert.match(section, /Run one `pullboard test <files>` for the item: its check plus the files that import what you changed\./u,
@@ -28,7 +28,7 @@ test('clause 1: the run skill has a lean-loop section with one pullboard test, n
   assert.match(section, /no loop of your own is needed/u, 'no hand-made wait loop');
 });
 
-test('clause 2: no shipped skill teaches a sleep loop, a status poll or a main-checkout build', () => {
+test('clause 2: no shipped skill teaches a sleep loop, a status poll or a main-checkout build [N31]', () => {
   const discouraged = [
     [/(^|[\s;&|(`])sleep\s+\d/mu, 'a sleep command'],
     [/\bwhile\s+(true|:|\[)/u, 'a while loop'],

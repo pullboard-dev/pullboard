@@ -6,7 +6,6 @@
  * Counts only fall and can only rise in changed files, so those files at the merge base and at the
  * candidate decide it. One pass shares a single base checkout across every rule.
  */
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -17,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** The process environment without git's repository variables, so a hook's GIT_DIR never redirects a child. */
 function cleanEnv() {
@@ -69,7 +69,7 @@ export function createFastPass(root) {
     if (!entry) { entry = { directory: mkdtempSync(join(tmpdir(), 'pullboard-doctrine-files-')), have: new Set() }; bases.set(revision, entry); }
     const wanted = files.filter(file => !entry.have.has(file));
     if (wanted.length) {
-      const shown = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], { cwd: root, env: cleanEnv(), maxBuffer: 1024 * 1024 * 1024,
+      const shown = gitSpawnSync(['--no-replace-objects', 'cat-file', '--batch'], { cwd: root, env: cleanEnv(), maxBuffer: 1024 * 1024 * 1024,
         input: wanted.map(file => `${revision}:${file}\n`).join('') });
       if (shown.status !== 0) throw new Error('could not read the merge base');
       for (const [file, bytes] of parseBatch(shown.stdout, wanted)) {
