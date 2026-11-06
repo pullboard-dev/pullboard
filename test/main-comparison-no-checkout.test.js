@@ -16,7 +16,7 @@ const { landProject } = makeLandProjectFixtures({ ...e2e,
   sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = 'no-checkout-fixture'; return box; } });
 
 /** Run one real comparison through a runner stand-in while watching every main-red folder; return the result and sightings. */
-async function compareOnRunner() {
+async function compareOnRunner({ runner = true } = {}) {
   const box = landProject();
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/land-1.test.js'), '// RED NAME:main-red-case\n');
@@ -26,11 +26,16 @@ async function compareOnRunner() {
   const remoteMachine = join(remoteHome, '.pullboard'), requests = join(box.dir, 'runner-requests.jsonl'), stderrLog = join(box.dir, 'runner-stderr.log');
   const scratch = join(box.dir, 'scratch-tmp');
   for (const path of [worker, sshBin, remoteHome, remoteMachine, scratch]) mkdirSync(path, { recursive: true });
-  installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, stderrLog });
-  box.env.PATH = `${sshBin}:${box.env.PATH}`;
   box.env.TMPDIR = scratch;
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
-    runners: [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0 } }));
+  // The runner path is the new one; with no runner registered the same comparison runs in a full working tree here.
+  if (runner) {
+    installSshStandIn({ bin: sshBin, worker, home: remoteHome, machineHome: remoteMachine, requests, stderrLog });
+    box.env.PATH = `${sshBin}:${box.env.PATH}`;
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1,
+      runners: [{ host: HOST, slots: 1, browser: 1 }], gate: { runnersOnly: true, memoryFloorMB: 0 } }));
+  } else {
+    writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { memoryFloorMB: 0 } }));
+  }
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');
   const module = pathToFileURL(resolve(import.meta.dirname, '../packages/landing/src/shell/main-red.js')).href;
@@ -49,7 +54,7 @@ async function compareOnRunner() {
     };
     const timer = setInterval(watch, 10); // budget: sample the comparison's own temporary folder while the runner job runs.
     const out = await compareMainFailures(${JSON.stringify(box.repo)}, { tests: [{ file: 'web/land-1.test.js', passed: false }] }, undefined, '',
-      { commit: ${JSON.stringify(main)}, detailed: true, allowCancelled: true, runnerAdmission: { runnerOnly: true } });
+      { commit: ${JSON.stringify(main)}, detailed: true, allowCancelled: true, runnerAdmission: { runnerOnly: ${runner} } });
     clearInterval(timer);
     process.stdout.write(JSON.stringify({ out, seen }));
   `], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120000 }); // budget: one real runner round trip.
@@ -76,16 +81,33 @@ test('clause 1: a main comparison writes no working tree and the runner job reco
   assert.equal(job.tree, tree, 'the runner job records the exact main tree');
 });
 
-test('clause 2: the comparison result and cache entry keep their shape: result, failures, signatureVersion, receiptId [C7]', async () => {
-  const { box, out, main } = await ran;
-  assert.deepEqual(out.files.map(row => [row.file, row.result]), [['web/land-1.test.js', 'red']]);
-  const [row] = out.files;
-  assert.equal(typeof row.signatureVersion, 'number');
-  assert.ok(Array.isArray(row.failures) && row.failures.length > 0, JSON.stringify(row));
-  assert.match(row.receiptId, /^[a-f0-9-]{36}$/u);
-  const cache = readdirSync(join(box.repo, '.git', 'pullboard')).filter(name => /main-red/u.test(name));
-  assert.ok(cache.length > 0, 'a cache file is written');
-  const entries = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', cache[0]), 'utf8')).entries;
-  const entry = entries[main]?.['web/land-1.test.js'] ?? Object.values(entries).map(value => value['web/land-1.test.js']).find(Boolean);
+/** The cache entry a comparison recorded for the red file, read from the repository's comparison cache. */
+function cachedEntry(box, main) {
+  const file = readdirSync(join(box.repo, '.git', 'pullboard')).find(name => /main-red/u.test(name));
+  assert.ok(file, 'a cache file is written');
+  const entries = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', file), 'utf8')).entries;
+  return entries[main]?.['web/land-1.test.js'] ?? Object.values(entries).map(value => value['web/land-1.test.js']).find(Boolean);
+}
+
+/** The shape of a value: its keys and their types, receiptId reduced to whether it is a UUID. */
+function shapeOf(row) {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, key === 'receiptId' ? /^[a-f0-9-]{36}$/u.test(value) : Array.isArray(value) ? 'array' : typeof value]));
+}
+
+test('clause 2: no-checkout comparison keeps the shape landing-split-red expects [C7]', { timeout: 300_000 }, async () => {
+  // Same landProject fixture and red file landing-split-red.test.js lands: once through the runner (no checkout), once in a full tree.
+  const [viaRunner, viaTree] = [await ran, await compareOnRunner({ runner: false })];
+  for (const run of [viaRunner, viaTree]) assert.equal(run.out.unavailable, undefined, run.out.unavailable);
+  assert.equal(viaTree.seen.files > 0, true, 'the baseline comparison did write a working tree');
+  const rows = run => run.out.files.map(({ receiptId, ...row }) => ({ ...row, receiptId: typeof receiptId }));
+  assert.deepEqual(rows(viaRunner), rows(viaTree), 'the returned rows match the full-tree comparison');
+  const [row] = viaRunner.out.files, [base] = viaTree.out.files;
+  assert.deepEqual(shapeOf(row), shapeOf(base));
+  assert.deepEqual(Object.keys(row).sort(), ['failures', 'file', 'receiptId', 'result', 'signatureVersion']);
+  assert.deepEqual(row.failures, base.failures);
+  assert.equal(row.signatureVersion, base.signatureVersion);
+  const entry = cachedEntry(viaRunner.box, viaRunner.main), baseEntry = cachedEntry(viaTree.box, viaTree.main);
+  assert.deepEqual(shapeOf(entry), shapeOf(baseEntry));
   assert.deepEqual(Object.keys(entry).sort(), ['failures', 'receiptId', 'result', 'signatureVersion']);
+  assert.deepEqual({ ...entry, receiptId: 0 }, { ...baseEntry, receiptId: 0 });
 });
