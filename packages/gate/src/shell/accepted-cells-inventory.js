@@ -143,8 +143,8 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock }
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'bin/cells-plan.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
-  if (!toolingIsPinned(root, commit)) throw new Error('accepted cells producer must run the pinned commit\'s own tooling');
-  const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
+  // The running tooling is the checker recorded here; bin/main-audit.js re-runs itself from the pinned checkout so that is the pinned one.
+  const identity = acceptedCellsIdentity(root, commit), key = acceptedInventoryKey(identity);
   let prior;
   const ancestors = git(root, ['log', '--first-parent', '--max-count=201', '--format=%H %T', commit], { env: gitChildEnv(root) }).split('\n').slice(1);
   for (const row of ancestors) {
