@@ -51,7 +51,13 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   const result = json(box, box.repo, 'land', '--max', '4');
   assert.deepEqual(result.landed, [entries[0].item]);
   assert.deepEqual(result.conflicts, dry.conflicts);
-  assert.deepEqual(result.blocked, dry.blocked);
+  // The real land returns the stale accept to its lane (STALE_REOPENED); the dry run only reports it (STALE_VERDICT).
+  assert.deepEqual(result.blocked, [
+    { ...dry.blocked[0], code: 'STALE_REOPENED', message: result.blocked[0].message },
+    dry.blocked[1],
+  ]);
+  assert.match(result.blocked[0].message, /verdict stale: web\/land-2\.test\.js changed on main/u);
+  assert.equal(json(box, box.repo, 'show', String(entries[1].item)).item_status, 'open', 'the stale accept is withdrawn and the item reopens');
   assert.deepEqual(result.culprits.map((entry) => entry.id), [entries[2].item]);
   const evidence = result.batch.invariantEvidence;
   assert.equal(evidence.version, 1);
@@ -82,10 +88,9 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   const beforeEmptyEvents = events(box);
   const beforeEmptyLease = onBoard(box, board => store.landingLeaseState(board));
   const again = box.run(box.repo, 'land', '--json');
-  assert.equal(again.code, 1, again.out + again.err);
-  assert.equal(JSON.parse(again.out).error.code, 'STALE_VERDICT', 'an all-blocked queue refuses instead of suggesting an empty successful land');
-  assert.deepEqual(events(box), beforeEmptyEvents, `an idle all-blocked selection adds no lease events: ${idleState} trunk ${box.git(box.repo, 'rev-parse', 'main')} ${existsSync(join(box.repo, '.git', 'landtrace.log')) ? readFileSync(join(box.repo, '.git', 'landtrace.log'), 'utf8') : 'NO TRACE'}`);
-  assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'a stale refusal takes no lease');
+  assert.ok(!again.out.includes('STALE_VERDICT'), `the stale accept was returned, so no stale refusal remains: ${again.out}`);
+  assert.deepEqual(events(box), beforeEmptyEvents, 'an idle selection with only an unverified stack adds no lease events');
+  assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'an idle selection takes no lease');
   assert.equal(json(box, box.repo, 'show', String(entries[2].item)).item_status, 'open', 'the known red is returned to its builder and is no longer a verified landing candidate');
   assert.equal(calls(box).length, afterCalls, 'known unchanged red is not retried');
   await drainOwnedProcesses(box.dir); // Nothing may still write into the fixture when cleanup removes it.
