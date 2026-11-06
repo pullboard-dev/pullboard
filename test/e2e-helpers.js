@@ -354,7 +354,7 @@ export function crossLaneFixture(t) {
   /** Add an ordinary routed item through the coordinator CLI with its lane's approved row. */
   function add(lane, title, route = 'strong') {
     return fileFixtureItem(box, box.repo, { lane, title, route,
-      criterion: 'The item can be built and checked from its brief.', check: 'true',
+      criterion: 'The item can be built and checked from its brief.', check: 'true', diagnose: false,
       brief: `Files: ${lane}/${route}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
       args: ['--specs', lane === 'api' ? 'G2' : 'G1'] }).item_id;
   }
