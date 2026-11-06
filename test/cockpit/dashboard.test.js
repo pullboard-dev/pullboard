@@ -29,7 +29,7 @@ test('Dashboard is the first board tab and Home is removed [N26]', () => {
 });
 
 // A private board, Chrome startup and two viewport/theme passes share the existing 90-second journey budget.
-test('a board opens on Dashboard with API-backed work, shared pace and existing Items navigation [N26]', { timeout: 90_000 }, async () => {
+test('clause 1: a board opens on Dashboard with API-backed work, shared pace and existing Items navigation [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Dashboard journey.');
   const box = machine();
