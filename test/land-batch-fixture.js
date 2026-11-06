@@ -59,7 +59,7 @@ export function assertWholeQueueBatch({ landProject, itemWorktree, submitItem, a
   // not its whole plan; the rebuilt green set still runs the whole plan below [C7].
   const focused = allRuns(box).slice(allBefore).filter(run => run.alone && run.files.length === 1 && run.files[0] === entries[red].file);
   assert.ok(focused.length >= 1, 'every bisection round runs only the failed file');
-  assert.equal(runs.at(-1).files.length, WAITING - 1, 'the rebuilt green batch is actually evaluated');
+  assert.equal(runs.at(-1).files.length, WAITING - 1, `the rebuilt green batch is actually evaluated; runs: ${JSON.stringify(allRuns(box).slice(allBefore).map(run => [run.alone ? 'alone' : 'full', run.files]))}; batch ${result.batch.state} ${JSON.stringify(result.batch.refusal ?? null)} landed ${JSON.stringify(result.landed)} culprits ${JSON.stringify(result.culprits?.map(entry => entry.id))}`);
 
   assert.deepEqual(result.culprits.map(entry => entry.id), [culprit], 'bisection names the item that caused the red');
   assert.equal(result.culprits[0].tests[0].file, entries[red].file);

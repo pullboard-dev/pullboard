@@ -8,6 +8,8 @@ if (process.argv[1] === FILE && process.send) {
   // The guardian installs its original watchdog without loading the private-check executor.
   if (process.argv[2] === 'guardian') landingWorkerEntry({ workerFile: FILE, parseProcessCensus });
   else if (process.argv[2] === 'worker') {
+    // Every run this worker spawns (comparisons, bisection halves) waits in the slot line as a landing [C7].
+    process.env.PULLBOARD_LANDING_CLASS = '1';
     const { openBoard: openNativeBoard } = await import('../apps/lib/index.js');
     const { LANDING_BOARD_BUSY_MS } = await import('../packages/landing/index.js');
     /** The lander waits out a seat's long write instead of ending a batch at the board's default 10 s [C7]. */
