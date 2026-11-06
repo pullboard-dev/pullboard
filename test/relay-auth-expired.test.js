@@ -11,6 +11,8 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { prepareKeylessInbox, readKeylessInbox } from './inbox-key-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
+const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
+
 /** Revoke one private fixture credential through the real relay authorization endpoint. */
 async function revokeCredential(box, id) {
   const phone = await box.phoneSession();
@@ -39,8 +41,9 @@ function commitOutboxChoice(box, value) {
   const config = JSON.parse(readFileSync(file, 'utf8'));
   config.relay = { ...config.relay, outbox: value };
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: configure relay outbox'], { cwd: box.root, env: box.env });
+  writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${CLI}" "$@"\n`, { mode: 0o700 });
+  runFixtureGit(['add', 'pullboard.json', 'SPEC.md'], { cwd: box.root, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: configure relay outbox'], { cwd: box.root, env: box.env });
 }
 
 test('reads and status answer when the relay sign-in expired [H16,H5] [clause 1]', async t => {
