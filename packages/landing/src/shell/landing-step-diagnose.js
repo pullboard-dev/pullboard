@@ -227,7 +227,7 @@ export function namedFailures(gate) {
  * Refusals the candidate's own content causes; every other refusal is the landing's infrastructure or diagnosis
  * (board busy, runners, git, timeouts, diagnostics) and reopens nothing [C7,#2901,#2967].
  */
-const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'RATCHET_ROSE']);
+const ITEM_REFUSALS = new Set(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'LAND_MODULE_PARSE', 'RATCHET_ROSE']);
 
 /**
  * Refusals that say the board was briefly unreachable, not that the landing or its item failed. A worker that gives up
