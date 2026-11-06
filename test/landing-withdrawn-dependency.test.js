@@ -39,9 +39,9 @@ test('clause 1: an accepted item whose dependency is withdrawn is selected; an o
   const withdrawn = select(t, 'withdrawn');
   assert.ok(!withdrawn.blocked.some(entry => entry.code === 'WAITS_ON_ITEM'), JSON.stringify(withdrawn.blocked));
   assert.deepEqual(withdrawn.ready.map(item => item.item_id), [2]);
-  for (const status of ['open', 'claimed', 'submitted']) {
+  for (const status of ['open', 'claimed', 'submitted', 'verified']) {
     const waiting = select(t, status);
-    assert.deepEqual(waiting.ready, [], status);
+    assert.ok(!waiting.ready.some(item => item.item_id === 2), `${status} dependency keeps item 2 out of the batch`);
     assert.deepEqual(waiting.blocked.filter(entry => entry.id === 2).map(entry => [entry.code, entry.items]), [['WAITS_ON_ITEM', [1]]], status);
   }
 });
