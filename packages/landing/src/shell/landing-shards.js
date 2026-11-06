@@ -330,7 +330,11 @@ function phaseText(record) {
   if (!at?.start) return '';
   const seconds = (from, to) => (from && to ? ` ${Math.round((to - from) / 100) / 10} s` : ' ?');
   const end = at.start + (record.wallMs ?? 0);
-  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)})`;
+  // The runner's own stages (its source-cache wait, pack transfer and checkout) say what "connect" and "ready" hold.
+  const stages = record.stages;
+  const stage = name => (Number.isFinite(stages?.[name]) ? ` ${Math.round(stages[name] / 100) / 10} s` : ' ?');
+  const inside = stages ? `; cache wait${stage('cacheWaitMs')}, transfer${stage('transferMs')}, materialize${stage('materializeMs')}` : '';
+  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)}${inside})`;
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
@@ -477,6 +481,9 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     browser: await needsBrowser(shard.files), gui: await needsGui(shard.files), claimed: false, localOnly: false, done: false, attempts: [], status: null })));
 
   timing?.phase('setupMs', setupAt);
+  /** Seconds since this run started, so the log attributes the time around the shards [C7]. */
+  const sinceStart = () => Math.round((performance.now() - selectionAt) / 100) / 10;
+  write(`# landing timing: selection ${Math.round(setupAt - selectionAt)} ms, setup ${Math.round(performance.now() - setupAt)} ms, shards dispatched at +${sinceStart()} s\n`);
 
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
   const inheritedCanRun = entry => (!runnerOnly || inherited?.runnerExecution === true || Boolean(inherited?.runner))
@@ -513,7 +520,10 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
-      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null,
+      // A runner that could not prepare its checkout ran no test: that is infrastructure to requeue, never a red to
+      // hold the batch on. A locked slot database on .54 held #2794 as "no accounted failure" on 6 Nov [C7].
+      const setupRefused = !run.isGreen && /^runner setup refused:/u.test(run.output ?? '');
+      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : setupRefused ? 'infrastructure' : 'red', ...(setupRefused ? { reason: run.output.split('\n')[0].slice(0, 160) } : {}), output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null, stages: run.sourcePreparation?.stages ?? null,
         ...(release ? { executor: run.executionRunner, head: run.executionSource?.commit, tree: run.executionSource?.tree,
           command: createHash('sha256').update(command).digest('hex') } : {}) };
     } catch (error) {
@@ -682,6 +692,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
           complete: last?.collectionComplete === true, cleanupVerified: last?.cleanupVerified === true };
       }) }) + '\n');
   }
+  write(`# landing timing: every shard settled at +${sinceStart()} s\n`);
   const isGreen = shards.every(entry => entry.status === 'green') && shardSelectionMatched(args, shards.map(entry => entry.attempts.at(-1)?.output ?? ''), write);
   write(`# landing result: ${isGreen ? 'green' : collectAll && !stop.aborted ? `red, ${shards.filter(entry => entry.status === 'red').length} failing shard(s); all test shards collected` : `red, first failure in shard ${firstFailure ?? shards.find(entry => entry.status !== 'green')?.label}`}\n`);
   if (Object.keys(measured).length) writeFileTimes(root, measured);
