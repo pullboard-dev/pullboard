@@ -17,14 +17,17 @@ function relocate(box, source, name) {
   return destination;
 }
 
-test('status and resume diagnostics recover coordinator identity on read-only board opens [C7]', () => {
+test('clause 1: status completes on a read-only board open without ReadNeedsWrite [C7]', () => {
   const box = e2e.project(undefined, e2e.sandbox(), { withWorktree: false });
   const statusRoot = relocate(box, box.repo, 'status-root');
   const status = box.run(statusRoot, 'status', '--json');
   assert.equal(status.code, 0, `${status.out}\n${status.err}`);
   assert.doesNotMatch(`${status.out}\n${status.err}`, /ReadNeedsWrite/u);
+});
 
-  const resumeRoot = relocate(box, statusRoot, 'resume-root');
+test('clause 2: resume --diagnostics recovers coordinator identity through the writable fallback, not the read store [C7]', () => {
+  const box = e2e.project(undefined, e2e.sandbox(), { withWorktree: false });
+  const resumeRoot = relocate(box, box.repo, 'resume-root');
   const resume = box.run(resumeRoot, 'resume', '--diagnostics', '--json');
   assert.equal(resume.code, 0, `${resume.out}\n${resume.err}`);
   assert.doesNotMatch(`${resume.out}\n${resume.err}`, /ReadNeedsWrite/u);
