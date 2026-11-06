@@ -68,9 +68,14 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     // A coordinator removing prerequisites also removes the corresponding blocked-release wait.
     if (after !== undefined) {
       const marker = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${id}`);
+      const waiting = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_waiting:${id}`);
       if (marker) {
         const retained = JSON.parse(marker.meta_value).filter(value => after.includes(value));
-        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key IN (?,?)').run(JSON.stringify(retained), `blocked_release_waiting:${id}`, `claim_waiting:${id}`);
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `blocked_release_waiting:${id}`);
+      }
+      if (waiting) {
+        const retained = JSON.parse(waiting.meta_value).filter(value => after.includes(value));
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(retained), `claim_waiting:${id}`);
       }
     }
     saveCheckTiming(board, id, checkTiming);
