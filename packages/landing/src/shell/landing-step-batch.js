@@ -44,6 +44,7 @@ import { testHash } from './landing-step-selection.js';
 import { heldTestDefects } from './landing-step-selection.js';
 import { landingEntry } from './landing-step-selection.js';
 import { save } from './landing-step-merge.js';
+import { splitRedBatch } from './landing-step-split.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { gateGroup } from './landing-step-gate.js';
 import { parallelLanding } from './landing-step-parallel.js';
@@ -396,6 +397,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
         } else if (!gate.isGreen && !proof) {
           const flakyFiles = await diagnose(state, gate.failures, gate);
           if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; }
+          else if (await splitRedBatch(state, gate)) gate = null;
           else {
             const green = await bisect(state, build.items, gate.failures);
             if (!state.flaky && green.length) {
