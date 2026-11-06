@@ -46,6 +46,13 @@ export function bridgeProject(t, mode = 'release') {
     "console.log('1..1'); console.log('# tests 1'); console.log('# pass ' + (red ? 0 : 1)); console.log('# fail ' + (red ? 1 : 0)); console.log('# skipped 0'); process.exitCode = red ? 1 : 0;",
   ].join('\n'));
   const box = helpers.project(`node ${JSON.stringify(gate)}`, scratch);
+  // Submit proves synchronously here: a queued handoff would verify before any proof receipt exists.
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: submit proves synchronously in the bridge fixture [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const remote = join(box.dir, 'origin.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
