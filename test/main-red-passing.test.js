@@ -33,9 +33,9 @@ test('clause 3: the check reads only recorded runs for the current main and adds
 });
 
 test('clause 1: next withdraws an open Main red item whose file is green on the recorded main run and does not offer it [C7,H24]', async t => {
-  const box = await fixture(t, { route: 'light' });
-  const closed = box.add(`Main red: ${file}`, { route: 'light' });
-  const kept = box.add('Ordinary current work', { route: 'light' });
+  const box = await fixture(t, { route: 'mid' });
+  const closed = box.add(`Main red: ${file}`, { route: 'mid' });
+  const kept = box.add('Ordinary current work', { route: 'mid' });
   const head = mainCheckout(box.root).commit;
   const cache = cacheFile(box.root);
   mkdirSync(dirname(cache), { recursive: true });
