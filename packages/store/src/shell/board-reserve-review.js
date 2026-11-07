@@ -13,6 +13,8 @@ import { confirmFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
+import { sweepLapsedReviews } from './board-review-lease.js';
+import { holdReviewLease } from './board-review-lease.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -74,6 +76,7 @@ export function prepareReserveReview(board, id, who) {
  * @returns {any}
  */
 export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared, reviewHeartbeats = null }) {
+  sweepLapsedReviews(board, reviewHeartbeats);
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
   const frozen = found ? frozenRelaxAt(found) : undefined;
@@ -98,5 +101,6 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });
   logEvent(board, agentId, 'reserve', id, { until, ...(witness ? { commit: found.item_commit, digest: found.item_frozen_digest, familyRelaxation: witness } : {}) });
+  holdReviewLease(board, id, agentId);
   return getItem(board, id);
 }
