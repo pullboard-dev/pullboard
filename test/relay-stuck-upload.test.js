@@ -10,7 +10,10 @@ import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 
-test('a refused upload never blocks board moves [H16,B26]', async (t) => {
+// The subtests each start their own private relay fixture, so they run side by side: back to back they outlast the file's wall limit on a loaded runner.
+test('a refused upload never blocks board moves [H16,B26]', { concurrency: 4 }, async (t) => {
+  const pending = [];
+  const sub = (...args) => { const run = t.test(...args); pending.push(run); return run; };
   const box = await relayClientFixture(t);
   const buildLane = 'fixture-build';
   const gate = 'node --check src/relay-pause-fixture.js';
@@ -24,7 +27,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     `\n- G1 [approved, must] The fixture builder's file parses. | gate: ${gate}\n\n## K · Constraints`);
   writeFileSync(specPath, spec);
   const added = await box.cli('add', buildLane, 'paused relay fixture task', '--specs', 'G1', '--criterion', 'the fixture agent completes this task',
-    '--check', gate, '--brief', 'Files: src/relay-checkpoint-fixture.js\nTest: the fixture source parses');
+    '--brief', 'Files: src/relay-pause-fixture.js\nTest: the fixture source parses', '--check', gate);
   assert.equal(added.code, 0, `the fixture creates its task; result=${JSON.stringify(added.document)}`);
   const item = added.document.item.item_id;
   box.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'fixture refuses the initial baseline until repaired' });
@@ -55,7 +58,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   });
   assert.equal(worktree.status, 0, worktree.stderr);
 
-  const joined = await box.cliAt(agentRoot, 'join', buildLane, '--model', 'Test Agent');
+  const joined = await box.cliAt(agentRoot, 'join', buildLane);
   assert.equal(joined.code, 0);
   assertPaused(joined.document);
   const claimed = await box.cliAt(agentRoot, 'claim', String(item));
@@ -79,9 +82,17 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const resumed = await box.cliAt(agentRoot, 'status');
   assert.equal(resumed.code, 0);
   assert.doesNotMatch((resumed.document.diagnostics ?? []).join('\n'), /relay paused/u, 'a fitting snapshot clears the pause');
-  assert.equal(box.moveAcks.length, 0, 'no paused local move was sent before its baseline existed');
+  // Submit records a background review comparison fact (499990d401); that one native move queues while paused and may follow the baseline.
+  const sentOperations = async () => {
+    const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+    const board = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
+    return Promise.all(box.moveAcks.map(async row => JSON.parse(new TextDecoder().decode(
+      await unseal(key, Buffer.from(row.sealed, 'base64url'), { boardId: board, kind: row.kind, sequence: row.event_id }))).operation));
+  };
+  assert.deepEqual((await sentOperations()).filter(operation => operation !== 'appendFact'), [],
+    'no paused local move was sent before its baseline existed');
   const baseline = await uploadedState(box);
-  assert.equal(baseline.sequence, 0);
+  assert.equal(baseline.sequence, box.moveAcks.length, 'the baseline checkpoint covers only the queued review fact move, if it was sent');
   assert.equal(baseline.document.tables.item.find(row => row.item_id === item).item_status, 'submitted',
     'the accepted fresh baseline includes the local claim and submission');
   assert.ok(baseline.document.tables.shout.some(row => row.shout_text === 'Relay pause fixture remains available'),
@@ -91,15 +102,17 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   const ordered = await box.cliAt(agentRoot, 'shout', 'all', 'The relay baseline has resumed');
   assert.equal(ordered.code, 0);
   assert.doesNotMatch((ordered.document.diagnostics ?? []).join('\n'), /relay paused/u);
-  assert.deepEqual(box.moveAcks.map(row => row.event_id), [1],
+  const operations = await sentOperations();
+  assert.deepEqual(operations.slice(-1), ['shout']);
+  assert.deepEqual(box.moveAcks.map(row => row.event_id), operations.map((operation, index) => index + 1),
     'the real relay ACK places the first post-recovery native move immediately after its baseline');
   const final = await uploadedState(box);
-  assert.equal(final.sequence, 1, 'the native checkpoint covers the post-recovery move');
+  assert.equal(final.sequence, operations.length, 'the native checkpoint covers the post-recovery move');
   assert.ok(final.document.tables.shout.some(row => row.shout_text === 'The relay baseline has resumed'));
 
 
   /** Each internal move in a long-running command retains its own loud pause notice. */
-  await t.test('multiple local moves in one session do not repeat the refused baseline notice [H16,B26]', async subtest => {
+  sub('multiple local moves in one session do not repeat the refused baseline notice [H16,B26]', async subtest => {
     const repeated = await relayClientFixture(subtest);
     repeated.rejectSnapshots({ status: 400, code: 'BAD_REQUEST', message: 'fixture refuses the initial baseline until repaired' });
     await repeated.link();
@@ -133,7 +146,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   });
 
   /** Two authenticated device sessions contend for one real SQLite baseline slot. */
-  await t.test('concurrent initial baseline uploads accept exactly one device [H16]', async subtest => {
+  sub('concurrent initial baseline uploads accept exactly one device [H16]', async subtest => {
     const race = await relayClientFixture(subtest);
     race.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture retains two native baseline candidates' });
     await race.link();
@@ -166,7 +179,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   });
 
   /** A competing native snapshot arrives after absence was checked but before the client PUT. */
-  await t.test('a baseline race fences the native retry without discarding local work [H16]', async subtest => {
+  sub('a baseline race fences the native retry without discarding local work [H16]', async subtest => {
     const race = await relayClientFixture(subtest);
     race.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture baseline pause before a competing device' });
     await race.link();
@@ -204,7 +217,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   });
 
   /** Prove that malformed permanent refusals pause and recover from a fresh snapshot. */
-  await t.test('malformed baseline refusals carry their reason and recover [H16]', async (subtest) => {
+  sub('malformed baseline refusals carry their reason and recover [H16]', async (subtest) => {
     const malformed = await relayClientFixture(subtest);
     malformed.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'send only a sequence and sealed payload' });
     const linked = await malformed.link();
@@ -223,7 +236,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
 
   /** Preserve ordinary retry behavior for every retryable HTTP response status. */
   for (const status of [408, 425, 429, 503]) {
-    await t.test(`transient snapshot HTTP ${status} keeps retry behavior [H16]`, async (subtest) => {
+    sub(`transient snapshot HTTP ${status} keeps retry behavior [H16]`, async (subtest) => {
       const transient = await relayClientFixture(subtest);
       transient.rejectSnapshots({ status, code: 'RELAY_UNAVAILABLE', message: `fixture snapshot HTTP ${status}` });
       await transient.link();
@@ -244,7 +257,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
 
   /** A durable pre-ACK local intent cannot prove that the remote board is empty. */
   for (const sequence of [0, 1]) {
-    await t.test(`an existing remote baseline at sequence ${sequence} never pauses locally [H16]`, async subtest => {
+    sub(`an existing remote baseline at sequence ${sequence} never pauses locally [H16]`, async subtest => {
       const existing = await relayClientFixture(subtest);
       await existing.link();
       const first = JSON.parse(readFileSync(existing.linkFile, 'utf8'));
@@ -296,7 +309,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
 
   /** A remote baseline appearing after a durable pause must end local-only fallback. */
   for (const sequence of [0, 1]) {
-    await t.test(`a previously paused board with remote sequence ${sequence} never diverges locally [H16]`, async subtest => {
+    sub(`a previously paused board with remote sequence ${sequence} never diverges locally [H16]`, async subtest => {
       const existing = await relayClientFixture(subtest);
       existing.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture refused initial baseline' });
       await existing.link();
@@ -355,7 +368,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     { label: 'unavailable-absence', status: 503, code: 'NO_BOARD', transient: true },
     { label: 'auth-absence', status: 401, code: 'NO_SNAPSHOT' },
   ]) {
-    await t.test(`uncertain ${refusal.label} remote state never authorizes local fallback [H16]`, async subtest => {
+    sub(`uncertain ${refusal.label} remote state never authorizes local fallback [H16]`, async subtest => {
       const uncertain = await relayClientFixture(subtest);
       uncertain.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture refused initial baseline' });
       await uncertain.link();
@@ -380,7 +393,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
   }
 
   /** A refused checkpoint after an accepted baseline does not switch moves to local-only mode. */
-  await t.test('a refused later checkpoint keeps ordered moves [H16]', async (subtest) => {
+  sub('a refused later checkpoint keeps ordered moves [H16]', async (subtest) => {
     const accepted = await relayClientFixture(subtest);
     await accepted.link();
     accepted.rejectSnapshots({ status: 400, code: 'BAD_UPLOAD', message: 'fixture checkpoint refusal' });
@@ -397,6 +410,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
     const events = (await response.json()).events;
     assert.deepEqual(events.map(event => event.event_id), [1, 2], 'both post-baseline moves keep their relay positions');
   });
+  await Promise.all(pending);
 });
 
 /** The session's link already named its pause; later local commands keep working without repeating it. */
@@ -443,8 +457,8 @@ test('a refused later checkpoint names its repair once on every native agent com
   const specPath = join(box.root, 'SPEC.md');
   writeFileSync(specPath, readFileSync(specPath, 'utf8').replace('\n## K · Constraints',
     `\n- G1 [approved, must] The checkpoint fixture parses. | gate: ${gate}\n\n## K · Constraints`));
-  const added = await box.cli('add', lane, 'accepted baseline work', '--specs', 'G1', '--criterion', 'the fixture source parses', '--check', gate,
-    '--brief', 'Files: src/relay-checkpoint-fixture.js\nTest: the fixture source parses');
+  const added = await box.cli('add', lane, 'accepted baseline work', '--specs', 'G1', '--criterion', 'the fixture source parses',
+    '--brief', 'Files: src/relay-checkpoint-fixture.js\nTest: the fixture source parses', '--check', gate);
   assert.equal(added.code, 0);
   const item = added.document.item.item_id;
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
@@ -453,7 +467,7 @@ test('a refused later checkpoint names its repair once on every native agent com
   const agentRoot = join(box.root, '..', 'later-checkpoint-agent');
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '-b', 'fixture-later-checkpoint-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env }).status, 0);
   await box.link();
-  assert.equal((await box.cliAt(agentRoot, 'join', lane, '--model', 'Test Agent')).code, 0);
+  assert.equal((await box.cliAt(agentRoot, 'join', lane)).code, 0);
   assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted);
   box.rejectSnapshots({ status: 503, code: 'RELAY_UNAVAILABLE', message: 'temporary checkpoint refusal' });
   assert.equal((await box.cli('shout', 'all', 'private transient checkpoint change')).code, 0);
