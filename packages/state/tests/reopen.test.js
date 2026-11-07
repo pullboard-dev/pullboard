@@ -55,11 +55,16 @@ function project(...args) {
   return box;
 }
 
+/** The model name fixture seats join with. */
+const BUILDER_MODEL = 'Fixture builder';
+/** The model a reopen event records when none was given. */
+const UNRECORDED_MODEL = 'unknown';
+
 /** Await the production CLI for fixture setup and moves while retaining the real submit worker and gate. */
 function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'submit') args.push('--wait', '--no-next');
   if (args[0] === 'verify') args.push('--no-next');
-  if (args[0] === 'join' && !args.includes('--model')) args.push('--model', 'Fixture builder');
+  if (args[0] === 'join' && !args.includes('--model')) args.push('--model', BUILDER_MODEL);
   return runCliInProcess(args, { cwd, env: box.env });
 }
 
@@ -303,7 +308,7 @@ test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V
   assert.equal(last.event_kind, 'reopen');
   assert.equal(last.event_by, 'coordinator');
   assert.deepEqual(JSON.parse(last.event_detail), {
-    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: 'unknown',
+    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: UNRECORDED_MODEL,
     cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true },
     pipelineCause: { type: 'other', cause: 'refusal:REOPENED', text: 'correct the frozen criterion, not the work' },
   });
