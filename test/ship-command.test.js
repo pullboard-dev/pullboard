@@ -18,6 +18,7 @@ import { context } from '../apps/cli/index.js';
 import { withBoardRead } from '../apps/cli/index.js';
 import { retrySync } from '../apps/cli/index.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -45,7 +46,7 @@ function fixture(t, check = 'true', acceptedFiles = {}) {
     assert.equal(result.status, 0, result.stderr);
   }
   if (Object.keys(acceptedFiles).length) box.git(box.web, 'merge', '--no-edit', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Ship the staged fixture', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Ship the staged fixture', '--specs', 'G1',
     '--criterion', 'The fixture passes its native check.', '--check', check, '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;

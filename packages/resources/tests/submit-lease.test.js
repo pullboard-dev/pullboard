@@ -16,6 +16,7 @@ import {
 } from 'node:path';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { listResources } from '../src/shell/resources.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -71,7 +72,7 @@ test('a seat can shout while its own submit runs [V4,C7]', { timeout: 45_000 }, 
   ];
   for (const marker of markers) delete project.env[marker];
   assert.equal(project.run(project.repo, 'settings', 'gateSlots', '1').code, 0);
-  assert.equal(project.run(project.repo, 'add', 'web', 'Held submit', '--specs', 'G1').code, 0);
+  assert.equal(fixtureAdd(project.run, project.repo, 'web', 'Held submit', '--specs', 'G1').code, 0);
   const owner = 'checkout-owner-598';
   const intruder = 'checkout-intruder-598';
   const children = [];

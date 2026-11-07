@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require real command success before reading its versioned JSON. */
 function json(result) {
@@ -26,13 +28,13 @@ test('one seat builds, submits and lands two items from the folders next prints 
   writeFileSync(join(repo, 'SPEC.md'), '# Folder fixture\n\n## Goals\n- G1 [approved, must] Each result exists. | gate: true\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure folder landing');
-  const ids = ['first', 'second'].map(name => json(box.run(repo, 'add', 'web', `The ${name} result`, '--specs', 'G1',
+  const ids = ['first', 'second'].map(name => json(fixtureAdd(box.run, repo, 'web', `The ${name} result`, '--specs', 'G1',
     '--criterion', `web/${name}.txt exists.`, '--check', `test -f web/${name}.txt`, '--wait', '--json')).item.item_id);
   const opened = json(box.run(repo, 'worktree', 'web', '--model', 'folder-builder', '--json'));
   const seat = opened.path, seatId = json(box.run(seat, 'whoami', '--json')).id;
   const reviewer = join(box.dir, 'folders-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'folder-reviewer').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'folder-reviewer').code, 0);
   const landed = [];
   for (const [index, name] of ['first', 'second'].entries()) {
     const next = json(box.run(seat, 'next', '--build', '--json'));
