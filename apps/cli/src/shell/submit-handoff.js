@@ -56,7 +56,7 @@ function copyTools(toolRoot, target) {
  * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
  * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
  */
-function toolsSnapshot(toolRoot, job) {
+function toolsSnapshot(toolRoot, job, commonDir) {
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
@@ -66,7 +66,7 @@ function toolsSnapshot(toolRoot, job) {
     touchToolTree(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`));
     return join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
   }
-  assertToolTreeRoom();
+  assertToolTreeRoom({ commonDirs: [commonDir] });
   if (!clean) {
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copyTools(toolRoot, tools);
@@ -103,7 +103,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
-    const tools = toolsSnapshot(toolRoot, result.job.id);
+    const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });

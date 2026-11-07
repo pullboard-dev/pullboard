@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  existsSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -22,6 +23,7 @@ import {
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/index.js';
+import { handoffQueueDirectory } from '../../../resources/index.js';
 
 /** The shared snapshot's folder name: one clone per Pullboard commit, named by its 40-hex hash [C7]. */
 const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
@@ -68,6 +70,40 @@ export function toolTreeHasLiveOwner(path) {
 }
 
 /**
+ * The tool paths named by a queued launch ticket or by an unfinished submit-handoff request.json: owners with no process.
+ * Why: a queued gate waits for the dispatcher with no worker, so `ps` alone would let the sweep delete the tools it will run from.
+ *
+ * @param {{ queue?: string, commonDirs?: string[] }} [options] - The machine queue and extra repositories to scan.
+ * @returns {Set<string>}
+ */
+export function queuedToolOwners({ queue = handoffQueueDirectory(), commonDirs = [] } = {}) {
+  const owned = new Set();
+  const roots = new Set(commonDirs);
+  /** Read one JSON file, ignoring anything missing or damaged. */
+  const read = file => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
+  /** Record a tools path as owned. */
+  const own = tools => { if (typeof tools === 'string') owned.add(tools); };
+  try {
+    for (const name of readdirSync(queue).filter(entry => entry.endsWith('.json') && !entry.startsWith('.'))) {
+      const ticket = read(join(queue, name));
+      own(ticket?.tools);
+      if (typeof ticket?.commonDir === 'string') roots.add(ticket.commonDir);
+    }
+  } catch { /* No queue folder means no queued launches. */ }
+  for (const commonDir of roots) {
+    const jobs = join(commonDir, 'pullboard', 'submit-handoffs');
+    let names = [];
+    try { names = readdirSync(jobs); } catch { continue; }
+    for (const job of names) {
+      const directory = join(jobs, job);
+      if (existsSync(join(directory, 'submission.json')) || existsSync(join(directory, 'refusal.json'))) continue;
+      own(read(join(directory, 'request.json'))?.tools);
+    }
+  }
+  return owned;
+}
+
+/**
  * Mark a shared tool tree as used now, so the sweep keeps it while submits keep naming it.
  *
  * @param {string} path - A tool-tree folder.
@@ -80,17 +116,19 @@ export function touchToolTree(path) {
  * Remove pullboard-handoff-tools-* and pullboard-compare-tools-* folders older than the limit that no process owns.
  * Why: 201 copies of 56 MB filled the coordinator disk when abandoned jobs left their trees behind.
  *
- * @param {{ temp?: string, now?: number, maxAgeMs?: number, live?: (path: string) => boolean }} [options] - Test seams.
+ * @param {{ temp?: string, now?: number, maxAgeMs?: number, queue?: string, commonDirs?: string[], live?: (path: string) => boolean }} [options] - Test seams.
  * @returns {string[]} The folders removed.
  */
-export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, live = toolTreeHasLiveOwner } = {}) {
+export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, queue, commonDirs = [], live } = {}) {
   const removed = [];
+  const queued = live ? new Set() : queuedToolOwners({ queue, commonDirs });
+  const owned = live ?? (path => queued.has(path) || toolTreeHasLiveOwner(path));
   let names;
   try { names = readdirSync(temp).filter(name => TOOL_TREE_NAME.test(name)); } catch { return removed; }
   for (const name of names) {
     const path = join(temp, name);
     try {
-      if (now - statSync(path).mtimeMs <= maxAgeMs || live(path)) continue;
+      if (now - statSync(path).mtimeMs <= maxAgeMs || owned(path)) continue;
       rmSync(path, { recursive: true, force: true });
       removed.push(path);
     } catch { /* One unreadable folder must not stop the sweep. */ }
@@ -101,10 +139,10 @@ export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = T
 /**
  * Refuse to start another tool-tree copy when the temp volume is nearly full, after one sweep.
  *
- * @param {{ temp?: string, minFree?: number }} [options] - Test seams.
+ * @param {{ temp?: string, commonDirs?: string[], minFree?: number }} [options] - The repositories whose queued requests own tools.
  */
-export function assertToolTreeRoom({ temp = tmpdir(), minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
-  sweepToolTrees({ temp });
+export function assertToolTreeRoom({ temp = tmpdir(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
+  sweepToolTrees({ temp, commonDirs });
   let free;
   try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
   if (free < minFree) {
@@ -124,7 +162,7 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
   }
   const id = randomUUID();
   const shared = sharedHandoffTools(request.tools);
-  if (shared) touchToolTree(request.tools); else assertToolTreeRoom();
+  if (shared) touchToolTree(request.tools); else assertToolTreeRoom({ commonDirs: [commonDir] });
   const tools = shared ? request.tools : mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${id}-`));
   const target = join(dirname(directory), id);
   try {
