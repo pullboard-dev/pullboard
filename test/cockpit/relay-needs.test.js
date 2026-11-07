@@ -119,7 +119,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     assert.equal(await chrome.stable("document.querySelector('#live').textContent"), '', 'read-only transport keeps the page live, which says nothing');
     await chrome.click(`document.querySelector('#chain [data-item]')`);
     await chrome.waitFor("document.querySelector('#detail [data-shout]') !== null");
-    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    // The held lane and decision controls draw on Items beside the open item; Shouts draws only the conversation.
     await chrome.waitFor("document.querySelector('[data-release]') !== null && document.querySelector('[data-go^=\"decide:\"]') !== null");
     const actionSelectors = ['#new-item', '#add-form', '#shout-form', '#hold-form', '[data-release]', '[data-shout]', '[data-new]', '[data-go^="decide:"]'];
     const actionMatches = JSON.parse(await chrome.stable(`JSON.stringify(${JSON.stringify(actionSelectors)}.map((selector) => ({ selector, count: document.querySelectorAll(selector).length, visible: [...document.querySelectorAll(selector)].some((node) => !node.hidden && getComputedStyle(node).display !== 'none') })))`));
