@@ -37,6 +37,8 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.click("document.querySelector('[data-tab=\"items\"]')");
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
@@ -132,7 +134,7 @@ test('no box carries a coloured edge [N26]', async () => {
     // Every border drawn on one side of a box is nothing, or a 1px divider in the neutral line colour.
     const sides = [...style.matchAll(/border-(?:top|bottom|left|right|inline|block)[a-z-]*:\s*([^;}]+)/g)].map((match) => match[0].trim());
     assert.ok(sides.length > 0);
-    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line\))$/.test(side)), [], 'no coloured or thick bar on one edge');
+    assert.deepEqual(sides.filter((side) => !/^border-(?:top|bottom|left|right): (?:0|1px solid var\(--line(?:-soft)?\))$/.test(side)), [], 'no coloured or thick bar on one edge');
     assert.doesNotMatch(style, /box-shadow:[^;}]*inset -?\d+(?:\.\d+)?px 0 0/, 'and no stripe drawn by a shadow');
 
     await page.click({ go: 'item:1' });
@@ -272,8 +274,8 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   accept(box, alpha, 7);
   box.run(alpha.web, 'claim', '2');
   box.run(alpha.repo, 'hold', 'api', '--reason', 'API freeze');
-  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7');
-  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4');
+  box.run(alpha.repo, 'milestone', 'add', '1.0: first cut', '--note', 'The first pages', '--items', '1,5,7', '--reason', 'Arrange fixture release');
+  box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4', '--reason', 'Arrange fixture release');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
   joinFixtureSeat(box, second, 'web');
