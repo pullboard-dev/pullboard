@@ -21,6 +21,7 @@ import {
 } from '../packages/items/index.js';
 import { relayPresentation } from '../packages/pages/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -111,7 +112,7 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
 test('a successful edit clears only its own item [C6]', () => {
   const box = e2e.project();
   const add = title => {
-    const result = box.run(box.repo, 'add', 'web', title, '--json');
+    const result = fixtureAdd(box.run, box.repo, 'web', title, '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
     return JSON.parse(result.out).item.item_id;
   };
@@ -218,7 +219,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.match(text, /^ {2}repeated, draft an item: pullboard add coordinator 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY'/mu);
 
   // The drafted item files as it reads.
-  const added = box.run(box.repo, 'add', draft.lane, draft.title, '--brief', draft.brief, '--json');
+  const added = fixtureAdd(box.run, box.repo, draft.lane, draft.title, '--brief', draft.brief, '--json');
   assert.equal(added.code, 0, added.err);
   assert.equal(JSON.parse(added.out).item.item_title, draft.title);
 
