@@ -24,6 +24,7 @@ import { takeResource } from '../packages/resources/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 
@@ -221,7 +222,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   assert.equal(released.item_status, 'open');
   const next = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', next, 'main');
-  ok(joinFixtureSeat(box, next, 'web', { model: 'fixture-model' }));
+  ok(joinFixtureSeat(box, next, 'web', { model: FIXTURE_MODEL }));
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');
