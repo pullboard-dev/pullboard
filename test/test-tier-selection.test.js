@@ -7,12 +7,11 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { writeTestTiers } from '../packages/gate/index.js';
 import { runSubmitGate } from '../packages/gate/index.js';
 import { selectTestTiers } from '../packages/gate/index.js';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { rmSync } from 'node:fs';
 import { runFixtureGit } from './fixture-child.js';
 import { loadConfig } from '../packages/config/index.js';
 import { executionServices } from './gate-execution-fixture.js';
@@ -236,11 +235,11 @@ test('a runner that ignores selected units cannot report a false green [C7,V4]',
 
 /** A real repository whose machine audit reads source text for refusal codes, as test/machine.test.js does, and imports nothing from the sources. */
 function auditFixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-refusal-floor-'));
+  const root = privateFixtureFiles('pullboard-refusal-floor-').root;
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const git = (...args) => String(runFixtureGit(args, { cwd: root, encoding: 'utf8' })).trim();
   const commitAll = message => { git('add', '-A'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message); return git('rev-parse', 'HEAD'); };
-  git('init', '-q', '-b', 'main');
+  git('-c', 'init.defaultBranch=main', 'init', '-q');
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
   for (const name of ['alpha', 'beta']) {
     mkdirSync(join(root, `packages/${name}/src`), { recursive: true });
