@@ -1,5 +1,4 @@
 /** A landing batch judges its red cases against main the way submit does (#2528), so known main reds never jam it [B3,C7]. */
-import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
 import { carriedMainOutcome } from './main-red.js';
@@ -9,15 +8,17 @@ import { failureSignatures } from './main-failure-matches.js';
 import { matchingMainFailures } from './main-failure-matches.js';
 import { laneOf } from '../../../seats/index.js';
 import { listItems } from '../../../store/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /**
  * Split a fully accounted red landing gate into cases red identically on the batch's main base and cases red only in the batch.
  * Why: the same exact-main comparison submit uses decides, case by case, so a case is known-main only when main fails it
  * with the same failure details; cancelled children are not independent failures, but interrupted or unaccounted runs stay red.
  *
- * @param {{ root: string, batch: { root: string, base: string }, onWait?: Function }} state
+ * @param {{ root: string, batch: { root: string, base: string }, onWait?: Function, compareMainFailures?: Function }} state - `compareMainFailures` is the port that compares one failing file with main; tests inject it to observe the calls [C7].
  * @param {object} gate - The batch's complete gate result.
- * @returns {Promise<{ main: string, known: Array<{file:string,name:string,signature:string}>, remaining: Array<object> }|null>}
+ * @returns {Promise<{ main: string, known: Array<{file:string,name:string,signature:string}>, remaining: Array<object>, unavailable: string[] }|null>}
+ *   unavailable lists the files whose base-main comparison could not run
  */
 export async function knownMainAccount(state, gate) {
   if (gate.isGreen || !completeGate(gate, { allowCancelled: true }) || gate.requiresGreen) return null;
@@ -27,6 +28,7 @@ export async function knownMainAccount(state, gate) {
   if (!failures?.length) return null;
   const known = [], remaining = [];
   let changed = null;
+  const unavailable = [];
   // Each failing file is compared on its own: a file main cannot run (new in the batch) never hides another file's known case.
   // The files compare at once, bounded by the gate slots the comparisons take; one after another, six red files cost
   // six comparisons' wall time while the runners sat idle [C7].
@@ -40,11 +42,11 @@ export async function knownMainAccount(state, gate) {
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
       // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
       const unchanged = carried ? true : await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
-      const comparison = carried ?? await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
+      const comparison = carried ?? await (state.compareMainFailures ?? compareMainFailures)(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         // A landing's comparison waits as a landing, ahead of seat submits in the slot line; as a plain diagnostic it
         // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
-      if (comparison?.unavailable) state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`);
+      if (comparison?.unavailable) { unavailable.push(`${file}: ${comparison.unavailable}`); state.say?.(`main comparison unavailable for ${file}: ${comparison.unavailable}`); }
       else {
         // Keep the answer for the base split: it ran the same file on main a second time on 6 Nov, 3 minutes each [C7].
         (state.mainComparisons ??= new Map()).set(file, comparison);
@@ -52,15 +54,15 @@ export async function knownMainAccount(state, gate) {
         state.say?.(`main comparison for ${file} ${carried ? 'carried from' : 'at'} ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
       }
       return comparison;
-    } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
+    } catch (error) { unavailable.push(`${file}: ${error?.code ?? 'ERROR'}`); state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
   }));
   for (const [index, file] of files.entries()) {
     const comparison = comparisons[index];
     for (const failure of failures.filter(entry => entry.file === file)) (comparison && (matchingMainFailures([failure], comparison, comparison.main, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
-  if (!known.length) return null;
-  return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining };
+  if (!known.length && !unavailable.length) return null;
+  return { main: state.batch.base, known: known.map(({ file, name, signature }) => ({ file, name, signature })), remaining, unavailable };
 }
 
 /**
@@ -132,7 +134,7 @@ export function redOnMainUntouched(failure, comparison, changed) {
 
 /** The files the batch's merged tree changed against its base, or null when Git cannot say. */
 export function changedFiles(state) {
-  const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
+  const diff = gitSpawnSync(['diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
   return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
 }
 
