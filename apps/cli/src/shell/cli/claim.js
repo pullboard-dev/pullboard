@@ -108,6 +108,8 @@ const LAPSE_MAINTENANCE = new WeakSet();
 async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
     || operation === 'release' && args[3]?.staleClaim) return;
+  // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
+  if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
