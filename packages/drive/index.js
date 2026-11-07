@@ -9,3 +9,5 @@ export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/co
 export { reclaimPass, lapsedGateJobs, FALLBACK_BUDGET_MS } from './src/shell/fallback-reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/shell/keyed-result.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/core/keyed-result.js';
+export { driveLanding } from './src/shell/drive-landing.js';
+export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/core/drive-landing.js';
