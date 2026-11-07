@@ -6,6 +6,7 @@ import { handoffMoveProblem } from '../../../state/src/core/handoff-state.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   activityMainFiles,
+  batchMainFiles,
   activityWorkingFiles,
   readActivityCursor,
   saveActivityCursor,
@@ -75,10 +76,13 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     const me = whoAmI(ctx, board);
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
     const local = readActivityCursor(ctx.info.root, me.id, store.boardId(board));
+    let mainBatch = null;
     const projected = readActivityDelivery(board, me.id, { sessionStart: local.sessionStart, afterSubmit,
       workingFiles: builds => activityWorkingFiles(ctx.info.root, builds),
+      // The landings' file lists are read together before the projection asks for them one at a time (#3252).
+      prepareMainChanges: pairs => { mainBatch = batchMainFiles(ctx.info.root, pairs); },
       changesForMain: (commit, detail) => activityMainFiles(ctx.info.root, commit, detail,
-        { rowFiles: [ctx.config.spec, ctx.config.practice] }) });
+        { rowFiles: [ctx.config.spec, ctx.config.practice], batch: mainBatch }) });
     const { observation, newsShouts, shoutCursor, ...activity } = projected;
     // A delivered, unacted interrupt is an obligation, not news: a repeat read names its id once, never its text again [#1885].
     const fresh = new Set(observation.fresh.map(interrupt => interrupt.id));
