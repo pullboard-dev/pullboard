@@ -21,7 +21,6 @@ import { repoInfo } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { takeLandingResource } from './landing-resource.js';
 import { requireConfirmedLanding } from '../../../../src/board-landing-lease.js';
-import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
@@ -190,17 +189,18 @@ export async function land(options) {
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
       adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
-    return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal,
-      workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus,
-      onStall: async ({ batch, description }) => {
-        const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
-        if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
-        const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
-          refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
-        options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
-        return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true };
-      } });
+    /** A batch with no progress for the stall limit is recorded blocked; its items stay verified for the next batch. */
+    const onStall = async ({ batch, description }) => {
+      const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
+      if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
+      const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
+        refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
+      options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
+      return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true, stallDescription: description };
+    };
+    // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
+    if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
+    return await options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
