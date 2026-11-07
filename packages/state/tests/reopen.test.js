@@ -48,7 +48,8 @@ function project(...args) {
   const run = box.run;
   box.run = (cwd, ...argv) => {
     if (argv[0] === 'submit') argv.push('--wait', '--no-next');
-    if (argv[0] === 'join' && !argv.includes('--model')) argv.push('--model', 'Fixture builder');
+    if (argv[0] === 'join' && !argv.includes('--model')) argv.push('--model', BUILDER_MODEL);
+    if (argv[0] === 'join' && !argv.includes('--route')) argv.push('--route', 'strong');
     if (argv[0] === 'verify') argv.push('--no-next');
     return run(cwd, ...argv);
   };
@@ -65,6 +66,7 @@ function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'submit') args.push('--wait', '--no-next');
   if (args[0] === 'verify') args.push('--no-next');
   if (args[0] === 'join' && !args.includes('--model')) args.push('--model', BUILDER_MODEL);
+  if (args[0] === 'join' && !args.includes('--route')) args.push('--route', 'strong');
   return runCliInProcess(args, { cwd, env: box.env });
 }
 
