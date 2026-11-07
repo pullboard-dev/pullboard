@@ -235,7 +235,14 @@ async function openState(chrome, address, state, shot) {
 
 /** Open the Items tab with one plain click, as a person would, since the list is only drawn there. */
 async function openItems(chrome) {
-  await press(chrome, "document.querySelector('[data-tab=\"items\"]')", { native: false });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await chrome.waitFor("!!document.querySelector('[data-tab=\"items\"]')", 30_000); // budget: hang ceiling for a page that is still loading.
+      return await press(chrome, "document.querySelector('[data-tab=\"items\"]')", { native: false });
+    } catch (error) {
+      if (attempt >= 4 || !/navigated or closed/.test(String(error?.message ?? error))) throw error; // a page mid-navigation is retried once it settles.
+    }
+  }
 }
 
 /** The checks every open-board screen passes: shown alone, one heading, no Try again and none of the old jargon. */
