@@ -46,7 +46,7 @@ import {
 import { runFixtureExecFile } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];
+const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/shell/git.js
 const BEFORE = { 'stable.txt': 'same\n', 'changed.txt': 'before\n', 'old.txt': 'removed\n' };
 const AFTER = { 'stable.txt': 'same\n', 'changed.txt': 'after\n', 'new space.txt': 'added\n', 'line\nbreak.txt': 'framed\n', 'bytes.bin': Buffer.from([0, 255, 10, 13]) };
 
@@ -344,4 +344,12 @@ test('the committed Git launch allowance names only files that still launch Git 
   const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(Object.keys(baseline.files).filter(file => !report.files[file]), [], 'a moved or migrated file leaves a stale allowance');
+});
+
+/** Proves the item's single clause: every launch beyond the allowance goes through the adapter, and the allowance never rises. */
+test('clause 1: no direct Git launch exceeds the committed allowance and the allowance stays within its original total [C7]', () => {
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
+  const report = gitLaunchReport(ROOT);
+  assert.deepEqual(gitLaunchGrowth(report, baseline.files), [], 'a direct Git launch beyond the allowance must go through packages/git');
+  assert.ok(Object.values(baseline.files).reduce((sum, count) => sum + count, 0) <= baseline.originalTotal, 'the allowance never rises above its original total');
 });
