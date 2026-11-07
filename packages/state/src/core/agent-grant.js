@@ -78,6 +78,8 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
   if (move.operation === 'verify' && move.engine >= REVIEW_GRANT_ENGINE) return;
   // A bar signature is the outside review a bar needs before anyone claims it, so it crosses lanes by design.
   if (move.operation === 'signBar' && move.engine >= BAR_SIGN_GRANT_ENGINE) return;
+  // A companion objection is the owning lane's review of another lane's patch: the objector holds no claim on the item [C7].
+  if (move.operation === 'objectItemPatch') return;
   if (item?.item_review_by === actor && item.item_status === 'submitted' && item.item_review_until > now
     && move.operation === 'verify') return;
   const claims = board.db.prepare("SELECT item_id,item_lease_until FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);

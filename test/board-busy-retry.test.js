@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Give in-process metrics the same private machine custody as the fixture's SQLite file. */
 function privateHome(t) {
@@ -115,8 +116,8 @@ test('submit dry-run prepares repository evidence before locking and records a h
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'busy-retry-fixture';
   const box = helpers.project('true', sandbox, { withWorktree: false });
-  const added = box.run(box.repo, 'add', 'web', 'Preflight lock measurement', '--specs', 'G1',
-    '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Preflight lock measurement', '--specs', 'G1',
+    '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined,
@@ -158,4 +159,47 @@ test('submit dry-run prepares repository evidence before locking and records a h
   const hold = rows.filter(row => row.command === 'submit-preflight' && row.outcome === 'rolled-back').at(-1);
   assert.ok(hold, 'the completed dry-run has a per-command measurement');
   assert.ok(hold.durationMs < 500, `submit preflight held the writer for ${hold.durationMs}ms`); // budget: declared measurement ceiling in frozen #2847 writer-hold bar.
+});
+
+test('submit dry-run prepares again when another seat commits after preparation, and stays bounded [C7]', t => {
+  privateHome(t);
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'busy-retry-fixture';
+  const box = helpers.project('true', sandbox, { withWorktree: false });
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Preflight stale snapshot', '--specs', 'G1',
+    '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const file = join(box.repo, '.git/pullboard/board.sqlite');
+  const board = openBoard(file, undefined, { gitRoot: box.repo, writeContext: { command: 'submit-preflight' } });
+  t.after(() => closeBoard(board));
+  const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder'), model: 'fixture', family: 'openai' });
+  board.writeContext.seat = builder;
+  store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000,
+    freeze: () => ({ text: '{}', digest: 'private-preflight-fixture' }), head: box.git(box.repo, 'rev-parse', 'HEAD') });
+  const peer = new DatabaseSync(file);
+  t.after(() => peer.close());
+  let preparations = 0, pokes = 0;
+  /** Another connection commits right after each of the first `stale` preparations, as a busy board does. */
+  const ports = stale => ({
+    atomic: store.atomic, submit: store.submit,
+    /** Delegate real preparation, then let a peer commit before the dry-run transaction begins. */
+    prepareSubmit(current, item, options) {
+      preparations++;
+      const prepared = store.prepareSubmit(current, item, options);
+      if (preparations <= stale) peer.prepare("INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES ('fixture:peer-write', ?)").run(String(++pokes));
+      return prepared;
+    },
+  });
+  const before = store.getItem(board, id);
+  const submission = { agentId: builder, commit: box.git(box.repo, 'rev-parse', 'HEAD'), tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') };
+  submitPreflight(board, id, submission, ports(1));
+  assert.equal(preparations, 2, 'one stale snapshot is prepared again, then the dry-run passes');
+  assert.deepEqual(store.getItem(board, id), before, 'the dry-run still rolls native state back');
+  preparations = 0;
+  assert.throws(() => submitPreflight(board, id, submission, ports(Infinity)),
+    error => error.code === 'BOARD_BUSY' && /changed while preparing submit/u.test(error.message));
+  assert.equal(preparations, 6, 'a board that changes on every attempt is refused after a bounded number of preparations');
 });

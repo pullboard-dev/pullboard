@@ -7,7 +7,8 @@ import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 
 const { values } = parseArgs({ options: { output: { type: 'string' }, head: { type: 'string' }, 'person-override': { type: 'string' } }, allowPositionals: false });
-const landing = landingExecutionServices();
+import { releaseSource, runReleaseGate } from '../packages/gate/src/shell/release-gate.js';
+const landing = Object.freeze({ ...landingExecutionServices(), releaseSource, runReleaseGate });
 if (!values.output || !values.head || landing.releaseSource(process.cwd()).head !== values.head) {
   throw new Error('release-gate needs --output and --head naming the exact accepted commit');
 }

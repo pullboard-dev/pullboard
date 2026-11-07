@@ -6,6 +6,7 @@ import {
   landingLeaseState,
   renewLocalLanding,
 } from '../../../../src/board-landing-lease.js';
+import { LANDING_LEASE_MS } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { coordinatorHolder } from '../../../seats/index.js';
 import {
@@ -14,17 +15,39 @@ import {
   forgetLocalLanding,
 } from '../../../../src/board-landing-local-lease.js';
 
-/** A dead local owner can be released immediately on an unlinked board; never compare foreign PIDs. */
-function deadLocalOwner(holder, local) {
-  if (!holder || holder.lineage !== null && !local) return false;
-  try { process.kill(holder.pid, 0); return false; }
-  catch (error) {
-    if (error.code !== 'ESRCH') return false;
-    if (holder.guardianPid) {
-      try { process.kill(holder.guardianPid, 0); return false; }
-      catch (guardianError) { return guardianError.code === 'ESRCH'; }
+/** True when a process id no longer exists on this machine; a permission error means it still runs. */
+function processGone(pid) {
+  try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
+}
+
+/**
+ * Why a holder may be released now, or null. A dead local owner is released at once on an unlinked board. A holder
+ * recorded on this machine with no process, no guardian and a heartbeat older than the lease (2 minutes) is released
+ * on a linked board too: its local mark can be gone, and without this the queue stalled for hours (#3392). Never compare foreign PIDs.
+ */
+export function reclaimReason(holder, local, { now = Date.now(), machine = null } = {}) {
+  if (!holder) return null;
+  if (local && Date.parse(local.until) <= now) return 'heartbeat expired';
+  const gone = processGone(holder.pid) && (!holder.guardianPid || processGone(holder.guardianPid));
+  if (!gone) return null;
+  if (holder.lineage === null || local) return 'holder process gone';
+  const sameMachine = machine !== null && holder.machine === machine;
+  return sameMachine && Date.parse(holder.until) <= now ? 'holder process gone and heartbeat older than the lease' : null;
+}
+
+/**
+ * Run one renewal, retrying BOARD_BUSY with doubling backoff until the lease period ends; any other refusal, and the
+ * last BOARD_BUSY, propagates. Why: a busy board is a momentary landing fault, and one refusal killed the worker (#3068).
+ */
+export async function renewWithBackoff(renew, { now = Date.now, pausing = pause, until = () => now() + LANDING_LEASE_MS, firstMs = 100, marginMs = 1000 } = {}) {
+  for (let wait = firstMs; ; wait = Math.min(wait * 2, 2000)) {
+    try { return renew(); }
+    catch (error) {
+      // Stop at the acknowledged lease deadline, re-read after every pause, so a busy board never outlives the lease.
+      if (error?.code !== 'BOARD_BUSY' || now() + wait >= until() - marginMs) throw error;
+      await pausing(wait);
+      if (now() >= until() - marginMs) throw error;
     }
-    return true;
   }
 }
 
@@ -49,7 +72,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     const task = pending.then(async () => {
       if (lost) throw lost;
       try {
-        const result = renewLocalLanding(board, { ...parameters, generation });
+        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: () => deadline || Date.now() + LANDING_LEASE_MS });
         if (lost) throw lost;
         const holder = assertLandingLease(board, { token, branch, generation }); // A delayed recovered receipt is not a fresh grant.
         confirmedUntil(holder.until);
@@ -67,8 +90,9 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
       const state = landingLeaseState(board);
       const holder = state.holder;
       const local = localLandingEntry(board, holder);
-      if (deadLocalOwner(holder, local) || local && Date.parse(local.until) <= board.clock.now().getTime()) {
-        await write('landingLeaseMove', [{ agentId: 'coordinator', action: 'release', token: holder.token, generation: holder.generation }]);
+      const reason = reclaimReason(holder, local, { now: board.clock.now().getTime(), machine: coordinatorHolder(board)?.machine ?? null });
+      if (reason) {
+        await write('landingLeaseMove', [{ agentId: 'coordinator', action: 'release', token: holder.token, generation: holder.generation, reason }]);
       }
       let result;
       const current = landingLeaseState(board);

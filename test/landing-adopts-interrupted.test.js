@@ -25,7 +25,7 @@ function commit(box, root, message) {
 /** Build, submit and accept one web item from main, returning the verify run. */
 function acceptItem(box, reviewer, file, title) {
   box.git(box.web, 'reset', '-q', '--hard', 'main');
-  const id = json(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${file} exists`, '--check', `test -f web/${file}`).item.item_id;
+  const id = json(box, box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', `${file} exists`, '--route', 'strong', '--check', `test -f web/${file}`).item.item_id;
   json(box, box.web, 'claim', String(id));
   writeFileSync(join(box.web, 'web', file), `${title}\n`);
   const head = commit(box, box.web, `feat(web): ${title.toLowerCase()} [G1]`);
@@ -46,7 +46,7 @@ function waitingItem(t) {
   commit(box, box.repo, 'chore: configure held landing');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api');
+  json(box, reviewer, 'join', 'api', '--model', 'Fixture Model', '--route', 'strong');
   const first = acceptItem(box, reviewer, 'first.txt', 'First result');
   assert.equal(first.verify.code, 0, first.verify.out + first.verify.err);
   config.landing.manualOverride = false;
@@ -56,7 +56,7 @@ function waitingItem(t) {
 }
 
 /** Record an unfinished merging batch, as a crashed landing leaves it; `worktree: false` loses its worktree. */
-function stuckBatch(box, { base, items, pid, worktree = true }) {
+function stuckBatch(box, { base, items, pid, worktree = true, state = 'merging' }) {
   const id = randomUUID();
   const directory = join(box.repo, '.git', 'pullboard', 'landings', id);
   const root = join(directory, 'worktree');
@@ -66,7 +66,7 @@ function stuckBatch(box, { base, items, pid, worktree = true }) {
   }
   return onBoard(box, board => store.recordLandingBatch(board, { agentId: 'coordinator', batch: {
     version: 1, id, startedAt: new Date().toISOString(), base, tip: base, branch: 'refs/heads/main', root,
-    candidates: items, items, conflicts: [], blocked: [], state: 'merging', owner: 'crashed-landing-session',
+    candidates: items, items, conflicts: [], blocked: [], state, owner: 'crashed-landing-session',
     pid, host: landingHost(), logPath: join(directory, 'logs', 'batch.log'), revision: 0 } }));
 }
 
@@ -85,7 +85,6 @@ test('the next accept resumes a merging batch whose landing process died and lan
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
   const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
   assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  assert.match(second.verify.out + second.verify.err, new RegExp(`landing adopts interrupted batch ${stuck.id} \\(merging\\)`, 'u'));
   const resumed = batchById(box, stuck.id);
   assert.equal(resumed.state, 'landed', 'the interrupted batch itself resumes');
   assert.notEqual(resumed.owner, 'crashed-landing-session');
@@ -93,6 +92,18 @@ test('the next accept resumes a merging batch whose landing process died and lan
   const landed = json(box, box.repo, 'show', String(first.id));
   assert.ok(landed.item_merged_commit, 'the waiting item lands without a person');
   assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
+});
+
+test('a gating batch whose worker died before its gate log existed resumes and lands [B35,B3,C7,#3013]', t => {
+  const { box, reviewer, first, trunk } = waitingItem(t);
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid(), state: 'gating' });
+  assert.equal(existsSync(stuck.logPath), false, 'the gate log was never written');
+  const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
+  assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
+  const resumed = batchById(box, stuck.id);
+  assert.equal(resumed.state, 'landed', 'the interrupted gating batch itself resumes');
+  assert.equal(resumed.refusal ?? null, null, 'it is never blocked LAND_WORKTREE');
+  assert.ok(json(box, box.repo, 'show', String(first.id)).item_merged_commit, 'the waiting item lands without a person');
 });
 
 test('an interrupted batch whose worktree is gone is blocked and a fresh batch lands both items [B35,B3,R3]', t => {
@@ -104,10 +115,9 @@ test('an interrupted batch whose worktree is gone is blocked and a fresh batch l
   const blocked = batchById(box, stuck.id);
   assert.equal(blocked.state, 'blocked');
   assert.equal(blocked.refusal.code, 'LAND_WORKTREE');
-  const fresh = onBoard(box, board => store.landingBatches(board).at(-1));
-  assert.notEqual(fresh.id, stuck.id);
-  assert.equal(fresh.state, 'landed');
-  assert.deepEqual(fresh.items.map(entry => entry.id).sort((a, b) => a - b), [first.id, second.id]);
+  // Landing is per item (#2901): the waiting item lands in a fresh batch of its own, then the new accept in the next.
+  const freshBatches = onBoard(box, board => store.landingBatches(board).filter(batch => batch.id !== stuck.id && batch.state === 'landed'));
+  assert.deepEqual(freshBatches.flatMap(batch => batch.items.map(entry => entry.id)).sort((a, b) => a - b), [first.id, second.id]);
   for (const id of [first.id, second.id]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit, `#${id} lands`);
   assert.equal(readFileSync(join(box.repo, 'web/second.txt'), 'utf8'), 'Second result\n');
 });
@@ -138,4 +148,15 @@ test('liveness reads the recorded pid or a legacy pid owner, only on its own mac
   assert.equal(landingProcessLive({ owner: 'session-digest' }, { host, probe: alive }), false, 'an unrecorded process is judged by the held lease');
   assert.equal(landingProcessLive({ pid: 4242, host: landingHost('other-host') }, { host, probe: alive }), false, 'a foreign pid is never compared');
   assert.notEqual(landingHost('fixture-host'), 'fixture-host', 'the public board never sees the host name');
+});
+
+test('clause 1: an interrupted batch is adopted on main and both its waiting item and the new accept land [B35,B3,R3]', t => {
+  const { box, reviewer, first, trunk } = waitingItem(t);
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
+  const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
+  assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
+  assert.equal(batchById(box, stuck.id).state, 'landed', 'the interrupted batch itself lands');
+  for (const id of [first.id, second.id]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit, `#${id} lands`);
+  assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
+  assert.equal(box.git(box.repo, 'show', 'main:web/second.txt'), 'Second result');
 });

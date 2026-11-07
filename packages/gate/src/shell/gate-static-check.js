@@ -19,7 +19,7 @@ import {
 } from './gate-output.js';
 import {
   refuseSandboxBlocked,
-  runProfiledShell,
+  runProfiledShellAsync,
 } from './gate-execution.js';
 import { receiptLine } from '../../../git/index.js';
 import { checkReceiptKey } from '../../../git/index.js';
@@ -32,7 +32,7 @@ export function commandWord(value) {
 }
 
 /** Run the project's declared static guard before proof, retaining normal queue classification. */
-export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices, artifactDirectory, onReceipt = (receipt, reused) => { if (reused) process.stderr.write(`${receiptLine(receipt)}\n`); } } = {}) {
+export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices, artifactDirectory, signal, onReceipt = (receipt, reused) => { if (reused) process.stderr.write(`${receiptLine(receipt)}\n`); } } = {}) {
   const command = config.staticChecks?.trim();
   if (!command) return null;
   // A green run on this exact tree, command, runner code and config is cited, not repeated (#2230).
@@ -44,13 +44,13 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
     return { isGreen: true, reused: true, receipt: recorded, output: '' };
   }
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, command, { onFallback: onBrowserFallback });
-  return withGateSlot(root, lease => {
-    const run = runProfiledShell(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease });
+  return withGateSlot(root, async lease => {
+    const run = await runProfiledShellAsync(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease, signal });
     refuseSandboxBlocked(run);
     if (!run.isGreen) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
     const receipt = writeCheckReceipt(root, key, { by: agent ?? '' });
     if (receipt) onReceipt?.(receipt, false);
     return { ...run, receipt };
-  }, { executionServices, browser, gui: await checkNeedsGui(root, command), agent, item, kind: 'static', itemCheck: true, shortEligible: true, onWait, ...runnerAdmission });
+  }, { executionServices, browser, gui: await checkNeedsGui(root, command), agent, item, kind: 'static', itemCheck: true, shortEligible: true, onWait, signal, ...runnerAdmission });
 }
 

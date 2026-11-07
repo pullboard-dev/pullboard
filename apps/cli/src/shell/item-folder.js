@@ -87,9 +87,9 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const tree = branchCheckout(ctx.info.root, ref);
   if (!tree || tree.path === desired) return;
   const suffix = `-item-${id}`;
-  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Error(`item branch ${ref} remains in protected folder ${tree.path}`);
+  if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${tree.path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
   const holder = agentAt(board, tree.path.slice(0, -suffix.length));
-  if (!holder || itemFolderPath(holder.agent_path, id) !== tree.path) throw new Error(`item folder ${tree.path} has no registered prior holder; retained`);
+  if (!holder || itemFolderPath(holder.agent_path, id) !== tree.path) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
   /** Recheck ownership after every asynchronous archive notification, before touching the checkout. */
   const requireOwnership = () => {
     const item = getItem(board, id);
@@ -126,6 +126,12 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
+    if (!options.renewed) {
+      const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
+      if (status.status !== 0) throw new Error(`cannot inspect item folder ${path}; preserve it and retry`);
+      const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
+      if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
+    }
     writeItemMarker(path, me.id, id);
     return path;
   }

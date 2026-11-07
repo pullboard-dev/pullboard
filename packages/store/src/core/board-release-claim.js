@@ -6,6 +6,8 @@ import { validateNativeDependencies } from '../../../seats/core.js';
 import { localDependencyIds } from '../../../seats/core.js';
 import { releaseReasonProblem } from "./release-reasons.js";
 import { releaseExitClaim } from "./exit-rules-state.js";
+import { infraRelease } from './board-infra-release.js';
+import { lastChosenReleases } from './board-infra-release.js';
 import { staleClaimRelease } from "./board-stale-claim-release.js";
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
 import { Refused } from "../../../kernel/core.js";
@@ -14,12 +16,31 @@ import {
   MOVES,
   IN_STATE,
   REOPEN_FIRST_REFUSAL_ENGINE,
-} from "../../../../src/machine.js";
+} from "../../../state/index.js";
 import { firstRefusal } from "./board-item-read.js";
 import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
 import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
 import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
+import { RELEASE_TWICE_ROUTE_ENGINE } from "../../../../src/release-twice-route-engine.js";
+
+/**
+ * The id of the item's latest escalation that actually changed its route (0 when none).
+ * Why: a second quality release escalates a light or mid item, and the releases before that move must not
+ * count toward its next episode; a strong item's no-op escalation changes nothing and so never resets the count.
+ *
+ * @param {object} board the open board
+ * @param {number} id the item
+ * @returns {number} the event id of the latest route-changing escalate event
+ */
+function lastRouteChange(board, id) {
+  const rows = board.db.prepare("SELECT event_id, event_detail FROM event WHERE item_id=? AND event_kind='escalate' ORDER BY event_id DESC").all(id);
+  for (const row of rows) {
+    const detail = JSON.parse(row.event_detail ?? '{}');
+    if (detail.from !== detail.to) return row.event_id;
+  }
+  return 0;
+}
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {
@@ -43,7 +64,7 @@ function goneRelease(board, item, actor, observation) {
 function chosenQualityRelease(board, id, row, detail) {
   if (!['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(detail.reasonCode)
     || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim
-    || detail.untouchedAutoClaim || detail.exitHandoff) return false;
+    || detail.untouchedAutoClaim || detail.exitHandoff || infraRelease(board, id, row, detail)) return false;
   const previous = board.db.prepare(`SELECT event_kind, event_by FROM event WHERE item_id=? AND event_id<?
     AND event_kind IN ('claim','release','submit','withdraw','merged','reopen') ORDER BY event_id DESC LIMIT 1`).get(id, row.event_id);
   return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
@@ -134,14 +155,19 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     }
     if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
-      const releases = board.db.prepare(`SELECT event_id, event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
-        AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)
-        ORDER BY event_id DESC`).all(id, id).filter(row => {
+      const routeEpisode = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_ROUTE_ENGINE ? lastRouteChange(board, id) : 0;
+      const releases = lastChosenReleases(board, id, (row, detail) => row.event_id > routeEpisode && (qualityHolds ? chosenQualityRelease(board, id, row, detail)
+        : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff));
+      const route = board.db.prepare('SELECT item_route FROM item WHERE item_id=?').get(id)?.item_route;
+      if (releases.length === 2 && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_ROUTE_ENGINE
+        && ['light', 'mid'].includes(route)) {
+        // A light or mid item moves up one route for any seat there to claim; only a strong item waits for the coordinator.
+        const reasons = releases.reverse().map(row => {
           const detail = JSON.parse(row.event_detail);
-          return qualityHolds ? chosenQualityRelease(board, id, row, detail)
-            : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
-        }).slice(0, 2);
-      if (releases.length === 2) {
+          return `${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`;
+        }).join('; ');
+        escalate(board, id, { agentId: 'coordinator', note: `Released twice at the ${route} route: ${reasons}` });
+      } else if (releases.length === 2) {
         const reasons = releases.reverse().map(row => {
           const detail = JSON.parse(row.event_detail);
           return `${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`;

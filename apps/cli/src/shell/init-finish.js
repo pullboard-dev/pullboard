@@ -3,7 +3,6 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import {
   lstatSync,
   mkdirSync,
@@ -47,6 +46,7 @@ import {
 } from './init.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { HOSTED_ORIGIN } from '../../../view/index.js';
+import { gitSpawnSync } from '../../../../packages/git/index.js';
 
 export const SETUP_COMMIT_QUESTION = 'Commit Pullboard setup now? [Y/n] ';
 export const SETUP_COMMIT_LATER = "To commit Pullboard's files: pullboard init --yes";
@@ -97,14 +97,14 @@ function indexedSetupFile(root, name) {
   const entry = tryGit(root, ['ls-files', '--stage', '-z', '--', `:(literal)${name}`]);
   const match = /^(100644|100755) ([a-f0-9]{40,64}) 0\t[^\0]+\0$/u.exec(entry.stdout);
   if (entry.status !== 0 || !match) return null;
-  const blob = spawnSync('git', ['--no-replace-objects', 'cat-file', 'blob', match[2]],
+  const blob = gitSpawnSync(['--no-replace-objects', 'cat-file', 'blob', match[2]],
     { cwd: root, maxBuffer: 32 * 1024 * 1024 });
   return blob.status === 0 ? setupFingerprint(match[1], blob.stdout) : null;
 }
 
 /** Capture existing edits before init writes, and retain only unchanged previous setup receipts. */
 export function beginInitCommit(info) {
-  const status = spawnSync('git', ['--no-replace-objects', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching'],
+  const status = gitSpawnSync(['--no-replace-objects', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching'],
     { cwd: info.root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   if (status.status !== 0) throw new Refused('NOT_COMMITTED', 'Git could not read the existing changes; fix Git before running pullboard init again');
   const entries = status.stdout.split('\0'), blocked = new Set(), staged = new Set();

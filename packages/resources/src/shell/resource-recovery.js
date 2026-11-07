@@ -2,6 +2,10 @@
 import { randomUUID } from 'node:crypto';
 import { healDelay } from './runner-leak-heal.js';
 import { healLeakedRunner } from './runner-leak-heal.js';
+import { probeStanding } from '../../../transport/index.js';
+
+/** Doubts about a runner that only its transport probe settles: one good probe lifts them, two failures 30 s apart quarantine. */
+export const PROBE_DOUBTS = ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'];
 
 /** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
 export function recoveryIdentity(value) {
@@ -13,11 +17,48 @@ export function recoveryIdentity(value) {
 export function initializeRunnerRecovery(db) {
   db.exec('CREATE TABLE IF NOT EXISTS runner_transport_error(host TEXT PRIMARY KEY,at TEXT NOT NULL,diagnostic TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS runner_recovery_event(id TEXT PRIMARY KEY,host TEXT NOT NULL,at TEXT NOT NULL,kind TEXT NOT NULL,detail TEXT NOT NULL)');
+  db.exec('CREATE TABLE IF NOT EXISTS runner_probe(host TEXT NOT NULL,at INTEGER NOT NULL,ok INTEGER NOT NULL)');
   const columns = new Set(db.prepare('PRAGMA table_info(runner_unavailable)').all().map(row => row.name));
   for (const [name, type] of [['failure', "TEXT NOT NULL DEFAULT ''"], ['probe_after', 'INTEGER NOT NULL DEFAULT 0'],
     ['probe_token', "TEXT NOT NULL DEFAULT ''"], ['probe_until', 'INTEGER NOT NULL DEFAULT 0'], ['probe_attempts', 'INTEGER NOT NULL DEFAULT 0'], ['healing', 'INTEGER NOT NULL DEFAULT 0']]) {
     if (!columns.has(name)) db.exec(`ALTER TABLE runner_unavailable ADD COLUMN ${name} ${type}`);
   }
+}
+
+/**
+ * Record one transport probe answer for a host. A good answer clears the host's earlier failures, since only failures
+ * with no answer between them count toward a quarantine (the transport cell's rule).
+ */
+export function recordRunnerProbe(db, host, ok, at = Date.now()) {
+  if (ok) db.prepare('DELETE FROM runner_probe WHERE host=?').run(host);
+  db.prepare('INSERT INTO runner_probe(host,at,ok) VALUES(?,?,?)').run(host, at, ok ? 1 : 0);
+  db.prepare('DELETE FROM runner_probe WHERE host=? AND at < (SELECT MIN(at) FROM (SELECT at FROM runner_probe WHERE host=? ORDER BY at DESC LIMIT 16))').run(host, host);
+}
+
+/** Whether the host's transport probes quarantine it: two failures at least 30 s apart with no good answer between. */
+export function probeQuarantined(db, host) {
+  try { return probeStanding(db.prepare('SELECT at,ok FROM runner_probe WHERE host=? ORDER BY at').all(host).map(row => ({ at: row.at, ok: row.ok === 1 }))).quarantined; }
+  catch { return false; }
+}
+
+/** Whether any transport probe has answered for the host since the given ISO time. */
+function probedSince(db, host, since) {
+  try { return (db.prepare('SELECT MAX(at) AS at FROM runner_probe WHERE host=?').get(host)?.at ?? -1) >= Date.parse(since); }
+  catch { return false; }
+}
+
+/**
+ * Whether an unavailable row takes its whole runner out of admission. A cleanup or transport doubt is never a
+ * quarantine on its own: only two failed transport probes 30 s apart are, or a heal's fence while it stands. A lost
+ * transport holds the runner only until its first probe answers (about a second); an unverified cleanup costs its
+ * slot, and the runner is out only when every slot is charged. Any other recorded failure keeps the runner out.
+ */
+export function runnerExcluded(db, row, { charges, slots, now = Date.now() }) {
+  if (row.healing === 1 && row.probe_until > now) return true;
+  if (!PROBE_DOUBTS.includes(row.detail)) return true;
+  if (probeQuarantined(db, row.host)) return true;
+  if (row.detail === 'TRANSPORT_UNVERIFIED') return !probedSince(db, row.host, row.since);
+  return !(charges.get(row.host) < (slots.get(row.host) ?? 0));
 }
 
 /** Describe the latest explicit recovery observation, including a legacy idle probe. */
@@ -83,7 +124,7 @@ export function cleanupCharges(db) {
 }
 
 /** Probe due failed generations outside transactions; only exact or explicit idle proofs restore availability. */
-export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, leakProbe, now = Date.now() } = {}) {
+export async function recoverUnavailableRunners(db, runners, { probe, idleProbe, restartProbe, leakProbe, transportProbe, now = Date.now() } = {}) {
   if (typeof probe !== 'function') return false;
   const configured = new Map(runners.map(runner => [runner.host, runner]));
   const rows = db.prepare(`SELECT * FROM runner_unavailable WHERE probe_after<=? AND probe_until<=?
@@ -91,15 +132,31 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     .all(now, now).filter(row => configured.has(row.host));
   const results = await Promise.all(rows.map(async row => {
     const token = randomUUID();
-    const claimed = db.prepare(`UPDATE runner_unavailable SET probe_token=?,probe_until=? WHERE host=? AND since=?
-      AND probe_until<=? AND probe_after<=?`).run(token, now + 10_000, row.host, row.since, now, now).changes;
+    let claimed;
+    try {
+      claimed = db.prepare(`UPDATE runner_unavailable SET probe_token=?,probe_until=? WHERE host=? AND since=?
+        AND probe_until<=? AND probe_after<=?`).run(token, now + 10_000, row.host, row.since, now, now).changes;
+    } catch (error) {
+      // Recovery is best effort: a locked slot database skips this round with the row unchanged, and the next pass
+      // retries. A thrown lock ended the landing worker mid-gate three times in 30 minutes on 5 Nov [C7].
+      if (/database is locked|SQLITE_BUSY/u.test(String(error?.message ?? error))) return false;
+      throw error;
+    }
     if (!claimed) return false;
     let retained;
     try { retained = JSON.parse(row.failure); } catch { retained = { original: null }; }
     const pending = retained.pending ?? [retained.original?.recovery ?? null];
     let result;
+    // A doubt is settled by the transport probe alone: one good answer puts the runner back in service [C7,P7].
+    if (typeof transportProbe === 'function' && PROBE_DOUBTS.includes(row.detail)) {
+      let answer;
+      try { answer = await transportProbe(configured.get(row.host)); } catch { answer = { ok: false }; }
+      try { recordRunnerProbe(db, row.host, answer?.ok === true, now); } catch { /* A locked probe history skips this record; the next pass probes again. */ }
+      if (answer?.ok === true) result = { healthy: true, step: 'transport probe', reason: 'the runner answered its transport probe' };
+    }
     const legacy = !pending.length || !pending.every(recoveryIdentity);
-    if (legacy) {
+    if (result?.healthy === true) { /* Lifted by the transport probe. */ }
+    else if (legacy) {
       if (typeof idleProbe === 'function') {
         try { result = await idleProbe(configured.get(row.host)); }
         catch { result = { healthy: false, step: 'idle proof', reason: 'pinned-worker idle observation unavailable' }; }
@@ -111,7 +168,8 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     } else {
       try { result = await probe(configured.get(row.host), pending); }
       catch { result = { healthy: false, step: 'worker readiness', reason: 'health observation unavailable' }; }
-      const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
+      // A lost transport whose SSH answers but whose pinned worker resets the probe is a hung worker too (#3128).
+      const unresponsive = ['WORKER_UNRESPONSIVE', 'CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail) && result?.step === 'worker readiness';
       const failedProbe = unresponsive ? result : null;
       if (result?.healthy !== true && (result?.idleRequired === true || unresponsive) && typeof idleProbe === 'function') {
         try { result = await idleProbe(configured.get(row.host), pending); }
@@ -122,7 +180,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
       if (failedProbe) db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)')
         .run(randomUUID(), row.host, new Date().toISOString(), 'worker-probe-failed', JSON.stringify({ failedProbe, workerState: result }));
       // An idle runner whose pinned worker will not answer restarts that worker itself; a busy one is left alone and named (#2035).
-      if (failedProbe && row.detail === 'WORKER_UNRESPONSIVE' && result?.healthy !== true && typeof restartProbe === 'function') {
+      if (failedProbe && ['WORKER_UNRESPONSIVE', 'TRANSPORT_UNVERIFIED'].includes(row.detail) && result?.healthy !== true && typeof restartProbe === 'function') {
         let restart;
         try { restart = await restartProbe(configured.get(row.host)); }
         catch { restart = { healthy: false, step: 'idle proof', reason: 'worker restart observation unavailable' }; }
@@ -134,7 +192,8 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
         result = restart;
       }
     }
-    if (result?.healthy !== true && row.detail === 'CLEANUP_UNVERIFIED') result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe, token, now });
+    // A lost transport leaves the same doubt as an unverified cleanup: did the job's processes survive? The leak probe answers it [C7].
+    if (result?.healthy !== true && ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'].includes(row.detail)) result = await healLeakedRunner(db, row, configured.get(row.host), result, { idleProbe, leakProbe, token, now });
     if (result?.healthy === true) {
       const recovered = auditedChange(db, () => {
       const removed = db.prepare(`DELETE FROM runner_unavailable WHERE host=? AND since=? AND probe_token=?

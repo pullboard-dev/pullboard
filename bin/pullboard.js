@@ -51,39 +51,39 @@ if (process.argv[2] === 'hook') {
   if (composed !== null) process.exit(composed);
 }
 
-// A worktree behind the main checkout runs the main checkout's CLI, so landed fixes reach every agent (B17).
+// Select immutable tooling before redirecting a stale worktree to today's CLI.
+// Only these two small modules load here; the dispatcher loads after the resident path declines, so a warm client stays thin [H24].
+const { selectedToolEntry } = await import('../apps/cli/src/shell/pinned-tool-build.js');
+const { asksVersion } = await import('../apps/cli/src/shell/cli-main/options.js');
+if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
+  try {
+    const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
+    if (selected) {
+      const { spawnSync } = await import('node:child_process');
+      const result = spawnSync(process.execPath, [selected, ...process.argv.slice(2)], { stdio: 'inherit', env: process.env });
+      process.exit(result.status ?? 1);
+    }
+  } catch (error) {
+    if (process.argv.includes('--json')) {
+      const { commandOutput, versionedRefusal } = await import('../packages/config/index.js');
+      const output = commandOutput(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
+      output.refusal({ code: error.code ?? 'TOOL_BUILD_UNAVAILABLE', message: error.message,
+        next: 'ask the coordinator to promote a native gated tool build' });
+      output.flush(1);
+    } else process.stderr.write(`pullboard: [${error.code ?? 'TOOL_BUILD_UNAVAILABLE'}] ${error.message}\n`);
+    process.exit(1);
+  }
+}
+
+// A worktree behind the main checkout runs the main checkout's CLI after checking its own pin.
 const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1]);
 if (handed !== null) process.exit(handed);
 
-// A warm resident board process runs the command when one serves this checkout; otherwise it runs here, as
-// before, and the first such command starts one for the next [H24].
+// A warm resident board process runs the command when one serves this checkout; otherwise it runs here.
 const resident = await (await import('./resident-client.js')).runResident(process.argv.slice(2));
 if (resident !== null) process.exitCode = resident;
 else {
-  // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-  const { main, selectedToolEntry, asksVersion } = await import('../apps/cli/src/shell/cli-main.js');
-  // Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
-  if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
-    try {
-      const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
-      if (selected) {
-        const { spawnSync } = await import('node:child_process');
-        const result = spawnSync(process.execPath, [selected, ...process.argv.slice(2)], { stdio: 'inherit', env: process.env });
-        process.exit(result.status ?? 1);
-      }
-    } catch (error) {
-      if (process.argv.includes('--json')) {
-        const { commandOutput, versionedRefusal } = await import('../packages/config/index.js');
-        const output = commandOutput(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
-        output.refusal({ code: error.code ?? 'TOOL_BUILD_UNAVAILABLE', message: error.message,
-          next: 'ask the coordinator to promote a native gated tool build' });
-        output.flush(1);
-      } else process.stderr.write(`pullboard: [${error.code ?? 'TOOL_BUILD_UNAVAILABLE'}] ${error.message}\n`);
-      process.exit(1);
-    }
-  }
-
-  // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
+  const { main } = await import('../apps/cli/src/shell/cli-main.js');
   const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('./process-ports.js');
   process.exitCode = await main(process.argv.slice(2), {
     cwd: process.cwd(),

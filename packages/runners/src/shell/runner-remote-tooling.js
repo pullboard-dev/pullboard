@@ -2,7 +2,7 @@ import { archivedToolingSource } from './committed-tooling.js';
 import { committedRunnerController } from './committed-tooling.js';
 import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
-import { runnerSource } from '../../../gate/index.js';
+import { runnerSource } from '../../../gate/src/core/gate-policy-load.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -28,9 +28,18 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
 
-/** Pin one runners.js instance's controller generation when it loads, before any later dispatch. */
+/** True in the commit-time hooks, which are short-lived and never dispatch or serve a runner (#2505). */
+const COMMIT_HOOK = process.argv[2] === 'hook' && ['pre-commit', 'commit-msg'].includes(process.argv[3]);
+
+/** Whether any runners.js instance has pinned the loaded tooling in this process. */
+export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
+
+/** Pin one runners.js instance's controller generation on its first runner operation, before that dispatch. */
 export function pinRunnerTooling() {
-  const generation = { loaded: loadedTooling() };
+  let captured;
+  const generation = COMMIT_HOOK
+    ? { get loaded() { return captured ??= loadedTooling(); } }
+    : { loaded: loadedTooling() };
   LOADED_TOOLING ??= generation;
   return generation;
 }

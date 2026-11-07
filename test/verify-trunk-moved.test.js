@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const PAD = Array.from({ length: 8 }, (_, i) => `export const pad${i} = ${i};`).join('\n');
 
@@ -12,7 +14,7 @@ const PAD = Array.from({ length: 8 }, (_, i) => `export const pad${i} = ${i};`).
  * A web item whose check runs test/page.test.js (imports web/lib.js and web/shared.js); test/other.test.js reads only
  * api/other.js. While the frozen check runs it lands commits on main appending to `landing`, once or on every run.
  */
-function reviewWithLandings(t, { landing, every }) {
+function reviewWithLandings(t, { landing, every, rewrite = false }) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -32,7 +34,7 @@ else process.exitCode = child.status ?? 1;
   writeFileSync(join(box.repo, 'test/other.test.js'), "import { test } from 'node:test'; import { other } from '../api/other.js'; test('other', () => { if (!other) throw new Error('no'); });\n");
   writeFileSync(join(box.repo, 'test/page.test.js'), `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { page } from '../web/lib.js';
 import { shared } from '../web/shared.js';
 test('page is built', () => {
@@ -40,7 +42,9 @@ test('page is built', () => {
   if (!existsSync(${JSON.stringify(armed)})) return;
   ${every ? '' : `rmSync(${JSON.stringify(armed)});`}
   const repo = ${JSON.stringify(box.repo)};
-  appendFileSync(repo + '/' + ${JSON.stringify(landing)}, 'export const moved' + Date.now() + ' = 1;\\n');
+  ${rewrite
+    ? `writeFileSync(repo + '/' + ${JSON.stringify(landing)}, readFileSync(repo + '/' + ${JSON.stringify(landing)}, 'utf8').replace("'draft'", "'moved'"));`
+    : `appendFileSync(repo + '/' + ${JSON.stringify(landing)}, 'export const moved' + Date.now() + ' = 1;\\n');`}
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Train', '-c', 'user.email=train@example.invalid', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: repo, env: { PATH: process.env.PATH } });
   git('add', ${JSON.stringify(landing)});
   git('commit', '-q', '-m', 'feat(merge): an item lands');
@@ -52,7 +56,7 @@ test('page is built', () => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with recorded landings [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), `export const page = 'built';\n${PAD}\n`);
   box.git(box.web, 'add', 'web/lib.js');
@@ -60,12 +64,13 @@ test('page is built', () => {
   json(box.run(box.web, 'submit', '1', '--json'));
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(box.run(reviewer, 'join', 'api', '--json'));
-  // A distinct clean reviewer HEAD forces a fresh check instead of reusing submit proof.
+  json(fixtureJoin(box.run, reviewer, 'api', '--model', 'Fixture Reviewer', '--json'));
+  // Main moving after the submit makes its proof unreusable, so the review runs the check itself.
+  box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: main moves after the submit');
   box.git(reviewer, 'commit', '--allow-empty', '-q', '-m', 'test: force the review check to run');
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
-  assert.equal(existsSync(armed), false, 'the check really moved main during verification');
+  assert.equal(existsSync(armed), false, `the check really moved main during verification: ${verdict.out}${verdict.err}`);
   return { box, verdict, json };
 }
 
@@ -78,8 +83,16 @@ test('a verdict after a landing that touches none of the item files is recorded 
   assert.match(item.verdicts.at(-1).verdict_note, new RegExp(`main moved during this review through ${moved}.*its files are unchanged`, 'u'));
 });
 
-test('a landing touching an item file refuses acceptance and names the file [V4,C7]', (t) => {
+test('a landing touching another part of an item file accepts and names the composed file [V4,C7]', (t) => {
   const { box, verdict, json } = reviewWithLandings(t, { landing: 'web/lib.js', every: false });
+  assert.equal(verdict.code, 0, verdict.out + verdict.err);
+  const item = json(box.run(box.repo, 'show', '1', '--json'));
+  assert.equal(item.item_status, 'verified');
+  assert.match(item.verdicts.at(-1).verdict_note, /its patch on "web\/lib\.js" composes unchanged/u);
+});
+
+test('a landing rewriting the line an item changed refuses acceptance and names the file [V4,C7]', (t) => {
+  const { box, verdict, json } = reviewWithLandings(t, { landing: 'web/lib.js', every: false, rewrite: true });
   assert.notEqual(verdict.code, 0, verdict.out + verdict.err);
   const error = JSON.parse(verdict.out).error;
   assert.ok(['MERGE_CONFLICT', 'VERDICT_TRUNK_MOVED'].includes(error.code), error.message);

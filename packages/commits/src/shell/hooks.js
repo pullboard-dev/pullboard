@@ -46,6 +46,7 @@ import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../../../../src/import-only-change.js";
 import { movedImportTargets } from "../../../../src/import-only-change.js";
 import { planRowChange } from "../../../../src/plan-row-change.js";
+import { tierRowChange } from "../../../../src/tier-row-change.js";
 import {
   citedIds,
   deletedIds,
@@ -524,6 +525,8 @@ export function preCommitProblems(context) {
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
+  const touchedPaths = new Set(touched);
+  const writtenPaths = new Set(written);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -593,8 +596,12 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
-      && !treeRaw(root, 'HEAD', path)
-      && Boolean(importFileEntry(root, ':index', path)),
+      && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
+        || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
+  })]));
+  const tierChanges = new Map(checkedForeign.map(path => [path, tierRowChange(path, {
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
+    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
@@ -608,13 +615,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   ) }));
   const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves)
     || mergeMoves.some(({ parent, moves: parentMoves }) => stagedImportOnlyChange(root, path, parentMoves, parent))
-    || planChanges.get(path).allowed);
-  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+    || planChanges.get(path).allowed || tierChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
+      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
     }));
   return problems;
 }

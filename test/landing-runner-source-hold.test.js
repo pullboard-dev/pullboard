@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
-import { RUNNER_SOURCE_RETRIES, runnerSourceHold } from '../packages/landing/src/core/runner-source-hold.js';
+import { RUNNER_SOURCE_RETRIES, runnerSourceHold, repeatedBlockedCause, repeatedLandingHold, repeatedLandingHoldCleared, repeatedLandingNotice, REPEATED_LANDING_HOLD } from '../packages/landing/src/core/runner-source-hold.js';
 import { applyItemHold, applyItemHoldRelease } from '../packages/items/src/core/item-holds.js';
 import { candidates } from '../packages/landing/src/shell/landing-step-selection.js';
 
@@ -69,4 +69,75 @@ test('a held verified item is skipped by landing selection with its reason [C7]'
   const selected = candidates(board, root, BASE, 8, { listItems: () => listed });
   assert.deepEqual(selected.ready, []);
   assert.deepEqual(selected.blocked.map(entry => [entry.id, entry.code, entry.message]), [[7, 'ITEM_HELD', 'landing keeps dying on this item']]);
+});
+
+test('a full batch stops landing selection before checking later items [C7]', t => {
+  const board = openBoard(':memory:', { now: () => new Date('2026-11-05T16:00:00.000Z') });
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-full-batch-'));
+  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  const listed = [{ item_id: 8, item_status: 'verified', item_merged_commit: null, item_commit: ITEM.item_commit,
+    item_hold_at: '2026-11-05T15:00:00.000Z', item_hold_reason: 'held' }];
+  // A batch with no room left never walks the queue, so no item beyond it costs a verdict projection or git call.
+  const selected = candidates(board, root, BASE, 0, { listItems: () => listed });
+  assert.deepEqual(selected, { ready: [], blocked: [] });
+});
+
+test('clause 1: two consecutive blocked batches with the same refusal park only that exact item head [C7]', () => {
+  /** Make one blocked batch recording the selected item's refusal. */
+  const batch = (id, base, code) => ({ id, state: 'blocked', base, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
+    refusal: { code, message: 'runner could not adopt the recorded tree' } });
+  assert.deepEqual(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_ADOPT')], ITEM),
+    { kind: 'refusal', key: 'LAND_ADOPT', detail: 'runner could not adopt the recorded tree', base: BASE, commit: ITEM.item_commit, batch: 'two' });
+  assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_DIRTY')], ITEM), null);
+  assert.equal(repeatedBlockedCause([batch('one', BASE, 'LAND_ADOPT'), batch('two', BASE, 'LAND_ADOPT')],
+    { ...ITEM, item_commit: 'c'.repeat(40) }), null);
+});
+
+test('clause 1: two consecutive blocked batches with the same named failing case park it, but a different case does not [C7]', () => {
+  /** Make one blocked batch recording a named failing case for the selected item. */
+  const batch = (id, name) => ({ id, state: 'blocked', base: BASE, items: [{ id: ITEM.item_id, commit: ITEM.item_commit }],
+    culprits: [{ id: ITEM.item_id, commit: ITEM.item_commit, tests: [{ file: 'test/landing.test.js', name }] }] });
+  assert.equal(repeatedBlockedCause([batch('one', 'clause 1 parks the item'), batch('two', 'clause 1 parks the item')], ITEM)?.key,
+    'test/landing.test.js::clause 1 parks the item');
+  assert.equal(repeatedBlockedCause([batch('one', 'first case'), batch('two', 'second case')], ITEM), null);
+});
+
+test('clause 2: a LAND_DIRTY hold lifts only when its worktree is clean, never on a moved base or new head alone [C7]', () => {
+  const hold = { kind: 'refusal', key: 'LAND_DIRTY', base: BASE, commit: ITEM.item_commit };
+  const MOVED = 'c'.repeat(40);
+  const NEWHEAD = { ...ITEM, item_commit: 'd'.repeat(40) };
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: true }), false, 'dirty at the same base stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null, { worktreeDirty: true }), false, 'dirty after the base moved stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, NEWHEAD, MOVED, null, { worktreeDirty: true }), false, 'dirty after a new head and base stays held');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null, { worktreeDirty: false }), true, 'clean lifts the hold');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), true, 'clean at the same base lifts the hold');
+  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ ...hold, root: '/tmp/landing-batch' })} the landing worktree has uncommitted changes`;
+  assert.equal(repeatedLandingHold(reason).root, '/tmp/landing-batch', 'the hold remembers the worktree it named');
+});
+
+test('clause 2: a refusal code with no probe stays held on a moved base or new head alone [C7]', () => {
+  const hold = { kind: 'refusal', key: 'LAND_ADOPT', base: BASE, commit: ITEM.item_commit };
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), false);
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), false);
+});
+
+test('clause 2: a repeated named-case hold clears only when main no longer reproduces that exact case [C7]', () => {
+  const hold = { kind: 'case', key: 'test/landing.test.js::clause 2 parks the item', base: BASE, commit: ITEM.item_commit };
+  const comparison = failures => ({ main: BASE, files: [{ file: 'test/landing.test.js', result: 'red', failures }] });
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, comparison([{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }])), false);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, comparison([{ file: 'test/landing.test.js', name: 'another case' }])), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: BASE, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, { main: 'c'.repeat(40), unavailable: 'source changed', files: [] }), false);
+  const MOVED = 'c'.repeat(40);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, null), false, 'a moved main alone does not lift a case hold');
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, comparison([{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }])), false, 'a new item commit alone does not lift a case hold');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'red', failures: [{ file: 'test/landing.test.js', name: 'clause 2 parks the item' }] }] }), false, 'main moved and still reproduces the case');
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, MOVED, { main: MOVED, files: [{ file: 'test/landing.test.js', result: 'green' }] }), true, 'main moved and the case now passes');
+});
+
+test('clause 3: the one coordinator notice names the parked item and repeated cause [C7]', () => {
+  assert.equal(repeatedLandingNotice(3189, { kind: 'case', detail: 'test/landing.test.js :: repeats' }),
+    'Landing parked #3189 after two blocked batches with failing case test/landing.test.js :: repeats; it will rejoin when the cause clears.');
 });

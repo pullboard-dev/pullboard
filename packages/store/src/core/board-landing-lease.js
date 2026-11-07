@@ -6,7 +6,7 @@ import {
 import { COORDINATOR } from "../../../config/index.js";
 import { coordinatorHolder } from "../../../seats/core.js";
 import { Refused } from "../../../kernel/core.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../src/landing-local-lease-engine.js";
 import {
   localLandingEntry,
@@ -14,7 +14,7 @@ import {
 } from "./board-landing-local-lease.js";
 
 const KEY = 'landing_lease';
-export const LANDING_LEASE_MS = 30_000;
+export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Read the durable queue without treating a corrupt record as an unoccupied trunk. */
 function sharedLandingLeaseState(board) {
@@ -81,7 +81,7 @@ export function assertLandingLease(board, fence, { shared = false } = {}) {
 /** Pending local intents are not authority to merge, push or move the trunk (#1013 integration boundary). */
 export function requireConfirmedLanding(board) {
   if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key GLOB 'relay_local_intent_*' LIMIT 1").get()) {
-    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; wait for their ordered receipts before landing');
+    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; land after their ordered receipts arrive');
   }
 }
 
@@ -91,14 +91,14 @@ export function guardLandingWrite(board, fence) {
 }
 
 /** Persist a complete queue transition and a compact, append-only admission receipt. */
-function save(board, state, action, token, event = true) {
+function save(board, state, action, token, event = true, reason = null) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(KEY, JSON.stringify(state));
-  if (event) logEvent(board, COORDINATOR, 'landing_lease', null, { action, token, holder: state.holder?.label ?? null, generation: state.generation, queued: state.line.length });
+  if (event) logEvent(board, COORDINATOR, 'landing_lease', null, { action, token, holder: state.holder?.label ?? null, generation: state.generation, queued: state.line.length, ...(reason ? { reason } : {}) });
 }
 
 /** Enqueue, renew, inspect ownership or release through one deterministic ordered operation. */
-export function landingLeaseMove(board, { agentId, action, token, branch, pid, generation, guardianPid }) {
+export function landingLeaseMove(board, { agentId, action, token, branch, pid, generation, guardianPid, reason }) {
   if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator takes a landing lease; ask your coordinator to run pullboard land');
   if (!['request', 'renew', 'release', 'bind'].includes(action) || !/^[a-f0-9-]{36}$/u.test(token ?? '')) {
     throw new Refused('LAND_LEASE_REQUEST', 'a landing lease needs its command identity and a supported action; run pullboard land');
@@ -143,7 +143,7 @@ export function landingLeaseMove(board, { agentId, action, token, branch, pid, g
         state.holder = { ...state.line.shift(), generation: state.generation };
       }
     }
-    if (JSON.stringify(state) !== before) save(board, state, action, token, !modern || transition(state) !== previousTransition);
+    if (JSON.stringify(state) !== before) save(board, state, action, token, !modern || transition(state) !== previousTransition, action === 'release' && typeof reason === 'string' ? reason.slice(0, 120) : null);
     return { holder: state.holder, position: state.line.findIndex(entry => entry.token === token) + 1,
       acquired: state.holder?.token === token, generation: state.holder?.token === token ? state.holder.generation : null };
   });

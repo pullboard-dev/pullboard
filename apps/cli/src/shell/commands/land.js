@@ -1,6 +1,10 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
+import { landBatch } from '../../../../../packages/land/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
+import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { replayLanding } from '../../../../../packages/landing/index.js';
+import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { landAcceptedItems } from '../../../../../packages/merge/index.js';
@@ -23,6 +27,10 @@ import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
+import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhyLines } from '../../../../../packages/landing/src/core/land-why.js';
+import { withBoardRead } from '../cli-board-read.js';
+import { context } from '../cli-read-context.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   COORDINATOR,
@@ -55,8 +63,23 @@ import {
 
 /** Run `pullboard land` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
+  if (values.why) {
+    const ctx = context(io);
+    const why = await withBoardRead(ctx, (board) => landWhy(board, ctx.clock.now()));
+    if (values.json) io.result(why);
+    else for (const line of landWhyLines(why)) io.say(line);
+    return 0;
+  }
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
+  if (values.replay) {
+    if (first || second || rest.length || values.due || values.adopt || values['dry-run'] || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', 'pullboard land --replay [--since <time>] takes no other option');
+    const rows = replayLanding(board, { since: values.since });
+    io.result?.({ replay: rows });
+    for (const row of rows) io.say(replayLine(row));
+    if (!rows.length) io.say('no recorded landing batches to replay');
+    return 0;
+  }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
@@ -76,6 +99,22 @@ export async function run(io, { first, second, rest, values }) {
 });
 }
 
+/**
+ * Write a landed batch through the land cell's finish sequence, the one `pullboard merged` also runs, so the landing
+ * job and its tooling pin exist for every landing. The batch is already recorded, so a failure here is reported and
+ * never changes the landing's result.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {object} io
+ * @param {{ batch?: object }} result - The batch engine's result.
+ * @returns {Promise<void>}
+ */
+async function recordBatchLanding(ctx, board, io, result) {
+  try { await landBatch(board.db, { repo: ctx.info.root, batch: result?.batch, owner: `land:${agentSessionDigest() ?? `pid-${process.pid}`}` }); }
+  catch (error) { io.err?.(`landing job deferred: ${error.code ?? 'ERROR'} ${error.message}`); }
+}
+
 /** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
 export async function executeBoardLanding(ctx, board, io, values = {}) {
   if (!values['dry-run'] && codeIsFromMain()) {
@@ -85,13 +124,14 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   let result;
   try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../../../../bin/landing-worker.js', import.meta.url)),
-    write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
+    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;
   }
   if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
+  if (!values['dry-run']) await recordBatchLanding(ctx, board, io, result);
   io.result?.(result);
   for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
   if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
@@ -117,6 +157,7 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
     return true;
   }
   const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
+  let reopened = 0;
   const result = await actOn(io, async (landing, board) => {
     const policy = mainPolicy(root);
     const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'verified' && !item.item_merged_commit)
@@ -125,11 +166,12 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
       reopen: (id, conflict, note) => {
         const item = store.getItem(board, id);
         if (item.item_status !== 'verified' || item.item_merged_commit) return null;
-        return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
+        reopened += 1;
+        return untilBoardFree(() => ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]), { say: line => ctx.io.err?.(line) });
       },
       execute: () => executeBoardLanding(landing, board, io, { automatic: true }) });
     return { ...(landed && typeof landed === 'object' ? landed : {}), retryMs: policy.config.landing?.cadenceMs ?? LANDING_RETRY_MS,
-      waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at) };
+      reopened, waiting: store.listItems(board, { all: true }).some(item => item.item_status === 'verified' && !item.item_merged_commit && !item.item_hold_at) };
   });
   const retryAt = landingRetryAt(result, now());
   if (retryAt) await schedule(root, retryAt, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
@@ -137,14 +179,45 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
 }
 
 /** How long a landing waits before trying again while verified items still wait, when no cadence is set [C7]. */
-export const LANDING_RETRY_MS = 5 * 60_000;
+export const LANDING_RETRY_MS = 30_000; // 5 min idled the lander after every blocked batch while 60 items waited [C7].
+
+/** How soon the next batch starts after a run that landed or reopened items while others still wait [C7]. */
+export const LANDING_NEXT_BATCH_MS = 1_000;
 
 /**
- * When the board's next landing wake is due: a recorded deferral, or one retry interval from now while verified,
+ * Run one board write, waiting out a busy board lock with doubling backoff instead of ending the landing. Only the
+ * refused write repeats, never the batch work before it. Why: board write locks are held for seconds (5.3 s at most
+ * over 400 writes on 4 Nov), yet a BOARD_BUSY ended the landing and left accepted work idle until the next cycle; any
+ * other refusal still ends the attempt (#3149).
+ */
+export async function untilBoardFree(work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, pauseMs = 1_000, maxPauseMs = 8_000, maxWaitMs = 120_000 } = {}) {
+  for (let waited = 0, pause = pauseMs; ; pause = Math.min(pause * 2, maxPauseMs)) {
+    try { return await work(); }
+    catch (error) {
+      // A stale flake-ratchet boundary is not a lock: the same snapshot can never be accepted while seats keep
+      // writing, so the worker must recompute it (prepareFlakeLanding), not sleep; 2 minutes of sleeping ended a
+      // worker and cost #3167 a second gate on 6 Nov [C7].
+      if (error?.code !== 'BOARD_BUSY' || /flake evidence or repair status changed/u.test(error.message ?? '') || waited + pause > maxWaitMs) throw error;
+      say(`landing met a busy board lock; waiting ${Math.round(pause / 1000)} s and continuing the same landing`);
+      await wait(pause);
+      waited += pause;
+    }
+  }
+}
+
+/**
+ * When the board's next landing wake is due: within seconds after a run that moved work, else a recorded deferral, else one retry interval from now while verified,
  * unheld items are still waiting; null when nothing waits [C7,#2898].
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
+  if (!result?.waiting) return null;
+  // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
+  // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
+  // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never
+  // loops hot.
+  const moved = result?.stalled === true || result?.landed?.length > 0 || result?.conflicts?.length > 0 || result?.culprits?.length > 0 || result?.reopened > 0;
+  if (moved && result.waiting) return new Date(now + LANDING_NEXT_BATCH_MS).toISOString();
   if (result?.deferredUntil) return result.deferredUntil;
   return result?.waiting ? new Date(now + (result.retryMs ?? LANDING_RETRY_MS)).toISOString() : null;
 }

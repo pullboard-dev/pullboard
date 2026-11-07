@@ -43,7 +43,7 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   return { box, id, unknownIds };
 }
 
-test('the next native write frees a lapsed idle claim with one original lease of builder first refusal and named health [B4,C7]', async t => {
+test('clause 1: the next native write frees a lapsed idle claim with one original lease of builder first refusal and named health [B4,C7]', async t => {
   const { box, id } = await lapsed(t);
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private fixture write observes lapsed work.']);
   assert.equal(result.code, 0, result.out + result.err);
@@ -133,7 +133,7 @@ test('sealed lapsed-claim expiry replays identically despite fresh replica-local
 });
 
 
-test('bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
+test('clause 1: bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
   const { box, id, unknownIds } = await lapsed(t, { unknownPrefix: 33 });
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
   assert.equal(snapshot.claims.length, 0, 'the first captured batch contains only live holders');
@@ -168,17 +168,20 @@ test('automatic claim expiry records current reason codes while prior lease-laps
   assert.equal(snapshot.claims[0].id, id);
   const before = exportBoard(box.board);
   const args = [{ agentId: box.seats.actor.id, snapshot, health: box.config.health ?? {}, claimsOnly: true }];
+  // A current capture carries the stranded-dependency limit, which raises the floor; a genuine lease-lapse envelope predates it.
+  const { dependency: _dependency, ...legacyLimits } = snapshot.limits;
+  const legacyArgs = [{ ...args[0], snapshot: { ...snapshot, limits: legacyLimits } }];
   const move = prepareEngineMove(box.board, 'maintainStaleState', args);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
   assert.ok(RELEASE_REASONS_ENGINE > LEASE_LAPSE_ENGINE);
-  assert.equal(minimumMoveEngine('maintainStaleState', args), LEASE_LAPSE_ENGINE,
+  assert.equal(minimumMoveEngine('maintainStaleState', legacyArgs), LEASE_LAPSE_ENGINE,
     'genuine accepted lease-lapse envelopes retain their original operation floor');
   const releaseRows = [];
   for (const [engine, coded] of [[move.engine, true], [LEASE_LAPSE_ENGINE, false]]) {
     const replica = openBoard(':memory:', box.clock);
     t.after(() => store.closeBoard(replica));
     importBoard(replica, before);
-    const applied = applyRelayMove(replica, { ...move, engine }, { sequence: appliedSequence(replica) + 1,
+    const applied = applyRelayMove(replica, { ...move, ...(coded ? {} : { args: legacyArgs }), engine }, { sequence: appliedSequence(replica) + 1,
       at: box.clock.now().toISOString(), kind: 'move',
       sender: { kind: 'agent', agent: box.seats.actor.id, userId: 'fixture-user' } });
     assert.equal(applied.error, undefined, JSON.stringify(applied));
@@ -204,7 +207,7 @@ test('automatic claim expiry records current reason codes while prior lease-laps
 });
 
 
-test('explicit stale CLI releases require a code before observation and retain coded expired-lease authority [C7,B4,H16]', async t => {
+test('clause 1: explicit stale CLI releases require a code before observation and retain coded expired-lease authority [C7,B4,H16]', async t => {
   const { box, id } = await lapsed(t);
   const note = 'The private expired holder is genuinely idle.';
   const before = exportBoard(box.board);
@@ -212,7 +215,7 @@ test('explicit stale CLI releases require a code before observation and retain c
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|INFRA\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);
@@ -224,8 +227,8 @@ test('explicit stale CLI releases require a code before observation and retain c
     { leaseLapse: true, staleClaim: snapshot.claims.find(row => row.id === id), observedAt: snapshot.observedAt,
       observedRevision: snapshot.observedRevision, health: box.config.health ?? {} }, 'BLOCKED']);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
-  assert.equal(minimumMoveEngine('release', move.args), RELEASE_REASONS_ENGINE,
-    'a supplied code cannot be interpreted by an older writer that drops it');
+  assert.ok(minimumMoveEngine('release', move.args) >= RELEASE_REASONS_ENGINE,
+    'a supplied code cannot be interpreted by an older writer that drops it, even when a newer release floor also applies');
   const result = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--note', note, '--no-next']);
   assert.equal(result.code, 0, result.out + result.err);
   const event = store.events(box.board, { itemId: id }).findLast(row => row.event_kind === 'release');
