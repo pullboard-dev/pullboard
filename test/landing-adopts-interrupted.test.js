@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 import { json } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { landingHost } from '../packages/landing/index.js';
@@ -46,7 +47,7 @@ function waitingItem(t) {
   commit(box, box.repo, 'chore: configure held landing');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', 'Fixture Model');
+  assert.equal(joinFixtureSeat(box, reviewer, 'api').code, 0, 'the reviewer joins on the strong route the items need');
   const first = acceptItem(box, reviewer, 'first.txt', 'First result');
   assert.equal(first.verify.code, 0, first.verify.out + first.verify.err);
   config.landing.manualOverride = false;
