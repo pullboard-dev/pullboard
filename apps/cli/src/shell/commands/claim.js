@@ -12,7 +12,7 @@ import {
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
-import { requireNoCoordinatorPath } from '../cross-ownership.js';
+import { requireNoCoordinatorPath } from './add.js';
 import { cleanItemFolders } from '../item-folder.js';
 import { openItemFolder } from '../item-folder.js';
 import {

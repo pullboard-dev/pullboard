@@ -516,10 +516,6 @@
       "cells": 6,
       "deep": 0
     },
-    "apps/cli/src/shell/cross-ownership.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "apps/cli/src/shell/exit-rules-runtime.js": {
       "cells": 6,
       "deep": 0
