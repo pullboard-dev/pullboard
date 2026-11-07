@@ -652,8 +652,8 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null, withdrawnReason: null, withdrawnFrom: null,
   });
   assert.deepEqual(summaryState.document.state.moveCounts, {
-    'open>claimed:claim': 2, 'claimed>claimed:claim': 1, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
-  }, 'the lifecycle drawing tallies the moves without any history');
+    'open>claimed:claim': 2, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
+  }, 'the lifecycle drawing tallies the moves without any history; the submit\'s own lease renewal is no re-claim');
   assert.deepEqual(fullState.document.state.moveCounts, summaryState.document.state.moveCounts);
 
   for (const [id, full] of fulls) {
