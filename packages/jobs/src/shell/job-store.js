@@ -39,6 +39,24 @@ export function createJob(db, { id, kind, item = null, candidate = null, base = 
 }
 
 /**
+ * Name what a job drives when it was created before that was known: its item, candidate and base. A field already
+ * named keeps its value, so a second call never moves a job onto another candidate.
+ *
+ * Why: the dispatcher admits a gate's drive job from its place in line, which names only the job; the driver reads
+ * the candidate from the captured request and names it before the first transition needs it.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ item?: number | null, candidate?: string | null, base?: string | null }} fields
+ * @returns {ReturnType<typeof viewOf>}
+ */
+export function nameJob(db, job, { item = null, candidate = null, base = null }) {
+  db.prepare('UPDATE job SET job_item = COALESCE(job_item, ?), job_candidate = COALESCE(job_candidate, ?), job_base = COALESCE(job_base, ?) WHERE job_id = ?')
+    .run(item, candidate, base, job);
+  return jobView(db, job);
+}
+
+/**
  * Append a step to a job's log. A repeat of (job, name, seq) writes nothing and returns the stored payload.
  *
  * Why: a resumed driver replays steps it may already have written; the unique key makes that safe.

@@ -6,10 +6,12 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { driverRecord } from '../../../test/gate-driver-fixture.js';
 import { test } from 'node:test';
 import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
-import { submitHandoffWorkerEntrypoint } from '../index.js';
+import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
+import { admitGateDrive } from '../../../packages/drive/index.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
@@ -23,7 +25,7 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
-test('launched submit worker completes a native queued request without unsettled await [V4,H16,E18]', async t => {
+test('launched gate driver completes a native queued request without unsettled await [V4,H16,E18,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
@@ -57,8 +59,11 @@ test('launched submit worker completes a native queued request without unsettled
   mkdirSync(directory, { recursive: true });
   const request = join(directory, 'request.json');
   writeFileSync(request, JSON.stringify({ item: id, job: queued.job.id, commonDir, commit }));
+  // The dispatcher admits the gate to a driver id on the board, then starts the gate driver under it [C7].
+  const owner = `test-driver:${queued.job.id}`;
+  admitGateDrive(board.db, queued.job.id, { owner });
   // budget: the existing owned-worker hang ceiling; assertions concern exit and native results, not elapsed time.
-  const result = await runFixtureChildAsync(process.execPath, [submitHandoffWorkerEntrypoint(), request],
+  const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
     { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.notEqual(result.status, 13, result.context);
   assert.equal(result.status, 0, result.context);
@@ -115,9 +120,9 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   assert.ok(['queued', 'running', 'green'].includes(current.state), `the replacement is a live job: ${current.state}`);
   const refusal = JSON.parse(readFileSync(join(orphanDirectory, 'refusal.json'), 'utf8'));
   assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_NOT_LAUNCHED');
-  assert.match(refusal.error.message, /request\.json and worker\.json are missing/u);
+  assert.match(refusal.error.message, /request\.json and its driver record are missing/u);
   const freshDirectory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id);
-  await helpers.waitFor(() => existsSync(join(freshDirectory, 'worker.json')), 'fresh detached worker owner record', 30000); // budget: owned worker launch ceiling, no timing claim.
+  await helpers.waitFor(() => driverRecord(join(commonDir, 'pullboard/board.sqlite'), current.id)?.pid > 0, 'fresh gate driver record', 30000); // budget: owned driver launch ceiling, no timing claim.
   const request = JSON.parse(readFileSync(join(freshDirectory, 'request.json'), 'utf8'));
   assert.equal(request.job, current.id);
   assert.equal(request.commit, current.commit);

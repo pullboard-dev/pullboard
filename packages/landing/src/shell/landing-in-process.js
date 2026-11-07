@@ -1,6 +1,51 @@
 /** Run one landing batch in the landing command's own process, the drive-cell path that replaces bin/landing-worker.js [C7]. */
+import { statSync } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
 import { assertWorkerFence } from './landing-worker.js';
+import { landingStallDescription } from './landing-progress.js';
+
+/**
+ * The progress record of one in-process batch: every board write, wait report, line it says and batch record it
+ * writes counts, and so does growth of its active gate log, read when asked. It holds no timer: the drive cell's
+ * landing job reads lastProgressAt on its heartbeat and calls stall() once the limit passed with nothing moving.
+ *
+ * Why: the landing worker stopped a batch after 10 minutes without progress (#3186); moving landing in process
+ * dropped that stop, so a hung child could hold landing forever (#3477).
+ *
+ * @param {{ now?: () => number }} [options]
+ * @returns {{ moved: () => void, record: (batch: any) => void, lastProgressAt: () => number, stall: () => void,
+ *   stalled: Promise<{ batch: any, step: string }> }}
+ */
+export function landingProgress({ now = Date.now } = {}) {
+  let lastAt = now();
+  let batch = null;
+  let step = 'batch startup';
+  let bytes = 0;
+  let stall;
+  const stalled = new Promise(resolve => { stall = resolve; });
+  return {
+    moved() { lastAt = now(); },
+    record(next) {
+      if (!next?.id) return;
+      batch = next;
+      step = next.logPath ? `${next.state}/${String(next.logPath).split('/').pop()}` : next.state;
+      lastAt = now();
+    },
+    lastProgressAt() {
+      const size = activeLogBytes(batch);
+      if (size > bytes) { bytes = size; lastAt = now(); }
+      return lastAt;
+    },
+    stall() { stall({ batch, step }); },
+    stalled,
+  };
+}
+
+/** Bytes in the batch's active gate log, or 0 when it has none yet. */
+function activeLogBytes(batch) {
+  if (!batch?.logPath) return 0;
+  try { return statSync(batch.logPath).size; } catch { return 0; }
+}
 
 /** The environment a batch's spawned runs and Git calls see, the same the landing worker process set for itself. */
 const LANDING_ENV = { PULLBOARD_LANDING_CLASS: '1', GIT_OPTIONAL_LOCKS: '0' };
@@ -40,26 +85,50 @@ const BATCH_WRITES = new Set(['recordTrainLanding', 'recordLandingBatch', 'finis
  * The board and ports come from `land` itself, so the batch sees the canonical operation ports `land` checked, the
  * same twelve the worker composed, and never the command's post-land suite port, which the worker never had.
  *
- * @param {{ checkAtCommit: Function, candidateWorkerFile: string }} parts - The runner's checkAtCommit and the
- *   candidate worker file.
+ * The batch reports its progress to `progress` (landingProgress). When the drive cell's landing job calls its
+ * stall() (no progress for the stall limit, the repository's landing.stall, 10 minutes when unset, as #3186), the
+ * batch ends: its later board calls are refused, `onStall` records the batch blocked, and the runner returns that
+ * stalled result, so the landing-run job is marked failed with its lease freed and the next landing can start.
+ *
+ * @param {{ checkAtCommit: Function, candidateWorkerFile: string, progress?: ReturnType<typeof landingProgress>,
+ *   runLandingBatch?: Function }} parts - The runner's checkAtCommit and the candidate worker file, the progress
+ *   record the landing job watches, and the batch engine, injectable for tests.
  * @returns {(options: object, hooks: { board: object, landingPorts: object, write: Function, checkLease: Function,
- *   checkLeaseNow: Function, onWait?: Function, say: Function, signal?: AbortSignal }) => Promise<object>}
+ *   checkLeaseNow: Function, onWait?: Function, onStall?: Function, say: Function, signal?: AbortSignal }) => Promise<object>}
  */
-export function inProcessLandingBatch({ checkAtCommit, candidateWorkerFile }) {
-  return async (options, { board, landingPorts, write, checkLease, checkLeaseNow, onWait, say, signal }) => {
-    const { runLandingBatch } = await import('./land.js');
-    /** A lost lease stops the batch at its next board call, as the worker's parent refused calls after an abort. */
-    const live = () => { if (signal?.aborted) throw signal.reason; };
+export function inProcessLandingBatch({ checkAtCommit, candidateWorkerFile, progress = landingProgress(), runLandingBatch }) {
+  return async (options, { board, landingPorts, write, checkLease, checkLeaseNow, onWait, onStall, say, signal }) => {
+    const engine = runLandingBatch ?? (await import('./land.js')).runLandingBatch;
+    const watch = progress;
+    const stop = new AbortController();
+    /** A lost lease or a stall stops the batch at its next board call, as the worker's parent refused calls after an abort. */
+    const live = () => {
+      if (signal?.aborted) throw signal.reason;
+      if (stop.signal.aborted) throw stop.signal.reason;
+    };
     const fence = () => assertWorkerFence(board, options.fence, options.root);
-    return withLandingEnv(() => runLandingBatch({ ...options, board, checkAtCommit, candidateWorkerFile, landingPorts, say,
+    const batch = withLandingEnv(() => engine({ ...options, board, checkAtCommit, candidateWorkerFile, landingPorts,
+      say: line => { watch.moved(); return say(line); },
       write: async (operation, args) => {
         live();
         if (!BATCH_WRITES.has(operation)) throw new Refused('LAND_WORKER', 'the landing batch requested an unsupported operation; stop it and inspect pullboard resume');
-        return write(operation, args);
+        watch.moved();
+        if (operation === 'recordLandingBatch') watch.record(args?.[0]?.batch);
+        const value = await write(operation, args);
+        if (operation === 'recordLandingBatch') watch.record(value);
+        return value;
       },
-      onWait: async state => { live(); return onWait?.(state); },
+      onWait: async state => { live(); watch.moved(); return onWait?.(state); },
       // The fence re-reads Git facts itself, as the worker's did after each parent check.
       checkLease: async () => { live(); await checkLease(); checkLeaseNow(); fence(); },
       checkLeaseNow: fence }));
+    const outcome = await Promise.race([batch.then(value => ({ value })), watch.stalled.then(stalled => ({ stalled }))]);
+    if (!outcome.stalled) return outcome.value;
+    // The hung batch is abandoned: its next board call is refused, and nothing it does later is recorded.
+    batch.catch(() => {});
+    const description = landingStallDescription(outcome.stalled.batch ?? { id: 'unrecorded', state: 'starting' }, outcome.stalled.step);
+    stop.abort(new Refused('LAND_STALLED', description));
+    if (!outcome.stalled.batch || typeof onStall !== 'function') throw new Refused('LAND_STALLED', `${description}; the batch is ended and the next landing can start`);
+    return await onStall({ batch: outcome.stalled.batch, step: outcome.stalled.step, description });
   };
 }

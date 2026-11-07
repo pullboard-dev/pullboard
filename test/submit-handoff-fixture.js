@@ -7,6 +7,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { driverRecord } from './gate-driver-fixture.js';
 
 /** Require authentic command success before interpreting any native result. */
 export function document(result) {
@@ -99,9 +100,8 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
  * races a still-exiting supervisor must wait for it asynchronously and stay well under that ceiling.
  */
 export async function workerGone(helpers, box, job) {
-  const record = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job, 'worker.json');
   let pid;
-  try { pid = JSON.parse(readFileSync(record, 'utf8')).pid; } catch { return; /* No launched supervisor to wait for. */ }
+  try { pid = driverRecord(box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite'), job)?.pid; } catch { return; /* No launched driver to wait for. */ }
   if (!Number.isSafeInteger(pid) || pid <= 0) return;
   await helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
     try { process.kill(pid, 0); return false; }

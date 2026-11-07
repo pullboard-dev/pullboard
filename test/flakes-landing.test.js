@@ -8,6 +8,8 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { land } from '../packages/landing/index.js';
+import { inProcessLandingBatch } from '../packages/landing/index.js';
+import { checkAtCommit } from '../apps/runner/index.js';
 
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
 function readyLanding(t, rerun) {
@@ -72,7 +74,7 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
     delete process.env.NODE_TEST_CONTEXT;
     let completed;
     try {
-      await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, landingWorkerFile: resolve(import.meta.dirname, '../bin/landing-worker.js'),
+      await assert.rejects(land({ landingPorts, root: box.root, board, config, owner: 'private-interrupted-owner', say: () => {}, runBatch: inProcessLandingBatch({ checkAtCommit, candidateWorkerFile: resolve(import.meta.dirname, '../bin/landing-candidate.js') }),
         write: async (operation, args) => {
           if (operation === 'recordLandingBatch' && args[0].batch.state === 'blocked') throw new Error('controlled interruption after retained diagnostic');
           return board.enginePorts.store[operation](board, ...args);

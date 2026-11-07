@@ -14,6 +14,11 @@ import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
+import { ensureDispatcher } from '../../../../packages/drive/index.js';
+import { DISPATCHER_JOB } from '../../../../packages/drive/index.js';
+import { releaseLease } from '../../../../packages/jobs/index.js';
+import { openBoard as openRawBoard } from '../../../../apps/lib/index.js';
+import { closeBoard as closeRawBoard } from '../../../../apps/lib/index.js';
 import { deadWorker } from './handoff-worker-alive.js';
 import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
@@ -126,11 +131,45 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   return 0;
 }
 
-/** Queue every initial or recovery launch behind the same machine cap, without spawning a waiting worker. */
+/**
+ * Queue every initial or recovery launch behind the same machine cap, without spawning a waiting worker, then make
+ * sure a dispatcher runs: the board's dispatcher row (the drive cell's ensureDispatcher) decides. A live row means a
+ * dispatcher drains this ticket; a lapsed one is taken here and a dispatcher is launched under that lease [C7].
+ * Why the row is freed again when nothing launched: a dispatcher that already holds the machine drains every
+ * repository's tickets, and a row held by nobody must not keep the next submit from launching one.
+ */
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
   const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart });
   queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
-  await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
+  await ensureGateDispatcher(boardFileOf(commonDir), tools, commonDir);
+}
+
+/** The board file of the repository whose Git common directory this is. */
+function boardFileOf(commonDir) { return join(commonDir, 'pullboard', 'board.sqlite'); }
+
+/**
+ * Take the board's dispatcher row when its lease lapsed and launch a dispatcher under it; leave a live row alone.
+ *
+ * @param {string} file - The board file.
+ * @param {string} tools - The captured tools a launched dispatcher runs from.
+ * @param {string} commonDir - The dispatcher's working directory, whose board holds its row.
+ * @returns {Promise<boolean>} True when this call launched a dispatcher.
+ */
+export async function ensureGateDispatcher(file, tools, commonDir) {
+  const owner = `dispatcher:${process.pid}:${randomUUID()}`;
+  let taken = false;
+  withRawBoard(file, board => ensureDispatcher(board.db, { owner, spawn: () => { taken = true; } }));
+  if (!taken) return false;
+  let launched = false;
+  try { launched = await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart, owner }); }
+  finally { if (!launched) withRawBoard(file, board => releaseLease(board.db, DISPATCHER_JOB, owner)); }
+  return launched;
+}
+
+/** Run `work` on a board handle of its own, closed after, so the row is written outside any command's board. */
+function withRawBoard(file, work) {
+  const board = openRawBoard(file);
+  try { return work(board); } finally { closeRawBoard(board); }
 }
 
 /** How long a hand-off may have no place in line and no live worker before the board requeues it as worker-gone. */
@@ -155,7 +194,7 @@ export const LOST_LAUNCH_GRACE_MS = 2 * 60_000;
 
 /**
  * Whether a queued job's launch was lost: it is older than the grace, so its submit reserved a place long ago, yet no
- * place in line remains. Why: the dispatcher writes worker.json before it removes a ticket, so only a lost ticket
+ * place in line remains. Why: the dispatcher admits the gate's driver on the board before it removes a ticket, so only a lost ticket
  * (an abandoned reservation or a ticket kept aside) leaves neither, and such a job held its claim for 5 h (#3121).
  */
 export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
@@ -165,7 +204,7 @@ export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicke
 
 /**
  * The worker record recovery judges: the written one, or a lost-launch record when the job has neither a worker nor a
- * place in line; null leaves the job alone. Why the second read: the dispatcher writes worker.json and only then
+ * place in line; null leaves the job alone. Why the second read: the dispatcher admits the driver and only then
  * removes the ticket, outside this guard, so a first read can miss a worker that a later ticket check no longer
  * sees; reading again after the ticket check finds it, and a live launch is never ended (#3153).
  *
@@ -198,7 +237,9 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
-  const workerRecord = readWorkerRecord(directory);
+  // The gate's driver record is its drive job on the board, never a file beside the hand-off [C7].
+  const readWorker = () => withBoardRead(ctx, board => readWorkerRecord(board, observed));
+  const workerRecord = readWorker();
   if (!workerRecord && observed.state === 'queued') {
     const unlaunched = await withHandoffQueueOrder(() => {
       const current = withBoardRead(ctx, board => {
@@ -208,16 +249,16 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
           && item.item_owner === actor && item.item_frozen_digest === observed.digest;
       });
       if (!current || existsSync(join(directory, 'request.json')) || handoffTicketWaiting(observed.id)) return false;
-      // The dispatcher writes worker.json before it removes the ticket. Recheck both artifacts after the ticket read so
+      // The dispatcher admits the driver on the board before it removes the ticket. Recheck both artifacts after the ticket read so
       // a just-started worker cannot be mistaken for a queue whose capture never began.
-      return !readWorkerRecord(directory) && !existsSync(join(directory, 'request.json')) && !handoffTicketWaiting(observed.id);
+      return !readWorker() && !existsSync(join(directory, 'request.json')) && !handoffTicketWaiting(observed.id);
     });
     if (unlaunched) {
-      await failUnlaunchedSubmitHandoff(ctx, itemId, actor, observed, 'both request.json and worker.json are missing');
+      await failUnlaunchedSubmitHandoff(ctx, itemId, actor, observed, 'both request.json and its driver record are missing');
       return;
     }
   }
-  const worker = queuedWorkerRecord(observed, { readWorker: () => readWorkerRecord(directory) });
+  const worker = queuedWorkerRecord(observed, { readWorker });
   if (!worker || !deadWorker(worker, observed)) return;
   let owned = false;
   const current = withBoardRead(ctx, board => {
@@ -425,9 +466,9 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
   if (job?.agentId !== actor || !['queued', 'running'].includes(job.state)) return job;
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
   await withFileLock(join(directory, 'recovery.guard.sqlite'), async () => {
-    let worker = null;
-    try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); } catch { /* A queued job may not have launched yet. */ }
-    // The worker leads its own detached process group; the group holds its gate, its runner connection and its slot.
+    // A queued job may not have a driver yet; its record is the gate's drive job on the board [C7].
+    const worker = withBoardRead(ctx, board => readWorkerRecord(board, job));
+    // The driver leads its own detached process group; the group holds its gate, its runner connection and its slot.
     stopReplacedWorker(worker, job);
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_REPLACED',
       `a newer head replaced this gate at ${job.commit.slice(0, 12)}`, 'read the newer gate with pullboard show <id>'), { caller: 'seat' }) };

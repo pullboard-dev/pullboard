@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { driverRecord, setDriverProcess } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
@@ -98,7 +99,7 @@ async function killedRunningHandoff(box) {
 
 /** Kill only this fixture's recorded detached group and observe its actual exit, not a fabricated pid. */
 async function killWorker(box, job) {
-  const owner = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'worker.json'), 'utf8'));
+  const owner = driverRecord(box.boardFile, job.id);
   process.kill(-owner.pid, 'SIGKILL');
   await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
   assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
@@ -114,13 +115,12 @@ test('clause 1: one sweep ends a killed worker as infrastructure and retries its
   const box = fixture(t);
   const job = await killedRunningHandoff(box);
   const before = state(box, box.id).item;
-  const ownerFile = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'worker.json');
-  const owner = readFileSync(ownerFile, 'utf8');
-  writeFileSync(ownerFile, JSON.stringify({ job: job.id, pid: process.pid, started: null }));
+  const owner = driverRecord(box.boardFile, job.id);
+  setDriverProcess(box.boardFile, job.id, { pid: process.pid, started: null });
   sweep(box);
   assert.equal(state(box, box.id).job.id, job.id, 'an unreadable live incarnation is left alone');
   assert.equal(state(box, box.id).job.state, 'running');
-  writeFileSync(ownerFile, owner);
+  setDriverProcess(box.boardFile, job.id, { pid: owner.pid, started: owner.started });
   sweep(box);
   const after = state(box, box.id, job.id);
   assert.equal(after.ended.state, 'infrastructure', 'native history reports the stopped incarnation within one sweep');

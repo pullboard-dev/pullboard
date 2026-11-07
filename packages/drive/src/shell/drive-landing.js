@@ -13,6 +13,9 @@ import { landingRunSummary } from '../core/drive-landing.js';
 /** How often a running landing renews its job lease (RFC 0008 DJ13). */
 const RENEW_MS = 5_000;
 
+/** How long a landing batch may make no progress before it ends, when the repository sets no landing.stall (#3186). */
+const LANDING_STALL_MS = 10 * 60_000;
+
 /**
  * Write one job bookkeeping step, reporting instead of throwing when the board refuses it.
  *
@@ -35,23 +38,39 @@ function bookkeep(write, say) {
  * Why: landing used to spawn bin/landing-worker.js, a guardian and worker pair the job store never saw. As a job the
  * run is one row with a lease a reader can trust: a live landing renews it, a dead one lapses in two minutes.
  *
+ * Given `watch`, the heartbeat also checks the batch's progress: once nothing moved for `watch.stallAfterMs` (10
+ * minutes by default, as #3186), it calls `watch.stall()` once, the batch ends, and a run that returns stalled is
+ * marked failed with its lease freed, so the next landing can start (#3477).
+ *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ owner: string, run: () => Promise<any>, id?: string, now?: () => number, renewMs?: number,
- *   say?: (line: string) => void }} options - run lands the batch and returns the batch engine's result.
+ *   say?: (line: string) => void, watch?: { stallAfterMs?: number, lastProgressAt: () => number, stall: () => void } }} options
+ *   run lands the batch and returns the batch engine's result.
  * @returns {Promise<any>} What run returned.
  */
-export async function driveLanding(db, { owner, run, id = landingRunJobId(randomUUID()), now = Date.now, renewMs = RENEW_MS, say = () => {} }) {
+export async function driveLanding(db, { owner, run, id = landingRunJobId(randomUUID()), now = Date.now, renewMs = RENEW_MS, say = () => {}, watch }) {
   const held = bookkeep(() => {
     createJob(db, { id, kind: LANDING_RUN_KIND, now: now() });
     takeJob(db, id, owner, { now: now() });
     writeStep(db, id, 'started', { owner }, { now: now() });
   }, say);
-  const heartbeat = held ? setInterval(() => { try { renewLease(db, id, owner, { now: now() }); } catch { /* the next tick retries */ } }, renewMs) : null;
+  let stalled = false;
+  /** Renew the lease, and end a batch that made no progress for the stall limit. */
+  const beat = () => {
+    if (held) { try { renewLease(db, id, owner, { now: now() }); } catch { /* the next tick retries */ } }
+    if (watch && !stalled && now() - watch.lastProgressAt() >= (watch.stallAfterMs ?? LANDING_STALL_MS)) { stalled = true; watch.stall(); }
+  };
+  const heartbeat = held || watch ? setInterval(beat, renewMs) : null;
   heartbeat?.unref?.();
   try {
     const result = await run();
     clearInterval(heartbeat);
-    if (held) bookkeep(() => { writeStep(db, id, 'finished', landingRunSummary(result), { now: now() }); finishJob(db, id, owner, { now: now() }); }, say);
+    // A batch ended for making no progress (#3186, #3477) fails its run and frees the lease, so the next landing starts.
+    if (held && result?.stalled) bookkeep(() => {
+      writeStep(db, id, 'failed', { code: 'LAND_STALLED', message: String(result.stallDescription ?? 'the batch made no progress'), ...landingRunSummary(result) }, { now: now() });
+      releaseLease(db, id, owner, { now: now() });
+    }, say);
+    else if (held) bookkeep(() => { writeStep(db, id, 'finished', landingRunSummary(result), { now: now() }); finishJob(db, id, owner, { now: now() }); }, say);
     return result;
   } catch (error) {
     clearInterval(heartbeat);

@@ -1,4 +1,4 @@
-/** A queued or running hand-off whose worker is gone is requeued by the dispatcher's drain, never shown in the gate for hours [C7,#3221]. */
+/** A queued or running hand-off whose driver is gone is requeued by the dispatcher's drain, never shown in the gate for hours [C7,#3221]. */
 import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
+import { gateDriveJobId, readGateDrive } from '../packages/drive/index.js';
 import { fixture, state } from './submit-handoff-fixture.js';
 
 /** Age the queued or running job's recorded start by `ms`, standing in for time passing on the fixture's own board. */
@@ -19,6 +20,23 @@ function ageHandoff(box, id, ms) {
     if (job.startedAt) job.startedAt = job.at;
     // The gate job holds the record submitHandoff() reads (#3474, #3476).
     recordSubmitHandoff(board.db, id, job);
+  } finally { board.db.close(); }
+}
+
+/** The gate's driver record on the fixture's own board: its drive job, as the dispatcher admitted it. */
+function driverRecord(box, job) {
+  // @pullboard-board-file journey: read the drive job the separate dispatcher wrote to the fixture's own board.
+  const board = openBoard(box.boardFile);
+  try { return readGateDrive(board.db, job); } finally { board.db.close(); }
+}
+
+/** Remove the gate's driver record, standing in for a gate with no driver record and no place in line (#3221). */
+function forgetDriver(box, job) {
+  // @pullboard-board-file journey: drop the fixture's own drive job rows, as a lost driver record would leave them.
+  const board = openBoard(box.boardFile);
+  try {
+    board.db.prepare('DELETE FROM job_step WHERE job_step_job = ?').run(gateDriveJobId(job));
+    board.db.prepare('DELETE FROM job WHERE job_id = ?').run(gateDriveJobId(job));
   } finally { board.db.close(); }
 }
 
@@ -47,21 +65,22 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   const source = resolve(import.meta.dirname, '..');
   const tools = join(box.dir, 'silent-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
-  // The CLI imports this module too, so only the launched worker process exits.
-  writeFileSync(worker, `if (process.argv[1]?.endsWith('submit-handoff-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  const worker = join(tools, 'bin/gate-drive-worker.js');
+  // Only the launched gate driver process exits, before it drives anything.
+  writeFileSync(worker, `if (process.argv[1]?.endsWith('gate-drive-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
   const subOut = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(subOut).queued, true);
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
-  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'the dispatcher recording its worker', 120000); // budget: hang ceiling for observed dispatcher progress.
-  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  await box.helpers.waitFor(() => driverRecord(box, first.id)?.pid > 0, 'the dispatcher recording its driver', 120000); // budget: hang ceiling for observed dispatcher progress.
+  const owner = driverRecord(box, first.id);
+  assert.equal(existsSync(join(directory, 'worker.json')), false, 'the driver is recorded on the board, never beside the hand-off');
   await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
     try { process.kill(owner.pid, 0); return false; }
     catch (error) { return error.code === 'ESRCH'; }
   }, 'actual first worker exit', 120000);
-  rmSync(join(directory, 'worker.json'));
+  forgetDriver(box, first.id);
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);
@@ -88,20 +107,23 @@ test('clause 1: a drain ends a hand-off whose folder no longer exists as infrast
   const source = resolve(import.meta.dirname, '..');
   const tools = join(box.dir, 'silent-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
-  writeFileSync(worker, `if (process.argv[1]?.endsWith('submit-handoff-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  const worker = join(tools, 'bin/gate-drive-worker.js');
+  // Only the launched gate driver process exits, before it drives anything.
+  writeFileSync(worker, `if (process.argv[1]?.endsWith('gate-drive-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
   const subOut = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(subOut).queued, true);
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
-  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'the dispatcher recording its worker', 120000); // budget: hang ceiling for observed dispatcher progress.
-  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  await box.helpers.waitFor(() => driverRecord(box, first.id)?.pid > 0, 'the dispatcher recording its driver', 120000); // budget: hang ceiling for observed dispatcher progress.
+  const owner = driverRecord(box, first.id);
+  assert.equal(existsSync(join(directory, 'worker.json')), false, 'the driver is recorded on the board, never beside the hand-off');
   await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
     try { process.kill(owner.pid, 0); return false; }
     catch (error) { return error.code === 'ESRCH'; }
   }, 'actual first worker exit', 120000);
   rmSync(directory, { recursive: true, force: true });
+  forgetDriver(box, first.id);
   const drain = () => drainOnce(box, source);
 
   ageHandoff(box, box.id, 11 * 60_000);

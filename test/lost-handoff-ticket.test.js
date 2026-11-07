@@ -117,7 +117,7 @@ test('a launch that publishes its worker while the sweep checks its ticket is ne
   const job = { id: 'race-job', state: 'queued', at: new Date(Date.now() - 3 * 60_000).toISOString() };
   const live = { version: 1, job: job.id, pid: process.pid, started: 'fixture-start', relaunches: 0 };
   let worker = null;
-  // The dispatcher's order: write worker.json, then remove the ticket; here both happen inside the ticket check.
+  // The dispatcher's order: admit the driver on the board, then remove the ticket; here both happen inside the ticket check.
   const waiting = () => { worker = live; return false; };
   assert.deepEqual(queuedWorkerRecord(job, { readWorker: () => worker, waiting }), live, 'the second read finds the live worker');
   const lost = queuedWorkerRecord(job, { readWorker: () => null, waiting: () => false });
