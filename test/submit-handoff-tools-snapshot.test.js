@@ -20,7 +20,8 @@ function sandbox(t) {
   t.after(() => { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; rmSync(temp, { recursive: true, force: true }); });
   const repo = join(temp, 'repo');
   for (const dir of ['bin', 'apps', 'packages', 'src', 'test']) mkdirSync(join(repo, dir), { recursive: true });
-  git(temp, 'init', '-q', repo);
+  const create = ['init', '-q', repo];
+  git(temp, ...create);
   for (const dir of ['bin', 'apps', 'packages', 'src']) writeFileSync(join(repo, dir, 'a.js'), `export const ${dir} = 1;\n`);
   writeFileSync(join(repo, 'package.json'), '{}\n');
   writeFileSync(join(repo, 'test', 'a.test.js'), '// one\n');
