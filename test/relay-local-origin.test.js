@@ -7,6 +7,7 @@ import { Refused } from '../packages/kernel/core.js';
 import { machine, project, startView } from './cockpit/fixture.js';
 import { findWebkitExecutable, startWebkit } from './webkit-fixture.js';
 import { BOARD_ITEM, BOARD_MS, visit } from './hosted-shapes-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const HOSTED = 'https://app.pullboard.dev';
 
@@ -15,8 +16,8 @@ test('the hosted page finds this computer\'s view in WebKit without an http requ
   const box = machine();
   const board = project(box, 'webkit-local');
   const title = 'Private board reached through the local page';
-  box.run(board.repo, 'add', 'web', title, '--specs', 'G1');
-  box.run(board.repo, 'add', 'web', BOARD_ITEM, '--specs', 'G1');
+  fixtureAdd(box.run, board.repo, 'web', title, '--specs', 'G1');
+  fixtureAdd(box.run, board.repo, 'web', BOARD_ITEM, '--specs', 'G1');
   const view = await startView(box);
   let webkit, page;
   t.after(async () => {
