@@ -49,6 +49,7 @@ import { landAfterAcceptance } from './land.js';
 import { landedCutItemRows } from '../../../../../bin/cells-submit-checks.js';
 import {
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -81,6 +82,8 @@ import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../../../../../packages/items/index.js';
 import { withItemPatchSubmit } from '../../../../../packages/items/index.js';
+import { normalizeItemPatch } from '../../../../../packages/items/index.js';
+import { validateItemPatchInput } from '../../../../../packages/items/index.js';
 import { boundedProofReason } from '../../../../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../../../../../packages/verify/index.js';
 import {
@@ -323,7 +326,7 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
     `fix the two red test failures: ${named}; then commit the code change and submit again`);
 }
 
-export async function submitHere(ctx, id, infra) {
+export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
@@ -461,6 +464,21 @@ export async function submitHere(ctx, id, infra) {
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
+    if (companionInput) {
+      let patchStat;
+      try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
+      if (!patchStat.isFile() || patchStat.size > 8 * 1024 * 1024) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular companion patch of at most eight MiB');
+      const patchBytes = readFileSync(companionInput.file);
+      const patchText = patchBytes.toString('utf8');
+      if (!Buffer.from(patchText, 'utf8').equals(patchBytes)) throw new Refused('ITEM_PATCH_FORMAT', 'companion patch must contain valid UTF8');
+      const patch = normalizeItemPatch(patchText);
+      const author = store.listAgents(board).find(seat => seat.agent_id === companionInput.author);
+      if (!author || author.agent_lane === held.item_lane) throw new Refused('ITEM_PATCH_AUTHOR', 'name a registered author in another owning lane');
+      const patchPolicy = itemPolicy(root, held);
+      validateItemPatchInput(board, patchPolicy.config, author.agent_id, patch, patchPolicy.commit);
+      await ordered(ctx, board, 'attachItemPatch', [id, { agentId: me.id, key: companionInput.key, commit, patch,
+        author: author.agent_id, presubmit: true, autoAttach: true }]);
+    }
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
@@ -955,6 +973,10 @@ export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
+  if (companionInput && (!companionInput.file || !companionInput.key || !companionInput.author)) {
+    throw new Refused('USAGE', 'use pullboard submit <id> --companion <patch-file> --key <key> --author <owning-seat>');
+  }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   const previous = io.onOrderedMove;
@@ -965,7 +987,7 @@ export async function run(io, { first, values }) {
     if (event) submissionResult.event = { ...event };
   };
   let code;
-  try { code = await submitHere(ctx, id, values.infra); }
+  try { code = await submitHere(ctx, id, values.infra, companionInput); }
   catch (error) {
     if (error instanceof Refused && ctx.submitAttempt) {
       try {
