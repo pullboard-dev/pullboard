@@ -14,6 +14,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const dirs = [];
@@ -56,7 +57,7 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
-  const reviewer = proofDocument(box.run(review, 'join', 'web', '--json')).agent;
+  const reviewer = proofDocument(fixtureJoin(box.run, review, 'web', '--json')).agent;
   const reviewerParent = 'c'.repeat(64);
   store.register(board, { lane: 'web', path: review, parentDigest: reviewerParent, sessionDigest: reviewerParent });
   proofDocument(box.run(review, 'next', '--verify', String(id), '--json'));

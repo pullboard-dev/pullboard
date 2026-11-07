@@ -6,10 +6,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { needsFullCensus } from '../../../../packages/codemap/index.js';
-import {
-  readAcceptedCells,
-  nudgeAcceptedCells,
-} from '../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../packages/gate/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {
@@ -149,7 +146,10 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
-/** A submit reads completed authority only; a cold tree wakes the independent producer and defers as infrastructure. */
+/**
+ * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
+ * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ */
 export async function submitCellsInventory(root, main, source) {
   if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return null;
   const commits = [main];
@@ -163,11 +163,8 @@ export async function submitCellsInventory(root, main, source) {
   for (const commit of commits) {
     const artifact = readAcceptedCells(root, commit);
     if (!artifact.available) {
-      let nudgeFailure;
-      try { await nudgeAcceptedCells(root, new URL('../../../../bin/main-audit.js', import.meta.url), commit); }
-      catch (error) { nudgeFailure = String(error.message); }
-      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}${nudgeFailure ? `; ${nudgeFailure}` : ''}); requeue after the independent producer finishes`),
-        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true });
+      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}); requeue after its cells-inventory job finishes`),
+        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
     }
     directory ??= dirname(artifact.file);
     sources.push({ commit, descriptor: artifact.descriptor });

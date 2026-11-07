@@ -52,7 +52,10 @@ export function runLandingCliSmoke(candidate) {
     const pullboard = (cwd, label, ...args) => {
       const result = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: COMMAND_MS });
       if (result.status !== 0) {
-        const why = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => !/ExperimentalWarning|trace-warnings/u.test(line)).slice(0, 3).join(' ');
+        const lines = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => line.trim() && !/ExperimentalWarning|trace-warnings/u.test(line));
+        // Node prints the throwing source line and a caret first; lead with the line naming the error, such as the missing module's path.
+        const named = lines.findIndex(line => /^\w*Error\b/u.test(line.trim()));
+        const why = (named > 0 ? [lines[named], ...lines.slice(0, named)] : lines).slice(0, 3).join(' ');
         throw new Refused('LAND_CLI_SMOKE', `the candidate's \`pullboard ${label}\` exits ${result.status ?? result.signal ?? 'with an error'} on a scratch board: ${why}; fix it before landing`);
       }
       ran.push(label);
@@ -90,7 +93,12 @@ export function runCommitCliSmoke(root, commit) {
   try {
     const archive = gitSpawnSync(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
-    if (unpacked.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${String(archive.stderr ?? unpacked.stderr).trim()}`);
+    if (unpacked.status !== 0) {
+      // Name the step that failed: git archive when it failed, else tar, whose error may be a spawn error with no stderr.
+      const tool = archive.status === 0 ? 'tar' : 'git archive';
+      const reason = String(unpacked.stderr ?? '').trim() || unpacked.error?.message || `exit ${unpacked.status ?? unpacked.signal}`;
+      throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${tool} failed: ${reason}`);
+    }
     return runLandingCliSmoke(directory);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
