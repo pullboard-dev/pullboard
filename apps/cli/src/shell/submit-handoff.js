@@ -42,6 +42,7 @@ import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
 import { getItem } from '../../../../packages/store/index.js';
+import { handoffRecords } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -320,11 +321,21 @@ export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHand
   return jobs.length;
 }
 
+/**
+ * Every item's current hand-off record on the board, read once from the job tables where the records live [C7].
+ * Why through submitHandoff: it applies the engine floor, so an old-engine board lists none, as it always did.
+ *
+ * @param {any} board
+ * @returns {{ itemId: number, job: Record<string, any> }[]}
+ */
+function boardHandoffs(board) {
+  return [...handoffRecords(board.db).keys()].sort((a, b) => a - b)
+    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => row.job);
+}
+
 /** Every queued or running submit hand-off on the board, with its item id. */
 function unfinishedSubmitHandoffs(ctx) {
-  return withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
-    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
-    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
+  return withBoardRead(ctx, board => boardHandoffs(board).filter(row => ['queued', 'running'].includes(row.job.state)));
 }
 
 /**
@@ -349,9 +360,8 @@ export function noVerdictHandoff(job, item) {
  * @returns {Promise<number>} How many items were returned.
  */
 export async function returnNoVerdictHandoffs(ctx) {
-  const stranded = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
-    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
-    .filter(itemId => noVerdictHandoff(submitHandoff(board, itemId), getItem(board, itemId))));
+  const stranded = withBoardRead(ctx, board => boardHandoffs(board)
+    .filter(({ itemId, job }) => noVerdictHandoff(job, getItem(board, itemId))).map(({ itemId }) => itemId));
   let returned = 0;
   for (const itemId of stranded) {
     try {
@@ -431,10 +441,8 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
 
 /** Requeue stopped immutable jobs only after a healthy-executor probe; a private guard prevents duplicate launches [C7,V4]. */
 export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExecutor, launch = launchCapturedWorker } = {}) {
-  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
-    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
-    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) }))
-    .filter(({ job }) => job?.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
+  const jobs = withBoardRead(ctx, board => boardHandoffs(board)
+    .filter(({ job }) => job.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
       && (job.infrastructureRetries ?? 0) < 2));
   if (!jobs.length || !(await healthy())) return 0;
   let recovered = 0;

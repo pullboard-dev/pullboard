@@ -1,4 +1,5 @@
 /** A queued or running hand-off whose worker is gone is requeued by the dispatcher's drain, never shown in the gate for hours [C7,#3221]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -13,12 +14,10 @@ function ageHandoff(box, id, ms) {
   // @pullboard-board-file journey: age the fixture's own hand-off record, as ten minutes passing would.
   const board = openBoard(box.boardFile);
   try {
-    const key = `submit_handoff:${id}`;
-    const job = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+    const job = handoffRecord(board.db, id);
     job.at = new Date(Date.now() - ms).toISOString();
     if (job.startedAt) job.startedAt = job.at;
-    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
-    // The gate job holds the record submitHandoff() reads, so the aged copy goes there too (#3474).
+    // The gate job holds the record submitHandoff() reads (#3474, #3476).
     recordSubmitHandoff(board.db, id, job);
   } finally { board.db.close(); }
 }

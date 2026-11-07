@@ -46,32 +46,28 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 
-const PREFIX = 'submit_handoff:';
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const JOB = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 
-/** Save within the caller's short native transaction; no filesystem or process work runs here. */
-function save(board, id, value) {
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(PREFIX + id, JSON.stringify(value));
-}
-
 /**
- * Save a hand-off onto its gate job through the jobs cell's `shadowJob` port, in the same transaction as board_meta.
- * Why: the job row is where submitHandoff() reads the record, so a failed write fails the hand-off rather than
- * leaving the two copies apart; a board without the tables or the port keeps board_meta only [C7].
+ * Save a hand-off onto its gate job through the jobs cell's `shadowJob` port, within the caller's short native
+ * transaction: the queue creates the gate job and every state change is a step of it. No filesystem or process work
+ * runs here.
+ * Why: the job row is the one place the hand-off record lives (#3476), so a board opened without the jobs cell's
+ * port cannot record a hand-off at all, rather than keep a copy no reader sees [C7].
  */
-function shadow(board, id, job) {
-  board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board)));
+function save(board, id, job) {
+  const write = board.enginePorts?.shadowJob;
+  if (typeof write !== 'function') throw new Refused('NO_POLICY', 'Supply the jobs cell port shadowJob before recording a submit hand-off.');
+  write(board.db, id, job, { now: Date.parse(now(board)) });
 }
 
 /** Keep private job identifiers and refusal text out of the public native event payload. */
 function record(board, id, job) {
   logEvent(board, job.agentId, 'submit-handoff', id, { state: job.state, commit: job.commit });
   save(board, id, job);
-  shadow(board, id, job);
   return structuredClone(job);
 }
 
@@ -265,9 +261,8 @@ function returnToBuilder(board, id, job, error) {
 /** End a crashed incarnation before atomically deriving a bounded successor from its immutable candidate [C7,V4]. */
 function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
   if (retryJob !== undefined && (!JOB.test(retryJob) || retryJob === job.id)) throw new Refused('BAD_SUBMIT_HANDOFF', 'a recovery needs a fresh job identity');
+  // The ended record stays on its own job's steps, where endedSubmitHandoff reads it after the successor takes over.
   const ended = record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board) });
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run('submit_handoff_ended:' + job.id, JSON.stringify(ended));
   const retries = job.recoveryRetries ?? 0;
   if (!retryJob || retries >= limit || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
@@ -297,8 +292,7 @@ function retryStoppedHandoff(board, id, job, retryJob) {
     || (job.infrastructureRetries ?? 0) >= 2 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
     || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run('submit_handoff_ended:' + job.id, JSON.stringify(job));
+  // The stopped record is already the newest step of its own job, where endedSubmitHandoff reads it.
   const next = { ...job, id: retryJob, state: 'queued', at: now(board),
     infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id,
     ...(typeof job.error?.reason === 'string' ? { requeuedFor: job.error.reason } : {}) };

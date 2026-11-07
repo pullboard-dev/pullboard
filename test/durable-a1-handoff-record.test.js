@@ -11,6 +11,9 @@ import { writeBoardCommand } from '../packages/store/index.js';
 import { completeSubmitHandoff } from '../packages/store/index.js';
 import { startSubmitHandoff } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
+import { endedSubmitHandoff } from '../packages/store/index.js';
+import { adoptLegacyHandoffs } from '../packages/store/index.js';
+import { missingJobTables } from '../packages/store/index.js';
 import { jobView } from '../packages/jobs/index.js';
 import { submitHandoffRecord } from '../packages/jobs/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -47,10 +50,16 @@ function queue(box, board, id, commit) {
   return options;
 }
 
-/** Today's record: the board_meta copy the store still keeps in step. */
-function metaRecord(board, id) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`submit_handoff:${id}`);
-  return row ? JSON.parse(row.meta_value) : null;
+/** The record on the newest step of the item's gate jobs, read straight from the job tables. */
+function stepRecord(board, id) {
+  const row = board.db.prepare(`SELECT s.job_step_payload AS payload FROM job_step s JOIN job j ON j.job_id = s.job_step_job
+    WHERE j.job_kind = 'gate' AND j.job_item = ? ORDER BY s.job_step_id DESC LIMIT 1`).get(id);
+  return row ? JSON.parse(row.payload).record : null;
+}
+
+/** Whether board_meta holds any hand-off record under the keys older releases wrote. */
+function metaHandoffs(board) {
+  return board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff:*' OR meta_key GLOB 'submit_handoff_ended:*'").get().n;
 }
 
 test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
@@ -63,7 +72,7 @@ test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
       if (step === 'running') assert.equal(startSubmitHandoff(board, id, { agentId, job: options.job }).started, true);
       if (step === 'red') completeSubmitHandoff(board, id, { agentId, job: options.job,
         result: { code: 1, error: { code: 'FIXTURE_FINISHED', message: 'The record finished.', next: 'No worker was launched.' } } });
-      const today = metaRecord(board, id);
+      const today = stepRecord(board, id);
       assert.equal(today.state, step);
       // The same record as today, and it is the record on the gate job's latest step.
       assert.deepEqual(submitHandoff(board, id), today);
@@ -73,10 +82,8 @@ test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
       assert.equal(view.step, step);
       assert.deepEqual(view.steps.at(-1).payload.record, today);
     }
-    // Read from the job row: with the board_meta copy gone, submitHandoff still returns the record.
-    const expected = metaRecord(board, id);
-    board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`submit_handoff:${id}`);
-    assert.deepEqual(submitHandoff(board, id), expected);
+    // The job row is the only copy: board_meta holds no hand-off record at all (#3476).
+    assert.equal(metaHandoffs(board), 0);
   } finally { board.db.close(); }
 });
 
@@ -94,7 +101,7 @@ test('clause 1: a retried job is the record submitHandoff reads, not the job it 
     const retryJob = randomUUID();
     startSubmitHandoff(board, id, { agentId, job: first.job, retryJob });
     const current = submitHandoff(board, id);
-    assert.deepEqual(current, metaRecord(board, id));
+    assert.deepEqual(current, stepRecord(board, id));
     assert.equal(current.id, retryJob);
     assert.equal(current.retryOf, first.job);
     assert.equal(current.state, 'queued');
@@ -102,15 +109,21 @@ test('clause 1: a retried job is the record submitHandoff reads, not the job it 
   } finally { board.db.close(); }
 });
 
-test('clause 1: a hand-off saved before the job held its record still reads from board_meta [C7]', (t) => {
+test('clause 1: a hand-off record an older release left in board_meta moves onto its gate job [C7]', (t) => {
   const { box, id } = claimed(t);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
-    const older = { commit: 'a'.repeat(40), agentId: getItem(board, id).item_owner, state: 'green' };
+    const older = { id: randomUUID(), commit: 'a'.repeat(40), agentId: getItem(board, id).item_owner, state: 'green' };
+    const ended = { ...older, id: randomUUID(), state: 'infrastructure' };
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`submit_handoff:${id}`, JSON.stringify(older));
+    board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`submit_handoff_ended:${ended.id}`, JSON.stringify(ended));
+    // Readers never look in board_meta: until the move, the item has no record.
     assert.equal(submitHandoffRecord(board.db, id), undefined);
+    assert.equal(missingJobTables(board.db), true, 'a waiting legacy record makes the owning open upgrade the board');
+    assert.equal(adoptLegacyHandoffs(board.db), 2);
     assert.deepEqual(submitHandoff(board, id), older);
-    board.db.exec('DROP TABLE job_step; DROP TABLE job');
-    assert.deepEqual(submitHandoff(board, id), older);
+    assert.deepEqual(endedSubmitHandoff(board, ended.id), ended);
+    assert.equal(metaHandoffs(board), 0);
+    assert.equal(missingJobTables(board.db), false);
   } finally { board.db.close(); }
 });

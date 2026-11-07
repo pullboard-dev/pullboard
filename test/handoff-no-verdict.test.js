@@ -41,8 +41,7 @@ function endWithoutVerdict(box, id) {
   try {
     const job = submitHandoff(board, id);
     const ended = { ...job, state: 'submitted', gateGreen: false };
-    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(ended), `submit_handoff:${id}`);
-    // The gate job holds the record submitHandoff() reads, so the rewrite goes there too (#3474).
+    // The gate job holds the record submitHandoff() reads (#3474, #3476).
     recordSubmitHandoff(board.db, id, ended);
   } finally { board.db.close(); }
 }

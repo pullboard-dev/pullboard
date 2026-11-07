@@ -1,4 +1,5 @@
 /** A queued gate whose launch ticket is lost ends on one health sweep, so its claim stops holding the item [C7,#3153]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,11 +43,9 @@ async function inMachineHome(box, work) {
 /** Set the job's queue time `ms` in the past, keeping every other recorded field. */
 function ageJob(box, id, ms) {
   onBoard(box, board => {
-    const key = `submit_handoff:${id}`;
-    const job = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+    const job = handoffRecord(board.db, id);
     job.at = new Date(Date.now() - ms).toISOString();
-    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
-    // The gate job holds the record submitHandoff() reads, so the aged copy goes there too (#3474).
+    // The gate job holds the record submitHandoff() reads (#3474, #3476).
     recordSubmitHandoff(board.db, id, job);
   });
 }
