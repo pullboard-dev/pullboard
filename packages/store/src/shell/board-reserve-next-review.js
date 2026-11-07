@@ -2,6 +2,7 @@ import { atomic } from "./board-event-log.js";
 import { nextFor } from "./board-next-for.js";
 import { reserveWithin } from "./board-reserve-review.js";
 import { getItem } from "./board-query.js";
+import { heartbeatSnapshot } from "./board-query.js";
 import { reviewFamilyRelaxation } from "./board-review-family.js";
 import { frozenRelaxAt } from "./board-review-family.js";
 import { REVIEW_FAMILY_RELAX_ENGINE } from "../../../../src/review-family-relax-engine.js";
@@ -28,12 +29,13 @@ const PREPARED = new WeakMap();
  * @returns {{ item: any | null, reasons: string[], idleReason?: any, witness?: any }}
  */
 function look(board, { agentId, lane, policy, familyPolicy = 'off', familyRelaxAt, runnable, routes, skipIds = [], priority = [], observeIdle = false }, { afterSelection } = {}) {
-  const found = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, familyRelaxAt, runnable, routes, skipIds, priority, observeIdle });
+  const reviewHeartbeats = heartbeatSnapshot(board);
+  const found = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, familyRelaxAt, runnable, routes, skipIds, priority, observeIdle, reviewHeartbeats });
   if (!found.item) return found;
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   const fits = familyRelaxAt === undefined || familyRelaxAt === frozenRelaxAt(found.item);
   // Cross-family pairs return null at once; only a same-family pair pays for the queue-wide witness, here.
-  const witness = enabled && fits ? reviewFamilyRelaxation(board, found.item, agentId, familyRelaxAt, policy, familyPolicy) : null;
+  const witness = enabled && fits ? reviewFamilyRelaxation(board, found.item, agentId, familyRelaxAt, policy, familyPolicy, null, reviewHeartbeats) : null;
   afterSelection?.(found.item);
   return { ...found, witness };
 }
@@ -60,11 +62,12 @@ export function prepareReserveNextReview(board, selection, hooks) {
  * is confirmed against the chosen item and the threshold, never rebuilt (#3156).
  */
 function reserveChosen(board, chosen, witness, who) {
+  const reviewHeartbeats = heartbeatSnapshot(board);
   return atomic(board, () => {
     const now = getItem(board, chosen.item_id);
     if (!now || now.item_status !== 'submitted' || now.item_commit !== chosen.item_commit || now.item_frozen_digest !== chosen.item_frozen_digest) return null;
     try {
-      return reserveWithin(board, chosen.item_id, { ...who, prepared: { witness } });
+      return reserveWithin(board, chosen.item_id, { ...who, reviewHeartbeats, prepared: { witness } });
     } catch (error) {
       if (error instanceof Refused && CHOICE_CHANGED.has(error.code)) return null;
       throw error;
