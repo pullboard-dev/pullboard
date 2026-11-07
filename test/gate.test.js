@@ -32,7 +32,7 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
@@ -927,7 +927,7 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const second = join(split.box.dir, 'web-2');
   split.box.git(split.box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
   // The second seat joins on the strong route like web-1, so it may claim the strong-routed items both build.
-  const secondJoin = joinFixtureSeat(split.box, second, 'web', { model: 'fixture-model' });
+  const secondJoin = joinFixtureSeat(split.box, second, 'web', { model: FIXTURE_MODEL });
   assert.equal(secondJoin.code, 0, `join: ${secondJoin.err}${secondJoin.out}`);
   const itemA = split.submitChange('a', { files: [['web/fix.js', 'export const fixed = true;\n'], ['web/RED', 'red\n']] });
   const itemB = split.submitChange('needs-fix', { cwd: second });
