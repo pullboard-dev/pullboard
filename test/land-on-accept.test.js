@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -18,6 +19,8 @@ import { configFromSource } from '../packages/config/index.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = new URL('../bin/pullboard.js', import.meta.url).pathname;
+/** The reviewers' model, apart from the builders' fixture model. */
+const REVIEWER_MODEL = 'Landing reviewer';
 /** The criterion's bar: an accepted item's landing starts within this long of its ACCEPT. */
 const START_WITHIN_MS = 60_000;
 /** A 30-minute landing cadence that would hold a hand landing after the first batch. */
@@ -92,7 +95,7 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  joinFixtureSeat(box, api, 'api', { model: 'fixture-model' }); // the strong route, as the web seat joined
+  joinFixtureSeat(box, api, 'api', { model: FIXTURE_MODEL }); // the strong route, as the web seat joined
   const builders = { web: box.web, api };
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
   const items = ['web', 'api'].map((lane, index) => {
@@ -105,7 +108,7 @@ function fixture(t) {
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', 'Landing reviewer', '--route', 'strong');
+    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', REVIEWER_MODEL, '--route', 'strong');
     return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
   });
   onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
