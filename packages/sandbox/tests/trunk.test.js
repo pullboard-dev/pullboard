@@ -31,6 +31,7 @@ import {
 } from '../src/shell/trusted-policy.js';
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 import { fixtureJoin } from '../../../test/testkit-fixture.js';
+import { FIXTURE_MODEL } from '../../../test/e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -122,7 +123,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const web = join(box.dir, 'web-worktree');
     box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/agent');
-    assert.equal(fixtureJoin(box.run, web, 'web').code, 0);
+    assert.equal(fixtureJoin(box.run, web, 'web', '--model', FIXTURE_MODEL).code, 0);
     writeFileSync(join(web, 'web', 'result.txt'), `resolved by web lane from ${branch}\n`);
     box.git(web, 'add', 'web/result.txt');
     box.git(web, 'commit', '-q', '-m', 'feat(web): update owned fixture [G1]');
@@ -166,7 +167,7 @@ function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture').code, 0);
+  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture', '--model', FIXTURE_MODEL).code, 0);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -201,7 +202,7 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture').code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture', '--model', FIXTURE_MODEL).code, 0);
   return review;
 }
 
