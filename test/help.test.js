@@ -175,3 +175,22 @@ test('full help is assembled from the independently editable command groups [C7,
       `${command}'s group also supplies individual command help`);
   }
 });
+
+test('clause 1: every option edit accepts appears in help --all [N26]', async t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const box = e2e.project('true');
+  const full = box.run(box.repo, 'help', '--all', '--json');
+  assert.equal(full.code, 0, full.err);
+  const text = JSON.parse(full.out).help;
+  const editStart = text.indexOf('pullboard edit <id>');
+  assert.notEqual(editStart, -1, 'help --all prints the edit usage');
+  const block = text.slice(editStart, text.indexOf('pullboard escalate <id>', editStart));
+  // The options come from the edit command's own source, so a new flag cannot be left out of help.
+  const source = readFileSync(resolve(ROOT, 'apps/cli/src/shell/commands/edit.js'), 'utf8');
+  const parsed = new Set([...source.matchAll(/values(?:\.([a-z]+)|\['([a-z-]+)'\])/gu)].map(match => match[1] ?? match[2]));
+  for (const name of ['brief', 'brief-file']) parsed.add(name); // briefArg reads both for edit
+  parsed.delete('as'); // the person flag is documented under the person's own commands
+  assert.ok(parsed.has('after'), 'the parsed set includes --after');
+  for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
+});
