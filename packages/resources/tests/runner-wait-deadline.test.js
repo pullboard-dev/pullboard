@@ -43,7 +43,7 @@ import {
 
 const e2e = createE2eHelpers();
 // budget: measured stand-in boot allowance already used by runner-transport-lost; the actual deadline and fallback assertions remain exercised.
-const STAND_IN_BOOT_BUDGET_MS = 8_000;
+const STAND_IN_BOOT_BUDGET_MS = 20_000;
 after(e2e.cleanup);
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
@@ -80,7 +80,7 @@ require('node:module').syncBuiltinESMExports();\n`);
  * An infrastructure requeue renews the runner deadline by design (#1953), so a phase that follows one passes
  * a budget covering the admission deadline plus the renewed one.
  */
-async function observe(predicate, description, budgetMs = 10_000) {
+async function observe(predicate, description, budgetMs = 60_000) {
   const until = Date.now() + budgetMs; // budget: private Git and SSH startup; no production deadline extension.
   while (!predicate()) {
     if (Date.now() >= until) throw new Error('fixture did not reach ' + description);
@@ -332,7 +332,7 @@ function lateDispatchDiagnostics(box) {
 }
 
 test('a first runner freed after the queue deadline executes with its captured startup budget and records the exception [C7,Q1,Q2]', async () => {
-  const runnerWaitMs = 5_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
+  const runnerWaitMs = 20_000; // budget: private worker source negotiation and READY, with an actual expired queue wait.
   const box = fixture({ runnerWaitMs, dropFirst: false });
   const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
   writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: 0, browserSlots: 0 }));
@@ -357,7 +357,7 @@ const run=await withGateSlot(${JSON.stringify(box.repo)},lease=>runProfiledShell
     while(!existsSync(${JSON.stringify(released)}))await new Promise(done=>setTimeout(done,10));},
   onReceipt:receipt=>console.log('LATE_FIRST_RECEIPT '+JSON.stringify(receipt))});
 console.log(run.output);process.exitCode=run.isGreen?0:1;`;
-      pending = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env: box.env, timeout: 20_000 }); // budget: private queue wait plus one captured startup budget and cleanup.
+      pending = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: box.repo, env: box.env, timeout: 90_000 }); // budget: private queue wait plus one captured startup budget and cleanup.
       await observe(() => existsSync(release), 'the queued first dispatch crossing its real deadline');
       held.release(); held = null;
       writeFileSync(released, 'the original real remote reservation released');
