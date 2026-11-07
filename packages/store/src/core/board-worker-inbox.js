@@ -21,7 +21,7 @@ export function workerInboxSeats(board, agent) {
 /** Select each unread message once using its recipient's cursor, so old uneven cursors lose no mail. */
 export function workerInboxQuery(board, agent, columns = '*') {
   const seats = workerInboxSeats(board, agent);
-  if (seats.length === 1) return { seats, sql: `SELECT ${columns} ${UNREAD_SHOUT_SQL}`,
+  if (seats.length === 1) return { seats, sql: `SELECT ${columns} ${UNREAD_SHOUT_SQL} WHERE 1`,
     bindings: unreadShoutBindings(agent.agent_last_shout_id, agent.agent_id, agent.agent_lane) };
   const members = seats.map(seat => ({ id: seat.agent_id, lane: seat.agent_lane, cursor: seat.agent_last_shout_id }));
   return { seats, bindings: [JSON.stringify(members), Math.min(...members.map(seat => seat.cursor))],
