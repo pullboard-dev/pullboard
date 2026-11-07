@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { pruneControllerOrphans } from '../src/shell/controller-custody.js';
+import { consumeControllerDisposition } from '../src/shell/controller-disposition.js';
 import { initializeRunnerRecovery } from '../index.js';
 import { recordRunnerFailure } from '../index.js';
 import { recoverUnavailableRunners } from '../index.js';
@@ -46,6 +47,10 @@ test('clause 1: a runner whose controller process is gone stays out of runner_un
   const recorded = JSON.parse(db.prepare('SELECT diagnostic FROM runner_transport_error WHERE host=?').get(HOST).diagnostic);
   assert.equal(recorded.reason, 'controller-orphan');
   assert.equal(recorded.cause, 'controller process is gone', 'the cause is recorded with the requeue');
+  // The queue transition that follows the prune finds the recorded disposition and consumes it exactly once.
+  const owner = { token: 'lease-one', pid: HOLDER.pid, started: HOLDER.started, repo: '/nowhere', host: HOST };
+  consumeControllerDisposition(db, owner, 'requeue');
+  assert.throws(() => consumeControllerDisposition(db, owner, 'requeue'), { code: 'RESOURCE_LEASE_LOST' }, 'the disposition is consumed once');
 });
 
 test('clause 2: a runner that fails its probe is still quarantined and re-probed [C7]', async t => {
