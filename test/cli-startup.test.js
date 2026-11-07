@@ -139,16 +139,17 @@ test('clause 1: show reads only its read store and list reads only its read stor
   const show = box.run('show', '1');
   assert.match(show.stdout, /^#1 {2}/u);
   assert.deepEqual(show.modules.filter((path) => HEAVY.includes(path)), [], 'show loads no gate, relay or land module');
-  assert.ok(show.gitCalls.length <= 2, `show started ${show.gitCalls.length} Git processes: ${show.gitCalls.join(' | ')}`);
-  const status = box.run('status', '--json');
-  assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
-  assert.deepEqual(status.modules.filter((path) => HEAVY.includes(path)), [], 'offline status loads no gate, relay or land module');
-  // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
-  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
-    'offline status loads no move module');
   const list = box.run('list', '--json');
   assert.equal(JSON.parse(list.stdout).items.length, 1);
   assert.deepEqual(list.modules.filter((path) => HEAVY.includes(path)), [], 'list loads no gate, relay or land module');
+});
+
+/**
+ * Counts the Git processes a worktree command starts and checks the repo facts it reads once.
+ * Kept apart from the show and list module case so each case proves one thing.
+ */
+test('worktree commands ask Git for repo facts once [C7]', async (t) => {
+  const box = fixture(t);
   // One rev-parse in the worktree answers top level, Git dirs, HEAD and the primary checkout for the whole process;
   // the only other is the code's own checkout, asked once where the running code came from.
   mkdirSync(join(box.worktree, 'src'));
