@@ -1096,7 +1096,7 @@ async function recoverReplicaReplies(fixture, timing) {
   gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
   gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
-  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2'));
+  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
   assert.equal(lostSubmit.status, 1);
   assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE');
@@ -1117,7 +1117,7 @@ async function recoverReplicaReplies(fixture, timing) {
   assert.notEqual(gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD'), originalCommit);
   writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const afterSubmitRecoverySetup = relay.uploads.length;
-  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2'));
+  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
     const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
       boardId, kind: 'move', sequence: upload.sequence,
@@ -1149,14 +1149,14 @@ async function recoverReplicaReplies(fixture, timing) {
 
   mergeCandidateForReview(worktrees[1], envs[1], worktrees[0], originalCommit, gitAt);
   relay.dropNextReply({ offline: true, operation: 'verify', item: 2, key, boardId });
-  const lostVerify = await timing.wait('verify item 2 with its acknowledgement dropped', () => cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement'));
+  const lostVerify = await timing.wait('verify item 2 with its acknowledgement dropped', () => cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement', '--no-next'));
   assert.equal(lostVerify.status, 1);
   assert.equal(lostVerify.document.error.code, 'RELAY_UNAVAILABLE');
   assertDroppedReplyConsumed(relay, 'the lost item-2 verification reply');
   relay.failReads(false);
   await timing.wait('sync clone B after the lost verdict acknowledgement', () => cli(clones[1], envs[1], 'status'));
   const beforeVerifyRetry = relay.uploads.length;
-  const retriedVerify = await timing.wait('retry the already-accepted verdict', () => cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement'));
+  const retriedVerify = await timing.wait('retry the already-accepted verdict', () => cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement', '--no-next'));
   assert.equal(retriedVerify.decision, 'ACCEPT');
   assert.equal(relay.uploads.length, beforeVerifyRetry, 'verified-state preconditions also preserve the original outcome');
 
