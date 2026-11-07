@@ -667,7 +667,7 @@ async function threeReplicaFixture(t, timing) {
   assert.ok(gitBinary, 'the fixture PATH contains git');
   symlinkSync(realpathSync(gitBinary), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
-  symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
+  for (const tool of ['sh', 'tar']) symlinkSync(realpathSync(process.env.PATH.split(delimiter).map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool)); // `merged` smokes via git archive | tar
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };

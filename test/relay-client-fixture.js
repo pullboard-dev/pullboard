@@ -182,7 +182,7 @@ export async function relayClientFixture(t, { cliChildren, coordinatorModel, acc
   const git = process.env.PATH.split(delimiter).map(entry => join(entry, 'git')).find(existsSync);
   assert.ok(git, 'fixture has a git executable');
   symlinkSync(realpathSync(git), join(privateBin, 'git'));
-  for (const [name, found] of [['node', process.execPath], ['tar', process.env.PATH.split(delimiter).map(entry => join(entry, 'tar')).find(existsSync)]]) symlinkSync(realpathSync(found), join(privateBin, name)); // `merged` smokes its commit via git archive | tar
+  symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
   symlinkSync(realpathSync(CLI), join(hookBin, 'pullboard'));
   const env = {
     ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
