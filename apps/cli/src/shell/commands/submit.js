@@ -456,7 +456,8 @@ export async function submitHere(ctx, id, infra) {
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
-    ctx.io.say(ctx.json ? JSON.stringify({ precheck: true, item: id, commit }) : `precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
+    if (ctx.json) ctx.io.result({ precheck: true, item: id, commit });
+    else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
     return 0;
   }
   const companion = await withBoard(ctx, async board => {
