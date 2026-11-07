@@ -7,7 +7,7 @@ import { exitedSession } from '../../../../packages/store/index.js';
 /**
  * `pullboard run --scale` (B26,C7): the board runs as many agents as are worth running, within one budget the
  * person sets. The person never picks builder or reviewer counts: `pullboard settings workers.budget 40/day` is a
- * seat-hour budget over a declared window, and the scaler draws it down. Each cycle the running count follows
+ * spend budget over a declared window, and the scaler draws it down. Each cycle the running count follows
  * #1212's worth-running K, the work there is, and how many seats the budget left can still pay for.
  *
  * Every live seat this machine runs counts against the budget, including seats a person or another session
@@ -72,23 +72,23 @@ export function workerWindowHours(window, now) {
 /**
  * Decide one scaling step from what the board observes now. Pure: the supervisor and the simulation share it.
  *
- * The seat-hours left pay for at most floor(left / hoursLeft) seats through the remaining budget window, so a cycle never
+ * The spend left pays for at most floor(left / (hoursLeft * price)) seats through the remaining budget window, so a cycle never
  * commits more than the budget left. The target is the least of that, the worth-running K and the work there
  * is (busy seats plus waiting reviews and ready builds); when K is unknown a four-seat ceiling applies and the plan says
  * so. Every live seat counts toward the running total; only idle seats this scaler manages may stop.
  *
- * @param {{ budget: { seatHours: number, window: string }, usedHours: number, cycleHours: number, worth: number | null, workers: { id: string, busy: boolean, managed?: boolean }[], reviews: number, builds: number }} state
+ * @param {{ budget: { spend: number, window: string }, usedSpend: number, cycleHours: number, worth: number | null, workers: { id: string, busy: boolean, managed?: boolean }[], reviews: number, builds: number }} state
  */
-export function planWorkerScale({ budget, usedHours, cycleHours, worth, workers, reviews, builds, spent = null, model = null, hoursLeft = workerWindowHours(budget?.window ?? 'day', Date.now()) }) {
-  if (!budget || !(budget.seatHours >= 0) || !(usedHours >= 0) || !(cycleHours > 0)
+export function planWorkerScale({ budget, usedSpend, cycleHours, worth, workers, reviews, builds, spent = null, model = null, hoursLeft = workerWindowHours(budget?.window ?? 'day', Date.now()) }) {
+  if (!budget || !(budget.spend >= 0) || !(usedSpend >= 0) || !(cycleHours > 0)
     || !(hoursLeft > 0) || !Number.isFinite(hoursLeft)
     || !isCount(reviews) || !isCount(builds) || !Array.isArray(workers)) {
-    throw new TypeError('worker scaling needs a seat-hour budget, the hours used, a cycle length, queue counts and the live seats');
+    throw new TypeError('worker scaling needs a spend budget, the spend used, a cycle length, queue counts and the live seats');
   }
-  const leftHours = Math.max(0, budget.seatHours - usedHours);
+  const leftSpend = Math.max(0, budget.spend - usedSpend);
   // A new seat of `model` costs its price per hour for the rest of the window; unpriced models cost one seat-hour.
   const price = seatHourPrice(model);
-  const affordable = Math.floor(leftHours / (hoursLeft * price) + 1e-9);
+  const affordable = Math.floor(leftSpend / (hoursLeft * price) + 1e-9);
   const busy = workers.filter(worker => worker.busy);
   const stoppable = workers.filter(worker => !worker.busy && worker.managed !== false);
   const work = busy.length + reviews + builds;
@@ -101,7 +101,7 @@ export function planWorkerScale({ budget, usedHours, cycleHours, worth, workers,
   const stop = stoppable.slice(stoppable.length - Math.min(excess, stoppable.length)).map(worker => worker.id);
   const free = workers.length - busy.length - stop.length + launch;
   const review = Math.min(reviews, free);
-  return { budget, usedHours, spent, price, leftHours, hoursLeft, affordable, worth: worthKnown ? worth : null, target, launch, stop,
+  return { budget, usedSpend, spent, price, leftSpend, hoursLeft, affordable, worth: worthKnown ? worth : null, target, launch, stop,
     running: workers.length, assign: { review, build: Math.min(builds, Math.max(0, free - review)) }, binding, worthKnown };
 }
 
@@ -148,7 +148,7 @@ export function observeWorkers(board, { lane, managed, inactive = [], route = 's
 }
 
 /**
- * The machine's seat-hour ledger, fail-closed: it may overcount use but never undercount it.
+ * The machine's spend ledger, fail-closed: it may overcount use but never undercount it.
  *
  * - Every unobserved interval is charged in full wall time for every seat live at either end of it; nothing is
  *   capped. A seat seen at only one end may have run throughout, so it is charged too.
@@ -166,8 +166,9 @@ export function workerLedger(file = join(machineHome(), 'workers-usage.json')) {
     let value;
     try { value = JSON.parse(readFileSync(file, 'utf8')); }
     catch (error) { throw new Refused('BAD_MACHINE_SETTINGS', `the worker ledger ${file} is unreadable (${error.message}); restore it, or remove it knowingly: a missing ledger charges every live seat from the window's start`); }
+    if (value && typeof value === 'object' && value.spend === undefined && typeof value.usedHours === 'number') { value.spend = value.usedHours; delete value.usedHours; }
     if (!value || !['day', 'week'].includes(value.window) || !Number.isSafeInteger(value.start) || !Number.isSafeInteger(value.sampledAt)
-      || !(typeof value.usedHours === 'number' && value.usedHours >= 0) || !Array.isArray(value.seats) || value.seats.some(id => typeof id !== 'string')
+      || !(typeof value.spend === 'number' && value.spend >= 0) || !Array.isArray(value.seats) || value.seats.some(id => typeof id !== 'string')
       || !(value.spent === null || typeof value.spent === 'string')) {
       throw new Refused('BAD_MACHINE_SETTINGS', `the worker ledger ${file} is not a valid record; restore it, or remove it knowingly: a missing ledger charges every live seat from the window's start`);
     }
@@ -177,42 +178,42 @@ export function workerLedger(file = join(machineHome(), 'workers-usage.json')) {
   function read(window, now) {
     const start = windowStart(window, now);
     const value = stored();
-    if (!value || value.window !== window || value.start < start) return { window, start, usedHours: 0, sampledAt: null, seats: [], spent: null };
-    if (value.start > start) return { ...value, start, usedHours: Infinity, spent: `the ledger's window starts ${new Date(value.start).toISOString()}, after this clock's ${new Date(start).toISOString()}; the clock moved backwards, so the budget is treated as spent` };
-    return { ...value, usedHours: value.spent ? Infinity : value.usedHours };
+    if (!value || value.window !== window || value.start < start) return { window, start, spend: 0, sampledAt: null, seats: [], spent: null };
+    if (value.start > start) return { ...value, start, spend: Infinity, spent: `the ledger's window starts ${new Date(value.start).toISOString()}, after this clock's ${new Date(start).toISOString()}; the clock moved backwards, so the budget is treated as spent` };
+    return { ...value, spend: value.spent ? Infinity : value.spend };
   }
-  /** Charge the interval since the last sample, then store this sample's live seats. */
-  function record(window, now, seats) {
+  /** Charge the interval since the last sample at `price` per seat-hour, then store this sample's live seats. */
+  function record(window, now, seats, price = 1) {
     const start = windowStart(window, now);
     const value = stored();
-    let usedHours = 0;
+    let spend = 0;
     let spent = null;
     if (value && value.window === window && value.start === start) {
-      ({ usedHours, spent } = value);
+      ({ spend, spent } = value);
       if (now < value.sampledAt) spent ??= `the clock moved backwards from ${new Date(value.sampledAt).toISOString()} to ${new Date(now).toISOString()}; seat use since then is unknown, so the budget is treated as spent until the next ${window}`;
-      else usedHours += new Set([...value.seats, ...seats]).size * (now - value.sampledAt) / HOUR;
+      else spend += new Set([...value.seats, ...seats]).size * price * (now - value.sampledAt) / HOUR;
     } else if (value && value.window === window && value.start > start) {
       spent = `the ledger's window starts ${new Date(value.start).toISOString()}, after this clock's ${new Date(start).toISOString()}; the clock moved backwards, so the budget is treated as spent`;
     } else if (value && value.window === window && value.sampledAt <= now) {
       // The last sample is from an earlier window: its seats and this sample's may have run since this window began.
-      usedHours = new Set([...value.seats, ...seats]).size * (now - Math.max(start, value.sampledAt)) / HOUR;
+      spend = new Set([...value.seats, ...seats]).size * price * (now - Math.max(start, value.sampledAt)) / HOUR;
     } else {
       // No record for this window: nothing proves when the seats live now began.
-      usedHours = seats.length * (now - start) / HOUR;
+      spend = seats.length * price * (now - start) / HOUR;
       if (value && value.window === window) spent = `the ledger's last sample ${new Date(value.sampledAt).toISOString()} is after this clock's ${new Date(now).toISOString()}; the clock moved backwards, so the budget is treated as spent`;
     }
-    const next = { window, start, usedHours, sampledAt: Math.max(now, value?.window === window && value.start === start ? value.sampledAt : now), seats: [...new Set(seats)], spent };
+    const next = { window, start, spend, sampledAt: Math.max(now, value?.window === window && value.start === start ? value.sampledAt : now), seats: [...new Set(seats)], spent };
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(`${file}.tmp`, JSON.stringify(next));
     renameSync(`${file}.tmp`, file);
-    return { ...next, usedHours: spent ? Infinity : usedHours };
+    return { ...next, spend: spent ? Infinity : spend };
   }
   return { read, record };
 }
 
 /** The line the supervisor prints for each cycle, naming what limits the count. */
 export function scaleLine(plan) {
-  const why = plan.spent ? `a budget treated as spent: ${plan.spent}` : plan.binding === 'budget' ? `${plan.leftHours.toFixed(1)} of ${plan.budget.seatHours} seat-hours left this ${plan.budget.window}, enough for ${plan.affordable}`
+  const why = plan.spent ? `a budget treated as spent: ${plan.spent}` : plan.binding === 'budget' ? `${plan.leftSpend.toFixed(1)} of ${plan.budget.spend} spend left this ${plan.budget.window}, enough for ${plan.affordable}`
     : plan.binding === 'worth' ? `${plan.worth} worth running` : plan.binding === 'unknown-worth' ? 'the four-seat cap while worth running is unknown' : 'the waiting work';
   return `workers: ${plan.running} live on this machine, target ${plan.target} (limited by ${why}${plan.worthKnown ? '' : '; worth running is unknown, capped at four'})`
     + `${plan.launch ? `; launching ${plan.launch}` : ''}${plan.stopped?.length ? `; stopped idle ${plan.stopped.join(', ')}` : ''}`
@@ -232,7 +233,7 @@ export async function scaleWorkers(io, values, deps) {
   const ctx = deps.context(io);
   if (!ctx.info.isMain) throw new Refused('SCALE_FROM_MAIN', 'run pullboard run --scale from the main checkout; it makes and joins each worker worktree itself');
   const budget = deps.workerBudget();
-  if (!budget || !budget.seatHours) throw new Refused('WORKER_BUDGET_UNSET', 'set the seat-hours this machine may spend first: pullboard settings workers.budget 40/day');
+  if (!budget || !budget.spend) throw new Refused('WORKER_BUDGET_UNSET', 'set the spend per day this machine may use first: pullboard settings workers.budget 40/day');
   const lane = values.lane;
   if (values.route !== undefined && !store.ROUTES.includes(values.route)) throw new Refused('BAD_ROUTE', 'choose --route light, mid or strong before launching workers');
   const command = String(values.agent ?? '').trim();
@@ -261,8 +262,8 @@ export async function scaleWorkers(io, values, deps) {
     observe: () => deps.withBoard(ctx, board => {
       const args = { lane, managed: [...running.keys()], inactive: parked.map(seat => seat.id), route, now: now() };
       const observed = deps.observe ? deps.observe(board, args) : observeWorkers(board, args);
-      const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id));
-      return { ...observed, model, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
+      const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id), seatHourPrice(model));
+      return { ...observed, model, budget, usedSpend: used.spend, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
     }),
     isIdle: id => deps.withBoard(ctx, board => !seatHoldsWork(board, id)),
     stop: id => {
