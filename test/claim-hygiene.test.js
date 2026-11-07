@@ -23,6 +23,8 @@ import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
@@ -203,7 +205,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const ok = result => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--json'));
+  ok(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--json'));
   ok(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'half built\n');
@@ -214,7 +216,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   assert.equal(released.item_status, 'open');
   const next = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', next, 'main');
-  ok(box.run(next, 'join', 'web', '--json'));
+  ok(fixtureJoin(box.run, next, 'web', '--json'));
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');

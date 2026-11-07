@@ -14,7 +14,7 @@ export function shellQuote(value) {
  * Make a local ssh stand-in that executes the actual worker command in a second private machine.
  * It appends "dispatched" and "returned" to <requests>.phases so a round trip can be timed by phase,
  * and `hold` ('dispatch', 'run' or 'return') keeps it alive at that phase, as a stuck runner would.
- * `workerHealthDown` also fails every pinned-worker recovery probe, as an unreachable host does; `healthDown` alone fails only non-worker commands, and `registrationDown` fails the registration and measurement probes.
+ * `workerHealthDown` also fails every pinned-worker recovery probe, restart included, as an unreachable host does; `healthDown` alone fails only non-worker commands, and `registrationDown` fails the registration and measurement probes.
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
@@ -83,6 +83,8 @@ if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
+// An unreachable host fails the worker restart a lost transport now tries too [C7,#3128].
+if (remoteCommand.includes(' --restart ') && ${JSON.stringify(workerHealthDown)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
 if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {

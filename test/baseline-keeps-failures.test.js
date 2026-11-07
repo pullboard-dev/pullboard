@@ -7,6 +7,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { fixture, cli, rows } from './known-main-affected.fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { baselineFailureDetails } from '../packages/gate/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('a red baseline with two real failing cases prints both first error lines in show [C7]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
@@ -16,7 +17,7 @@ test('a red baseline with two real failing cases prints both first error lines i
   writeFileSync(join(box.repo, 'two-fail.test.js'), "import { test } from 'node:test';\ntest('first broken case', () => { throw new Error('first diagnostic'); });\ntest('second broken case', () => { throw new Error('second diagnostic'); });\n");
   box.git(box.repo, 'add', 'two-fail.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test: two failing baseline cases');
-  const added = box.run(box.repo, 'add', 'web', 'Repair both cases', '--specs', 'G1', '--criterion', 'Both cases pass.', '--check', 'node --test two-fail.test.js', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Repair both cases', '--specs', 'G1', '--criterion', 'Both cases pass.', '--check', 'node --test two-fail.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const shown = box.run(box.repo, 'show', String(id));
