@@ -327,3 +327,17 @@ test('[R1,R2,A1] stats window and ordinary counters share one SQLite snapshot wh
   assert.equal(next.data.stats.merged, 2);
   assert.equal(next.data.window.landedItems, 2, 'the next observation sees both committed receipts');
 });
+
+/**
+ * Prove criterion clause 2: the shared board-submit fixture seals the repository policy itself, so a submit is never refused NO_POLICY.
+ * The fixture's own claim and submit would throw that refusal before returning if the board had no gitRoot policy.
+ */
+test('clause 2: no case in stats-cli, review-starve or next-verify is refused NO_POLICY by the board-submit fixture [C7,V4]', (t) => {
+  const { board, builder } = fixture(t);
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Policy sealed fixture' });
+  const freeze = () => ({ text: 'Policy sealed fixture', digest: 'frozen' });
+  store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
+  assert.doesNotThrow(() => submitFixture(board, id, { agentId: builder, commit: '1'.repeat(40), tree: '2'.repeat(40) }),
+    error => error?.code === 'NO_POLICY');
+  assert.equal(store.getItem(board, id).item_status, 'submitted', 'the fixture submit sealed the policy and reached submitted');
+});
