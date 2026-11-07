@@ -23,13 +23,11 @@ function document(result) {
 
 /** A refusal leaves the submitted item and event stream untouched. */
 function refused(box, board, cwd, args, expected) {
-  const quiet = events => events.filter(event => event.event_kind !== 'next-idle');
   const before = store.events(board);
   const result = box.run(cwd, ...args, '--json');
   assert.equal(result.code, 1, result.err || result.out);
   assert.equal(JSON.parse(result.out).error.code, expected, result.out);
-  // A next --verify with nothing free records its idle cause; no refusal records anything else.
-  assert.deepEqual(quiet(store.events(board)), quiet(before));
+  assert.deepEqual(store.events(board), before);
   assert.equal(store.getItem(board, 1).item_review_by, null);
 }
 
@@ -73,6 +71,8 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
   document(joinFixtureSeat(box, review, 'web'));
   refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
+  // A next --verify with nothing free records its idle cause once, then dedupes the same cause: record it here so the refusal below leaves the stream untouched.
+  assert.equal(JSON.parse(box.run(review, 'next', '--verify', '--json').out).error.code, 'NOTHING_FREE');
   refused(box, board, review, ['next','--verify'], 'NOTHING_FREE');
   refused(box, board, review, ['verify',String(id),'reject','--reason','TEST_FAILURE','--note','synthetic review attempt'], 'SELF_SESSION_VERIFY');
   box.env.CODEX_THREAD_ID = 'unrelated-reviewer-session-1085';
