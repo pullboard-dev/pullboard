@@ -53,6 +53,8 @@ test('clause 1: the next native write frees a lapsed idle claim with one origina
   assert.equal(Date.parse(window.until) - box.clock.now().getTime(), MINUTE, 'the original lease duration, not the stale age or current configuration');
   const report = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth: () => ({ findings: [] }) });
   assert.ok(report.waiting.some(entry => entry.cause === 'CLAIM_EXPIRED' && entry.item === id));
+  // The window waits only for a builder who can come back; a gone seat's window ends at once (#3447).
+  heartbeatSeat(box.board, box.seats.builder.id);
   assert.throws(() => store.claim(box.board, id, { agentId: box.seats.actor.id, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'new', digest: 'new' }) }),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER');
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');

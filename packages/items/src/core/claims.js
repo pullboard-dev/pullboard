@@ -9,8 +9,11 @@ export function firstRefusalProblem(board, id, agentId, ports) {
   return reason ? new Refused('REOPEN_HELD_FOR_BUILDER', reason) : null;
 }
 
-/** Explain ineligible build work without raising an item refusal from review selection. */
-export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem, otherBuilderFirst = false, offering = false }) {
+/**
+ * Explain ineligible build work without raising an item refusal from review selection. The optional seatGone port
+ * ends a builder's first-refusal window early when that builder's seat is gone (#3447).
+ */
+export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem, otherBuilderFirst = false, offering = false, seatGone }) {
   const continuation = exitContinuationProblem?.(board, id, agentId);
   if (continuation) return continuation.message;
   const window = firstRefusal(board, id);
@@ -24,7 +27,10 @@ export function firstRefusalReason(board, id, agentId, { firstRefusal, exitConti
   }
   if (window?.otherSeatFirst) return window.builder === agentId
     ? `item #${id} returned for lack of progress; another seat gets first refusal until ${window.until}; take another item` : null;
-  return window && window.builder !== agentId && !takeoverReady(board, id)
+  // The window protects a builder who can still come back; a gone seat never will, so it ends at once (#3447).
+  // Heartbeats are private local state, so an ordered (sealed) move keeps the recorded window, as liveRouteProblem does.
+  const builderGone = board.executionEngineVersion === undefined && Boolean(window) && seatGone?.(board, window.builder) === true;
+  return window && window.builder !== agentId && !takeoverReady(board, id) && !builderGone
     ? `item #${id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it`
     : null;
 }
