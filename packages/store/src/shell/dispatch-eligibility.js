@@ -24,7 +24,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   const heldReview = store.listItems(board).find(item => item.item_status === 'submitted'
     && store.reviewHolder(board, item) === agentId);
   if (heldReview) return { item: heldReview, review: true, held: true, reasons: [] };
-  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, omitIds: assignedIds, priority, observeIdle });
+  const review = store.nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, skipIds, sessionIds: skipIds, omitIds: assignedIds, priority, observeIdle });
   if (review.item) {
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
