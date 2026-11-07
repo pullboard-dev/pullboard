@@ -7,6 +7,7 @@ import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';
+import { requireNoLockOnlyRed } from '../core/land-local-guard.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
@@ -94,6 +95,8 @@ export async function quickGuards(state, label = 'local-trunk', options = {}) {
   finally { await staticChecks; }
   const checked = await staticChecks;
   if (checked.error) throw checked.error;
+  // A lock wait that ran no case is infra: the landing fault path retries it [C7,#3314].
+  if (!gate.isGreen && !waivedProof(state, gate)) requireNoLockOnlyRed(gate);
   // Red only in files the run's watchdog stopped: no test decided against the batch, so it lands [C7,#3167].
   const stopped = !gate.isGreen && !waivedProof(state, gate) ? watchdogProof(state, gate) : null;
   if (stopped) {
