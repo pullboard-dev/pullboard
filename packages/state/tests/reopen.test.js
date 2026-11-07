@@ -211,6 +211,18 @@ function legacySnapshot(snapshot) {
   return { ...snapshot, tables };
 }
 
+/**
+ * Drop the derived pipeline stage an archived client never computed.
+ *
+ * Why: c85ddac55a added item_stage to current item reads; clients before it return the same row without it.
+ * @param {any} row
+ * @returns {any}
+ */
+function withoutStage(row) {
+  const { item_stage: _stage, ...rest } = row;
+  return rest;
+}
+
 /** Accepted engine-9 source before verified-item reopening; the 0.8.8 tag is not yet published. */
 const engine9Source = '314ef28751c44c96186b337cc4ace0fd8bf33d42';
 
@@ -262,7 +274,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
       assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), legacyBefore, `the engine-${version} client keeps its submitted-only rule`);
     } else {
       assert.equal(legacyResult.error, undefined, JSON.stringify(legacyResult));
-      assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), store.getItem(currentReceiver, item.id));
+      assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), withoutStage(store.getItem(currentReceiver, item.id)));
       assert.deepEqual(legacyStore.events(legacyReceiver), store.events(currentReceiver), 'the actual engine-10 client and engine-11 source replay identical landing reopens');
     }
 
@@ -781,7 +793,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     });
     assert.equal(currentLegacyResult.error, undefined, JSON.stringify(currentLegacyResult));
     assert.deepEqual(currentLegacyResult.result, legacyResult.result);
-    assert.deepEqual(store.getItem(currentLegacyReceiver, 1), legacyStore.getItem(legacyReceiver, 1),
+    assert.deepEqual(withoutStage(store.getItem(currentLegacyReceiver, 1)), legacyStore.getItem(legacyReceiver, 1),
       `the current engine replays a submitted engine-${version} reopen as its older client did`);
   }
 
@@ -952,13 +964,21 @@ test('clause 3: retained main controls builder first refusal during detached rev
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
   assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder', '--route', 'strong')).code, 0);
-  // db3dba1506 (#2779, reopen rejects to every eligible seat) dropped the builder hold on purpose: a second builder's
-  // claim on the returned item is no longer refused REOPEN_HELD_FOR_BUILDER.
-  const claimedOther = await command(other, 'claim', '1', '--json');
-  assert.equal(claimedOther.code, 0, claimedOther.out + claimedOther.err);
+  const refused = await command(other, 'claim', '1', '--json');
+  assert.equal(refused.code, 1, refused.out);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'REOPEN_HELD_FOR_BUILDER');
+  assert.match(error.message, /web-1/u);
   const board = openFixtureBoard(t, box);
   const returned = store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'reject');
-  assert.ok(returned, 'the reject that returned the item stays in its thread');
+  const window = JSON.parse(returned.event_detail).reopenFirstRefusal;
+  assert.equal(window.builder, 'web-1');
+  assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
+  assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
+  const released = await command(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next');
+  assert.equal(released.code, 0, released.err);
+  const claimed = await command(other, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.err);
 });
 
 
