@@ -14,6 +14,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
@@ -78,7 +79,9 @@ function gateRepo(box, gate) {
   assert.equal(added.status, 0, added.stderr || added.stdout);
   const lane = join(box.dir, 'work-1');
   box.git(repo, 'worktree', 'add', '-q', lane, '-b', 'work/one');
-  assert.match(fixtureJoin(box.run, lane, 'work').stdout, /joined as work-1/);
+  const laneJoin = joinFixtureSeat(box, lane, 'work');
+  assert.equal(laneJoin.code, 0, laneJoin.err || laneJoin.out);
+  assert.equal(JSON.parse(laneJoin.out).agent, 'work-1');
   const claimed = box.run(lane, 'claim', '1');
   assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
   return { repo, ...box };
@@ -97,7 +100,9 @@ function project(box = sandbox()) {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up profile project');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(fixtureJoin(box.run, web, 'web').stdout, /joined as web-1/);
+  const webJoin = joinFixtureSeat(box, web, 'web');
+  assert.equal(webJoin.code, 0, webJoin.err || webJoin.out);
+  assert.equal(JSON.parse(webJoin.out).agent, 'web-1');
   return { ...box, repo, web };
 }
 
