@@ -27,6 +27,9 @@ test('Dashboard retains offscreen agents and paints their real rows when scrolle
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
+    await chrome.waitFor('!!data?.project');
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor(`view.tab === 'dashboard' && document.querySelectorAll('#dashboard [data-dashboard-agent]').length >= ${agents.length}`);
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
