@@ -12,6 +12,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -190,7 +191,8 @@ test('a fresh board accepts a first commit that cites its item [I1,N26]', () => 
   const other = join(box.dir, 'other');
   for (const root of [own, other]) {
     box.git(repo, 'worktree', 'add', '-q', '--detach', root, 'main');
-    moved(box, root, 'join', 'app');
+    const joined = joinFixtureSeat(box, root, 'app');
+    assert.equal(joined.code, 0, joined.err || joined.out);
   }
   moved(box, own, 'claim', '1');
   moved(box, other, 'claim', '2');
