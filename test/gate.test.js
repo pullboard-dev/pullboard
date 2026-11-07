@@ -4,6 +4,8 @@ import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.j
 /**
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.
+ *
+ * @pullboard-world-pin the clock-budget case copies the shipped scanner entry into its fixture.
  */
 import { landingPorts } from './landing-ports-fixture.js';
 import { executionServices } from './gate-execution-fixture.js';
@@ -198,6 +200,9 @@ assert.ok(Date.now() - started < 500, 'planted assertion without a budget commen
   assert.equal(existsSync(suiteMarker), true, 'a clean scanner result continues into the suite');
 });
 
+/** The persona name the gate fixtures join under. */
+const FIXTURE_AGENT = 'Test Agent';
+
 /**
  * A repo whose coordinator holds item #1, with this gate. Every run of the gate first adds a line
  * to runs.log beside the repo, so a test can count the runs.
@@ -248,7 +253,7 @@ function repoWithGate(gate, check = '') {
     }
   };
   const runAt = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: work, env, encoding: 'utf8' });
-  const joined = runAt('join', 'build', '--model', 'Test Agent');
+  const joined = runAt('join', 'build', '--model', FIXTURE_AGENT);
   assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
   const claimed = runAt('claim', '1');
   assert.equal(claimed.status, 0, `${claimed.stdout}${claimed.stderr}`);
