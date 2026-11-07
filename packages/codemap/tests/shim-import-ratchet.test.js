@@ -8,6 +8,7 @@ import { shimImportProblems } from '../index.js';
 import { stagedShimImportProblems } from '../index.js';
 import { importsIn } from '../../gate/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const PLAN = { cells: [{ order: 1, name: 'git', root: 'packages/git', frontDoor: 'packages/git/index.js',
   paths: [['src/git.js', 'packages/git/src/shell/git.js', 'seed']] }] };
@@ -102,7 +103,7 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
-    const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json');
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
     const claimed = box.run(box.web, 'claim', String(id), '--json');

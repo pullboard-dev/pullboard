@@ -47,6 +47,9 @@ export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
+
+export { machineBarDigest, machineClauseCommands, machineProofProblem } from './src/core/machine-verdict.js';
+export { machineVerification, validateMachineVerification, saveMachineVerification, machineVerificationEligible, acceptMachineSubmission } from './src/shell/machine-verification.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';

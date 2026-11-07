@@ -4,6 +4,8 @@ import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
@@ -46,7 +48,7 @@ function ageJob(box, id, ms) {
   });
 }
 
-test('a queued gate with no worker and no ticket ends on one sweep only past its grace, and its lapsed claim opens [C7,#3153]', async t => {
+test('clause 1: a queued gate with no worker and no ticket ends on one sweep only past its grace, and its lapsed claim opens [C7,#3153]', async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -61,7 +63,7 @@ test('a queued gate with no worker and no ticket ends on one sweep only past its
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(box.run(box.repo, 'add', 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'A lost queued launch ends within one sweep.', '--check', 'true', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/lost.txt', 'lost\n', 'feat(web): lost ticket candidate [G1]').status, 0);
@@ -82,17 +84,29 @@ test('a queued gate with no worker and no ticket ends on one sweep only past its
 
   ageJob(box, id, 3 * 60_000);
   sweep(box);
+  // The sweep ends the lost launch as infrastructure, then recoverInfrastructureHandoffs retries it under a new job id (3810cc1a6d).
   const ended = onBoard(box, board => submitHandoff(board, id));
-  assert.equal(ended.id, job.id);
-  assert.equal(ended.state, 'infrastructure', 'one sweep ends the lost launch as infrastructure');
-  assert.equal(ended.error?.code, 'SUBMIT_HANDOFF_DEAD');
+  assert.notEqual(ended.id, job.id, 'the retried job replaces the lost launch on the board');
+  assert.ok(['queued', 'infrastructure'].includes(ended.state), 'the retry is queued, or ended as infrastructure when its launch failed');
+  // Each retry holds the claim while queued, so lose every retry's place in line too, until the two-retry budget is spent.
+  let last = ended;
+  for (let round = 0; round < 3 && last.state === 'queued'; round++) {
+    const names = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(last.id) && !name.startsWith('.')));
+    await inMachineHome(box, () => { for (const name of names) rmSync(join(handoffQueueDirectory(), name)); });
+    ageJob(box, id, 3 * 60_000);
+    sweep(box);
+    last = onBoard(box, board => submitHandoff(board, id));
+  }
+  assert.equal(last.state, 'infrastructure', 'once the retries are spent the lost launch ends as infrastructure');
+  assert.equal(last.error?.code, 'SUBMIT_HANDOFF_DEAD');
 
   // The claim lease lapsing, as it does once its two hours pass, now opens the item instead of holding it.
   onBoard(box, board => board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(new Date(Date.now() - 60_000).toISOString(), id));
   assert.equal(onBoard(box, board => getItem(board, id)).item_status, 'open', 'the lapsed claim reads open');
   const other = join(box.dir, 'other-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/other-seat', other, 'main');
-  assert.equal(box.run(other, 'join', 'web').code, 0);
+  // The item routes strong, so the other seat joins on the strong route.
+  assert.equal(joinFixtureSeat(box, other, 'web').code, 0);
   const claimed = box.run(other, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
 });

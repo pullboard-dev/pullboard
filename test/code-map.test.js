@@ -11,6 +11,7 @@ import { buildCodeMap, renderItemSlice } from '../packages/codemap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { agentsBlock } from '../src/doctrine.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 const sliceMap = {
@@ -174,7 +175,7 @@ test('pullboard map prints the overview, a card and an item slice from one scan 
   writeFileSync(join(box.repo, 'test/home.test.js'), "import { renderHome } from '../src/home.js';\nvoid renderHome;\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add code map source fixture');
-  const added = box.run(box.repo, 'add', 'web', 'Map fixture item', '--criterion',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Map fixture item', '--criterion',
     'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'light',
     '--brief', 'Files: src/home.js, src/public.js, bin/start.js, test/home.test.js\nTest: map output follows imports and ignores misleading source text', '--json');
   assert.equal(added.code, 0, added.out + added.err);
@@ -275,7 +276,7 @@ test('next prints the item slice when the map setting is on [C7]', t => {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test(core): add slice fixture source');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Slice fixture item', '--criterion',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Slice fixture item', '--criterion',
     'src/home.js exports renderHome and test/home.test.js imports it', '--specs', 'G1', '--check', 'true', '--route', 'light',
     '--brief', 'Files: src/home.js\nTest: test/home.test.js imports it\nOut of scope: anything else');
   assert.equal(added.code, 0, added.out + added.err);
