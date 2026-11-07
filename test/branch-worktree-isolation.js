@@ -84,10 +84,10 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   };
   const before = footprint();
 
-  const boardFileInBranch = join(branch, 'src', 'board-schema-source.js');
+  const boardFileInBranch = join(branch, 'packages/store/src/shell/board-schema-source.js');
   const boardSource = readFileSync(boardFileInBranch, 'utf8');
   // The added-column list lives in board-migrate.js; schema versions live in board-schema-source.js.
-  const migrateFileInBranch = join(branch, 'src', 'board-migrate.js');
+  const migrateFileInBranch = join(branch, 'packages/store/src/shell/board-migrate.js');
   const migrateSource = readFileSync(migrateFileInBranch, 'utf8');
   const migration = "  ['item', 'item_after', \"TEXT NOT NULL DEFAULT ''\"],";
   assert.ok(migrateSource.includes(migration), 'the candidate source contains the stable migration insertion point');
@@ -98,7 +98,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.notEqual(branchBoardSource, migrateSource);
   writeFileSync(migrateFileInBranch, branchBoardSource);
 
-  const machineFileInBranch = join(branch, 'src', 'machine.js');
+  const machineFileInBranch = join(branch, 'packages/state/src/shell/machine.js');
   const machineSource = readFileSync(machineFileInBranch, 'utf8');
   const triggerBody = "refuse('UNDECLARED_MOVE', `the moves are ${moves.join(', ')}`)";
   const branchTriggerBody = "refuse('UNDECLARED_MOVE', `branch fixture moves are ${moves.join(', ')}`)";

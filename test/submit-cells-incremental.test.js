@@ -22,9 +22,13 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   computePlan,
+  readPlan,
   writePlan,
 } from '../bin/cells-plan.js';
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import {
+  requireSubmitCells,
+  touchedCells,
+} from '../bin/cells-submit-checks.js';
 import { cellsAuditBacklog } from '../bin/cells-audit-backlog.js';
 import {
   inventoryBuildCount,
@@ -153,6 +157,19 @@ function plannedFixture(t) {
   return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim() };
 }
 
+/**
+ * Prove clause 2 on real cell names: a one-file change to src/stats.js changes exactly the stats cell, and the
+ * incremental inventory's touched set adds only its direct importer app:cli; the unrelated kernel, store and items
+ * cells (no import edge into stats) are absent.
+ */
+function assertChangedAndImporterCells(root, result) {
+  const plan = readPlan(root);
+  assert.deepEqual(touchedCells(['src/stats.js'], plan, plan, []), ['stats'], 'the changed-cell set is exactly the changed file\'s cell');
+  assert.deepEqual(result.cells, ['app:cli', 'stats'], 'the incremental result is the changed cell plus its direct importer');
+  assert.ok(result.cells.includes('app:cli'), 'the direct importer cell of stats is in the touched set');
+  for (const unrelated of ['kernel', 'store', 'items']) assert.ok(!result.cells.includes(unrelated), `unrelated cell ${unrelated} is absent`);
+}
+
 /** Exercise the real parser and immutable checkout port; this is a background warm, never a submit check. */
 function warm(root, commit) {
   return warmAcceptedCells(root, commit, { withCheckout: withMainCheckout, withLock: withFileLock });
@@ -206,6 +223,7 @@ test('clause 1: clause 3: accepted inventory is an off-path, once-per-tree censu
   const { result, writes } = observed;
   const elapsed = performance.now() - started;
   assert.ok(result && !result.unavailable, 'the actual changed module is checked');
+  assertChangedAndImporterCells(box.root, result);
   assert.ok(modes.includes('base-cache') && modes.includes('candidate-incremental'), modes.join(', '));
   assert.ok(!modes.includes('base-full') && !modes.includes('candidate-full-fallback'), modes.join(', '));
   assert.deepEqual(reads, [{ file: 'src/stats.js', commit: candidate }], 'only the changed candidate blob is read from Git');
