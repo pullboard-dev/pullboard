@@ -42,9 +42,13 @@ export function workProgress(board, { now = board.clock.now(), workObservation }
 /** Read one item's actual workflow stage without estimating code completion. */
 export function itemProgress(board, id, options) { return workProgress(board, options).get(id) ?? null; }
 
-/** Keep the human view a rendering of the same native fields exposed in JSON. */
+/**
+ * Keep the human view a rendering of the same native fields exposed in JSON.
+ * A line names only what is set: no holder, no waits and the default idle basis stay in JSON, so a bounded read stays short.
+ */
 export function progressLine(progress) {
-  return `progress: ${progress.stage}; holder ${progress.holder ?? 'none'}${progress.heldBy ? `; held by ${progress.heldBy}` : ''}; waits ${progress.waits.join(', ') || 'none'}; idle ${progress.idleMinutes}m (${progress.idleBasis})`;
+  const basis = progress.idleBasis === 'board activity; worktree activity unknown' ? '' : ` (${progress.idleBasis})`;
+  return `progress: ${progress.stage}${progress.holder ? `; holder ${progress.holder}` : ''}${progress.heldBy ? `; held by ${progress.heldBy}` : ''}${progress.waits.length ? `; waits ${progress.waits.join(', ')}` : ''}; idle ${progress.idleMinutes}m${basis}`;
 }
 
 /** Recognize state-only messages conservatively; evidence, questions and decisions remain messages. */

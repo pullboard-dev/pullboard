@@ -340,9 +340,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
           tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
-        if (reused.ids && (frozenCheck(item) || supplement)) {
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
-          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+          check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
@@ -506,7 +506,10 @@ export async function verifyHere(ctx, id, { second, values }) {
  * reviewed tree, so they always take the full path.
  */
 function packetAcceptance(ctx, board, item, decision, reReview, read) {
-  if (decision !== 'ACCEPT' || reReview || !frozenCheck(item) || guardOf(item)
+  // An item with no frozen check still accepts from its packet: the gate's recorded runs are its whole proof, and the
+  // full path would only rerun those same tests. Why: on 6 Nov three check-less reviews each reran 50 to 63 s on a
+  // runner with every clause already covered. A guarded item keeps the full path so its guard runs [V4,C7].
+  if (decision !== 'ACCEPT' || reReview || guardOf(item)
     || item.item_effective_head || store.itemPatchDigest(board, item.item_id)) return null;
   const packet = reviewPacketRerun(ctx.info.commonDir, item);
   if (!packet) return null;

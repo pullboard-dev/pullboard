@@ -105,7 +105,7 @@ export function settleReceipt(lease) {
  * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
  *
  * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
+ * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory, pinnedSource?: {commit:string, tree:string, trunk:{ref:string, commit:string}} }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836), for tests the machine memory reader, and an exact commit a runner takes from the object store in place of the checkout's HEAD (a main comparison, #3323).
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
@@ -152,7 +152,9 @@ export async function withGateSlot(root, action, options = {}) {
 export function gateRunnerLoadPolicy(settings) {
   const setting = settings?.gate?.loadAwareDispatch;
   const measured = (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
-  return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
+  // One runner kept for timed checks (#2512): picked by measured headroom unless gate.timingRunner names one or is false.
+  return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90,
+    timingRunner: settings?.gate?.timingRunner ?? 'auto' };
 }
 
 /**
@@ -179,7 +181,7 @@ function machineSlots(settings) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, beforeAdmission, readMemory = readMachineMemory, executionServices, infrastructureRetry = false, signal, pinnedSource } = {}) {
   const browserByLaunch = browserByLaunchEnabled();
   const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
@@ -188,7 +190,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
   const timed = lease => {
     Object.defineProperty(lease, 'executionServices', { value: executionServices });
-    return Object.assign(lease, { tracker, receiptKind, browserByLaunch,
+    return Object.assign(lease, { tracker, receiptKind, browserByLaunch, ...(signal ? { signal } : {}),
     ...(!lease.runner ? { startLoad: lease.startLoad ?? sampleRunnerLoad(),
       localDescriptor: localRunnerDescriptor(lease.capacity ?? null, loadMachineSettings().browserSlots > 0) } : {}),
     slot: slotOf(lease, { browserFree: browserFreeChecksEnabled() }) });
@@ -203,6 +205,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   if (inherited && restriction?.kind !== 'ssh' && !(restriction?.kind === 'local' && inherited.runnerExecution) && (!runnerOnly || inherited.runnerExecution)) {
     timed(Object.assign(inherited, { inherited: true }));
     try {
+      await beforeAdmission?.();
       await onWait?.({ admitted: true });
       inherited.tracker.mark('actionAt');
       return await action(inherited);
@@ -216,11 +219,12 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
   const floorMB = memoryFloorMB();
   const capacityProvider = () => machineSlots(settingsProvider()).gate;
-  const source = runnerSource(root);
+  // A pinned source is an exact commit read from the object store, so a runner may take it from a busy checkout [C7].
+  const source = pinnedSource ? { commit: pinnedSource.commit, tree: pinnedSource.tree, pinned: true } : runnerSource(root);
   const retryInfrastructure = (infrastructureRetry || itemCheck || kind === 'review') && (itemCheck || kind === 'review');
   const avoided = AVOIDED_RUNNERS.getStore() ?? new Set();
   const infrastructureAttempts = [];
-  const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
+  const policyTrunk = pinnedSource ? pinnedSource.trunk : source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
   const releaseContext = gateQueueSettings().currentReleaseFirst
@@ -258,11 +262,12 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
     runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     /** A quarantined runner with no holders has leaked job processes stopped, then proves idle again (#2515). */
-    runnerLeakProbe: runner => probeRunnerHealth(runner, undefined, { stopLeaked: true }),
+    runnerLeakProbe: (runner, { liveJobs = [] } = {}) => probeRunnerHealth(runner, undefined, { stopLeaked: true, liveJobs }),
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: runnerWaitMs ?? gateRunnerWaitMs(),
     runnerDeadlineAt,
     releaseContext,
+    beforeAdmission,
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
     onWait: async state => {
       if (remote && !state.admitted) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
