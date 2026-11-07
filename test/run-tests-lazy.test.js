@@ -22,7 +22,7 @@ const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
 const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
 
-test('a named-file import check meets its declared ten-second budget [C7,V4]', { cpuLoad: true }, t => {
+test('clause 1: a real named-file run meets its declared ten-second import-check budget [C7,V4]', { cpuLoad: true }, t => {
   const declaredBudget = 10_000;
   const started = performance.now();
   assert.equal(testsNeedCpuRunner(ROOT, ['test/run-tests-lazy.test.js']), true,
@@ -32,6 +32,14 @@ test('a named-file import check meets its declared ten-second budget [C7,V4]', {
   assert.ok(elapsed < declaredBudget, `named-file import check took ${elapsed.toFixed(1)}ms`); // budget: declared #2425 ten-second named-file import-check limit.
   const box = fixture();
   assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
+  const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', 'web/plain.test.js'], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(child.status, 0, child.context ?? child.stderr + child.stdout);
+  const phases = /^run-tests: phases selection ([\d.]+)s, admission ([\d.]+)s, tests ([\d.]+)s, cleanup ([\d.]+)s, total ([\d.]+)s$/mu.exec(child.stderr);
+  assert.ok(phases, 'the real node bin/run-tests.js <one file> run prints its phase line');
+  t.diagnostic(`real named-file run: selection ${phases[1]}s of total ${phases[5]}s; declared budget ${declaredBudget / 1000}s`);
+  assert.ok(Number(phases[1]) * 1000 < declaredBudget, `the real run's selection phase (the named-file import check) took ${phases[1]}s`); // budget: declared #2425 ten-second named-file import-check limit.
 });
 
 test('clause 2: every named run prints one per-phase timing line, successful or refused [C7,V4]', () => {
