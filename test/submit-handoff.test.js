@@ -730,3 +730,36 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   const json = JSON.parse(box.run(box.web, 'show', String(box.id), '--json').out);
   assert.equal(json.queuedSubmit.requeuedFor, 'worker-gone', 'clause 2: show --json carries the reason');
 });
+
+test('clause 1: a drain ends a hand-off whose folder no longer exists as infrastructure once, and the builder keeps the claim [C7]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'silent-tools');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const worker = join(tools, 'apps/lib/src/shell/submit-handoff-worker.js');
+  writeFileSync(worker, `if (process.argv[1]?.endsWith('submit-handoff-worker.js')) process.exit(0);\n` + readFileSync(worker, 'utf8'));
+  const subOut = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(subOut).queued, true);
+  const first = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
+  await box.helpers.waitFor(() => existsSync(join(directory, 'worker.json')), 'the dispatcher recording its worker', 120000); // budget: hang ceiling for observed dispatcher progress.
+  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
+    try { process.kill(owner.pid, 0); return false; }
+    catch (error) { return error.code === 'ESRCH'; }
+  }, 'actual first worker exit', 120000);
+  rmSync(directory, { recursive: true, force: true });
+  const drain = () => execFileSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
+
+  ageHandoff(box, box.id, 11 * 60_000);
+  drain();
+  const ended = state(box, box.id);
+  assert.notEqual(ended.job.state, 'queued', 'clause 1: a ghost queued job is not left in the gate');
+  assert.notEqual(ended.job.state, 'running');
+  assert.equal(ended.item.item_status, 'claimed', 'clause 1: the builder keeps the claim');
+  const ends = () => handoffEvents(box, box.id, ended.job.state);
+  assert.equal(ends(), 1, 'clause 1: one board event records the ended job');
+  drain();
+  assert.equal(ends(), 1, 'clause 1: a second drain adds no event');
+});

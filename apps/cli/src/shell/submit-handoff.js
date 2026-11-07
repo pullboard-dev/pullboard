@@ -196,6 +196,8 @@ export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWai
 async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
   if (observed?.agentId !== actor || !['queued', 'running'].includes(observed.state)) return;
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, observed));
+  // A hand-off whose folder was removed (a ghost gate) still ends: the lock and the retained refusal need the folder (#3221).
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
   return withFileLock(join(directory, 'recovery.guard.sqlite'), () => recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory));
 }
 
@@ -260,6 +262,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
       `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; the gate stopped on infrastructure, never a builder red`,
       'the health sweep retries the captured candidate within its retry budget; the coordinator restores missing tools'), { caller: 'seat' }) };
     if (gone) failure.error.reason = 'worker-gone';
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
     let ended;
     try {
