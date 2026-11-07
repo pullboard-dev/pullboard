@@ -260,7 +260,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const controller = [
     "import assert from 'node:assert/strict';",
     `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href)};
-${executionServicesSource(url('gate.js'))}`,
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href)}`,
     `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};`,
     `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',
