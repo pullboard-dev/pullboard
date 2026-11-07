@@ -216,7 +216,7 @@ test('clause 1: the board lives in the git common dir; every worktree sees it; n
   const box = project();
   const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
   assert.equal(added[0], '#1');
-  assert.match(added.at(-1), /^next: pullboard next --(?:wait \d+|take)$/u);
+  assert.match(added.at(-1), /^next: pullboard next$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
