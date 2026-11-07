@@ -8,3 +8,4 @@ export { submitHandoffWorkerEntrypoint, retryBusyHandoffWrite } from "./src/shel
 export { superviseSubmitHandoffWorker } from "./src/shell/submit-handoff-worker.js";
 export { INFRASTRUCTURE_CODES, healthyExecutor, infrastructureFailure, submitUntilSettled } from "./src/shell/submit-infra-requeue.js";
 export { usageCheckpointWorkerEntrypoint } from "./src/shell/usage-checkpoint-worker.js";
+export { produceAcceptedCells } from "./src/shell/main-audit-produce.js";
