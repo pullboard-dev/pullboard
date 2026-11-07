@@ -30,7 +30,7 @@ function openHandles(file) {
   return output.split('\n').filter(line => line === `n${file}`).length;
 }
 
-test('clause 2: 200 drain passes leave the open-handle count on the resources database flat and at most 3 [C7,#3338]', async () => {
+test('clause 1 and clause 2: 200 drain passes leave the open-handle count on the resources database flat and at most 3 [C7,#3338]', async () => {
   const box = fixture();
   try {
     await drainHandoffQueue({ capacity: 4, pollMs: 1 });
