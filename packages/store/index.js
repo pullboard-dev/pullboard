@@ -85,6 +85,7 @@ export { INFRASTRUCTURE_CODES, requireSubmitHandoffHookProof, submitHandoff, pen
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
+export { ITEM_STAGES, itemStage, stageCounts } from './src/core/item-stage.js';
 export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";

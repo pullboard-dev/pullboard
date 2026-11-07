@@ -6,6 +6,8 @@ import { board as store } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 
+const SYNTHETIC_MODEL = 'Synthetic fixture model';
+
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-session-bar' });
 
@@ -13,7 +15,7 @@ const freeze = () => ({ text: '{}', digest: 'synthetic-session-bar' });
 function fixture(t) {
   const board = fixtureBoard(t);
   const join = (id, parent) => store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`,
-    family: 'claude', parentDigest: parent.repeat(64), sessionDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+    family: 'claude', parentDigest: parent.repeat(64), sessionDigest: parent.repeat(64), model: SYNTHETIC_MODEL });
   join('coordinator', 'e');
   join('core-1', 'a');
   join('core-2', 'a');
