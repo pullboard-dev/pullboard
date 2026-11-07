@@ -1567,6 +1567,11 @@
       "owner": "state"
     },
     {
+      "path": "src/ownership-wait-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1694,6 +1699,22 @@
     },
     {
       "path": "src/shadow-tier1-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-slot-services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/244.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/item-patch-auto-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/drive-worker.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

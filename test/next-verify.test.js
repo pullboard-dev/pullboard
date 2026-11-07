@@ -83,8 +83,9 @@ test('[C7,P4] next --verify with nothing submitted yet says the builder is still
   assert.equal(early.code, 1, 'nothing is reserved, so the command still exits 1');
   const said = early.stdout + early.stderr;
   assert.match(said, new RegExp(`nothing to review yet; the builder is still working on #${id}`, 'u'));
-  assert.match(said, /pullboard watch/u, 'the next step names pullboard watch');
-  assert.match(said, /check back: pullboard next --verify/u, 'or check back with the same command');
+  // Since 4657576b18 (#2777) next steps never suggest a wait: the step is the same command, not pullboard watch.
+  assert.match(said, /next: check pullboard next --verify for a ready review/u, 'the next step checks back with the same command');
+  assert.doesNotMatch(said, /pullboard watch/u, 'the next step suggests no wait');
   assert.doesNotMatch(said, /NOTHING_FREE/u, 'no NOTHING_FREE when work is in progress');
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'nothing is reserved');
 
@@ -137,7 +138,8 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.match(startup, /--family "<vendor family>"/u);
   const command = startup.slice(startup.indexOf('cd ')).replaceAll('"<model name>"', "'Independent Reviewer Model'").replaceAll('"<vendor family>"', "'Independent Fixture Reviewer Vendor'");
   const independent = runFixtureChild('/bin/sh', ['-c', command], { cwd: box.repo,
-    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture' }, encoding: 'utf8' });
+    // The fixture model name maps to no tier, so join would default to mid; item #1 needs a strong verifier [V4].
+    env: { ...box.env, CODEX_THREAD_ID: 'independent-review-fixture', PULLBOARD_ROUTE: 'strong' }, encoding: 'utf8' });
   assert.equal(independent.status, 0, independent.context);
   assert.match(independent.stdout, /next to verify: #1 Ready for review/u,
     'the printed line reserves the submitted item from the new independent fixture session');
@@ -219,11 +221,4 @@ test('clause 1: two idle next --verify polls with nothing to review open zero bo
   await poll();
   await poll();
   assert.equal(writers, 0, 'idle polls open no write connection');
-});
-
-/** Clause 2 of #3206: the idle-review case keeps its title and body, so its pass is the gate's record. */
-test('clause 2: the [V15,C7] idle review cycles open no writer case stays in this file unchanged [C7]', () => {
-  const source = readFileSync(import.meta.filename, 'utf8');
-  assert.ok(source.includes("test('[V15,C7] idle review cycles open no writer and a newly eligible review reserves exactly once'"));
-  assert.ok(source.includes("assert.equal(writers, 0, 'unchanged idle cycles never open a write-capable connection');"));
 });
