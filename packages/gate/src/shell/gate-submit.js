@@ -232,17 +232,17 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     /**
      * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's
      * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
-     * carry no proof context, so the gate's lease writes the only receipt.
+     * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
+     * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
      */
     const proveShards = async (execution, filesCommand) => {
       const runners = execution.gateLease.executionServices.runners;
       const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
-      let shard = 0;
-      const runOther = files => {
-        const profileFile = `${proofLog}.shard-${shard += 1}.profile.json`;
-        return withGateSlot(root, shardLease => runProfiledShellAsync(root, filesCommand(files), { gateLease: shardLease, profileFile, stages: true, signal }),
-          { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
-      };
+      const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
+        runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
+        metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
+      const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
+        { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
       const shards = await runProofShards(proofFiles, { freeSlots: (planners.freeSlots ?? freeRunnerSlots)(), times: readFileTimes(root), root, runFirst, runOther });
       return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
     };
