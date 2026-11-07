@@ -801,7 +801,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false, allowWhenHeld = null } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -810,7 +810,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
     return update(db, () => {
       const resourceName = runnerResourceName(host);
       const held = db.prepare('SELECT COUNT(*) AS count FROM holder WHERE name = ?').get(resourceName).count;
-      if (held && !drain && !observation) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
+      if (held && !drain && !observation && !(typeof allowWhenHeld === 'function' && allowWhenHeld())) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist({ held });
@@ -1126,7 +1126,7 @@ export async function takeResource(options) {
         const browserResource = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get();
         if (browserResource && browserResource.capacity !== browserCapacity) {
           const state = snapshot(db, 'browser');
-          if (!allowIdleCapacityUpdate || state.holders.length || state.line.length) {
+          if (!(allowCapacityGrowth && browserCapacity > browserResource.capacity) && (!allowIdleCapacityUpdate || state.holders.length || state.line.length)) {
             throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "browser" already has capacity ${browserResource.capacity}`);
           }
           db.prepare("UPDATE resource SET capacity = ? WHERE name = 'browser'").run(browserCapacity);
