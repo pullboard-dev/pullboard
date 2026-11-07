@@ -201,3 +201,22 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   assert.equal(reservations.length, 1, 'atomic reselection lets exactly one competing reviewer reserve');
   assert.ok(store.getItem(box.board, id).item_review_by);
 });
+
+/** Clause 1 of #3206: two idle next --verify polls open zero write-capable board connections. */
+test('clause 1: two idle next --verify polls with nothing to review open zero board write connections [V15,C7]', async t => {
+  const box = await project(t);
+  claimed(box);
+  await run(box, box.reviewer, ['next', '--verify']);
+  let writers = 0;
+  /** Count write-capable native connections while every production guard stays active. */
+  const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
+    writers++;
+    return native.openBoard(...args);
+  } });
+  /** Poll through the actual native CLI. */
+  const poll = () => main(['next', '--verify'], { cwd: box.reviewer, clock: box.clock, loadNativeBoard,
+    stdout: { isTTY: false, write() {} }, stderr: { write() {} } });
+  await poll();
+  await poll();
+  assert.equal(writers, 0, 'idle polls open no write connection');
+});
