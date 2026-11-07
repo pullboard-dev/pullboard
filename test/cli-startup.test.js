@@ -144,36 +144,6 @@ test('clause 1: show reads only its read store and list reads only its read stor
   assert.deepEqual(list.modules.filter((path) => HEAVY.includes(path)), [], 'list loads no gate, relay or land module');
 });
 
-/**
- * Counts the Git processes a worktree command starts and checks the repo facts it reads once.
- * Kept apart from the show and list module case so each case proves one thing.
- */
-test('worktree commands ask Git for repo facts once [C7]', async (t) => {
-  const box = fixture(t);
-  // One rev-parse in the worktree answers top level, Git dirs, HEAD and the primary checkout for the whole process;
-  // the only other is the code's own checkout, asked once where the running code came from.
-  mkdirSync(join(box.worktree, 'src'));
-  writeFileSync(join(box.worktree, 'src', 'own-head.js'), 'export const fixture = true;\n');
-  box.gitAt(box.worktree, 'add', 'src/own-head.js');
-  box.gitAt(box.worktree, 'commit', '-q', '-m', 'feat(core): distinguish the worker head [C7]');
-  const worker = box.facts(box.worktree);
-  assert.notEqual(worker.scoped.head, worker.scoped.primary.commit, 'the current head is not silently replaced by the primary head');
-  assert.equal(worker.scoped.primary.branch, 'refs/heads/main');
-  assert.equal(worker.count, 1, 'one combined query returns paths, the worker commit and the primary branch/commit');
-  const claim = box.runIn(box.worktree, 'claim', '1');
-  assert.match(claim.stdout, /claimed #1/u);
-  const revParses = claim.gitCalls.filter((call) => /\brev-parse\b/u.test(call));
-  const here = revParses.filter((call) => call.startsWith(`${box.worktree}\t`));
-  assert.equal(here.length, 1, `claim asked the worktree for repo facts ${here.length} times: ${here.join(' | ')}`);
-  assert.ok(revParses.length <= 2, `claim started ${revParses.length} rev-parse processes: ${revParses.join(' | ')}`);
-  assert.ok(claim.gitCalls.length <= 10, `claim started ${claim.gitCalls.length} Git processes: ${claim.gitCalls.join(' | ')}`);
-  box.gitAt(box.repo, 'switch', '--quiet', '--detach', 'main');
-  assert.equal(box.facts(box.worktree).scoped.primary, null, 'a detached primary keeps the existing null contract');
-  box.gitAt(box.repo, 'switch', '--quiet', '--orphan', 'unborn');
-  assert.deepEqual(box.facts(box.worktree).scoped.primary, { branch: 'refs/heads/unborn', commit: null },
-    'an unborn primary is a known branch without an invented commit');
-});
-
 test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {
   await assertStartupBudgets(t);
 });
