@@ -139,7 +139,9 @@ async function apiNeeds(api, root) {
   return { needs: state.needs.filter(row => row.kind === 'block'), blocks: state.blocks };
 }
 
-test('a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', async (t) => {
+test('a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', {
+  timeout: 240_000, // budget: about 60 real CLI subprocess spawns on a loaded runner (89 s green, 174 s red at load 19), never a hang allowance.
+}, async (t) => {
   const box = e2e.project();
 
   // A person-only move from an agent's terminal: the person, not the agent, can clear it.
