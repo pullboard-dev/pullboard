@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Observe only this private CLI fixture's durable job and item state. */
 function state(box) {
@@ -54,7 +55,7 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
   box.git(box.repo, 'commit', '--allow-empty', '-qm', 'chore: captured accepted main [G1]');
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Main move candidate', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Main move candidate', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
