@@ -32,7 +32,7 @@ test('a named-file import check meets its declared ten-second budget [C7,V4]', {
   assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
 });
 
-test('the real runner prints phases on successful and refused named runs [C7,V4]', () => {
+test('clause 2: every named run prints one per-phase timing line, successful or refused [C7,V4]', () => {
   const box = fixture();
   for (const [extra, status] of [[[], 0], [['--test-name-pattern=no-such-case'], 1]]) {
     const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', ...extra, 'web/plain.test.js'], {
@@ -43,6 +43,16 @@ test('the real runner prints phases on successful and refused named runs [C7,V4]
     assert.equal(lines.length, 1, 'each actual controller prints once');
     assert.match(lines[0], /selection [\d.]+s, admission [\d.]+s, tests [\d.]+s, cleanup [\d.]+s, total [\d.]+s/u);
   }
+});
+
+/** The package front doors bin/run-tests.js imports statically; #3056 trimmed the closure to this set and main holds it. */
+const MAIN_STATIC_FRONT_DOORS = ['../packages/git/index.js'];
+
+test('clause 3: bin/run-tests.js adds no static front-door import that main lacks [C7,V4]', () => {
+  const source = readFileSync(RUNNER, 'utf8');
+  const doors = [...source.matchAll(/^import\s[^;]*?\sfrom\s+['"]([^'"]+\/index\.js)['"]/gmu)].map(match => match[1]).sort();
+  assert.deepEqual(doors, MAIN_STATIC_FRONT_DOORS, 'a static package front door pulls its whole barrel into every run-tests start');
+  assert.doesNotMatch(source, /^import\s[^;]*?from\s+['"]\.\.\/packages\/gate\/index\.js['"]/mu, 'the gate front door stays a dynamic import');
 });
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
