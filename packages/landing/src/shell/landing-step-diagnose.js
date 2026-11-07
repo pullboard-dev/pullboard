@@ -15,6 +15,7 @@ import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { itemRefusalText } from '../core/item-refusal.js';
+import { entriesTouching } from './landing-static-checks.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -24,7 +25,12 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
 import { compareMainFailures } from './main-red.js';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
+import { carriedMainOutcome } from './main-red.js';
+import { changedFiles } from './landing-known-main.js';
+import { repeatedBlockedCause } from '../core/runner-source-hold.js';
+import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
+import { repeatedLandingNotice } from '../core/runner-source-hold.js';
 
 /** Require a green base for every failing file before attributing a red to an item. */
 export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
@@ -43,7 +49,7 @@ export async function landingBaseGreen(state, failures, compare = compareMainFai
  * present, so an unreadable base still goes through the base comparison [C7,#2947].
  */
 function fileOnBase(state, file) {
-  const git = args => spawnSync('git', ['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
+  const git = args => gitSpawnSync(['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
   if (!git(['cat-file', '-e', `${state.batch.base}^{commit}`])) return true;
   return git(['cat-file', '-e', `${state.batch.base}:${file}`]);
 }
@@ -51,9 +57,10 @@ function fileOnBase(state, file) {
 /**
  * Split named failures into those base main fails in the same file and test name, and the batch's own; null when main
  * cannot be compared for every file [C7,#2941]. Why: a red that main already has is not the batch's doing, and holding
- * the whole batch for it kept every landing waiting on reds no batch item caused.
+ * the whole batch for it kept every landing waiting on reds no batch item caused. A file no batch item changed keeps main's
+ * newest cached outcome, so it is never re-measured on a runner; each measured comparison logs its start and its duration [C7,#3268].
  */
-export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file)) {
+export async function splitBaseRed(state, failures, compare = compareMainFailures, onBase = (file) => fileOnBase(state, file), carry = (file) => carriedMainOutcome(state.batch.root, file)) {
   if (!failures.length || failures.some(failure => !failure.file)) return null;
   // A failing file that base main does not have is the batch's own new test, so it splits the batch [C7,#2947].
   const absent = failures.filter(failure => !onBase(failure.file));
@@ -65,28 +72,36 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
   const rows = new Map();
   // The files compare at once, each as a landing-class run: one after another as plain diagnostics, three red files
   // cost this split 25 minutes on 6 Nov while runner slots sat free [C7].
+  const changed = changedFiles(state);
   await Promise.all(files.map(async file => {
     let result;
+    const started = Date.now();
     try {
       // The known-main step already compared this file on the same base: reuse its answer instead of a second run.
       const kept = state.mainComparisons?.get(file);
+      // A file the batch did not change keeps main's newest cached outcome: re-measuring it cost 11 and 6 minutes on 6 Nov [C7,#3268].
+      const carried = !kept && changed && !changed.has(file) ? carry(file) : null;
       result = kept && (kept.carried || kept.main === state.batch.base) ? kept
-        : await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
-          { commit: state.batch.base, detailed: true, allowCancelled: true, runnerAdmission: { landing: true } });
+        : carried ?? await compare(state.batch.root, { tests: [{ file, passed: false }] }, state.onWait, '',
+          { commit: state.batch.base, detailed: true, allowCancelled: true, runnerAdmission: { landing: true },
+          onStart: ({ runner }) => state.say?.(`base split: comparing ${file} on main ${state.batch.base.slice(0, 12)} started${runner ? ` on runner ${runner}` : ''}`) });
     } catch (error) { state.say?.(`base split: ${file} could not be compared on main: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return; }
+    const runner = result?.runner ?? result?.files?.find(entry => entry.file === file)?.runner;
     const row = (result?.carried || result?.main === state.batch.base) && !result.unavailable ? result.files?.find(entry => entry.file === file) : null;
     // Every outcome is named, so a held batch says why its base comparison gave nothing usable [C7].
-    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+    state.say?.(`base split: ${file} on main ${result?.main?.slice(0, 12) ?? 'unknown'}: ${result?.unavailable ? `unavailable (${result.unavailable})` : row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}${runner ? ` on runner ${runner}` : ''} (${Date.now() - started} ms)`);
     if (row) rows.set(file, row);
   }));
   if (!rows.size) return null;
-  const known = [], own = [...absent];
+  const known = [], own = [...absent], unattributed = [];
   for (const failure of present) {
     const row = rows.get(failure.file);
     // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    // It is also listed apart: a lone item is charged only for reds main passes, never for these [C7,#3346].
+    if (row?.result === 'red' && !(row.failures ?? []).length) unattributed.push(failure);
     (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
-  return { known, own };
+  return { known, own, unattributed };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
@@ -140,7 +155,8 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   failures = unwaivedFailures(state.board, failures, state.landingPorts);
   // Cases base main already fails the same way are set aside; only the batch's own reds split it [C7,#2941].
   const split = await splitBaseRed(state, failures, compare);
-  if (!split) {
+  // A lone item is never charged for a file main fails without naming a case: nothing shows the red is the item's [C7,#3346].
+  if (!split || (items.length === 1 && split.unattributed?.length)) {
     await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
       message: 'a failing file could not be compared on base main', at: state.board.clock.now().toISOString() } });
     state.flaky = true;
@@ -188,7 +204,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
  * accepted work that was never at fault [C7,#2967].
  */
 export function ownFailures(state, entry, failures) {
-  const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+  const changed = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
   if (changed.status !== 0) return [];
   const files = new Set(changed.stdout.split('\0').filter(Boolean));
   const check = store.getItem(state.board, entry.id)?.item_check ?? '';
@@ -224,7 +240,24 @@ async function recordCulprit(state, item, failures) {
   if (!state.culprits.some((entry) => entry.id === item.id)) state.culprits.push({ id: item.id, commit: item.commit, ...(item.reviewedCommit ? { reviewedCommit: item.reviewedCommit } : {}), mergeCommit, tests: failures });
   await save(state, { culprits: state.culprits });
   await returnCulprits(state);
+  await parkRepeatedItem(state, item);
   state.say(`culprit #${item.id}: ${failures.map((failure) => failure.name).join(', ')}`);
+}
+
+/** Hold an item after two blocked batches repeat its exact failing case, then notify the line once. */
+export async function parkRepeatedItem(state, item) {
+  const current = store.getItem(state.board, item.id);
+  if (!current || current.item_hold_at || current.item_merged_commit) return false;
+  const batches = store.landingBatches(state.board).map(batch => batch.id === state.batch.id ? { ...batch, state: 'blocked' } : batch);
+  const cause = repeatedBlockedCause(batches, { item_id: item.id, item_commit: item.commit });
+  if (!cause) return false;
+  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ kind: cause.kind, key: cause.key, base: cause.base, commit: cause.commit,
+    ...(cause.kind === 'refusal' && state.batch.root ? { root: state.batch.root } : {}) })} ${cause.detail}`;
+  await state.write('holdItem', [item.id, { agentId: 'coordinator', reason }]);
+  const text = repeatedLandingNotice(item.id, cause);
+  await state.write('shout', [{ from: 'coordinator', to: 'all', text, lanes: [] }]);
+  state.say(text);
+  return true;
 }
 
 /** The failures a red gate names, or one line naming its exit and log when the project's runner names none [C7,#2901]. */
@@ -263,12 +296,25 @@ export function itemRefusal(error) {
  */
 export async function returnRefusedItem(state, error) {
   if (!itemRefusal(error)) return false;
-  const entry = (state.batch.items?.length ? state.batch.items : state.batch.candidates ?? [])[0];
-  const item = entry && store.getItem(state.board, entry.id);
-  if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) return false;
-  // The refusal is recorded as the item's culprit case, so the existing culprit return carries it with its evidence.
-  await recordCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
-  return store.getItem(state.board, entry.id).item_status !== 'verified';
+  const entries = state.batch.items?.length ? state.batch.items : state.batch.candidates ?? [];
+  // In a batch of several, only a parse failure names its files, so only the items that changed them are charged;
+  // every other accepted verdict stays and the next landing proceeds without them [C7].
+  const charged = entries.length === 1 ? entries : parseImplicated(state, entries, error);
+  let returned = false;
+  for (const entry of charged) {
+    const item = store.getItem(state.board, entry.id);
+    if (!item || item.item_status !== 'verified' || item.item_merged_commit || item.item_commit !== entry.commit) continue;
+    // The refusal is recorded as the item's culprit case, so the existing culprit return carries it with its evidence.
+    await recordCulprit(state, entry, [{ file: 'landing', name: error.code, assertion: error.message }]);
+    if (store.getItem(state.board, entry.id).item_status !== 'verified') returned = true;
+  }
+  return returned;
+}
+
+/** The batch entries whose own change touches a file a LAND_MODULE_PARSE or LAND_STATIC_RED refusal named; none for any other refusal. */
+function parseImplicated(state, entries, error) {
+  const files = error.code === 'LAND_MODULE_PARSE' ? error.broken : error.code === 'LAND_STATIC_RED' ? error.files : null;
+  return files?.length ? entriesTouching(state.batch.root, state.batch.base, entries, files) : [];
 }
 
 /** Return recorded red candidates once, including a saved failure interrupted before its move. */

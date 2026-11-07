@@ -12,6 +12,8 @@ import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
@@ -72,11 +74,11 @@ function gateRepo(box, gate) {
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
-  const added = box.run(repo, 'add', 'work', 'Work');
+  const added = fixtureAdd(box.run, repo, 'work', 'Work');
   assert.equal(added.status, 0, added.stderr || added.stdout);
   const lane = join(box.dir, 'work-1');
   box.git(repo, 'worktree', 'add', '-q', lane, '-b', 'work/one');
-  assert.match(box.run(lane, 'join', 'work').stdout, /joined as work-1/);
+  assert.match(fixtureJoin(box.run, lane, 'work').stdout, /joined as work-1/);
   const claimed = box.run(lane, 'claim', '1');
   assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
   return { repo, ...box };
@@ -95,7 +97,7 @@ function project(box = sandbox()) {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up profile project');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').stdout, /joined as web-1/);
+  assert.match(fixtureJoin(box.run, web, 'web').stdout, /joined as web-1/);
   return { ...box, repo, web };
 }
 
@@ -250,7 +252,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.repo, 'add', '.timed');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
   assert.equal(box.run(box.web, 'claim', '1').status, 0);
   mkdirSync(join(box.web, 'web'));
@@ -284,7 +286,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
-  assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
+  assert.match(fixtureJoin(box.run, review, 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
   assert.match(accepted.stdout, /submit proof not reused:/u, 'main advancement creates a new accepted composition and executes its check');
@@ -310,7 +312,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.env.CODEX_THREAD_ID = 'profile-builder-session';
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
 
-  const shellAdded = box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true');
+  const shellAdded = fixtureAdd(box.run, box.repo, 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true');
   assert.equal(shellAdded.status, 0, shellAdded.stderr || shellAdded.stdout);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
   const shellCheck = box.run(box.web, 'check', '2', '--yes');
@@ -339,7 +341,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   }
   const shellReviewer = join(box.dir, 'shell-timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', shellReviewer, shellCommit);
-  assert.match(box.run(shellReviewer, 'join', 'api').stdout, /joined as api/);
+  assert.match(fixtureJoin(box.run, shellReviewer, 'api').stdout, /joined as api/);
   const shellAccepted = box.run(shellReviewer, 'verify', '2', 'accept', '--note', 'reuse the authentic submit profile');
   assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
   assert.match(shellAccepted.stdout, /reused submit proof/u);
@@ -562,7 +564,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
     box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-    const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
+    const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
     assert.equal(box.run(box.web, 'claim', '1').status, 0);

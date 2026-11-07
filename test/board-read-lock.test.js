@@ -16,6 +16,7 @@ import { withBoardRead } from '../apps/cli/index.js';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, startFixtureChild as spawn } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -165,7 +166,7 @@ async function medians(box, argv) {
 test('a read answers while a writer holds the lock [C7]', async (t) => {
   const box = e2e.project();
   box.release = released(box);
-  assert.equal(box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders').code, 0);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   seed(file);
   for (const argv of READS) {

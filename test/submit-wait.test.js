@@ -19,6 +19,7 @@ import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const waitPorts = { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem };
 const helpers = createE2eHelpers();
@@ -34,7 +35,8 @@ function onBoard(box, action, clock) {
 /** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1',
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
+    '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/wait.txt', 'submitted work\n', 'feat(web): await verdict [G1]').status, 0);
@@ -43,13 +45,16 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     await child.closed;
   });
-  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'),
-    'a public submission or its actionable refusal');
+  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'), 'a public submission or its actionable refusal', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
   assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
-  await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict');
+  await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
   await child.closed;
   assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
   assert.equal(onBoard(box, board => store.verdictsFor(board, 1).length), 0, 'gate completion requires no review');
+  // A green submit starts a detached review comparison that records two facts (pending, then its result) on its own clock;
+  // a verdict or health scan made before the second would be raced by it and read as a board change mid-scan.
+  await helpers.waitFor(() => onBoard(box, board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n >= 2),
+    'the background review comparison to record its result');
   const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
   if (builderHeartbeatOffsetMs) {
     onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by),
@@ -119,21 +124,22 @@ test('done --wait preserves gate JSON independently of the later accepted verdic
 });
 
 /** A withdrawn acceptance must never turn an old attached submission into a successful result. */
-test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
+test('clause 1: a withdrawn verdict does not finish a submission wait successfully [V2,V6]', async t => {
   const box = await waitingVerdict(t, 'ACCEPT');
   const { item_id: id, item_commit: commit } = onBoard(box, board => store.getItem(board, 1));
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
-  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: () => {}, err: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt, waitPorts),
     error => error.code === 'SUBMISSION_CHANGED');
 });
 
 /** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
-test('a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
+test('clause 1: a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1',
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
+    '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/retry.txt', 'same source\n', 'feat(web): pin the attempt [G1]').status, 0);
@@ -152,7 +158,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any', clause: 'The fixture check passes.',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
-  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: () => {}, err: () => {} };
   let superseded;
   const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt, waitPorts)
     .catch(error => { superseded = error; });
@@ -262,7 +268,7 @@ test('a reclaimed reject refuses both stale and retargeted health observations [
 });
 
 /** The existing public coordinator scan, rather than a direct test-only move, performs the handback. */
-test('the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
+test('clause 1: the public coordinator health scan returns an inactive reject to the queue [B13,A6]', async t => {
   const box = await waitingVerdict(t, 'REJECT', { builderHeartbeatOffsetMs: -31 * 60_000 });
   assert.ok(onBoard(box, board => firstRefusal(board, 1)), 'the original reservation is still live');
   const ran = box.run(box.repo, 'sentinel', 'run', '--health-only', '--json');

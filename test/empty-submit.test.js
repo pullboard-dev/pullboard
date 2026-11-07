@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** A claimed item whose commits sit in a sibling folder while the claiming checkout is back at main. */
 function staleSeat(t, helpers) {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'empty submit', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'empty submit', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', 'test -f web/feature.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
