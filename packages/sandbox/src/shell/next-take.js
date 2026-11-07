@@ -26,6 +26,7 @@ import {
 import {
   Refused,
 } from '../../../kernel/index.js';
+import { COORDINATOR } from '../../../config/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
 function selected(ctx, board, values, services) {
@@ -69,10 +70,28 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
   });
 }
 
+/**
+ * Close open Main red items whose test the newest recorded main run shows passing, so no builder claims them. The closing
+ * goes through the ordinary withdraw move as the coordinator and cites the recorded run; it adds no test run.
+ */
+async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
+  if (!passingMainRedItems) return;
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  if (!passing.length) return;
+  await withBoard(ctx, async board => {
+    const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));
+    for (const row of passing.filter(entry => open.has(entry.item))) {
+      await ordered(ctx, board, 'withdraw', [row.item, { agentId: COORDINATOR,
+        reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); closed without a builder` }]);
+    }
+  });
+}
+
 /** Take one eligible review or build through existing ordered guards, without routing to another seat. */
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
+  await closePassingMainReds(ctx, services);
   const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
   values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   // Select once, on the read snapshot; the write runs only the chosen item's own guards (#2978).
