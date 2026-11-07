@@ -38,8 +38,12 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   store.claim(box.board, id, { agentId: box.seats.builder.id, lane: 'web', leaseMs,
     freeze: item => ({ text: item.item_title, digest: 'lease-lapse-fixture' }) });
   box.advance(62 * MINUTE);
-  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them.
-  for (const holder of prefixHolders) heartbeatSeat(box.board, holder);
+  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them. Each
+  // also records fresh work on its claim: a heartbeat alone no longer keeps a claim 40 minutes past its lease (#3446).
+  prefixHolders.forEach((holder, n) => {
+    heartbeatSeat(box.board, holder);
+    store.appendFact(box.board, unknownIds[n], { agentId: holder, kind: 'note', text: 'Prefix holder still working.' });
+  });
   return { box, id, unknownIds };
 }
 
