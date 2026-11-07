@@ -1680,6 +1680,10 @@
     {
       "path": "src/move-history/241.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
