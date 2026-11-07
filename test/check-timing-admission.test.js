@@ -25,6 +25,7 @@ for (const timing of [true, false]) {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
     const box = helpers.project('true');
+    box.env.CODEX_THREAD_ID = 'timing-builder-session';
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
@@ -51,6 +52,11 @@ for (const timing of [true, false]) {
     assert.equal(submitReceipt.occupiedSlots, timing ? 2 : 1);
     assert.deepEqual(submitReceipt.unfencedClients, []);
     const head = box.git(box.web, 'rev-parse', 'HEAD');
+    // A moved main makes the submit proof unreusable, so verification runs the frozen check and writes its own review receipt.
+    writeFileSync(join(box.repo, 'main-moved.txt'), 'main moved\n');
+    box.git(box.repo, 'add', 'main-moved.txt');
+    box.git(box.repo, 'commit', '-q', '-m', 'test: move main after submit');
+    box.env.CODEX_THREAD_ID = 'timing-reviewer-session';
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
     document(box.run(reviewer, 'join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong', '--json'));
