@@ -31,6 +31,7 @@ import { machineHome } from '../../../../packages/resources/index.js';
 import { readyItems } from '../../../../src/queue-readiness.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
+import { modelTierRoute } from './model-tier-route.js';
 
 const HOUR = 3_600_000;
 
@@ -214,9 +215,14 @@ export async function scaleWorkers(io, values, deps) {
   const lane = values.lane;
   if (values.route !== undefined && !store.ROUTES.includes(values.route)) throw new Refused('BAD_ROUTE', 'choose --route light, mid or strong before launching workers');
   const command = String(values.agent ?? '').trim();
-  if (!lane || !command || !values.model) {
-    throw new Refused('USAGE', 'pullboard run --scale --lane <lane> --model "<model name>" --agent "<command>": the command starts one agent session in the worker worktree ($PULLBOARD_PROMPT) that takes work with pullboard next --take');
+  if (!lane || !command) {
+    throw new Refused('USAGE', 'pullboard run --scale --lane <lane> --agent "<command>": the command starts one agent session in the worker worktree ($PULLBOARD_PROMPT) that takes work with pullboard next --take');
   }
+  const model = String(process.env.PULLBOARD_MODEL ?? '').trim();
+  if (!model || /[\u0000-\u001f\u007f-\u009f]/u.test(model)) {
+    throw new Refused('MODEL_REQUIRED', 'this session has not declared its model; set PULLBOARD_MODEL in this shell, then rerun pullboard run --scale');
+  }
+  const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
   const every = Number(values.every ?? '60');
   const cycles = values.cycles === undefined ? Infinity : Number(values.cycles);
   if (!Number.isInteger(every) || every < 5 || every > 3600) throw new Refused('USAGE', '--every is whole seconds from 5 to 3600');
@@ -232,7 +238,8 @@ export async function scaleWorkers(io, values, deps) {
   const quiet = sink => ({ ...io, say() {}, err: message => io.err?.(message), result: value => { sink.value = value; } });
   const ports = {
     observe: () => deps.withBoard(ctx, board => {
-      const observed = observeWorkers(board, { lane, managed: [...running.keys()], inactive: parked.map(seat => seat.id), route: values.route ?? 'strong', now: now() });
+      const args = { lane, managed: [...running.keys()], inactive: parked.map(seat => seat.id), route, now: now() };
+      const observed = deps.observe ? deps.observe(board, args) : observeWorkers(board, args);
       const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id));
       return { ...observed, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
     }),
@@ -247,7 +254,7 @@ export async function scaleWorkers(io, values, deps) {
       if (seat && retired.has(seat.id)) {
         const old = seat;
         const made = {};
-        try { await deps.worktreeFor(quiet(made), lane, values.route ?? 'strong', values.family ?? null, values.model, true, { reuseRoot: old.path }); }
+        try { await deps.worktreeFor(quiet(made), lane, route, values.family ?? null, model, true, { reuseRoot: old.path }); }
         catch (error) { parked.unshift(old); throw error; }
         owned.delete(old.id);
         retired.delete(old.id);
@@ -256,15 +263,14 @@ export async function scaleWorkers(io, values, deps) {
       if (!seat) {
         if (owned.size >= (ports.target ?? 0) + 2) throw new Refused('WORKER_WORKTREE_LIMIT', 'the worker worktree pool is full; finish or preserve its parked work before launching another seat');
         const made = {};
-        await deps.worktreeFor(quiet(made), lane, values.route ?? 'strong', values.family ?? null, values.model);
+        await deps.worktreeFor(quiet(made), lane, route, values.family ?? null, model);
         seat = { id: made.value.agent, path: made.value.path, prompt: made.value.prompt };
       }
       if (typeof seat.id !== 'string' || !seat.id || typeof seat.path !== 'string') throw new Refused('WORKER_SEAT_IDENTITY', 'worktree creation must return its registered seat id and path before an agent can launch');
       owned.set(seat.id, seat);
       const entry = { child: null, seat };
       running.set(seat.id, entry);
-      const route = values.route ?? 'strong';
-      const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: route, PULLBOARD_MODEL: values.model,
+      const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: route, PULLBOARD_MODEL: model,
         PULLBOARD_PROMPT: `${seat.prompt}\nThis seat is already joined on --route ${route}; keep that route on any join. Take work with pullboard next --take until it has nothing for you, then stop.` };
       /** Reap exactly this launch once; an old child can never remove a newer incarnation of its seat. */
       const finished = error => {
