@@ -61,7 +61,9 @@ export function registerMaintenanceCliTests() {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
     const joined = joinFixtureSeat(box, owner, 'web');
     assert.equal(joined.code, 0, joined.err);
-    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive' }).item_id;
+    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive', diagnose: false,
+      criterion: 'The fixture can release its own work.', args: ['--specs', 'G1'],
+      brief: 'Files:\n- web/page.js\nChange:\n- Exercise private release.\nTest:\n- Native release retains archive evidence.' }).item_id;
     const claimed = box.run(owner, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
