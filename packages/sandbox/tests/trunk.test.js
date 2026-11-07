@@ -32,8 +32,6 @@ import {
 import { fixtureAdd } from '../../../test/testkit-fixture.js';
 import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
-/** A known strong model, so a joined seat may claim and verify merge work [C7]. */
-const STRONG_MODEL = 'claude-opus-5-5';
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
 const SPEC = '# Trunk fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
@@ -67,18 +65,13 @@ function sandbox() {
     GIT_COMMITTER_EMAIL: 'trunk@example.invalid',
     PATH: `${bin}:${process.env.PATH}`,
   });
-  /** The environment for one checkout: coordinator, builder and reviewer checkouts are three agent sessions. */
-  function sessionEnv(cwd) {
-    const name = String(cwd).includes('merge-review') ? 'reviewer' : /\/(web-worktree|merge-web)/.test(String(cwd)) ? 'builder' : 'coordinator';
-    return { ...env, CODEX_THREAD_ID: `trunk-${name}-session` };
-  }
   /** Run isolated Git commands. */
   function git(cwd, ...args) {
-    return runFixtureGit(args, { cwd, env: sessionEnv(cwd) });
+    return runFixtureGit(args, { cwd, env });
   }
   /** Run a real Pullboard CLI process in the fixture environment. */
   function run(cwd, ...args) {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: sessionEnv(cwd), encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
   }
   return { dir, env, git, run };
@@ -129,7 +122,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const web = join(box.dir, 'web-worktree');
     box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/agent');
-    assert.equal(fixtureJoin(box.run, web, 'web', '--model', STRONG_MODEL).code, 0);
+    assert.equal(fixtureJoin(box.run, web, 'web').code, 0);
     writeFileSync(join(web, 'web', 'result.txt'), `resolved by web lane from ${branch}\n`);
     box.git(web, 'add', 'web/result.txt');
     box.git(web, 'commit', '-q', '-m', 'feat(web): update owned fixture [G1]');
@@ -172,10 +165,8 @@ test('[B34,P2] add --check reports an unavailable baseline for a detached coordi
 function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
-  // Claim opens the item folder from a branch named main, whatever the primary branch is called.
-  if (branch !== 'main') box.git(box.repo, 'branch', 'main');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture', '--model', STRONG_MODEL).code, 0);
+  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture').code, 0);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -188,12 +179,10 @@ function mergeCandidate(branch = 'trunk') {
 
 /** Capture the bytes and state a speculative merge must leave alone. */
 function checkoutState(box, cwd) {
-  // git status refreshes stat data in the index, so take it first and read the index bytes after it settles.
-  const status = box.git(cwd, 'status', '--porcelain');
   return {
     head: box.git(cwd, 'rev-parse', 'HEAD'),
     index: readFileSync(resolve(cwd, box.git(cwd, 'rev-parse', '--git-path', 'index'))).toString('base64'),
-    status,
+    status: box.git(cwd, 'status', '--porcelain'),
     staged: box.git(cwd, 'diff', '--cached', '--binary'),
     work: box.git(cwd, 'diff', '--binary'),
     result: readFileSync(join(cwd, 'web/result.txt'), 'utf8'),
@@ -212,27 +201,23 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture', '--model', STRONG_MODEL).code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture').code, 0);
   return review;
 }
 
-test('clause 1: [B34,V6,C7] clean divergent submit and accept preserve every checkout and index with joins that pass --model', () => {
+test('[B34,V6] clean divergent submit and accept preserve every checkout and index', () => {
   const box = mergeCandidate('master');
   advanceMergeTrunk(box, false);
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 0, submitted.err);
-  // Submit composes current main into the builder source: the builder's own checkout gains one clean merge commit, the coordinator's is untouched.
-  const afterSubmit = [checkoutState(box, box.repo), checkoutState(box, box.web)];
-  assert.deepEqual(afterSubmit[0], before[0]);
-  assert.deepEqual({ ...afterSubmit[1], head: null, index: null }, { ...before[1], head: null, index: null });
-  assert.equal(box.git(box.web, 'rev-list', '--parents', '-n', '1', 'HEAD').split(' ')[1], before[1].head, 'the merge keeps the builder commit as its first parent');
+  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
   const review = mergeReviewer(box);
   const reviewBefore = checkoutState(box, review);
   const accepted = box.run(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], afterSubmit);
+  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
 });
 
 test('[B34,V6] conflicting submit names files and refuses without changing any checkout or index', () => {
@@ -243,7 +228,7 @@ test('[B34,V6] conflicting submit names files and refuses without changing any c
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge main into your branch.*run the command again/);
+  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
   assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'claimed', 'refusal leaves the claim available for a resolved new commit');
