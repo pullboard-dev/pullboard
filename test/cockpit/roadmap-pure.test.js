@@ -75,7 +75,7 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(html, /Prepared header/u);
   assert.match(html, /Prepared progress/u);
   assert.match(html, /data-shipping-stage="landing"><dt><i class="roadmap-stage-swatch landing" aria-hidden="true"><\/i>Accepted, landing<\/dt><dd>1<\/dd>/u);
-  assert.doesNotMatch(html, /class="milestone-limit"/u, 'the prepared shared header replaces the extra total-and-limit line');
+  assert.match(html, /<span class="milestone-limit">2 items<\/span>/u, 'the prepared shared header keeps its plain item count and names the limit only near capacity (af24961f1f)');
   assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
   assert.match(html, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u);
   assert.match(html, /data-roadmap-key="shipped"[^>]*aria-expanded="false"/u, 'another board cannot unfold local history');
