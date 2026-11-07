@@ -30,6 +30,7 @@ import {
   specApprovalState,
 } from '../../../../../packages/spec/index.js';
 import {
+  retainedGateAssertions,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -64,13 +65,13 @@ export async function run(io, { first, values }) {
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
   const prices = loadMachineSettings().costPrices;
-  const { item, queuedSubmit, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
+  const { item, queuedSubmit, queuedJobId, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
-    const result = { item, queuedSubmit, progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
+    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
@@ -118,6 +119,10 @@ export async function run(io, { first, values }) {
   if (comparison) io.say(renderVerificationComparison(comparison));
   if (queuedSubmit) io.say(`queued gate: ${queuedSubmit.state} at ${queuedSubmit.executionCommit}${queuedSubmit.requeuedFor ? `; requeued on the same source after ${queuedSubmit.requeuedFor}` : ''}`);
   if (queuedSubmit?.error) io.say(`${queuedSubmit.error.code}: ${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
+  // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
+  if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
+    for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
+  }
   if (item.item_rehome_import) {
     const imported = item.item_rehome_import;
     io.say(`${imported.sourceStatus === 'verified' ? 'verified' : 'imported'} on ${imported.sourceHandle}, moved by ${agentName(imported.attestedBy)}; source verdicts are imported references, not reviews on this board`);
