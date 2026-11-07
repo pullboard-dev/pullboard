@@ -100,7 +100,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   return id;
 }
 
-test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and neither records a move', async (t) => {
+test('clause 1: [R1,R2,A1] stats JSON is versioned, text states the same proof numbers and neither records a move', async (t) => {
   const { root, board } = fixture(t);
   const before = store.events(board);
   const observationBefore = Date.now();
@@ -193,7 +193,7 @@ function addCatches(board) {
   store.logEvent(board, 'sentinel', 'health-failure', 1, { key: 'k1', cause: 'refusal:STUCK', subject: 'item 1', engine: 1 });
 }
 
-test('[N26,D1] stats names what the board caught', async (t) => {
+test('clause 2: [N26,D1] stats names what the board caught', async (t) => {
   const { root, board, builder, reviewer, setNow } = fixture(t);
   const repeatedId = addCorrectedRepeat(board, builder, reviewer, setNow);
   addCatches(board);
