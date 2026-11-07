@@ -131,6 +131,7 @@ test('moves stay local while the machine credential expires, then replay after s
   const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL);
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent joins before the credentials are revoked');
   await revokeCredential(box, state.agentTokens.coordinator.id);
+  markRevoked(box, state.agentTokens.coordinator.id); // the board knows this revocation, so the explicit token refuses at once (#2729)
   const before = (await box.cli('export')).document.tables;
   const mintsBeforeExplicit = box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length;
   const sendsBeforeExplicit = box.calls.filter(call => call.method === 'POST' && call.path.endsWith('/moves')).length;
