@@ -260,7 +260,7 @@ test('clause 1: the CLA workflow runs on pull requests and PR comments with only
   assert.match(CLA_WORKFLOW, /^name: CLA\n/u);
   assert.match(CLA_WORKFLOW, /\n {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]\n {2}issue_comment:\n {4}types: \[created\]\n/u);
   assert.match(CLA_WORKFLOW, /github\.event\.issue\.pull_request/u, 'comments on plain issues are skipped');
-  const used = [...CLA_WORKFLOW.matchAll(/uses: ([^\s]+)/gu)].map((m) => m[1].split('@')[0]);
+  const used = [...CLA_WORKFLOW.matchAll(/^\s*-\s+uses: ([^\s]+)/gmu)].map((m) => m[1].split('@')[0]);
   assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
   assert.match(CLA_WORKFLOW, /node bin\/check-cla\.js/u);
   assert.doesNotMatch(CLA_WORKFLOW, /pull_request_target/u);
