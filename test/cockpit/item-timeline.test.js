@@ -9,7 +9,7 @@ import { closeBoard, events, recordHealthFindings } from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
-test('the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
+test('clause 1: the native item timeline reads as sentences with clamped notes and working references at desktop and phone widths [N26,B23]', { timeout: 240_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen timeline journey requires real Chrome.');
   const box = machine(), demo = project(box, 'item-timeline');
