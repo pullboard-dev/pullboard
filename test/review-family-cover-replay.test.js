@@ -1,4 +1,4 @@
-/** Counterfactual replay drives actual registered wake executables through native review reservation [C7,#3076]. */
+/** @pullboard-world-pin reads the recorded Nov 3 trace shipped beside this test. Counterfactual replay drives actual registered wake executables through native review reservation [C7,#3076]. */
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,8 +15,8 @@ import { fixture } from './next-take-fixture.js';
 function replaySeat(box, name, family, { clockFile, wakeLog } = {}) {
   const path = join(box.root, '..', `replay-${name}`);
   box.git(box.root, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
-  const id = store.register(box.board, { lane: 'web', path, parent: `replay-parent-${name}`,
-    model: `${name} counterfactual fixture`, family, route: 'strong' });
+  const label = `${name} counterfactual fixture`;
+  const id = store.register(box.board, { lane: 'web', path, parent: `replay-parent-${name}`, model: label, family, route: 'strong' });
   if (clockFile) {
     const executable = join(box.root, '..', `replay-${name}-wake.mjs`);
     const mainUrl = new URL('./native-cli-fixture.js', import.meta.url).href;
