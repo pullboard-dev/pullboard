@@ -52,6 +52,23 @@ export function reclaimLapsed(db, { now = Date.now() } = {}) {
 }
 
 /**
+ * Give up a lease the driver holds, clearing its owner so the job reads as nobody's and is never listed as lapsed.
+ *
+ * Why: a driver that wrote a terminal step is done with the job; freeing the lease at once frees the worker instead of
+ * leaving a lease that lapses 2 minutes later and reads as a stalled job.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when this owner held the lease and it is now free.
+ */
+export function releaseLease(db, job, owner, { now = Date.now() } = {}) {
+  return db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND job_lease_owner = ?')
+    .run(now, job, owner).changes === 1;
+}
+
+/**
  * End a job the driver finished: mark it `done` and release the lease the driver holds, in one UPDATE.
  *
  * Why: a landing that wrote its publish step still held a lease that lapsed, so status and show read it as a stalled
