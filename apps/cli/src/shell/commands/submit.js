@@ -195,6 +195,7 @@ import {
   queuedItemLease,
   refuseUnsubmittableStack,
   reportSubmission,
+  refuseUnverifiedStack,
   resourceAgent,
   whoAmI,
   claimOrdered,
@@ -420,8 +421,14 @@ export async function submitHere(ctx, id, infra) {
   withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
   const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
   let mechanicalPaths = [];
-  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
-    onMechanicalPaths: paths => { mechanicalPaths = paths; } });
+  let ownershipRefusal = null;
+  try {
+    submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
+      onMechanicalPaths: paths => { mechanicalPaths = paths; } });
+  } catch (error) {
+    if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
+    ownershipRefusal = error;
+  }
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -819,6 +826,29 @@ export async function submitHere(ctx, id, infra) {
   if (requireComposition) await runMachineryGuard(root,
     () => requireSubmitComposition(root, submitted, currentTrunk, trunkMove ? trunkMove.to : acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
+  if (ownershipRefusal) {
+    // Routing cannot turn a known red, waiver, companion or advanced source into green evidence.
+    if (!gate.isGreen || waived || criterionMatched || proofMatched || knownMainFailures || unowned.length
+      || companion || submitted !== commit) throw ownershipRefusal;
+    const waiting = await withBoard(ctx, async board => {
+      refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
+      requireKernelApproval(board, { root, base: currentTrunk.commit, commit: submitted, item: id });
+      submitPreflight(board, id, { agentId: me.id, commit: submitted, tree: headTree(root),
+        ...(size ? { submissionSize: size } : {}), inspectClauses },
+      { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit },
+      { refuse: (observed, item) => refuseUnreviewable(observed, item,
+        { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) });
+      return ordered(ctx, board, 'deferOwnership', [id, { agentId: me.id, root, commit: submitted,
+        tree: headTree(root), main: acceptedMain.commit, receiptIds: [...new Set(submissionReceiptIds)] }]);
+    });
+    const result = { id, item: id, commit: waiting.commit, tree: waiting.tree,
+      waitingOwner: { key: waiting.key, owners: waiting.owners, paths: waiting.paths,
+        diff: waiting.diff, sourceRef: waiting.sourceRef } };
+    if (ctx.submissionResult) ctx.submissionResult.value = result;
+    ctx.io.result?.(result);
+    ctx.io.say(`#${id} waits on ${waiting.owners.join(', ')} for ${waiting.paths.join(', ')}; your claim is released`);
+    return 0;
+  }
   const machineAuthorization = await withBoardRead(ctx, board => machineVerificationEligible(board, held, filesSince(root, id, claimHead, submitted)));
   let machineReceiptIds;
   if (machineAuthorization) {
@@ -914,7 +944,7 @@ export async function submitHere(ctx, id, infra) {
     ...(gate.testTiers ? { testTiers: gate.testTiers, phasePlan: gate.phasePlan, proofReceiptIds: gate.proofReceiptIds } : {}),
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
-    ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
+    ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })), mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : {}),
     ...(ambiguous.length ? { knownMainAmbiguous: ambiguous } : {}),
     ...(unowned.length && !autoMainReds ? { knownMainUnowned: unowned.flatMap(red => red.names.map(name => ({ file: red.file, name }))) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
@@ -961,6 +991,6 @@ export async function run(io, { first, values }) {
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait || !submissionResult.queued) return code;
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
-    { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem });
+    { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/src/core/submission-size.js';
