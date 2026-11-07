@@ -380,10 +380,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/landing-worker.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/runner-controller.js",
       "reason": "bin/ stays in place during the move (dry run section 1)",
       "owner": "app:runner"
@@ -2118,10 +2114,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "bin/landing-worker.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/landing-candidate.js",
       "cell": "app:lib"
     },
@@ -2147,10 +2139,6 @@
     },
     {
       "path": "src/relay-sender-main.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "src/submit-handoff-worker.js",
       "cell": "app:lib"
     },
     {
