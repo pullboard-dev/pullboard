@@ -1695,6 +1695,10 @@
     {
       "path": "src/shadow-tier1-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-slot-services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

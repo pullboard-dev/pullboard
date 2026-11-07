@@ -228,6 +228,18 @@ function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
 }
 
 /**
+ * Whether a recovered verdict's note is the retried command's note.
+ * The sent note carries machine suffixes (check receipts, main moves, approvals), each starting on a new line,
+ * so a retry with the person's original note must match the recorded note with those suffixes.
+ * @param {string | undefined} recorded
+ * @param {string} given
+ * @returns {boolean}
+ */
+function sameVerdictNote(recorded, given) {
+  return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
+}
+
+/**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
  *
@@ -256,7 +268,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
-        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
+        sameVerdictNote(previous.note, textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
         previous.clause === (decision === 'REJECT' ? values.clause : undefined)) {
       if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
         const item = store.getItem(board, id);
