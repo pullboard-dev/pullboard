@@ -1,6 +1,7 @@
 /** Focus never hides finished, green-gated work from review, while builds stay inside the focus [C7, #2961]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import * as store from '../packages/store/index.js';
 import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
 
@@ -24,8 +25,7 @@ function focusedBoard(t) {
 /** Record a green gate at the item's submitted head, the way the submit queue does. */
 function green(board, id) {
   const head = store.getItem(board, id).item_commit;
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(`submit_handoff:${id}`, JSON.stringify({ commit: head, agentId: 'builder', state: 'green' }));
+  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: head, agentId: 'builder', state: 'green' });
 }
 
 test('with focus on and overflow off, next --verify still offers a green submission outside the focus [C7,#2961]', t => {

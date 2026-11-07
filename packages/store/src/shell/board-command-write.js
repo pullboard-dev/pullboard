@@ -65,7 +65,7 @@ export function writeBoardCommand(board, operation, args, actor, { prepareInWrit
         measureBoardWritePhase(board.db, 'handoff-guard', () => requireHandoffActive(board, actor, operation, current));
         measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, current));
         measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: current, engine: ENGINE_VERSION }));
-        return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...current));
+        return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...current), operation);
       });
     } catch (error) {
       rollbackPrepared?.();

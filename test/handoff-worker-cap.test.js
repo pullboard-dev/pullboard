@@ -48,8 +48,8 @@ function tickets() { return readdirSync(handoffQueueDirectory()).filter(name => 
 function fixture(count) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-handoff-cap-')));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
-  writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);
+  mkdirSync(join(tools, 'bin'), { recursive: true });
+  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   const log = join(dir, 'log');
   writeFileSync(log, '');
   const jobs = Array.from({ length: count }, (_, index) => {

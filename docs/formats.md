@@ -405,6 +405,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_item_id_event_id` | `event` | `item_id`, `event_id` | no |
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
+| `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |

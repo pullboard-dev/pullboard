@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { setDriverUnstarted } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { cleanupToolSnapshot } from '../apps/lib/src/shell/submit-handoff-worker.js';
 import { openBoard } from '../apps/lib/index.js';
@@ -88,8 +89,8 @@ test('clause 1: two submits at one tooling commit name one shared tools folder a
   const box = await fixture(t);
   const first = submitted(box, 'First shared gate', 'web/first.txt');
   const folders = snapshots(box.temp);
-  assert.equal(first.request.tools, join(box.temp, `pullboard-handoff-tools-${box.toolsCommit}`));
-  assert.ok(folders.includes(`pullboard-handoff-tools-${box.toolsCommit}`));
+  assert.match(first.request.tools, /pullboard-handoff-tools-[0-9a-f]{40}$/u);
+  assert.deepEqual(folders.map(name => join(box.temp, name)), [first.request.tools]);
   const second = submitted(box, 'Second shared gate', 'web/second.txt');
   assert.equal(second.request.tools, first.request.tools, 'both captured requests name the same tools');
   assert.deepEqual(snapshots(box.temp), folders, 'the second submit created no new tools folder');
@@ -114,15 +115,14 @@ test('clause 2: a dead queued worker is relaunched from a shared snapshot [C7]',
   const box = await fixture(t);
   const queued = submitted(box, 'Recovered shared gate', 'web/recovered.txt');
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', queued.job.id);
-  writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: queued.job.id, pid: null, started: null, relaunches: 0,
-    unstarted: { code: 'TEST_DEAD', message: 'the worker never started' } }) + '\n');
+  setDriverUnstarted(box.boardFile, queued.job.id, { code: 'TEST_DEAD', message: 'the worker never started' });
   const waiting = () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(queued.job.id)).length;
   const before = waiting();
   const again = box.run(queued.folder, 'submit', String(queued.id), '--no-next');
   assert.equal(again.code, 0, `${again.err}\n${again.out}`);
   assert.match(again.err + again.out, /relaunched queued submit #\d+ from its captured tools/u, `${again.err}\n${again.out}`);
   assert.ok(waiting() > before, 'the dead worker has a fresh launch ticket');
-  assert.deepEqual(snapshots(box.temp), [`pullboard-handoff-tools-${box.toolsCommit}`], 'recovery reused the shared snapshot');
+  assert.deepEqual(snapshots(box.temp).map(name => join(box.temp, name)), [queued.request.tools], 'recovery reused the shared snapshot');
 });
 
 test('clause 1: the sweep removes unowned tool trees older than 60 minutes and keeps recent or owned ones [C7]', () => {
