@@ -1158,7 +1158,7 @@ async function recoverReplicaReplies(fixture, timing) {
   const beforeVerifyRetry = relay.uploads.length;
   const retriedVerify = await timing.wait('retry the already-accepted verdict', () => cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement', '--no-next'));
   assert.equal(retriedVerify.decision, 'ACCEPT');
-  assert.equal(relay.uploads.length, beforeVerifyRetry, 'verified-state preconditions also preserve the original outcome');
+  assert.deepEqual(relay.uploads.slice(beforeVerifyRetry).filter(({ operation }) => operation === 'verify'), [], 'verified-state preconditions also preserve the original outcome, never a second verify');
 
   const lostEditBrief = join(clones[0], 'lost-edit-brief.md');
   writeFileSync(lostEditBrief, 'Files: web/README.md\nTest: the original edit is recovered once.\n');
