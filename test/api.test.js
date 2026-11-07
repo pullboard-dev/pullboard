@@ -48,6 +48,7 @@ import {
   shellWord,
   timedMs,
 } from './api-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -1040,7 +1041,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = box.run(app, 'join', 'app', '--model', 'fixture-agent');
+    const joined = fixtureJoin(box.run, app, 'app', '--model', 'fixture-agent');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1127,7 +1128,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   const box = project();
   const app = join(box.dir, 'app-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-  assert.equal(box.run(app, 'join', 'app').status, 0);
+  assert.equal(fixtureJoin(box.run, app, 'app').status, 0);
   const api = await startApi(t, box);
   const boards = await (await apiFetch(api, '/api/v1/boards')).json();
   const board = boards.boards.find((candidate) => candidate.root === box.repo);

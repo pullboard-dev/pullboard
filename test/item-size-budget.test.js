@@ -8,6 +8,7 @@ import { configFromSource } from '../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../packages/items/index.js';
 import { buildCalibration } from '../packages/stats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require native success before parsing a command's public JSON contract. */
 function json(result) {
@@ -27,7 +28,7 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Author a real frozen check whose file the build must create; children retain their parent link. */
   function add(title, expected, parent) {
-    return json(box.run(box.repo, 'add', 'web', title, '--criterion', 'The result file exists.', '--expected-minutes', String(expected),
+    return json(fixtureAdd(box.run, box.repo, 'web', title, '--criterion', 'The result file exists.', '--expected-minutes', String(expected),
       '--check', 'test -f web/result.txt', '--wait', ...(parent ? ['--parent', String(parent)] : []), '--json')).item.item_id;
   }
   const parent = add('Cut this large build', 60);
