@@ -1,3 +1,4 @@
+import { deferOwnership } from './board-ownership-wait.js';
 import { Refused } from "../../../kernel/index.js";
 
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
@@ -24,7 +25,7 @@ export function boardEnginePorts(providers) {
     'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals',
     'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding',
     'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'prepareTrainLanding',
-    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealSubmitHandoffQueue', 'submitHandoffBoardRoot', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
+    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealSubmitHandoffQueue', 'sealOwnershipWait', 'submitHandoffBoardRoot', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
     'sealSourceAdvance', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict',
     'signedMoveProblem', 'requireBound', 'requestMoveProblem', 'recordRequestMove',
     'relayPerson', 'requestPerson', 'validPresence',
@@ -43,16 +44,16 @@ export function boardEnginePorts(providers) {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealOwnershipWait, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,
     openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone
   } = providers;
-  const store = Object.freeze({ ...rawStore, measureBoardWritePhase, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
+  const store = Object.freeze({ ...rawStore, deferOwnership, measureBoardWritePhase, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
-  return Object.freeze({ shadowJob: providers.shadowJob, reviewLease: providers.reviewLease, sandboxPolicyReads: providers.sandboxPolicyReads, store, withSeatPresence, claimedItemRoot, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
+  return Object.freeze({ sealOwnershipWait, shadowJob: providers.shadowJob, reviewLease: providers.reviewLease, sandboxPolicyReads: providers.sandboxPolicyReads, store, withSeatPresence, claimedItemRoot, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
     minimumOperationEngine: (operation, args, board, at, context) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor, context), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
