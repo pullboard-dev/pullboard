@@ -7,9 +7,10 @@ import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { classifyMainRed } from '../../../receipt/index.js';
 import { mainRedStatus } from '../../../receipt/index.js';
+import { MAIN_TEST_JOB } from '../../../receipt/index.js';
+import { mainTestJobId } from '../../../receipt/index.js';
 
-/** The job kind a missing main receipt enqueues. */
-export const MAIN_TEST_JOB = 'main-test';
+export { MAIN_TEST_JOB };
 
 /**
  * Answer whether a file is red on main from its keyed receipt; on a miss, enqueue the main-test job that writes it.
@@ -23,7 +24,7 @@ export const MAIN_TEST_JOB = 'main-test';
 export function mainRedLookup(db, receipts, { tree, file, command, now = Date.now() }) {
   const status = mainRedStatus(receipts, { tree, file, command });
   if (status.status !== 'missing') return { ...status, job: null };
-  const id = `${MAIN_TEST_JOB}:${status.key}`;
+  const id = mainTestJobId(status.key);
   createJob(db, { id, kind: MAIN_TEST_JOB, base: tree, now });
   writeStep(db, id, 'queued', { tree, file, command }, { now });
   return { ...status, job: jobView(db, id).id };

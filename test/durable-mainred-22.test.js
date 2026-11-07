@@ -1,13 +1,16 @@
 /** Durable gate 22: main-red status is a receipt lookup keyed by main tree, test file and command [C7]. */
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
-import { privateFixtureFiles } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
+import { policyRepository } from './board-submit-fixture.js';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
 import { jobView } from '../packages/jobs/index.js';
 import { mainRedLookup, classifyGateRed, MAIN_TEST_JOB } from '../packages/drive/index.js';
 import { mainRedKey, mainRedStatus } from '../packages/receipt/index.js';
+import { cacheFile, matchingMainFailures, receiptComparison, MAIN_FAILURE_SIGNATURE_VERSION } from '../packages/landing/index.js';
+import { splitBaseRed } from '../packages/landing/src/shell/landing-step-diagnose.js';
 
 const files = privateFixtureFiles('pullboard-durable-mainred-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -16,6 +19,12 @@ after(() => rmSync(files.root, { recursive: true, force: true }));
 function withBoard(name, body) {
   const board = openBoard(join(files.root, `${name}.sqlite`));
   try { return body(board.db); } finally { closeBoard(board); }
+}
+
+/** Open a fresh real board file for an async body, closing it once the body settles. */
+async function withBoardAsync(name, body) {
+  const board = openBoard(join(files.root, `${name}.sqlite`));
+  try { return await body(board.db); } finally { closeBoard(board); }
 }
 
 const at = { tree: 'tree-main-1', file: 'test/a.test.js', command: 'npm test --' };
@@ -71,4 +80,57 @@ test('clause 2: a gate red only on cases red in main\'s receipt is main\'s own r
     assert.equal(unknown.code, 'MAIN_RECEIPT_MISSING');
     assert.equal(jobView(db, unknown.job).step, 'queued', 'with no receipt the main-test job is queued, never guessed');
   });
+});
+
+/** A real git repo whose one commit configures a focused test command, with main's comparison receipts written. */
+function mainRepo(name, outcomes) {
+  const root = join(files.root, name);
+  mkdirSync(root);
+  policyRepository(root);
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {}, affectedTests: 'npm test --' }));
+  runFixtureGit(['-C', root, 'add', 'pullboard.json']);
+  runFixtureGit(['-C', root, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'main']);
+  const commit = runFixtureGit(['-C', root, 'rev-parse', 'HEAD']);
+  const tree = runFixtureGit(['-C', root, 'rev-parse', 'HEAD^{tree}']);
+  const cache = cacheFile(root);
+  mkdirSync(dirname(cache), { recursive: true });
+  writeFileSync(cache, JSON.stringify({ version: 2, entries: { [commit]: outcomes } }), { mode: 0o600 });
+  return { root, commit, tree };
+}
+
+const SIG = 'a'.repeat(64);
+const failing = (name) => ({ file: at.file, name, signature: SIG });
+
+test('clause 1: the landing diagnose step reads base main from its receipt, and a missing receipt enqueues one main-test job [C7]', async () => {
+  const box = mainRepo('landing-lookup', { [at.file]: { result: 'red', failures: [failing('case one')], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: 'mr-9' } });
+  await withBoardAsync('landing', async (db) => {
+    const measured = [];
+    const compare = receiptComparison({ db, now: () => 5000, measure: async (_root, profile) => { measured.push(profile.tests.map((row) => row.file)); return { main: box.commit, files: [] }; } });
+    const found = await compare(box.root, { tests: [{ file: at.file, passed: false }] }, undefined, '', { commit: box.commit, detailed: true });
+    assert.deepEqual(measured, [], 'a file with a receipt is never run on main again');
+    assert.deepEqual(found.receipts, ['mr-9']);
+    assert.equal(found.files[0].result, 'red');
+
+    const state = { board: { db }, batch: { root: box.root, base: box.commit }, say() {} };
+    const split = await splitBaseRed(state, [{ file: at.file, name: 'case one' }, { file: at.file, name: 'case new' }], compare, () => true, () => null);
+    assert.deepEqual(split.known, [{ file: at.file, name: 'case one' }], 'a case main\'s receipt names is main\'s own');
+    assert.deepEqual(split.own, [{ file: at.file, name: 'case new' }], 'a case the receipt does not name stays the batch\'s');
+
+    await compare(box.root, { tests: [{ file: 'test/b.test.js', passed: false }] }, undefined, '', { commit: box.commit, detailed: true });
+    assert.deepEqual(measured, [['test/b.test.js']], 'a missing receipt is measured once through the port, no refresh process');
+    const key = mainRedKey(box.tree, 'test/b.test.js', 'npm test --');
+    const job = jobView(db, `${MAIN_TEST_JOB}:${key}`);
+    assert.equal(job.kind, MAIN_TEST_JOB);
+    assert.deepEqual(job.steps.map((step) => step.payload), [{ tree: box.tree, file: 'test/b.test.js', command: 'npm test --' }]);
+  });
+});
+
+test('clause 2: the submit gate counts a red as main\'s own only when main\'s receipt names every failing case [C7]', () => {
+  const comparison = { main: 'm', files: [{ file: at.file, result: 'red', failures: [failing('case one'), failing('case two')], receiptId: 'mr-1' }] };
+  const own = [failing('case one'), failing('case two')];
+  assert.deepEqual(matchingMainFailures(own, comparison, 'm'), { main: 'm', failures: own }, 'every case named: main\'s own red');
+  assert.equal(matchingMainFailures([failing('case one'), failing('case three')], comparison, 'm'), null, 'one case main does not name refuses');
+  const green = { main: 'm', files: [{ file: at.file, result: 'green', failures: [], receiptId: 'mr-g' }] };
+  assert.equal(matchingMainFailures([failing('case one')], green, 'm'), null, 'a green receipt never excuses a red');
+  assert.equal(matchingMainFailures([failing('case one')], { main: 'm', files: [] }, 'm'), null, 'no receipt never excuses a red');
 });

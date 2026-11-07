@@ -5,6 +5,35 @@
  */
 import { Refused } from '../../../kernel/core.js';
 
+/** The job kind a missing main receipt enqueues; drive and landing share it so one key makes one job. */
+export const MAIN_TEST_JOB = 'main-test';
+
+/**
+ * The id of the main-test job that writes the receipt for one key. Why: enqueueing is idempotent on this id, so every
+ * gate or landing asking about one file at one main tree makes a single job.
+ *
+ * @param {string} key - a mainRedKey
+ * @returns {string}
+ */
+export function mainTestJobId(key) {
+  return `${MAIN_TEST_JOB}:${key}`;
+}
+
+/**
+ * Main's status for one file read from a comparison row (`{ file, result, failures?, receiptId? }`), in the shape
+ * mainRedStatus returns, so a caller holding a row classifies with classifyMainRed like one holding a receipt. With
+ * `file`, only failing cases recorded under that file count. No row is a missing receipt.
+ *
+ * @param {object | null | undefined} row
+ * @param {string} [file]
+ * @returns {{ key: string | null, status: 'red' | 'green' | 'missing', receipt: string | null, failing: string[] }}
+ */
+export function comparisonStatus(row, file) {
+  if (!row || !['red', 'green'].includes(row.result)) return { key: null, status: 'missing', receipt: null, failing: [] };
+  const failing = row.result === 'red' ? (row.failures ?? []).filter((main) => !file || main.file === file).map((main) => main.name) : [];
+  return { key: null, status: row.result, receipt: row.receiptId ?? null, failing };
+}
+
 /**
  * The key a main-test receipt is stored and read by: main's tree, the test file and the project's test command.
  *
