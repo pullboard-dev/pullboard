@@ -1,5 +1,7 @@
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
+import { tapTests } from '../../../../../packages/gate/index.js';
+import { jobbedFlakeObserver } from '../../../../../packages/drive/index.js';
 import { runMachineryGuard } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
@@ -254,6 +256,20 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
     if (!retaken.has(item.item_id)) retaken.set(item.item_id, retakeCheckBaseline(root, item.item_check, { main }));
   }
   return mainRedItemCases(failures, items, id, main, retaken);
+}
+
+/**
+ * The named failing cases of one red run, the same rows the flake observer diagnoses: failed, top-level tests with a
+ * file and a title. They key the run's flake-diagnose jobs.
+ *
+ * @param {{ output?: string, executionRoot?: string }} run
+ * @param {string} root
+ * @returns {{ file: string, case: string }[]}
+ */
+function failingCases(run, root) {
+  return tapTests(run.output ?? '', run.executionRoot ?? root)
+    .filter(row => !row.passed && row.type !== 'suite' && row.indent === 0 && row.file && row.name && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType))
+    .map(row => ({ file: row.file, case: row.name }));
 }
 
 /** Hash the candidate's net code diff against the same admitted main used for every red head. */
@@ -523,7 +539,9 @@ export async function submitHere(ctx, id, infra) {
   const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
-    onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+    // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
+    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+      { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
   /** The runner selection stage's analysis, settled once for the test stage that needs its plan. */
   let settleSelection;
   const selectionResult = remoteMode ? new Promise((resolve, reject) => { settleSelection = { resolve, reject }; }) : null;

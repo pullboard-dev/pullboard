@@ -6,7 +6,7 @@ import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
 import { createJob, jobView, jobsOf, reclaimLapsed, takeJob, writeStep, LEASE_MS } from '../packages/jobs/index.js';
 import { treeOf } from '../packages/pin/index.js';
-import { driveFlakeDiagnose, driveOnce, flakeDiagnoseKey, flakeDiagnosesFor, queueFlakeDiagnoses, FLAKE_DIAGNOSE_KIND } from '../packages/drive/index.js';
+import { driveFlakeDiagnose, driveOnce, jobbedFlakeObserver, flakeDiagnoseKey, flakeDiagnosesFor, queueFlakeDiagnoses, FLAKE_DIAGNOSE_KIND } from '../packages/drive/index.js';
 
 /** A one-commit repo; returns the commit and its tree id. */
 function candidateRepo() {
@@ -19,7 +19,7 @@ function candidateRepo() {
   runFixtureGit(['-C', repo, 'add', '-A']);
   runFixtureGit(['-C', repo, 'commit', '-q', '-m', 'candidate']);
   const commit = runFixtureGit(['-C', repo, 'rev-parse', 'HEAD']);
-  return { commit, tree: treeOf(repo, commit) };
+  return { repo, commit, tree: treeOf(repo, commit) };
 }
 
 /** Open a fresh real board file and hand its SQLite handle to the body. */
@@ -106,5 +106,32 @@ test('clause 1: a green gate queues no flake diagnostic, and a diagnostic held b
     const resumed = await driveFlakeDiagnose(db, id, { owner: 'driver-y', diagnose: () => { ran += 1; return { flaky: false }; }, now: () => 2000 + LEASE_MS + 1 });
     assert.equal(resumed.transition, 'attached', 'a lapsed diagnostic is resumed by any driver');
     assert.deepEqual(flakeDiagnosesFor(db, 78).map(d => d.result), [{ flaky: false }]);
+  });
+});
+
+test('clause 1: the submit gate\'s flake observer runs as flake-diagnose jobs keyed by (tree, file, case), each case\'s observation attached to the item [C7]', async () => {
+  const { repo, commit, tree } = candidateRepo();
+  await withBoard(async (db) => {
+    let open = false;
+    const withDb = async work => { open = true; try { return await work(db); } finally { open = false; } };
+    let observed = 0;
+    const observe = Object.assign(async run => {
+      observed += 1;
+      assert.equal(open, false, 'the board is not held open while the diagnostic runs');
+      run.flakeDiagnostics = { wallMs: 1, observations: [{ id: 'o1', classification: 'flake', file: 'test/a.test.js', name: 'adds', paired: true, recorded: true }] };
+    }, { main: 'main-commit', recordRun: () => {} });
+    const cases = () => [{ file: 'test/a.test.js', case: 'adds' }, { file: 'test/b.test.js', case: 'parses' }];
+    const wrapped = jobbedFlakeObserver(observe, { withDb, gate: { id: 'submit:90', item: 90, candidate: commit }, repo, owner: 'seat-1', cases });
+    assert.equal(wrapped.main, 'main-commit', 'the wrapped observer keeps the pinned main the gate reads');
+
+    await wrapped({ isGreen: false, output: '' }, { root: repo });
+    assert.equal(observed, 1, 'one observer run diagnoses every case of the red run');
+    const attached = flakeDiagnosesFor(db, 90).map(d => [d.job, d.file, d.case, d.result.classification]).sort();
+    assert.deepEqual(attached, [[flakeDiagnoseKey(tree, 'test/a.test.js', 'adds'), 'test/a.test.js', 'adds', 'flake'],
+      [flakeDiagnoseKey(tree, 'test/b.test.js', 'parses'), 'test/b.test.js', 'parses', 'unclassified']]);
+    assert.ok(jobsOf(db, { kind: FLAKE_DIAGNOSE_KIND, item: 90 }).every(job => job.leaseOwner === null), 'finished diagnostics hold no lease');
+
+    await wrapped({ isGreen: false, output: '' }, { root: repo });
+    assert.equal(observed, 1, 'a red rerun on the same tree reuses the attached diagnostics');
   });
 });

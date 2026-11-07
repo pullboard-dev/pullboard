@@ -11,6 +11,7 @@ import { FLAKE_DIAGNOSE_KIND } from '../core/flake-diagnose.js';
 import { diagnoseTargets } from '../core/flake-diagnose.js';
 import { flakeDiagnoseKey } from '../core/flake-diagnose.js';
 import { stepPayload } from '../core/drive-phase.js';
+import { treeOf } from '../../../pin/index.js';
 
 /**
  * Queue one flake-diagnose job per distinct failing case of a red gate job. Each job is keyed by (tree, file, case)
@@ -35,6 +36,44 @@ export function queueFlakeDiagnoses(db, gate, tree, failures, { now = Date.now()
 }
 
 /**
+ * Begin one flake-diagnose job: take or renew its lease and say what is left to do. A job whose result is attached is
+ * done; a job another driver holds is left alone; a diagnosis already written is reported so it is never run again.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ owner: string, now?: number }} options
+ * @returns {{ state: 'done' | 'leased' | 'diagnose' | 'attach', target: { tree: string, file: string, case: string, item: number | null, candidate: string | null }, diagnosed: { result: unknown } | null }}
+ */
+export function startFlakeDiagnose(db, job, { owner, now = Date.now() } = {}) {
+  if (!owner) throw new Refused('DRIVE_OWNER', 'A flake diagnostic needs a driver id to hold the lease: pass { owner }.');
+  const view = jobView(db, job);
+  if (!view || view.kind !== FLAKE_DIAGNOSE_KIND) throw new Refused('JOB_MISSING', `No flake-diagnose job ${job}: queue it with queueFlakeDiagnoses.`);
+  const queued = stepPayload(view, 'queued');
+  const target = { tree: queued.tree, file: queued.file, case: queued.case, item: view.item, candidate: view.candidate };
+  const diagnosed = stepPayload(view, 'diagnosed');
+  if (stepPayload(view, 'attached')) return { state: 'done', target, diagnosed };
+  const held = (view.leaseOwner === owner && renewLease(db, job, owner, { now })) || takeJob(db, job, owner, { now }).taken;
+  if (!held) return { state: 'leased', target, diagnosed };
+  return { state: diagnosed ? 'attach' : 'diagnose', target, diagnosed };
+}
+
+/**
+ * Finish one flake-diagnose job the driver holds: write its result (kept when one is already written), mark it
+ * attached to the item and free the lease.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ owner: string, result: unknown, now?: number }} options
+ * @returns {{ result: unknown }} The stored diagnosis.
+ */
+export function finishFlakeDiagnose(db, job, { owner, result, now = Date.now() }) {
+  const diagnosed = writeStep(db, job, 'diagnosed', { result: result ?? null }, { now }).payload;
+  writeStep(db, job, 'attached', { item: jobView(db, job).item }, { now });
+  releaseLease(db, job, owner, { now });
+  return diagnosed;
+}
+
+/**
  * Run one flake-diagnose job to its end: diagnose the case, write the result, attach it to the item, free the lease.
  * A job whose result is attached is terminal; a job another driver holds is left alone; a diagnosis already written
  * is never run again, so a driver that died after diagnosing only attaches.
@@ -46,24 +85,52 @@ export function queueFlakeDiagnoses(db, gate, tree, failures, { now = Date.now()
  * @returns {Promise<{ transition: string | null, job: ReturnType<typeof jobView>, code?: string }>}
  */
 export async function driveFlakeDiagnose(db, job, { owner, diagnose, attach, now = Date.now } = {}) {
-  if (!owner) throw new Refused('DRIVE_OWNER', 'driveFlakeDiagnose needs a driver id to hold the lease: pass { owner }.');
   if (typeof diagnose !== 'function') throw new Refused('FLAKE_DIAGNOSE_RUN', 'driveFlakeDiagnose needs the diagnostic to run: pass { diagnose }.');
-  const view = jobView(db, job);
-  if (!view || view.kind !== FLAKE_DIAGNOSE_KIND) throw new Refused('JOB_MISSING', `No flake-diagnose job ${job}: queue it with queueFlakeDiagnoses.`);
-  if (stepPayload(view, 'attached')) return { transition: null, job: view };
-  const at = now();
-  const held = (view.leaseOwner === owner && renewLease(db, job, owner, { now: at })) || takeJob(db, job, owner, { now: at }).taken;
-  if (!held) return { transition: null, job: jobView(db, job), code: 'JOB_LEASED' };
-  const target = stepPayload(view, 'queued');
-  let diagnosed = stepPayload(view, 'diagnosed');
-  if (!diagnosed) {
-    const result = await diagnose({ tree: target.tree, file: target.file, case: target.case, item: view.item, candidate: view.candidate });
-    diagnosed = writeStep(db, job, 'diagnosed', { result: result ?? null }, { now: now() }).payload;
-  }
-  await attach?.({ item: view.item, tree: target.tree, file: target.file, case: target.case, result: diagnosed.result });
-  writeStep(db, job, 'attached', { item: view.item }, { now: now() });
-  releaseLease(db, job, owner, { now: now() });
+  const begun = startFlakeDiagnose(db, job, { owner, now: now() });
+  if (begun.state === 'done') return { transition: null, job: jobView(db, job) };
+  if (begun.state === 'leased') return { transition: null, job: jobView(db, job), code: 'JOB_LEASED' };
+  const result = begun.diagnosed ? begun.diagnosed.result : await diagnose(begun.target);
+  await attach?.({ ...begun.target, result: result ?? null });
+  finishFlakeDiagnose(db, job, { owner, result, now: now() });
   return { transition: 'attached', job: jobView(db, job) };
+}
+
+/**
+ * Wrap a gate's flake observer so each red run's diagnostics are flake-diagnose jobs: the failing cases are queued
+ * keyed by (tree, file, case) for the item, the observer runs once for every case still owed, and each case's
+ * observation is written as its job's result. The board is open only to queue and to record, never while the
+ * observer runs. A red run that names no case still runs the observer, so its records stay as they were.
+ *
+ * Why: the gate calls this after its result is made and its slot released, so the diagnostic is its own job and any
+ * diagnostic already attached for the same tree and case is reused instead of run again.
+ *
+ * @param {(run: object, context: object) => Promise<void>} observe - The flakes cell's observer.
+ * @param {{ withDb: (work: (db: import('node:sqlite').DatabaseSync) => any) => Promise<any>, gate: { id: string, item: number | null, candidate: string },
+ *   repo: string, owner: string, cases: (run: object, root: string) => { file: string, case: string }[] }} options
+ * @returns {(run: object, context: { root: string }) => Promise<void>} An observer with the same `main` and `recordRun`.
+ */
+export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases }) {
+  return Object.assign(async (run, context) => {
+    let owed = [];
+    try {
+      const tree = treeOf(repo, gate.candidate);
+      owed = await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root))
+        .map(id => ({ id, begun: startFlakeDiagnose(db, id, { owner }) })));
+    } catch { owed = null; /* An unreadable board never stops the diagnostic itself. */ }
+    if (owed && owed.length && owed.every(entry => entry.begun.state !== 'diagnose')) return;
+    await observe(run, context);
+    if (!owed?.length) return;
+    const observations = run.flakeDiagnostics?.observations ?? [];
+    try {
+      await withDb(db => {
+        for (const { id, begun } of owed) {
+          if (begun.state !== 'diagnose') continue;
+          const seen = observations.find(row => row.file === begun.target.file && row.name === begun.target.case) ?? null;
+          finishFlakeDiagnose(db, id, { owner, result: seen ?? { classification: 'unclassified', error: run.flakeDiagnostics?.error ?? null } });
+        }
+      });
+    } catch { /* The observation is already on the board through the observer; only the job record is missing. */ }
+  }, { main: observe.main, recordRun: observe.recordRun });
 }
 
 /**
