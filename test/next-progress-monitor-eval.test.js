@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const CLI = new URL('./native-cli-fixture.js', import.meta.url).href;
 
@@ -15,7 +16,7 @@ function evalProject(t, { failWorker = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }));
-  const added = box.run(box.repo, 'add', 'web', 'Eval progress claim', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Eval progress claim', '--specs', 'G1',
     '--criterion', 'The real joined seat claims this item.', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
