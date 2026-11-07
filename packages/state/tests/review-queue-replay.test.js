@@ -53,9 +53,8 @@ function memoryCopies(t, historicalSeats = false, historicalSetup = false) {
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${String(index + 8).padStart(2, '0')}:00:00.000Z`) };
     const board = openBoard(':memory:', clock);
-    if (historicalSetup) board.executionEngineVersion = 4;
+    // Import under the live engine: an engine-4 context skips the family projection that importBoard warms.
     importBoard(board, snapshot);
-    if (historicalSetup) delete board.executionEngineVersion;
     return board;
   });
   t.after(() => {
