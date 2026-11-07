@@ -1,3 +1,4 @@
+import { ownershipWaitForJob } from './board-ownership-wait.js';
 import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
 import {
@@ -176,6 +177,16 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     if (!['queued', 'running'].includes(saved.state)) return saved;
     const job = { ...saved, ...lockWaitRecord(result?.lockWaits) };
     const item = getItem(board, id);
+    const ownerWait = ownershipWaitForJob(board, job.id);
+    if (ownerWait || result?.code === 0 && result.ownershipWait) {
+      const wait = ownerWait;
+      if (!wait || wait.agentId !== job.agentId || wait.commit !== job.executionCommit || result?.ownershipWait && wait.key !== result.ownershipWait
+        || wait.tree !== job.executionTree || wait.digest !== job.digest || wait.main !== job.main) {
+        throw new Refused('SUBMIT_HANDOFF_RESULT', 'the queued source needs its own immutable ownership-wait receipt');
+      }
+      return record(board, id, { ...job, state: 'ownership-wait', gateGreen: false,
+        ownershipWait: wait.key, completedAt: now(board) });
+    }
     if (result?.code === 0) {
       if (item.item_status !== 'submitted' || item.item_built_by !== job.agentId || item.item_commit !== result.commit) {
         throw new Refused('SUBMIT_HANDOFF_RESULT', 'a queue result cannot replace the normal proved submit transition');
@@ -265,7 +276,7 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
   const next = { version: job.version, id: retryJob, agentId: job.agentId, commit: job.commit, tree: job.tree,
     main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree, digest: job.digest,
     companionDigest: job.companionDigest, leaseMs: job.leaseMs, state: 'queued', at: now(board),
-    recoveryRetries: retries + 1, retryOf: job.id };
+    recoveryRetries: retries + 1, retryOf: job.id, ...(typeof error.reason === 'string' ? { requeuedFor: error.reason } : {}) };
   return record(board, id, next);
 }
 
@@ -289,7 +300,8 @@ function retryStoppedHandoff(board, id, job, retryJob) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run('submit_handoff_ended:' + job.id, JSON.stringify(job));
   const next = { ...job, id: retryJob, state: 'queued', at: now(board),
-    infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id };
+    infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id,
+    ...(typeof job.error?.reason === 'string' ? { requeuedFor: job.error.reason } : {}) };
   for (const field of ['error', 'completedAt', 'startedAt', 'hookProjection', 'infrastructureNotified']) delete next[field];
   return record(board, id, next);
 }

@@ -35,6 +35,25 @@ import { modelTierRoute } from './model-tier-route.js';
 
 const HOUR = 3_600_000;
 
+/**
+ * Price per seat-hour by declared model, in budget units (one unit is one seat-hour of an unpriced seat).
+ * Why: the budget is a daily spend, so an expensive model draws it down faster than a cheap one [C7].
+ */
+export const MODEL_SEAT_HOUR_PRICE = Object.freeze({ 'claude-opus-5-5': 5, 'claude-sonnet-5-5': 1, 'claude-haiku-5-5': 0.25 });
+
+/**
+ * What one seat-hour of a model costs against the budget; an unpriced or unknown model is charged one seat-hour,
+ * so seat-hour behaviour is unchanged for it [C7].
+ *
+ * @param {string|null|undefined} model - The seat's declared model.
+ * @param {Record<string, number>} [table] - The price table; defaults to MODEL_SEAT_HOUR_PRICE.
+ * @returns {number}
+ */
+export function seatHourPrice(model, table = MODEL_SEAT_HOUR_PRICE) {
+  const price = model != null && Object.hasOwn(table, model) ? table[model] : undefined;
+  return Number.isFinite(price) && price > 0 ? price : 1;
+}
+
 /** A whole number of seats, 0 or more; anything else is not a count this planner may act on. */
 function isCount(value) { return Number.isSafeInteger(value) && value >= 0; }
 
@@ -60,14 +79,16 @@ export function workerWindowHours(window, now) {
  *
  * @param {{ budget: { seatHours: number, window: string }, usedHours: number, cycleHours: number, worth: number | null, workers: { id: string, busy: boolean, managed?: boolean }[], reviews: number, builds: number }} state
  */
-export function planWorkerScale({ budget, usedHours, cycleHours, worth, workers, reviews, builds, spent = null, hoursLeft = workerWindowHours(budget?.window ?? 'day', Date.now()) }) {
+export function planWorkerScale({ budget, usedHours, cycleHours, worth, workers, reviews, builds, spent = null, model = null, hoursLeft = workerWindowHours(budget?.window ?? 'day', Date.now()) }) {
   if (!budget || !(budget.seatHours >= 0) || !(usedHours >= 0) || !(cycleHours > 0)
     || !(hoursLeft > 0) || !Number.isFinite(hoursLeft)
     || !isCount(reviews) || !isCount(builds) || !Array.isArray(workers)) {
     throw new TypeError('worker scaling needs a seat-hour budget, the hours used, a cycle length, queue counts and the live seats');
   }
   const leftHours = Math.max(0, budget.seatHours - usedHours);
-  const affordable = Math.floor(leftHours / hoursLeft + 1e-9);
+  // A new seat of `model` costs its price per hour for the rest of the window; unpriced models cost one seat-hour.
+  const price = seatHourPrice(model);
+  const affordable = Math.floor(leftHours / (hoursLeft * price) + 1e-9);
   const busy = workers.filter(worker => worker.busy);
   const stoppable = workers.filter(worker => !worker.busy && worker.managed !== false);
   const work = busy.length + reviews + builds;
@@ -80,7 +101,7 @@ export function planWorkerScale({ budget, usedHours, cycleHours, worth, workers,
   const stop = stoppable.slice(stoppable.length - Math.min(excess, stoppable.length)).map(worker => worker.id);
   const free = workers.length - busy.length - stop.length + launch;
   const review = Math.min(reviews, free);
-  return { budget, usedHours, spent, leftHours, hoursLeft, affordable, worth: worthKnown ? worth : null, target, launch, stop,
+  return { budget, usedHours, spent, price, leftHours, hoursLeft, affordable, worth: worthKnown ? worth : null, target, launch, stop,
     running: workers.length, assign: { review, build: Math.min(builds, Math.max(0, free - review)) }, binding, worthKnown };
 }
 
@@ -241,7 +262,7 @@ export async function scaleWorkers(io, values, deps) {
       const args = { lane, managed: [...running.keys()], inactive: parked.map(seat => seat.id), route, now: now() };
       const observed = deps.observe ? deps.observe(board, args) : observeWorkers(board, args);
       const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id));
-      return { ...observed, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
+      return { ...observed, model, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
     }),
     isIdle: id => deps.withBoard(ctx, board => !seatHoldsWork(board, id)),
     stop: id => {
