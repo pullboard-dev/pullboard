@@ -68,3 +68,38 @@ export function shardSections(collected) {
   const proof = failed.length ? { outcome: 'fail', code: `SHARD_FAILED ${failed.join(',')}` } : { outcome: 'pass' };
   return { static: { outcome: 'skip' }, criterion: { outcome: 'skip' }, proof, cells: { outcome: 'skip' }, comparison: { outcome: 'skip' } };
 }
+
+/**
+ * Which of a submit gate's stages each receipt section is judged from. Why grouped: the hand-off worker's gate runs
+ * stages (preflight, selection, cells, doctrine, static, tests) while the receipt judges five sections; doctrine and
+ * placement are static facts about the source, and the tests stage holds the criterion, proof and main-red comparison.
+ */
+const GATE_SECTION_STAGES = Object.freeze({
+  static: ['preflight', 'selection', 'doctrine', 'static'],
+  criterion: ['tests'],
+  proof: ['tests'],
+  cells: ['cells'],
+  comparison: ['tests'],
+});
+
+/**
+ * The sections a whole submit gate judges into, from the stage outcomes the driver recorded and the gate's own result.
+ * A section fails when any of its stages failed, passes when one passed, and is skipped when none ran. A refused gate
+ * whose stages all held (a refusal before or after the stages) fails the proof section with the refusal's code.
+ *
+ * @param {{ sections?: Record<string, { outcome: string, code?: string | null }>, result?: { code: number, error?: { code?: string } } }} collected
+ * @returns {Record<string, { outcome: string, code?: string }>}
+ */
+export function gateSections(collected) {
+  const judged = {};
+  for (const [section, stages] of Object.entries(GATE_SECTION_STAGES)) {
+    const ran = stages.map(stage => collected.sections?.[stage]).filter(Boolean);
+    const failed = ran.find(stage => stage.outcome === 'fail');
+    judged[section] = failed ? { outcome: 'fail', code: failed.code ?? 'STAGE_FAILED' }
+      : ran.some(stage => stage.outcome === 'pass') ? { outcome: 'pass' } : { outcome: 'skip' };
+  }
+  if (collected.result?.code !== 0 && !Object.values(judged).some(section => section.outcome === 'fail')) {
+    judged.proof = { outcome: 'fail', code: collected.result?.error?.code ?? 'SUBMIT_REFUSED' };
+  }
+  return judged;
+}
