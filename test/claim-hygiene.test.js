@@ -304,9 +304,10 @@ test('three rejected submits return the claim to another seat, including after a
     store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs the edge case.' });
     if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
   }
-  f.claim(id, f.first);
-  // A red gate return holds the claim for its idle limit of 40 minutes from the reject.
+  // A red gate return holds a re-claimed item for 40 minutes from the reject; the builder takes it back after that.
   f.advance(41);
+  f.claim(id, f.first);
+  f.advance(31);
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /three failed submits/u);
@@ -379,10 +380,11 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   const head = f.git(f.worktrees[f.first], 'rev-parse', 'HEAD');
   submitFixture(f.board, id, { agentId: f.first, commit: head, tree: head });
   store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs work.' });
+  // The reject above is a red return, which holds a re-claimed item for 40 minutes; the builder takes it back after that.
+  f.advance(41);
   f.claim(id, f.first);
   for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
-  // The reject above is a red return, which holds the claim for 40 minutes.
-  f.advance(41);
+  f.advance(31);
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.throws(() => f.claim(id, f.second), { code: 'REOPEN_HELD_FOR_BUILDER' }, 'the reviewer is refused');
