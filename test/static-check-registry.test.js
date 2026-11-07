@@ -30,7 +30,7 @@ test('clause 1: one registry lists every static check class with a function that
   // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
   const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
 const root = ${JSON.stringify(ROOT)};
-const context = { root, files: [], staged: false, text: () => '', previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
+const context = { root, files: [], staged: false, text: file => (file.endsWith('.json') ? '{}' : ''), previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
 const bad = { ...context, sources: [{ file: 'src/x.js', source: "import { a, b } from './y.js';\\n" }] };
 process.stdout.write(JSON.stringify({ empty: runStaticRegistry(context), bad: runStaticRegistry(bad),
   self: changedStaticFailures(root, ['packages/gate/src/shell/static-check-registry.js']) }));`;
