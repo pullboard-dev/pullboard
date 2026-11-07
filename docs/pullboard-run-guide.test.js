@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { GUARDS } from '../packages/state/src/core/machine-declaration.js';
 
+/** @pullboard-world-pin reads the shipped run guide to check it against the guard's refusal list. */
 const skill = readFileSync(new URL('../skills/pullboard-run/SKILL.md', import.meta.url), 'utf8');
 
 /** Return the part of the guide under one level-two heading. */
