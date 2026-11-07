@@ -17,6 +17,30 @@ import { pullStatement } from './pull.js';
 // Budget: one posted result file or request body; a larger output belongs in a report file, not the result.
 const BODY_LIMIT = 16 * 1024 * 1024;
 
+/**
+ * The path of a request target, without its query.
+ *
+ * Why: the server routes on the path alone, and a plain split keeps this file free of two-argument URL forms the
+ * runner packager reads as opaque source-relative files.
+ *
+ * @param {string} target
+ * @returns {string}
+ */
+function requestPath(target) {
+  return String(target ?? '/').split(/[?#]/u)[0];
+}
+
+/**
+ * A board endpoint URL from the board's base address and an absolute pull path.
+ *
+ * @param {string} board
+ * @param {string} path
+ * @returns {URL}
+ */
+function boardUrl(board, path) {
+  return new URL(`${new URL(board).origin}${path}`);
+}
+
 /** Read a request body up to the limit. */
 function readBody(request) {
   return new Promise((resolve, reject) => {
@@ -57,8 +81,7 @@ function reply(response, status, body) {
 export function pullServer(adapter) {
   return createServer(async (request, response) => {
     try {
-      const url = new URL(request.url, 'http://board');
-      const [, root, route, name] = url.pathname.split('/');
+      const [, root, route, name] = requestPath(request.url).split('/');
       if (root !== 'pull') return reply(response, 404, { code: 'PULL_ROUTE', message: 'no such pull route' });
       if (request.method === 'POST' && route === 'register') return reply(response, 200, adapter.register(JSON.parse(await readBody(request))));
       if (request.method === 'POST' && route === 'take') {
@@ -150,7 +173,7 @@ function untar(file, folder) {
 export function pullRunner({ board, runner, publicKey, privateKey, workdir, now = Date.now }) {
   const key = createPrivateKey(privateKey);
   const signText = text => sign(null, Buffer.from(text), key).toString('base64url');
-  const post = (path, body, headers = {}) => boardCall(new URL(path, board), { method: 'POST', body, headers });
+  const post = (path, body, headers = {}) => boardCall(boardUrl(board, path), { method: 'POST', body, headers });
 
   return {
     /** Register this runner's key with the board. */
@@ -168,7 +191,7 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
       const tree = join(workdir, 'trees', job.tree);
       let fetched = false;
       if (!existsSync(tree)) {
-        const got = await boardCall(new URL(`/pull/bundle/${job.tree}`, board), { headers: auth });
+        const got = await boardCall(boardUrl(board, `/pull/bundle/${job.tree}`), { headers: auth });
         if (got.status !== 200) answer(got);
         mkdirSync(join(workdir, 'bundles'), { recursive: true });
         const file = join(workdir, 'bundles', `${job.tree}.tar`);
