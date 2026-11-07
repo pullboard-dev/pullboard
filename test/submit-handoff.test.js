@@ -100,7 +100,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
       const current = state(box, id).job;
       return current && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id, 'source'));
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
-    if (job) await workerGone(box, job.id);
+    if (job) await workerGone(helpers, box, job.id);
     await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, second, third, commit, source, secondFolder, release, releases, started, finished };
@@ -112,12 +112,12 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
  * Why: node:test runs a test's after hooks once run-tests arms its 30 s file-exit ceiling, so teardown that
  * races a still-exiting supervisor must wait for it asynchronously and stay well under that ceiling.
  */
-async function workerGone(box, job) {
+async function workerGone(helpers, box, job) {
   const record = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job, 'worker.json');
   let pid;
   try { pid = JSON.parse(readFileSync(record, 'utf8')).pid; } catch { return; /* No launched supervisor to wait for. */ }
   if (!Number.isSafeInteger(pid) || pid <= 0) return;
-  await box.helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
+  await helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
     try { process.kill(pid, 0); return false; }
     catch (error) { return error.code === 'ESRCH'; }
   }, `queued submit supervisor ${pid} exit before fixture removal`, 10_000);
@@ -478,7 +478,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
     assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
     const other = join(box.dir, 'other-web');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-    document(fixtureJoin(box.run, other, 'web', '--json'));
+    document(fixtureJoin(box.run, other, 'web', '--route', 'strong', '--json'));
     const foreign = box.run(other, 'claim', String(box.id), '--json');
     assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
     if (mode === 'silent') rmSync(request.tools, { recursive: true, force: true });
@@ -513,7 +513,7 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  document(fixtureJoin(box.run, other, 'web', '--json'));
+  document(fixtureJoin(box.run, other, 'web', '--route', 'strong', '--json'));
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
@@ -712,7 +712,7 @@ function mainAdvanceFixture(t) {
       return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
     }, `moving-main worker cleanup: ${workerDiagnostic(box, id)}`);
     const job = state(box, id).job;
-    if (job) await workerGone({ ...box, helpers }, job.id);
+    if (job) await workerGone(helpers, box, job.id);
     await removeSandboxes(helpers);
   });
   return { ...box, id, helpers, release, started };
