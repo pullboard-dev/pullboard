@@ -23,6 +23,7 @@ import { captureLapsedClaims } from '../packages/health/index.js';
 import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
+import { itemById } from '../packages/store/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
@@ -388,7 +389,7 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   assert.equal(store.getItem(f.board, id).item_owner, f.first, 'the original builder re-claims at once when no other seat took it');
 });
 
-/** Claim an item, then let its two-hour lease lapse by 41 minutes while the holder's seat keeps heartbeating. */
+/** Claim an item, then let its two-hour lease lapse by 41 minutes while the holder's seat keeps heartbeating. Status reads use the stored row: getItem shows a lapsed lease as open. */
 function lapsedWhileHeartbeating(f) {
   const id = f.add();
   f.claim(id, f.first);
@@ -412,7 +413,7 @@ test('clause 1: a claim 41 minutes past its lease with no move, commit or proof 
   const row = snapshot.claims.find(entry => entry.id === id);
   assert.equal(row?.idle, 'release', 'presence is not progress: the idle release takes the lapsed claim');
   assert.ok(row.idleMs >= 40 * 60_000, 'no non-renewal move, commit or proof run for 40 minutes');
-  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.equal(itemById(f.board, id).item_status, 'open');
   assert.equal(JSON.parse(kinds(f, id, 'release').at(-1).event_detail).idleClaim.kind, 'release');
 });
 
@@ -430,10 +431,10 @@ test('clause 2: a lapsed claim whose holder moved on it, committed or ran a proo
     heartbeatSeat(f.board, f.first);
     const kept = f.maintain();
     assert.equal(kept?.claims.find(entry => entry.id === id), undefined, `${name}: 39 minutes after it nothing returns the claim`);
-    assert.equal(store.getItem(f.board, id).item_status, 'claimed', `${name}: recent work keeps the lapsed claim`);
+    assert.equal(itemById(f.board, id).item_status, 'claimed', `${name}: recent work keeps the lapsed claim`);
     f.advance(2);
     heartbeatSeat(f.board, f.first);
     f.maintain();
-    assert.equal(store.getItem(f.board, id).item_status, 'open', `${name}: 41 quiet minutes later the heartbeat alone does not keep it`);
+    assert.equal(itemById(f.board, id).item_status, 'open', `${name}: 41 quiet minutes later the heartbeat alone does not keep it`);
   }
 });
