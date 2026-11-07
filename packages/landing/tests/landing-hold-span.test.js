@@ -1,13 +1,13 @@
 /** @pullboard-test-input source-tree */
 /** A landing refused by a held test defect, or with nothing to select, holds the board for under a second [C7,#3333]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { FIXTURE_MODEL } from '../../../test/e2e-helpers.js';
+import { temporaryDirectory } from '../../../test/board-fixture.js';
 import { makeLandProjectFixtures } from '../../../test/land-project-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 
@@ -22,7 +22,7 @@ const SECOND_MS = 1_000;
  * Why a child: the write log lives in the machine home, which the child points at a private directory.
  */
 function landOnce(box, { defect }) {
-  const home = mkdtempSync(join(tmpdir(), 'hold-span-'));
+  const home = temporaryDirectory('hold-span-');
   const url = path => JSON.stringify(pathToFileURL(join(import.meta.dirname, path)).href);
   const source = [
     `import { openBoard } from ${url('../../../apps/lib/index.js')};`,
@@ -62,7 +62,7 @@ function landOnce(box, { defect }) {
 /** A separate-publish landing project with nothing verified. */
 function emptyProject() {
   const box = landProject({ withWorktree: false });
-  box.env.PULLBOARD_MODEL = 'landing-fixture';
+  box.env.PULLBOARD_MODEL = FIXTURE_MODEL;
   return box;
 }
 
