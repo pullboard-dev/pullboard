@@ -1361,9 +1361,11 @@ async function main(args) {
     /** Acquire all required capabilities before creating the sandbox or starting test processes. */
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
-      const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+      // Gate slot and services by direct file: the gate, runner and landing front doors reach gate.js, board and machine [C7,V4].
+      const [{ withGateSlot }, { loadMachineSettings }, { gateSlotServices }] = await Promise.all([
+        import('../packages/gate/src/shell/gate-slot.js'), import('../packages/config/index.js'), import('./gate-slot-services.js'),
       ]);
+      const executionServices = await gateSlotServices();
       const capacity = loadMachineSettings().gateSlots;
       const { timingSeat } = await import('../src/seat-timing.js');
       const seat = timingSeat(process.cwd());
@@ -1383,7 +1385,7 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
+        executionServices, browser, gui,
         kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
         // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
         // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
