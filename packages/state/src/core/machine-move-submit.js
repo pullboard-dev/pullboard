@@ -1,6 +1,7 @@
 import { IN_STATE } from './machine-shared.js';
 import { BOARD_SHAPE_REFUSALS } from './machine-shared.js';
 import { AGENT_GRANT_REFUSALS } from './machine-shared.js';
+import { SUBMIT_REACHED_REFUSALS } from './machine-shared.js';
 
 /**
  * The `submit` lifecycle move, declared in its own module so a change to one move's
@@ -12,6 +13,7 @@ export const MOVES = [
   {
     verb: 'submit', from: ['claimed'], to: 'submitted', by: ['agent', 'coordinator'], refuse: 'NOT_YOURS',
     alsoRefuses: [
+      ...SUBMIT_REACHED_REFUSALS,
       { code: 'AGENT_APPROVAL_REQUIRED', rule: 'cited rows satisfy the accepted person approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
       { code: 'CLAUSE_EVIDENCE_KIND', rule: 'each frozen clause names one evidence kind', next: 'split outcomes or choose one evidence kind per clause' },
       { code: 'CLAUSE_EVIDENCE_REQUIRED', rule: 'each frozen clause declares its evidence kind', next: 'ask the coordinator to declare the missing clause evidence kind' },
