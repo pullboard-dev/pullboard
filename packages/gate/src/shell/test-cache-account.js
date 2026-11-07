@@ -98,7 +98,7 @@ export function rememberLatest(store, file, record) {
 
 /** The first path whose blob differs between two [path, blob] lists, in path order, or null. */
 function firstPathDifference(before, now) {
-  const left = new Map(before), right = new Map(now);
+  const left = new Map(Array.isArray(before) ? before : []), right = new Map(Array.isArray(now) ? now : []);
   for (const path of [...new Set([...left.keys(), ...right.keys()])].sort()) {
     if (left.get(path) !== right.get(path)) return path;
   }
@@ -123,7 +123,9 @@ export function firstChangedInput(store, before, now) {
     if (!first || !second) return 'unknown (earlier inputs not recorded)';
     const old = { ...first, files: listOf(store, first.files), runner: listOf(store, first.runner) };
     const current = { ...second, files: listOf(store, second.files), runner: listOf(store, second.runner) };
-    if (!old.files || !old.runner || !current.files || !current.runner) return 'unknown (earlier inputs not recorded)';
+    for (const part of [old, current]) {
+      if (![part.files, part.runner, part.inputs].every(Array.isArray)) return 'unknown (earlier inputs unreadable)';
+    }
     const oldTest = old.files.find(([path]) => path === old.test)?.[1], newTest = current.files.find(([path]) => path === current.test)?.[1];
     if (oldTest !== newTest) return 'file';
     const imported = firstPathDifference(old.files, current.files);
