@@ -19,6 +19,7 @@ import { refusalDocument } from '../apps/cli/index.js';
 import { nativeBoardOpeners } from '../apps/cli/index.js';
 import * as nativeBoard from '../apps/lib/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
 function missingService(name) {
@@ -60,7 +61,7 @@ test('a live view refuses missing command or renderer services before listening 
 
 test('standalone view projection opens the real native board [N26,C7]', t => {
   const box = approvedViewFixture(t);
-  const added = box.run(box.repo, 'add', 'web', 'Projection fixture', '--criterion', 'visible in the view');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Projection fixture', '--criterion', 'visible in the view');
   assert.equal(added.code, 0, added.err || added.out);
   assert.ok(projectState(box.repo).items.some(item => item.title === 'Projection fixture'));
 });

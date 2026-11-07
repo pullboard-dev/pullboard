@@ -19,6 +19,8 @@ import { toolBuildPolicy } from '../apps/cli/src/shell/pinned-tool-build.js';
 import { readToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
 import { writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
 delete process.env.PULLBOARD_RUNNER_JOB;
@@ -111,9 +113,9 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   assert.equal(result.code, 0, result.err + result.out);
   const seat = join(box.dir, 'claimed-seat');
   box.git(box.repo, 'worktree', 'add', '--detach', seat, first);
-  result = box.run(seat, 'join', 'web', '--family', 'Synthetic independent pin fixture');
+  result = fixtureJoin(box.run, seat, 'web', '--family', 'Synthetic independent pin fixture');
   assert.equal(result.code, 0, result.err + result.out);
-  result = box.run(box.repo, 'add', 'web', 'Synthetic held source', '--criterion', 'Keep the held source unchanged', '--specs', 'G1', '--json');
+  result = fixtureAdd(box.run, box.repo, 'web', 'Synthetic held source', '--criterion', 'Keep the held source unchanged', '--specs', 'G1', '--json');
   assert.equal(result.code, 0, result.err + result.out);
   const item = JSON.parse(result.out).item.item_id;
   result = box.run(seat, 'claim', String(item), '--json');

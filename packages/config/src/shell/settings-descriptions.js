@@ -27,6 +27,7 @@ const ROWS = [
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
+  ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once; unset, the cap is computed from the runner slots. Only this setting lowers it, never a launching command.', 'Capacity', 'count'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
   ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off'],
   // This machine: Background
