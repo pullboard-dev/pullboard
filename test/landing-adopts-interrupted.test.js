@@ -46,7 +46,7 @@ function waitingItem(t) {
   commit(box, box.repo, 'chore: configure held landing');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  json(box, reviewer, 'join', 'api', '--model', 'Fixture Model');
+  json(box, reviewer, 'join', 'api', '--model', 'Fixture Model', '--route', 'strong');
   const first = acceptItem(box, reviewer, 'first.txt', 'First result');
   assert.equal(first.verify.code, 0, first.verify.out + first.verify.err);
   config.landing.manualOverride = false;
