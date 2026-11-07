@@ -13,6 +13,8 @@ import { maintainStaleState } from '../packages/store/index.js';
 import { staleStateLimits } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const MINUTE = 60_000;
 
@@ -65,9 +67,9 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.equal(box.run(api, 'join', 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const add = (lane, title) => document(box.run(box.repo, 'add', lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
+  const add = (lane, title) => document(fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'api' ? 'G2' : 'G1',
     '--criterion', `${title} passes its gate.`, '--check', 'true', '--json')).item.item_id;
   const gated = add('web', 'Build whose gate is running'), idle = add('api', 'Build with no gate');
   t.after(async () => {
