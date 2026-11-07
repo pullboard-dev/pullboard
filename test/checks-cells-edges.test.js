@@ -3,15 +3,13 @@ import assert from 'node:assert/strict';
 import {
   copyFileSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { after, test } from 'node:test';
+import { privateFixtureFiles, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import {
   cellsEdgeProblems,
   cellsEdgeReport,
@@ -24,12 +22,12 @@ after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true
 
 /** A fixture tree of cells a and b, with an optional plan declaring allowed edges. */
 function fixture(files, allowedEdges) {
-  const root = mkdtempSync(join(tmpdir(), 'cells-edges-'));
+  const inputs = privateFixtureFiles('cells-edges-');
+  const root = inputs.root;
   made.push(root);
   const all = { 'bin/cells-plan.json': JSON.stringify({ cells: [], ...(allowedEdges ? { allowedEdges } : {}) }), ...files };
   for (const [file, text] of Object.entries(all)) {
-    mkdirSync(join(root, file, '..'), { recursive: true });
-    writeFileSync(join(root, file), text);
+    inputs.write(file, text);
   }
   return root;
 }
@@ -69,9 +67,9 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   mkdirSync(join(root, 'bin/checks'), { recursive: true });
   copyFileSync(join(REPO, 'bin/checks/test-waits-baseline.json'), join(root, 'bin/checks/test-waits-baseline.json'));
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x']]) {
-    assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+    runFixtureGit(args, { cwd: root });
   }
-  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
+  const run = runFixtureChild(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
     join(REPO, 'bin/checks/changed-static.js'), 'packages/b/deep.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
