@@ -24,9 +24,9 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { testHash } from './landing-step-selection.js';
 import { testBlob } from './landing-step-selection.js';
 import { compareMainFailures } from './main-red.js';
+import { gitSpawnSync } from '../../../git/index.js';
 import { carriedMainOutcome } from './main-red.js';
 import { changedFiles } from './landing-known-main.js';
-import { spawnSync } from 'node:child_process';
 import { repeatedBlockedCause } from '../core/runner-source-hold.js';
 import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
 import { repeatedLandingNotice } from '../core/runner-source-hold.js';
@@ -48,7 +48,7 @@ export async function landingBaseGreen(state, failures, compare = compareMainFai
  * present, so an unreadable base still goes through the base comparison [C7,#2947].
  */
 function fileOnBase(state, file) {
-  const git = args => spawnSync('git', ['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
+  const git = args => gitSpawnSync(['--no-replace-objects', ...args], { cwd: state.batch.root }).status === 0;
   if (!git(['cat-file', '-e', `${state.batch.base}^{commit}`])) return true;
   return git(['cat-file', '-e', `${state.batch.base}:${file}`]);
 }
@@ -200,7 +200,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
  * accepted work that was never at fault [C7,#2967].
  */
 export function ownFailures(state, entry, failures) {
-  const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+  const changed = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
   if (changed.status !== 0) return [];
   const files = new Set(changed.stdout.split('\0').filter(Boolean));
   const check = store.getItem(state.board, entry.id)?.item_check ?? '';
@@ -311,7 +311,7 @@ export async function returnRefusedItem(state, error) {
 function parseImplicated(state, entries, error) {
   if (error.code !== 'LAND_MODULE_PARSE' || !error.broken?.length) return [];
   return entries.filter(entry => {
-    const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
+    const changed = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
     return changed.status === 0 && changed.stdout.split('\n').some(file => error.broken.includes(file));
   });
 }
