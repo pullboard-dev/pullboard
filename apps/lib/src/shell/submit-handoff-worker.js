@@ -1,6 +1,7 @@
 import { refusalDocument } from '../../../../src/next-step-words.js';
 /** A gate's driver runs canonical Submit from its captured private source, never the builder checkout [C7]. */
 import {
+  existsSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
@@ -40,6 +41,7 @@ import { GATE_DRIVE_KIND } from '../../../../packages/drive/index.js';
 import { createJob } from '../../../../packages/jobs/index.js';
 import { nameJob } from '../../../../packages/jobs/index.js';
 import { finishJob } from '../../../../packages/jobs/index.js';
+import { releaseLease } from '../../../../packages/jobs/index.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
@@ -182,22 +184,74 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * Submit's stages passed through the driver's observer, and returns the result the worker would record, green or
  * refused, so a gate driven by driveOnce runs the worker's sections in its order and records the same result [C7].
  *
+ * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
+ * more is written to the drive job, which stays resumable at its last saved step.
+ *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>> }} options
  * @returns {(observe: (stages: object[]) => object[]) => Promise<object>}
  */
-export function drivenHandoffGate(ctx, request, options) {
+export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
   return async observe => {
-    ctx.runGateStages = (stages, settings) => runGateStages(observe(stages), settings);
+    ctx.runGateStages = (stages, settings) => runGateStages(observe(stop ? stoppableStages(stages, stop, inflight) : stages), settings);
     try { return await handoffGate(ctx, request, options); }
-    catch (error) { return handoffRefusedResult(error); }
+    catch (error) {
+      if (stop?.aborted) return new Promise(() => {});
+      return handoffRefusedResult(error);
+    }
     finally { delete ctx.runGateStages; }
   };
 }
 
+/**
+ * Wrap a gate's stages so a driver stop reaches each running stage through its own signal: the check and proof run
+ * as asynchronous child processes, and their signal stops each child's process group. Each running stage is kept in
+ * `inflight` until it settles, so the driver can wait for its children to close before it exits. Once stopped, a
+ * stage neither starts nor settles, so no outcome of a stopped run is written as the gate's [C7].
+ *
+ * Why: no process is load-bearing; a stopped driver leaves its job at its last saved step for the next driver.
+ *
+ * @param {{ name: string, run: (signal: AbortSignal) => unknown }[]} stages
+ * @param {AbortSignal} stop - Aborted when the driver is told to stop.
+ * @param {Set<Promise<unknown>>} inflight - The stages still running, filled and emptied in place.
+ * @returns {{ name: string, run: (signal: AbortSignal) => Promise<unknown> }[]}
+ */
+export function stoppableStages(stages, stop, inflight) {
+  return stages.map(stage => ({ ...stage, run: async signal => {
+    if (stop.aborted) return new Promise(() => {});
+    const running = Promise.resolve().then(() => stage.run(AbortSignal.any([signal, stop])));
+    inflight.add(running);
+    try { return await running; }
+    catch (error) {
+      if (stop.aborted) return new Promise(() => {});
+      throw error;
+    } finally { inflight.delete(running); }
+  } }));
+}
+
 /** How long the gate's driver rests between drives that moved nothing; a whole gate moves on every drive. */
 const GATE_DRIVE_POLL_MS = 1000;
+
+/**
+ * How long a stopped driver waits for its stages' child processes to close before it exits anyway. A cancelled
+ * child gets SIGTERM and, 500 ms later, SIGKILL (spawnCaptured), so its stage settles well inside this.
+ */
+const DRIVER_STOP_GRACE_MS = 10_000;
+
+/**
+ * Wait until every promise in `running` settles, or `ms` passes, whichever is first.
+ *
+ * @param {Set<Promise<unknown>>} running
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+async function settledWithin(running, ms) {
+  let timer;
+  const bound = new Promise(resolvePromise => { timer = setTimeout(resolvePromise, ms); timer.unref?.(); });
+  try { await Promise.race([Promise.allSettled([...running]), bound]); }
+  finally { clearTimeout(timer); }
+}
 
 /**
  * Run one queued submit gate as a drive-cell job, in this process: the dispatcher admitted it to `owner` and started
@@ -218,23 +272,35 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   const { request, directory, root } = workerRequest(requestFile);
   let ctx;
   let attached = false;
-  /** Remove this driver's disposable checkout and its own tool snapshot, once. */
-  const cleanup = () => {
+  const drive = gateDriveJobId(request.job);
+  const stopper = new AbortController();
+  const inflight = new Set();
+  /** Remove this driver's disposable checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
+  const removeCheckout = () => {
     if (!attached) return;
     attached = false;
-    try { jobGit(request.commonDir, ['worktree', 'remove', '--force', root]); }
-    finally { cleanupToolSnapshot(request); }
+    jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
+  };
+  /** Remove this driver's disposable checkout and its own tool snapshot, once the gate has ended. */
+  const cleanup = () => {
+    const owned = attached;
+    try { removeCheckout(); }
+    finally { if (owned) cleanupToolSnapshot(request); }
   };
   /**
-   * A stop signal records the gate's refusal before anything is removed, then stops the gate's own process group,
-   * as the supervisor did for its child: the builder reads why the gate ended, never a silent running job.
+   * A stop signal stops the gate's child processes through their own signals and waits for them to close, then frees
+   * the drive lease and exits without a result: the job stays at its last saved step, so the next driver admitted to
+   * it resumes it, and the builder never reads a stopped process as a red [C7].
+   * Why: no process is load-bearing; the job rows, not this process, hold the gate's state.
    */
   const terminate = signal => async () => {
-    const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_EXIT',
-      `queued submit worker exited with code none and signal ${signal} without a terminal result; read its worker.log before resubmitting the captured source`), { caller: 'seat' }) };
-    try { await recordWorkerFailure(ctx, request, directory, failure); }
+    stopper.abort(new Refused('SUBMIT_HANDOFF_STOPPED', `the gate driver received ${signal}; the next driver resumes its job`));
+    try {
+      await settledWithin(inflight, DRIVER_STOP_GRACE_MS);
+      if (ctx) withBoard(ctx, board => releaseLease(board.db, drive, owner));
+    } catch (error) { process.stderr.write(`stopped gate driver could not free its lease: ${error.message}\n`); }
     finally {
-      try { cleanup(); } catch { /* the folder sweep removes what a stopped driver could not */ }
+      try { removeCheckout(); } catch { /* the next driver replaces a checkout a stopped driver could not remove */ }
       try { process.kill(-process.pid, 'SIGKILL'); } catch { /* not a group leader: only this process stops */ }
       process.exit(signal === 'SIGINT' ? 130 : 143);
     }
@@ -242,22 +308,25 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
   try {
+    // A killed driver can leave this job's own disposable checkout behind; the admitted driver replaces it.
+    if (existsSync(root)) jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
     jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
     attached = true;
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
-    if (!started.started) return;
+    // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
+    if (!started.started && started.job?.state !== 'running') return;
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
-    const drive = gateDriveJobId(request.job);
     // The dispatcher admitted the drive job by its place in line; the captured request names what it drives.
     withBoard(ctx, board => {
       createJob(board.db, { id: drive, kind: GATE_DRIVE_KIND, item: request.item, candidate: request.commit });
       nameJob(board.db, drive, { item: request.item, candidate: request.commit });
     });
-    const gate = drivenHandoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
+    const gate = drivenHandoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
+      stop: stopper.signal, inflight });
     const board = nativeBoard.openBoard(ctx.file);
     let result;
     try {
@@ -272,10 +341,12 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
     withBoard(ctx, board => finishJob(board.db, drive, owner));
   } catch (error) {
+    // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
+    if (stopper.signal.aborted) return;
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout; generated files must not strand it.
-    cleanup();
+    if (!stopper.signal.aborted) cleanup();
   }
 }
