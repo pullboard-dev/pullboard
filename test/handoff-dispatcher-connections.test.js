@@ -1,16 +1,16 @@
 /** The handoff dispatcher holds a flat number of resources database connections across passes, locked or not [C7,#3338]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { SLOT_DB_LOCK_ENV, drainHandoffQueue } from '../packages/resources/index.js';
+import { temporaryDirectory } from './board-fixture.js';
 
 /** Build a private machine home and put the environment back afterwards. */
 function fixture() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-dispatcher-connections-')));
+  const dir = realpathSync(temporaryDirectory('pullboard-dispatcher-connections-'));
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, lock: process.env[SLOT_DB_LOCK_ENV] };
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
   process.env[SLOT_DB_LOCK_ENV] = '100';
