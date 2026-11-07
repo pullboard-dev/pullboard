@@ -12,7 +12,10 @@ function run(command, args, cwd, env) {
   return spawnSync(command, args, { cwd, env, encoding: 'utf8' });
 }
 
-/** Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations. */
+/**
+ * Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations.
+ * Returns the combined stdout and stderr of the branch's status read and claim so a caller can count diagnostics.
+ */
 export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-branch-board-isolation-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -59,7 +62,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.equal(existsSync(join(repo, '.git', 'pullboard', 'board.sqlite')), false, 'the refused open creates no shared database');
   const initialized = cli(repo, 'init');
   assert.equal(initialized.status, 0, initialized.stderr + initialized.stdout);
-  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker');
+  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker', '--route', 'strong');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const joinedDocument = JSON.parse(joined.stdout);
   const added = cli(repo, 'add', 'web', 'shared schema fixture item', '--criterion', 'the branch claim uses the shared board');
@@ -84,10 +87,10 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   };
   const before = footprint();
 
-  const boardFileInBranch = join(branch, 'src', 'board-schema-source.js');
+  const boardFileInBranch = join(branch, 'packages/store/src/shell/board-schema-source.js');
   const boardSource = readFileSync(boardFileInBranch, 'utf8');
   // The added-column list lives in board-migrate.js; schema versions live in board-schema-source.js.
-  const migrateFileInBranch = join(branch, 'src', 'board-migrate.js');
+  const migrateFileInBranch = join(branch, 'packages/store/src/shell/board-migrate.js');
   const migrateSource = readFileSync(migrateFileInBranch, 'utf8');
   const migration = "  ['item', 'item_after', \"TEXT NOT NULL DEFAULT ''\"],";
   assert.ok(migrateSource.includes(migration), 'the candidate source contains the stable migration insertion point');
@@ -98,7 +101,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.notEqual(branchBoardSource, migrateSource);
   writeFileSync(migrateFileInBranch, branchBoardSource);
 
-  const machineFileInBranch = join(branch, 'src', 'machine.js');
+  const machineFileInBranch = join(branch, 'packages/state/src/shell/machine.js');
   const machineSource = readFileSync(machineFileInBranch, 'utf8');
   const triggerBody = "refuse('UNDECLARED_MOVE', `the moves are ${moves.join(', ')}`)";
   const branchTriggerBody = "refuse('UNDECLARED_MOVE', `branch fixture moves are ${moves.join(', ')}`)";
@@ -140,8 +143,9 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   for (const result of [read, move]) {
     const output = [result.stdout, result.stderr].join('\n');
     assert.equal(output.match(/item_branch_probe/gu)?.length ?? 0, 1,
-      'one diagnostic per invocation names the uninstalled column exactly once');
+      `one diagnostic per invocation names the uninstalled column exactly once:\n${output}`);
     assert.equal(output.match(/machine_item_move/gu)?.length ?? 0, 1,
-      'the same diagnostic names the changed machine trigger exactly once');
+      `the same diagnostic names the changed machine trigger exactly once:\n${output}`);
   }
+  return { read: [read.stdout, read.stderr].join('\n'), claim: [move.stdout, move.stderr].join('\n') };
 }

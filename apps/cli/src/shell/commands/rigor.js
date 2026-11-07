@@ -46,7 +46,9 @@ export async function run(io, { first, second, rest, values }) {
   if (values['draft-splits']) report.splitDrafts = await draftConflictSplits(ctx, report, { read: () => withBoard(ctx, (board) => ({ coordinator: whoAmI(ctx, board).id === COORDINATOR, rows: store.rowDrafts(board), decisions: store.rowDecisions(board) })), reserve: row => reserveRow(ctx, row, true) });
   io.result?.(report);
   for (const line of [...rigorLines(report), ...conflictLines(report)]) io.say(line);
-  for (const entry of report.instructions.kinds) io.say(`coordinator ${entry.kind}: ${entry.count} instruction(s) in ${report.instructions.windowMs / 86_400_000} days; draft threshold ${report.instructions.threshold}`);
+  const instructions = values.detail ? report.instructions.kinds : report.instructions.kinds.filter(entry => entry.count > 0);
+  if (!values.detail && !instructions.length) io.say(`coordinator instructions: none in ${report.instructions.windowMs / 86_400_000} days; draft threshold ${report.instructions.threshold}`);
+  for (const entry of instructions) io.say(`coordinator ${entry.kind}: ${entry.count} instruction(s) in ${report.instructions.windowMs / 86_400_000} days; draft threshold ${report.instructions.threshold}`);
   for (const draft of report.splitDrafts ?? []) io.say(`${draft.id}: draft split proposal; person approval required`);
   for (const draft of report.qualityDrafts ?? []) io.say(`${draft.id}: draft quality rule, switched off until the person approves it`);
   return 0;

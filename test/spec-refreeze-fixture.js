@@ -126,7 +126,7 @@ function correctionMove(box, board, id) {
   writeRowApply(box.root, plan);
   const ctx = { info: { root: box.root, isMain: true }, config, doctrine: loadDoctrine(box.root, config), clock: box.clock };
   const refreezes = prepareSpecRefreezes(plan.records, store.listItems(board, { all: true }),
-    freezer(ctx, { captureVerifyPolicy: true, board }));
+    freezer(ctx, { captureVerifyPolicy: true, board, applyingDecisions: plan.records }));
   assert.ok(refreezes !== undefined, 'an approved changed row carries the new protocol marker');
   const args = { agentId: COORDINATOR, events: plan.records.map(record => record.event), refreezes };
   return prepareEngineMove(board, 'applyRowDecisions', [args], { id, actor: COORDINATOR });

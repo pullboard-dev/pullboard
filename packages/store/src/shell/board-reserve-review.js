@@ -1,5 +1,6 @@
 import { current } from "./board-query.js";
 import { getItem } from "./board-query.js";
+import { heartbeatSnapshot } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { IN_STATE } from "../../../state/index.js";
@@ -12,6 +13,8 @@ import { confirmFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
+import { sweepLapsedReviews } from './board-review-lease.js';
+import { holdReviewLease } from './board-review-lease.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -24,14 +27,16 @@ import { ENGINE_VERSION } from '../../../state/index.js';
  */
 export function reserveReview(board, id, who) {
   const known = PREPARED_RESERVES.get(who);
-  if (known?.board !== board || known.id !== id) return atomic(board, () => reserveWithin(board, id, who));
+  // A reviewer silent for two minutes loses its reservation: the heartbeats are read here, before the lock opens.
+  const reviewHeartbeats = heartbeatSnapshot(board);
+  if (known?.board !== board || known.id !== id) return atomic(board, () => reserveWithin(board, id, { ...who, reviewHeartbeats }));
   return atomic(board, () => {
     const found = getItem(board, id);
     // A witness the board no longer supports is never rebuilt in the lock: the writer prepares again outside it.
     if (known.witness && found && !confirmFamilyRelaxation(board, found, known.witness, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy)) {
       throw new Refused('BOARD_BUSY', 'the review queue changed between the look and the write; run next --verify again');
     }
-    return reserveWithin(board, id, { ...who, prepared: { witness: known.witness } });
+    return reserveWithin(board, id, { ...who, reviewHeartbeats, prepared: { witness: known.witness } });
   });
 }
 
@@ -53,7 +58,7 @@ export function prepareReserveReview(board, id, who) {
   const found = getItem(board, id);
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   const fits = found && (who.familyRelaxAt === undefined || who.familyRelaxAt === frozenRelaxAt(found));
-  const witness = enabled && fits ? reviewFamilyRelaxation(board, found, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy ?? 'off') : null;
+  const witness = enabled && fits ? reviewFamilyRelaxation(board, found, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy ?? 'off', null, heartbeatSnapshot(board)) : null;
   const prepared = Object.freeze({ ...who });
   PREPARED_RESERVES.set(prepared, { board, id, witness });
   return prepared;
@@ -70,7 +75,8 @@ export function prepareReserveReview(board, id, who) {
  *   relaxes nothing and a same-family pair refuses (#3156).
  * @returns {any}
  */
-export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared }) {
+export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared, reviewHeartbeats = null }) {
+  sweepLapsedReviews(board, reviewHeartbeats);
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
   const frozen = found ? frozenRelaxAt(found) : undefined;
@@ -90,10 +96,11 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
         const cooldown = reviewReleaseCooldown(board, id, agentId);
         return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
       },
-      ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: () => witness } : {}) }),
+      ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: () => witness } : {}) }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });
   logEvent(board, agentId, 'reserve', id, { until, ...(witness ? { commit: found.item_commit, digest: found.item_frozen_digest, familyRelaxation: witness } : {}) });
+  holdReviewLease(board, id, agentId);
   return getItem(board, id);
 }

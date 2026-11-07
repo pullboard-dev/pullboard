@@ -1254,6 +1254,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/machine-verdict-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1377,6 +1381,10 @@
     },
     {
       "path": "bin/checks/test-waits.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/test-fixtures.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1559,6 +1567,11 @@
       "owner": "state"
     },
     {
+      "path": "src/ownership-wait-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1570,6 +1583,11 @@
     {
       "path": "src/move-history/229.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/stranded-dependency-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
     },
     {
       "path": "src/ledger-quarantine-engine.js",
@@ -1601,6 +1619,102 @@
     },
     {
       "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/234.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/235.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/236.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/237.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/238.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/239.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/infra-handoff-recovery-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/main-red-withdraw-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/per-item-full-suite-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-twice-route-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-gone-release-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/tier-row-change.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/builder-family-required-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/240.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/review-head-builder-family-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/241.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/242.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/243.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/shadow-tier1-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-slot-services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/244.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/item-patch-auto-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/drive-worker.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

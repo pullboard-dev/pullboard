@@ -113,7 +113,7 @@ try {
   if (selected('selection') && typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
-  if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message) };
+  if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.name !== 'Refused') throw error;
   else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
@@ -204,7 +204,8 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
     step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data, analysisArtifact: inventory }, lease, artifactDirectory);
     if (!step.value.infra || step.value.infra.code.startsWith('CELLS_INVENTORY_')) break;
   }
-  if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true });
+  if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
+    ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   const { value, directory, sha256 } = step;
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
@@ -252,6 +253,11 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] })
  */
 export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
   return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
+}
+
+/** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
+export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
+  return runSubmitGate(root, config, { ...options, ...runnerPlan });
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */

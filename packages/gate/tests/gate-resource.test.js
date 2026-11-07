@@ -23,6 +23,8 @@ import { BROWSER_SLOT_HELD_ENV } from '../../resources/index.js';
 import { GATE_SLOT_HELD_ENV } from '../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../resources/index.js';
+import { fixtureAddArgv } from '../../../test/testkit-fixture.js';
+import { fixtureJoinArgv } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../../../bin/run-tests.js');
@@ -255,13 +257,13 @@ function checkProject(box, { releaseCheck = null } = {}) {
   const initialized = spawnSync(process.execPath, [BIN, 'init'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', runner, '-b', 'web/runner'], { cwd: root, env: box.env }).status, 0);
-  const joined = spawnSync(process.execPath, [BIN, 'join', 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env, encoding: 'utf8' });
+  const joined = spawnSync(process.execPath, [...fixtureJoinArgv(BIN), 'web', '--model', 'fixture-model'], { cwd: runner, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stderr);
   writeFileSync(script, releaseCheck
     ? `const fs = require('node:fs');\n(async () => {\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check start\\n');\n  while (!fs.existsSync(${JSON.stringify(releaseCheck)})) await new Promise(done => setTimeout(done, 10));\n  fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n');\n  process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n})();\n`
     : `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(box.events)}, 'item check\\n'); process.exitCode = fs.existsSync('web/result.txt') ? 0 : 1;\n`);
   if (releaseCheck) writeFileSync(releaseCheck, 'baseline runs without a hold\n');
-  const added = spawnSync(process.execPath, [BIN, 'add', 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
+  const added = spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Check item', '--specs', 'G1', '--route', 'light', '--criterion', 'the item check runs', '--check', `node '${script}'`, '--wait', '--brief', 'Files: web/result.txt\nTest: run the item check and observe its result.'], { cwd: root, env: box.env, encoding: 'utf8' });
   assert.equal(added.status, 0, added.stderr);
   assert.equal(spawnSync(process.execPath, [BIN, 'claim', '1'], { cwd: runner, env: box.env }).status, 0);
   if (releaseCheck) rmSync(releaseCheck, { force: true });
@@ -483,7 +485,7 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const itemCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: runner, env: box.env, encoding: 'utf8' }).stdout.trim();
   assert.equal(spawnSync('git', ['worktree', 'add', '-q', '--detach', review, itemCommit], { cwd: root, env: box.env }).status, 0);
   const reviewBox = { ...box, env: { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'gate-resource-reviewer' } };
-  const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
+  const reviewer = spawnSync(process.execPath, [...fixtureJoinArgv(BIN), 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
   // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
