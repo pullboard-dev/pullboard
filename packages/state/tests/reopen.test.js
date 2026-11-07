@@ -975,8 +975,13 @@ test('clause 3: retained main controls builder first refusal during detached rev
   assert.equal(window.builder, 'web-1');
   assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
   assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  const released = await command(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next');
-  assert.equal(released.code, 0, released.err);
+  // #2460 (12ee9b638c, d80a319692) restored the first-refusal window after #2779: the claim opens only once it has passed.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  t.mock.timers.tick(29 * 60_000);
+  const insideWindow = await command(other, 'claim', '1', '--json');
+  assert.equal(insideWindow.code, 1, insideWindow.out);
+  assert.equal(JSON.parse(insideWindow.out).error.code, 'REOPEN_HELD_FOR_BUILDER', 'still inside the 30-minute window');
+  t.mock.timers.tick(2 * 60_000);
   const claimed = await command(other, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
 });
