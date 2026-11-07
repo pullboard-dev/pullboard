@@ -567,14 +567,14 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const cursor = runnersFirst ? db.prepare("SELECT next_host FROM runner_rotation WHERE pool = 'gate'").get()?.next_host : '';
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
-      const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
-        if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
-        if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
-        const used = usage.get(runner.host);
-        return !used.timing && (waiter.timing !== 1 || used.slots === 0)
+      /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
+      const fits = (runner, lendingTo) => {
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
+        return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
-      });
+      };
+      const free = ordered.filter(runner => fits(runner)), compatible = free.length ? free : ordered.filter(runner => fits(runner, waiters));
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
       if (restriction?.kind === 'ssh' && restriction.hosts) {
