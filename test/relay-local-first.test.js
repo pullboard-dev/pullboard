@@ -24,6 +24,8 @@ const LOCAL_MS = 1_000;
 const IDLE_NODE_START_MS = 40;
 // Budget: how long a test waits for the background sender to reach the relay; it polls every 200 ms here.
 const SENDER_WAIT_MS = 20_000;
+/** How often the burst test lists sender processes; each listing is a `ps` that competes with the commands being timed, and a sender lives far longer than this. */
+const SAMPLE_MS = 100;
 
 /** Turn the board's committed relay.outbox setting on, as its coordinator would. */
 function enableOutbox(box) {
@@ -134,13 +136,14 @@ async function local(box, t, cwd, env, name, args, budget) {
 
 /**
  * The local-first budget in ms: LOCAL_MS on an idle machine, stretched by how much slower a bare node start is now.
+ * `concurrent` counts commands that run at once with the measured ones, each queueing on the CPU too.
  * Why: the bar is about the CLI's own work, and a loaded runner made the same command read red in one run and green in the next.
  */
-async function loadedBudgetMs() {
+async function loadedBudgetMs(concurrent = 0) {
   const starts = await Promise.all([1, 2, 3, 4, 5, 6].map(() => runFixtureChildAsync(process.execPath, ['-e', '0'], {})));
   const slowest = Math.max(...starts.map(start => start.elapsedMs));
   // A CLI command is heavier than a bare start and queues on the CPU like any other process, so run-queue pressure counts twice.
-  const queued = 2 * loadavg()[0] / cpus().length;
+  const queued = 2 * (loadavg()[0] + concurrent) / cpus().length;
   return Math.round(LOCAL_MS * Math.max(1, slowest / IDLE_NODE_START_MS, queued));
 }
 
@@ -318,8 +321,8 @@ test('one background sender per machine sends each new move once, asks GitHub on
     const observed = senderProcesses(box.root);
     senders = Math.max(senders, observed.owned.length);
     otherFixtures = Math.max(otherFixtures, observed.others);
-  }, 20);
-  const budgetMs = await loadedBudgetMs();
+  }, SAMPLE_MS);
+  const budgetMs = await loadedBudgetMs(texts.length);
   try {
     await Promise.all(texts.map((text, index) => local(box, t, box.root, env, `burst-${index}`, ['shout', 'all', text], budgetMs)));
     await eventually('the sender sends the burst', () => outboxEmpty(box), () => senderLog(env));
