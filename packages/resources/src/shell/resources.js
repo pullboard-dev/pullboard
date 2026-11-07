@@ -567,14 +567,14 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const cursor = runnersFirst ? db.prepare("SELECT next_host FROM runner_rotation WHERE pool = 'gate'").get()?.next_host : '';
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
-      const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
-        if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
-        if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
-        const used = usage.get(runner.host);
-        return !used.timing && (waiter.timing !== 1 || used.slots === 0)
+      /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
+      const fits = (runner, lendingTo) => {
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
+        return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
-      });
+      };
+      const free = ordered.filter(runner => fits(runner)), compatible = free.length ? free : ordered.filter(runner => fits(runner, waiters));
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
       if (restriction?.kind === 'ssh' && restriction.hosts) {
@@ -801,7 +801,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false, allowWhenHeld = null } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -810,7 +810,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
     return update(db, () => {
       const resourceName = runnerResourceName(host);
       const held = db.prepare('SELECT COUNT(*) AS count FROM holder WHERE name = ?').get(resourceName).count;
-      if (held && !drain && !observation) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
+      if (held && !drain && !observation && !(typeof allowWhenHeld === 'function' && allowWhenHeld())) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist({ held });
@@ -1126,7 +1126,7 @@ export async function takeResource(options) {
         const browserResource = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get();
         if (browserResource && browserResource.capacity !== browserCapacity) {
           const state = snapshot(db, 'browser');
-          if (!allowIdleCapacityUpdate || state.holders.length || state.line.length) {
+          if (!(allowCapacityGrowth && browserCapacity > browserResource.capacity) && (!allowIdleCapacityUpdate || state.holders.length || state.line.length)) {
             throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "browser" already has capacity ${browserResource.capacity}`);
           }
           db.prepare("UPDATE resource SET capacity = ? WHERE name = 'browser'").run(browserCapacity);
