@@ -1489,3 +1489,12 @@ test('direct branch board opens preserve shared DDL while private databases stil
   const { assertDirectOpenBoardIsolation } = await import('./direct-open-board-regression.js');
   assertDirectOpenBoardIsolation(t, fileURLToPath(new URL('..', import.meta.url)));
 });
+
+test('clause 1: the SHARED_SCHEMA_DIFFERENCE diagnostic prints once per command, never again from the landing wake [A5,A6,C7]', async t => {
+  const { assertBranchWorktreeBoardIsolation } = await import('./branch-worktree-isolation.js');
+  const outputs = await assertBranchWorktreeBoardIsolation(t, fileURLToPath(new URL('..', import.meta.url)));
+  for (const [command, output] of Object.entries(outputs)) {
+    assert.equal(output.match(/SHARED_SCHEMA_DIFFERENCE/gu)?.length ?? 0, 1,
+      `${command}: SHARED_SCHEMA_DIFFERENCE appears exactly once in that command's output:\n${output}`);
+  }
+});

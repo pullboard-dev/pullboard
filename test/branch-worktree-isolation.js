@@ -12,7 +12,10 @@ function run(command, args, cwd, env) {
   return spawnSync(command, args, { cwd, env, encoding: 'utf8' });
 }
 
-/** Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations. */
+/**
+ * Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations.
+ * Returns the combined stdout and stderr of the branch's status read and claim so a caller can count diagnostics.
+ */
 export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-branch-board-isolation-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -144,4 +147,5 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
     assert.equal(output.match(/machine_item_move/gu)?.length ?? 0, 1,
       `the same diagnostic names the changed machine trigger exactly once:\n${output}`);
   }
+  return { read: [read.stdout, read.stderr].join('\n'), claim: [move.stdout, move.stderr].join('\n') };
 }
