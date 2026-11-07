@@ -29,6 +29,8 @@ const HEALTH_WAITS = 20;
 export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED']));
 const LOCK_PAUSE_MS = 1_000;
 const LOCK_MAX_PAUSE_MS = 30_000;
+/** Inventory waits that spend no retry; each main move may need one, and the bound keeps the loop finite. */
+export const INVENTORY_WAITS = 8;
 
 /**
  * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule).
@@ -76,8 +78,11 @@ function pause(ms) {
  * A lock stop (LOCK_CODES) is no attempt: the same candidate waits with doubling backoff, capped at 30 s, until the
  * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
  *
- * A CELLS_INVENTORY_PENDING stop that names its commit is no attempt either: `waitInventory(commit)` waits for the
- * producer, and when it returns the same candidate runs again; when it throws, the stop counts like any other (#3316).
+ * A CELLS_INVENTORY_PENDING stop that names its commit (`commit`, or `inventoryCommit` from the cells check) is no
+ * attempt either: `waitInventory(commit)` waits for the producer, and when the inventory turns ready after at least one
+ * poll the same candidate runs again. When it throws (the producer is dead or absent, or the wait ran out), or the
+ * inventory was already ready so waiting cannot help, or INVENTORY_WAITS free waits are spent, the stop counts like any
+ * other (#3316).
  *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
  * @param {{ say?: (line: string) => void, waitInventory?: (commit: string) => Promise<unknown>, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
@@ -87,6 +92,7 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
   const attempts = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
+  let inventoryWaits = 0;
   for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
@@ -104,9 +110,15 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
         await wait(ms);
         continue;
       }
-      if (code === 'CELLS_INVENTORY_PENDING' && typeof error.commit === 'string' && waitInventory) {
-        say(`queued gate is waiting for the accepted cells inventory of ${error.commit.slice(0, 12)}; continuing the same candidate, not a retry`);
-        try { await waitInventory(error.commit); attempt -= 1; continue; } catch { /* Still warming at the limit: the stop counts below. */ }
+      const inventoryCommit = typeof error.commit === 'string' ? error.commit : error.inventoryCommit;
+      if (code === 'CELLS_INVENTORY_PENDING' && typeof inventoryCommit === 'string' && waitInventory && inventoryWaits < INVENTORY_WAITS) {
+        inventoryWaits += 1;
+        say(`queued gate is waiting for the accepted cells inventory of ${inventoryCommit.slice(0, 12)}; continuing the same candidate, not a retry`);
+        let ready = null;
+        try { ready = await waitInventory(inventoryCommit); }
+        catch (waitError) { say(`queued gate stopped waiting: ${String(waitError?.message ?? waitError).split('\n')[0]}`); }
+        // Ready on the first poll means waiting changed nothing, so the stop counts and the loop stays finite.
+        if (ready && Number(ready.waited) > 0) { attempt -= 1; continue; }
       }
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });

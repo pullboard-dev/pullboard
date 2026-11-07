@@ -216,13 +216,18 @@ export function recordAcceptedCellsFailure(root, commit, error) {
   save(join(identity.directory, `${key}.failure.json`), { version: 1, tree: identity.tree, at: new Date().toISOString(), message: String(error?.message ?? error).slice(0, 2048) });
 }
 
-/** Read the producer's owner record for a commit: 'live', 'dead' (a record whose process is gone), or 'none'. */
+/**
+ * Read the producer's owner record for a commit: 'live', 'dead' (a record whose process is gone), or 'none'.
+ * Why the pinned key: nudgeAcceptedCells writes the record under the pinned identity, so a worker whose own tooling
+ * differs from main's still finds the producer that is working on that commit.
+ */
 function ownerState(root, commit) {
+  let text;
   try {
-    const identity = acceptedCellsIdentity(root, commit);
-    const file = join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`);
-    return ownerLive(JSON.parse(readFileSync(file, 'utf8'))) ? 'live' : 'dead';
+    const identity = acceptedCellsIdentity(root, commit, { pinned: true });
+    text = readFileSync(join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`), 'utf8');
   } catch { return 'none'; }
+  try { return ownerLive(JSON.parse(text)) ? 'live' : 'dead'; } catch { return 'dead'; }
 }
 
 /** Resolve after `ms`; the default sleep, replaced by a fixture's own clock. */
@@ -230,34 +235,41 @@ function defaultSleep(ms) {
   return new Promise(done => setTimeout(done, ms));
 }
 
+/** The retryable stop a wait ends with, carrying its commit so the caller can name it. */
+function stillPending(commit, message) {
+  return Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} ${message}`),
+    { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
+}
+
 /**
- * Wait for a commit's accepted inventory to be published by its independent producer, and return the artifact.
- * Polls readAcceptedCells every intervalMs while the producer's owner record is live; a producer that died without
- * publishing is nudged once more and then waited on too. Throws CELLS_INVENTORY_PENDING (carrying the commit) when
- * limitMs passes first.
+ * Wait for a commit's accepted inventory to be published by its independent producer, and return the artifact with
+ * `waited`, the number of polls it took. Polls readAcceptedCells every intervalMs while the producer's owner record is
+ * live, calling `beat` after each poll so the job log shows the wait is alive. A producer that is dead or absent is
+ * nudged once more; if it is still not running after that, or dies again, the wait ends at once with a clear
+ * CELLS_INVENTORY_PENDING stop instead of sleeping out the deadline. limitMs bounds the whole wait.
  * Why: a landing starts a 2 to 5 minute producer, longer than the quick infrastructure retries, so the gate waits on
  * the producer instead of spending those retries (#3316).
  *
  * @param {string} root
  * @param {string} commit
- * @param {{ now?: () => number, sleep?: (ms: number) => Promise<void>, limitMs?: number, intervalMs?: number, workerUrl?: URL, read?: Function, nudge?: Function, owner?: Function }} [options]
- * @returns {Promise<{ available: true }>}
+ * @param {{ now?: () => number, sleep?: (ms: number) => Promise<void>, limitMs?: number, intervalMs?: number, workerUrl?: URL, read?: Function, nudge?: Function, owner?: Function, beat?: (line: string) => void }} [options]
+ * @returns {Promise<{ available: true, waited: number }>}
  */
 export async function waitForAcceptedCells(root, commit, { now = Date.now, sleep = defaultSleep, limitMs = 15 * 60_000, intervalMs = 15_000,
-  workerUrl = new URL('../../../../bin/main-audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState } = {}) {
-  const deadline = now() + limitMs;
+  workerUrl = new URL('../../../../bin/main-audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
+  const started = now(), deadline = started + limitMs;
   let renudged = false;
-  for (;;) {
+  for (let waited = 0; ; waited += 1) {
     const found = read(root, commit);
-    if (found.available) return found;
-    if (!renudged && owner(root, commit) !== 'live') {
+    if (found.available) return { ...found, waited };
+    if (owner(root, commit) !== 'live') {
+      if (renudged) throw stillPending(commit, `has no live producer after one re-nudge (${found.cause}); requeue after a producer runs for it`);
       renudged = true;
-      try { await nudge(root, workerUrl, commit); } catch { /* The next poll reports what is still missing. */ }
+      try { await nudge(root, workerUrl, commit); } catch { /* The owner check below names what is still missing. */ }
+      if (owner(root, commit) !== 'live') throw stillPending(commit, `has no live producer: it died or never started, and one re-nudge did not start one (${found.cause}); requeue after a producer runs for it`);
     }
-    if (now() + intervalMs > deadline) {
-      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is still warming after ${Math.round(limitMs / 1000)} s (${found.cause}); requeue after the independent producer finishes`),
-        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
-    }
+    if (now() + intervalMs > deadline) throw stillPending(commit, `is still warming after ${Math.round(limitMs / 1000)} s (${found.cause}); requeue after the independent producer finishes`);
     await sleep(intervalMs);
+    beat(`accepted cells inventory for ${commit.slice(0, 12)} is still warming (${found.cause}); waited ${Math.round((now() - started) / 1000)} s of ${Math.round(limitMs / 1000)} s on its live producer`);
   }
 }

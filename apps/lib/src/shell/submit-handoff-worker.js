@@ -139,7 +139,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => waitForAcceptedCells(root, commit) });
+    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => waitForAcceptedCells(root, commit, { beat: line => process.stderr.write(line + '\n') }) });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
       { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
   } catch (error) {
