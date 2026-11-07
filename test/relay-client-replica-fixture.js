@@ -49,6 +49,22 @@ export async function relayUploadSummary(uploads, key, boardId) {
   }));
 }
 
+/**
+ * Require exactly one submit move, preceded by one recordProofRun per proof run the board recorded
+ * for that item, allowing one claim renewal first [H16].
+ * The case guards against a duplicated or lost submit, so side moves are counted from the board
+ * rather than pinned to a literal list.
+ */
+export function assertOneOrderedSubmit(moves, proofRuns, itemId, commit) {
+  assert.ok(proofRuns >= 1, `the board records at least one proof run for item #${itemId}`);
+  const body = moves[0]?.operation === 'claim' ? moves.slice(1) : moves;
+  assert.deepEqual(body.map(({ operation }) => operation), [...Array(proofRuns).fill('recordProofRun'), 'submit'],
+    `item #${itemId} records its ${proofRuns} board proof run(s) before its one ordered submit, after at most one claim renewal`);
+  assert.deepEqual(body.slice(0, proofRuns).map((move) => move.itemId), Array(proofRuns).fill(itemId));
+  assert.equal(body.at(-1).itemId, itemId);
+  assert.equal(body.at(-1).commit, commit);
+}
+
 /** Bind stacked submit, synchronization, and retry uploads to their exact durable outcomes [H16]. */
 export async function assertRecoveredStackUploads({ uploads, bounds, key, boardId, replicaFiles,
   stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome }) {
@@ -56,9 +72,11 @@ export async function assertRecoveredStackUploads({ uploads, bounds, key, boardI
   const stackBoardB = openBoardForRead(replicaFiles[1]);
   let stackOwnerA;
   let stackOwnerB;
+  let proofRunsB;
   try {
     stackOwnerB = store.getItem(stackBoardA, stackedB).item_owner;
     stackOwnerA = store.getItem(stackBoardB, stackedA).item_owner;
+    proofRunsB = store.proofReceipts(stackBoardA, stackedB).length;
   } finally {
     store.closeBoard(stackBoardA);
     store.closeBoard(stackBoardB);
@@ -78,12 +96,9 @@ export async function assertRecoveredStackUploads({ uploads, bounds, key, boardI
     relayUploadSummary(uploads.slice(bounds.afterLaterA, bounds.afterStackRecovery), key, boardId),
     relayUploadSummary(uploads.slice(bounds.afterStackRecovery, bounds.beforeOutcomeRetry), key, boardId),
   ]);
-  assert.deepEqual(lostBMoves.map(({ operation }) => operation), ['recordProofRun', 'recordProofRun', 'submit'],
-    'B records both proof runs before its one ordered submit');
-  assert.deepEqual(lostBMoves.slice(0, 2).map(({ itemId }) => itemId), [stackedB, stackedB]);
-  assert.equal(lostBMoves[2].itemId, stackedB);
-  assert.equal(lostBMoves[2].commit, recoveredStackCommit);
-  assert.equal(lostBMoves[2].moveId, pendingOutcome.move.id);
+  assertOneOrderedSubmit(lostBMoves, proofRunsB, stackedB, recoveredStackCommit);
+  const lostBSubmit = lostBMoves.at(-1);
+  assert.equal(lostBSubmit.moveId, pendingOutcome.move.id);
   assert.deepEqual(submitAMoves.map(({ operation }) => operation),
     ['recordProofRun', 'recordProofRun', 'submit', 'recordActivityDelivery'],
     'A records both proof runs, its one ordered submit, and its activity delivery');
