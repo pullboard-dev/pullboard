@@ -120,7 +120,7 @@ function project({ gate = 'true', content = 'green', commit = true, worktrees = 
 function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane, '--model', FIXTURE_MODEL]);
+  const joined = box.run(path, ['join', lane, '--model', FIXTURE_MODEL, '--route', 'strong']);
   assert.equal(joined.status, 0, joined.stderr);
   return path;
 }
@@ -683,7 +683,7 @@ test('[B35,V2] manual check-baseline is refused because creation owns the observ
 test('clause 1: every pullboard join in check-baseline and check-timing-admission passes --model [C7]', () => {
   for (const file of ['check-baseline.test.js', 'check-timing-admission.test.js']) {
     const source = readFileSync(resolve(import.meta.dirname, file), 'utf8');
-    const joins = source.split('\n').filter(line => /'join'\s*,/.test(line) && !line.includes("test('"));
+    const joins = source.split('\n').filter(line => /'join'\s*,|fixtureJoin\(/.test(line) && !line.includes("test('"));
     assert.ok(joins.length >= 1, `${file} joins at least once`);
     for (const line of joins) assert.ok(line.includes('--model'), `${file}: ${line.trim()}`);
   }
