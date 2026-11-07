@@ -9,6 +9,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -59,7 +60,7 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(box.run(box.repo, 'add', 'web', 'Dead running handoff', '--specs', 'G1',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Dead running handoff', '--specs', 'G1',
     '--criterion', 'A dead running handoff never blocks the next submit.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   t.after(async () => {
