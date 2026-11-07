@@ -57,10 +57,17 @@
     "repo-read": 2,
     "hex64": 1
   },
+  "packages/blueprints/tests/blueprint-fixture.js": {
+    "repo-read": 2,
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/blueprints/tests/blueprint-part-2.test.js": {
+    "repo-read": 2
+  },
   "packages/blueprints/tests/blueprint.test.js": {
-    "repo-read": 4,
-    "model": 2,
-    "tempdir": 3
+    "model": 1,
+    "tempdir": 1
   },
   "packages/codemap/tests/root-allowlist.test.js": {
     "tempdir": 2
