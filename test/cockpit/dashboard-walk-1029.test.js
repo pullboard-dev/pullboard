@@ -17,7 +17,7 @@ import {
   build,
 } from './fixture.js';
 
-test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
+test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Dashboard walk.');
   const box = machine();
