@@ -917,7 +917,7 @@ test('every hosted page state says what it is and what to do next [N26,H5]', { t
     assert.equal(outdated.heading, 'Where are your projects?', 'a view too old to answer reads as none');
     stand.local = view.base;
     await chrome.send('Page.navigate', { url: HOSTED + '/?list' });
-    await showItemChain(chrome, `location.search === '?list' && localConfirmed === true && connection.base === ${JSON.stringify(view.base)}`, 'A board the hosted page lists');
+    await showItemChain(chrome, "location.search === '?list' && localSession", 'A board the hosted page lists');
     await press(chrome, "document.querySelector('#chain .row')");
     // The opened item's detail is its own round trip after the list (#834): until it lands, #detail says Loading and has no actions.
     try {
@@ -1390,13 +1390,13 @@ test('a browser paired here before says it was signed out above this computer\'s
     const note = "JSON.stringify({ state: document.querySelector('#local-note').hidden ? null : document.querySelector('#local-note').dataset.state, heading: document.getElementById('local-note-title').textContent, text: document.getElementById('local-note-text').textContent, signIn: !document.querySelector('#local-note [data-part=\"github\"]').hidden, board: document.querySelector('#chain')?.textContent.includes('A board on this computer') })";
 
     await chrome.send('Page.navigate', { url: HOSTED + '/?paired' });
-    await chrome.waitFor("document.querySelector('#chain')?.textContent.includes('A board on this computer') && document.querySelector('#local-note').dataset.state === 'signed-out-paired'", 45_000); // budget: hang ceiling for a hosted load with its local round trip.
+    await showItemChain(chrome, "location.search === '?paired' && document.querySelector('#local-note').dataset.state === 'signed-out-paired'", 'A board on this computer', 45_000); // budget: hang ceiling for a hosted load with its local round trip.
     const paired = JSON.parse(await chrome.stable(note));
     assert.deepEqual(paired, { state: 'signed-out-paired', heading: 'Signed out of pullboard.dev',
       text: 'Your session here ended, so your shared boards cannot open. Sign in again to see them; the boards on this computer stay open.', signIn: true, board: true });
 
     await chrome.send('Page.navigate', { url: HOSTED + '/?fresh' });
-    await chrome.waitFor("location.search === '?fresh' && document.querySelector('#chain')?.textContent.includes('A board on this computer')", 45_000); // budget: hang ceiling for a hosted load with its local round trip.
+    await showItemChain(chrome, "location.search === '?fresh' && localSession", 'A board on this computer', 45_000); // budget: hang ceiling for a hosted load with its local round trip.
     const fresh = JSON.parse(await chrome.stable(note));
     assert.notEqual(fresh.state, 'signed-out-paired', 'a browser that never paired here sees only this computer\'s boards');
     assert.deepEqual(failures, [], 'reported network failures: ' + JSON.stringify(failedRequests.map(entry =>
