@@ -305,7 +305,7 @@ async function workerMain(options, { checkAtCommit, candidateWorkerFile, landing
 }
 
 /** Check the shared native board immediately before a physical Git action, with no intervening await. */
-function assertWorkerFence(board, fence, root) {
+export function assertWorkerFence(board, fence, root) {
   // This imported live binding is used only after module initialization, keeping board cycles inert.
   const holder = assertLandingLease(board, fence);
   invalidateGitFacts();

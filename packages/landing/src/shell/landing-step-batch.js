@@ -190,6 +190,10 @@ export async function land(options) {
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
       adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
+    // The drive cell's in-process runner replaces the spawned worker when the caller hands one in [C7].
+    if (typeof options.runBatch === 'function') {
+      return await options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, say: options.say, signal: controller.signal });
+    }
     return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
       bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal,
       workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus,

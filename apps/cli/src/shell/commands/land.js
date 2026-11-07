@@ -1,5 +1,7 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { landBatch } from '../../../../../packages/land/index.js';
+import { driveLanding } from '../../../../../packages/drive/index.js';
+import { inProcessLandingBatch } from '../../../../../packages/landing/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
@@ -115,17 +117,33 @@ async function recordBatchLanding(ctx, board, io, result) {
   catch (error) { io.err?.(`landing job deferred: ${error.code ?? 'ERROR'} ${error.message}`); }
 }
 
+/**
+ * The in-process batch runner `land` uses in place of the spawned bin/landing-worker.js, composed with the same
+ * runner check and candidate worker the worker process composed.
+ *
+ * Why: the runner cell is imported only when a real landing runs, so every other board command stays fast.
+ *
+ * @returns {Promise<Function>}
+ */
+async function landingBatchRunner() {
+  const { checkAtCommit } = await import('../../../../runner/index.js');
+  return inProcessLandingBatch({ checkAtCommit, candidateWorkerFile: fileURLToPath(new URL('../../../../../bin/landing-candidate.js', import.meta.url)) });
+}
+
 /** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
 export async function executeBoardLanding(ctx, board, io, values = {}) {
   if (!values['dry-run'] && codeIsFromMain()) {
     const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     await (await import('../../../../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
-  let result;
-  try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
-    landingWorkerFile: fileURLToPath(new URL('../../../../../bin/landing-worker.js', import.meta.url)),
-    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner: agentSessionDigest() ?? `pid-${process.pid}`,
+  const owner = agentSessionDigest() ?? `pid-${process.pid}`;
+  /** One landing through the batch engine; a real one runs in this process as a drive-cell job [C7]. */
+  const landOnce = async () => land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
+    runBatch: values['dry-run'] ? undefined : await landingBatchRunner(),
+    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
+  let result;
+  try { result = values['dry-run'] ? await landOnce() : await driveLanding(board.db, { owner, run: landOnce, say: line => io.err?.(line) });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
     throw error;
