@@ -17,7 +17,7 @@ test('clause 1: one registry lists every static check class with a function that
   }
   for (const check of STATIC_CHECKS) assert.equal(typeof check.run, 'function', check.name);
   const tree = readFileSync(new URL('../bin/checks/static-tree-registry.js', import.meta.url), 'utf8');
-  for (const expected of ['test-waits', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
+  for (const expected of ['test-waits', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
     assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
   }
   const entry = readFileSync(new URL('../bin/static-style-checks.js', import.meta.url), 'utf8');

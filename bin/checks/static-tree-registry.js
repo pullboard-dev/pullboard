@@ -16,6 +16,7 @@ import { testWaitReport } from './test-waits.js';
 import { testWaitGrowth } from './test-waits.js';
 import { boardWriteIoProblems } from './board-write-io.js';
 import { relayBoundaryProblems } from './relay-boundary.js';
+import { fixtureProblems } from './test-fixtures.js';
 import { STATIC_CHECKS } from '../../packages/gate/index.js';
 
 /**
@@ -26,6 +27,7 @@ import { STATIC_CHECKS } from '../../packages/gate/index.js';
 export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', run: root => testWaitGrowth(testWaitReport(root), JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  { name: 'test-fixtures', run: root => fixtureProblems(root, join(root, 'bin/checks/test-fixtures.json')).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'relay-boundary', run: (root, sources) => {
     const relay = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
       .map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
