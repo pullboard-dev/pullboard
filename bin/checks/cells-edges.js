@@ -128,9 +128,9 @@ export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(rea
   const add = (path, line, text) => problems.push({ path, line, text });
   for (const [file, row] of Object.entries(current.files)) {
     const allowed = ceilings.files[file] ?? { cells: 0, deep: 0 };
-    const from = cellOf(file).cell, known = new Set(ceilings.cells[from]?.imports ?? []);
+    const from = cellOf(file).cell;
     for (const edge of row.edges) {
-      const fresh = (!edge.deep && row.cells > allowed.cells && !known.has(edge.to)) || (edge.deep && row.deep > allowed.deep);
+      const fresh = edge.deep ? row.deep > allowed.deep : row.cells > allowed.cells;
       if (!fresh) continue;
       const declaration = `${from}->${edge.to}${edge.deep ? '/src' : ''}`;
       add(file, edge.line, edge.deep

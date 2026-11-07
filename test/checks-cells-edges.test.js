@@ -45,9 +45,11 @@ test('clause 1: a new cross-cell import and a deep import beyond the ceiling are
   writeFileSync(join(root, 'packages/a/more.js'), "import { b } from '../b/index.js';\nexport const more = b;\n");
   writeFileSync(join(root, 'packages/b/deep.js'), "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n");
   writeFileSync(join(root, 'packages/b/clean.js'), 'export const clean = 1;\n');
+  writeFileSync(join(root, 'packages/b/other.js'), "import { a } from '../a/index.js';\nexport const other = a;\n");
   const text = cellsEdgeProblems(root, { ceilings }).map(row => `${row.path}:${row.line}: ${row.text}`).join('\n');
   assert.match(text, /packages\/a\/more\.js:1: new cross-cell import of b/u);
   assert.match(text, /packages\/b\/deep\.js:1: deep import into a's src/u);
+  assert.match(text, /packages\/b\/other\.js:1: new cross-cell import of a/u, 'a new file importing a cell the cell already imports elsewhere still exceeds its own 0 ceiling');
   assert.doesNotMatch(text, /clean\.js/u);
 });
 
