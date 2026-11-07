@@ -17,6 +17,9 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
   try {
     assert.ok(chromeExecutable(), 'Chrome is required for both actual agent surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'agents-board-actors-chrome'));
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
+    await chrome.waitFor('!!data?.project');
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-agent="web-1"]')`);
     const beforeFloor = await chrome.stable('Array.from(document.querySelectorAll("#dashboard [data-dashboard-agent]"), row => row.dataset.dashboardAgent)');
     const beforeHeadline = await chrome.stable('document.querySelector("#dashboard h1").textContent');
