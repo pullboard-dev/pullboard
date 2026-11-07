@@ -164,7 +164,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
     const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
+      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}), ...(ctx.submissionResult.value?.waitingOwner ? { ownershipWait: ctx.submissionResult.value.waitingOwner.key } : {}) } }]));
   } catch (error) {
     // Lock waits ride on the refusal too, so the job shows how long the gate waited on a busy lock (#3087).
     await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) });
