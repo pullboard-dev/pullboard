@@ -613,8 +613,9 @@ test('output after the match', async () => {
   const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
   const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
   const commands = [
-    // On a miss the run's own tail is printed, so a red baseline records why it was red (#2463).
-    `${captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`)} || { printf '%s\\n' "$out" | tail -n 12; exit 1; }`,
+    // On a miss the run's own output is printed unpiped, so a red baseline records why it was red and the
+    // check's masked-exit rule still passes it (#2463).
+    `${captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`)} || { printf '%s\\n' "$out"; exit 1; }`,
     captured('yes | grep -q y'),
     captured('sh -c "exit 7" | tail -1'),
   ];
@@ -850,9 +851,10 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
     const added = fixtureAdd(box.run, box.repo, 'web', `Set the value to ${value}`, '--specs', 'G1', '--criterion', 'The source exists.', '--check', 'test -f web/core.js', '--wait', '--json');
     assert.equal(added.code, 0, added.err);
     const id = JSON.parse(added.out).item.item_id;
-    assert.equal(box.run(cwd, 'claim', String(id)).code, 0);
+    const claimed = box.run(cwd, 'claim', String(id));
+    assert.equal(claimed.code, 0, `claim: ${claimed.err}${claimed.out}`);
     for (const [path, text] of files) writeFileSync(join(cwd, path), text);
-    assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0);
+    assert.equal(e2e.commitFile(box, cwd, files.length ? files[0][0] : 'web/core.js', files.length ? files[0][1] : `export const value = ${JSON.stringify(value)};\n`, `feat(web): set the value [G1]`).status, 0, 'the item change commits');
     rmSync(box.env.DEFER_MARKER, { force: true });
     const submitted = box.run(cwd, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err + submitted.out);
@@ -863,7 +865,10 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
   /** Accept one submitted item as the coordinator, at its exact commit. */
   const accept = (id, commit) => {
     box.git(box.repo, 'switch', '-q', '--detach', commit);
-    try { assert.equal(box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.').code, 0); }
+    try {
+      const verified = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The source exists.');
+      assert.equal(verified.code, 0, `verify: ${verified.err}${verified.out}`);
+    }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
   };
   return { box, ran, submitChange, accept };
@@ -921,7 +926,8 @@ test('a large affected selection is deferred to landing at submit [C7]', () => {
   const split = largeSelectionProject(20, { inline: true });
   const second = join(split.box.dir, 'web-2');
   split.box.git(split.box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.equal(fixtureJoin(split.box.run, second, 'web').code, 0);
+  const secondJoin = fixtureJoin(split.box.run, second, 'web');
+  assert.equal(secondJoin.code, 0, `join: ${secondJoin.err}${secondJoin.out}`);
   const itemA = split.submitChange('a', { files: [['web/fix.js', 'export const fixed = true;\n'], ['web/RED', 'red\n']] });
   const itemB = split.submitChange('needs-fix', { cwd: second });
   split.accept(itemA.id, itemA.receipt.commit);
