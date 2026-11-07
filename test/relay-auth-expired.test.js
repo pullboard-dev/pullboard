@@ -10,7 +10,7 @@ import { relayOutboxSetting } from '../apps/cli/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { prepareKeylessInbox, readKeylessInbox } from './inbox-key-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
-import { FIXTURE_MODEL } from './testkit-fixture.js';
+import { FIXTURE_MODEL, FIXTURE_MODEL_EARLIER } from './testkit-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -128,7 +128,7 @@ test('moves stay local while the machine credential expires, then replay after s
   runFixtureGit(['commit', '-q', '-m', 'test: prepare private ordered claim'], { cwd: box.root, env: box.env });
   const agentRoot = join(box.root, '..', 'claim-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/auth-claim', agentRoot], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', 'Earlier Fixture Model'); // a different model, so the later joins need registration
+  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL_EARLIER); // a different model, so the later joins need registration
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent joins before the credentials are revoked');
   await revokeCredential(box, state.agentTokens.coordinator.id);
   markRevoked(box, state.agentTokens.coordinator.id); // the board knows this revocation, so the explicit token refuses at once (#2729)
