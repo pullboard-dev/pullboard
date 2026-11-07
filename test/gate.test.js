@@ -166,6 +166,9 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   mkdirSync(scanner, { recursive: true });
   copyFileSync(resolve(import.meta.dirname, '../packages/gate/src/shell/wall-clock-budgets.js'), join(scanner, 'wall-clock-budgets.js'));
   writeFileSync(join(root, 'packages/gate/index.js'), "export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
+  // The scanner lists tracked files through the git package; the fixture supplies a plain git launcher for it.
+  mkdirSync(join(root, 'packages/git'), { recursive: true });
+  writeFileSync(join(root, 'packages/git/index.js'), "import { execFileSync } from 'node:child_process';\nexport const gitExecFileSync = (args, options) => execFileSync('git', args, options);\n");
   writeFileSync(join(root, 'bin/pullboard.js'), `if (process.argv.slice(2).join(' ') !== 'spec check') process.exit(2);
 process.stdout.write('fixture spec check reached\\n');
 `);
