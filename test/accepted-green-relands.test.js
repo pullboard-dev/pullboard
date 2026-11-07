@@ -7,6 +7,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import * as store from '../packages/store/index.js';
 import { events, json, onBoard } from './land-board-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -17,7 +18,7 @@ const { FILES, landProject, submitItem, acceptItem } = makeLandProjectFixtures({
 function itemWorktree(box, number) {
   const path = join(box.dir, `land-${number}`), file = FILES[number - 1];
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
+  assert.equal(fixtureJoin(box.run, path, 'web').code, 0);
   const added = json(box, box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--route', 'strong',
     '--criterion', `land fixture ${number} remains valid`, '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`);
   const item = added.item.item_id;

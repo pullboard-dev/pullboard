@@ -47,6 +47,8 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
@@ -1151,11 +1153,11 @@ test('next --verify reserves the review for the reviewLease and says until when;
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
       // Each seat declares its model; the builder's family differs so its peers may review it.
-      const joined = run(path, 'join', 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
+      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });
-    const added = run(repo, 'add', 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
+    const added = fixtureAdd(run, repo, 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
     assert.equal(added.status, 0, added.stderr);
     assert.equal(run(builder, 'claim', '1').status, 0);
     fs.mkdirSync(join(builder, 'web'));

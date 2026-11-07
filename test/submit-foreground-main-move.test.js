@@ -1,4 +1,5 @@
 /** Foreground and queued submits survive an unrelated main move during their check; any pullboard.json policy change still refuses [V4,H16,C7]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -6,6 +7,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Read the fixture item's durable status and submitted commit. */
 function item(box) {
@@ -18,8 +23,7 @@ function state(box) {
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout=5000');
-    const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${box.id}`);
-    return { job: row ? JSON.parse(row.meta_value) : null,
+    return { job: handoffRecord(db, box.id) ?? null,
       item: db.prepare('SELECT item_status,item_commit,item_verdict FROM item WHERE item_id=?').get(box.id) };
   } finally { db.close(); }
 }
@@ -42,7 +46,11 @@ function fixture(t, mode, handoff = false) {
   sandbox.env.TMPDIR = sandbox.dir;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete sandbox.env[key];
   const box = helpers.project('true', sandbox);
-  t.after(() => helpers.cleanup());
+  t.after(async () => {
+    // A queued gate's driver and dispatcher still write for a moment after its job ends; remove the tree once they are done.
+    try { if (handoff && box.id) await gateSettled(helpers, box, state(box).job?.id); }
+    finally { await removeSandboxes(helpers); }
+  });
   for (const folder of ['bin', 'test', 'web']) mkdirSync(join(box.repo, folder), { recursive: true });
   const marker = join(box.dir, 'main-moved');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
@@ -65,7 +73,7 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Foreground main move', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Foreground main move', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
@@ -114,7 +122,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
   // A second fixture seat reviews the submitted commit; its accept is the landing-ready verdict.
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, completed.item.item_commit);
-  assert.equal(box.run(reviewer, 'join', 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'api').code, 0);
   const accepted = box.run(reviewer, 'verify', String(box.id), 'accept', '--note', 'Ran the frozen check at the queued submission.', '--no-next');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const landed = state(box).item;

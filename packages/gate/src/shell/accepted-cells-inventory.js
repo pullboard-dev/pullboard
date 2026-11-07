@@ -42,18 +42,73 @@ import { foreignNodeOptions } from './test-isolation.js';
 const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
-/** Hash code bytes under stable repository-relative names, independent of a checkout's absolute path. */
-function checkerFingerprint() {
+const TOOLING_PATHS = ['packages/codemap', 'packages/kernel', 'packages/git', 'packages/gate/src'];
+const CODE_FILE = /\.[cm]?js$/u;
+
+/** Hash name and content-hash pairs into the checker fingerprint, the one shape both sources produce. */
+function foldFingerprint(files) { return createHash('sha256').update(JSON.stringify(files)).digest('hex'); }
+
+/** Hash code bytes under stable repository-relative names, independent of a checkout's absolute path; the tooling root is a parameter so a fingerprint can describe any checkout. */
+function checkerFingerprint(toolRoot = TOOL_ROOT) {
   const files = [];
   /** Capture the full conservative dependency cells so any parser, binding or report code change invalidates reuse. */
   function visit(path) {
     const entry = lstatSync(path);
     if (entry.isDirectory()) { for (const name of readdirSync(path).sort()) visit(join(path, name)); return; }
     if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('accepted cells tooling contains a nonregular path');
-    if (/\.[cm]?js$/u.test(path)) files.push([relative(TOOL_ROOT, path).replaceAll('\\', '/'), createHash('sha256').update(readFileSync(path)).digest('hex')]);
+    if (CODE_FILE.test(path)) files.push([relative(toolRoot, path).replaceAll('\\', '/'), createHash('sha256').update(readFileSync(path)).digest('hex')]);
   }
-  for (const path of ['packages/codemap', 'packages/kernel', 'packages/git', 'packages/gate/src']) visit(join(TOOL_ROOT, path));
-  return createHash('sha256').update(JSON.stringify(files)).digest('hex');
+  for (const path of TOOLING_PATHS) visit(join(toolRoot, path));
+  return foldFingerprint(files);
+}
+
+/**
+ * The checker fingerprint of a commit's own tooling, read from its Git blobs and equal to what that commit's files hash to
+ * on disk. Why: the identity of an accepted inventory must be a function of the pinned commit, not of whichever seat's
+ * tooling snapshot happened to nudge or produce it.
+ */
+export function pinnedCheckerFingerprint(root, commit) {
+  if (!HASH.test(commit ?? '')) throw new TypeError('accepted cells inventory needs an exact commit');
+  const memo = `${root}\0${commit}`;
+  if (PINNED_CHECKERS.has(memo)) return PINNED_CHECKERS.get(memo);
+  const fingerprint = pinnedCheckerFingerprintFromGit(root, commit);
+  if (PINNED_CHECKERS.size >= 64) PINNED_CHECKERS.delete(PINNED_CHECKERS.keys().next().value);
+  PINNED_CHECKERS.set(memo, fingerprint);
+  return fingerprint;
+}
+
+/** Pinned checker fingerprints by repository and commit; a commit's blobs never change, so a hit is always exact. */
+const PINNED_CHECKERS = new Map();
+
+/** Fold a commit's tooling blobs from Git into the checker fingerprint, in the same order a disk walk visits them. */
+function pinnedCheckerFingerprintFromGit(root, commit) {
+  const env = gitChildEnv(root);
+  const listing = git(root, ['ls-tree', '-r', '-z', '--full-tree', commit, '--', ...TOOLING_PATHS], { env }).split('\0').filter(Boolean);
+  const rows = [];
+  for (const row of listing) {
+    const [meta, path] = [row.slice(0, row.indexOf('\t')), row.slice(row.indexOf('\t') + 1)];
+    const [mode, , sha] = meta.split(' ');
+    if (mode !== '100644' && mode !== '100755') throw new Error('accepted cells tooling contains a nonregular path');
+    if (CODE_FILE.test(path)) rows.push({ path, sha });
+  }
+  const group = row => TOOLING_PATHS.findIndex(path => row.path.startsWith(`${path}/`));
+  rows.sort((left, right) => {
+    if (group(left) !== group(right)) return group(left) - group(right);
+    const a = left.path.split('/'), b = right.path.split('/');
+    for (let index = 0; index < Math.min(a.length, b.length); index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
+    return a.length - b.length;
+  });
+  const out = rows.length ? execFileSync('git', ['-C', root, 'cat-file', '--batch'], { input: rows.map(row => `${row.sha}\n`).join(''), env, maxBuffer: 1 << 30 }) : Buffer.alloc(0);
+  const files = [];
+  let offset = 0;
+  for (const row of rows) {
+    const end = out.indexOf(10, offset), [, type, size] = out.subarray(offset, end).toString('utf8').split(' ');
+    if (type !== 'blob') throw new Error('accepted cells tooling blob is unavailable');
+    const start = end + 1, length = Number(size);
+    files.push([row.path, createHash('sha256').update(out.subarray(start, start + length)).digest('hex')]);
+    offset = start + length + 1;
+  }
+  return foldFingerprint(files);
 }
 
 /** Only known owned preloads may share canonical parser observations across machines. */
@@ -62,18 +117,31 @@ function preloadFingerprint() {
   return createHash('sha256').update('pullboard-known-owned-preloads-v1').digest('hex');
 }
 
-/** Identify exact accepted source and current trusted analyzer without building an inventory. */
-export function acceptedCellsIdentity(root, commit) {
+/**
+ * Identify exact accepted source and trusted analyzer without building an inventory. By default the analyzer is the running
+ * tooling (what a reader executes); `pinned` names the commit's own tooling, which is what a producer must record.
+ */
+export function acceptedCellsIdentity(root, commit, { pinned = false } = {}) {
   if (!HASH.test(commit ?? '')) throw new TypeError('accepted cells inventory needs an exact commit');
   const tree = git(root, ['rev-parse', `${commit}^{tree}`], { env: gitChildEnv(root) }).trim();
   if (!HASH.test(tree)) throw new Error('accepted cells inventory tree is unavailable');
-  return { directory: join(machineHome(), 'cells-cache', 'accepted'), tree, checker: checkerFingerprint(), preloads: preloadFingerprint() };
+  return { directory: join(machineHome(), 'cells-cache', 'accepted'), tree, checker: pinned ? pinnedCheckerFingerprint(root, commit) : checkerFingerprint(), preloads: preloadFingerprint() };
 }
 
-/** Read only a complete matching artifact; missing or invalid evidence never runs analysis. */
+/** True when the running tooling is byte-identical to the pinned commit's own, so a producer here records the pinned checker. */
+export function toolingIsPinned(root, commit) { return checkerFingerprint() === pinnedCheckerFingerprint(root, commit); }
+
+/**
+ * Read only a complete matching artifact; missing or invalid evidence never runs analysis.
+ * Why the pinned identity: the accepted inventory of a commit is produced only by that commit's own tooling, so its
+ * identity is a function of the commit. A reader running other tooling (a hand-off worker in a candidate that changes
+ * the checker's files) used to look under its own checker key, found nothing the producer had published, and every
+ * gate on that candidate ended CELLS_INVENTORY_PENDING (#3439, 7 Nov). The trusted checker that consumes the artifact
+ * still compares the descriptor with its own identity before using it.
+ */
 export function readAcceptedCells(root, commit) {
   try {
-    const identity = acceptedCellsIdentity(root, commit);
+    const identity = acceptedCellsIdentity(root, commit, { pinned: true });
     const found = readAcceptedInventory(identity);
     if (!found.available && found.cause !== 'missing-artifact') {
       try { rmSync(join(identity.directory, `${acceptedInventoryKey(identity)}.ready.json`), { force: true }); } catch { /* Next nudge may retry. */ }
@@ -95,7 +163,9 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock }
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'bin/cells-plan.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
-  const identity = acceptedCellsIdentity(root, commit), key = acceptedInventoryKey(identity);
+  // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
+  // the pinned one and otherwise re-runs bin/main-audit.js from the pinned checkout, so readers find it by the commit alone.
+  const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   let prior;
   const ancestors = git(root, ['log', '--first-parent', '--max-count=201', '--format=%H %T', commit], { env: gitChildEnv(root) }).split('\n').slice(1);
   for (const row of ancestors) {
@@ -111,7 +181,7 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock }
     prior, onMode: value => { mode = value; } }));
   if (!result?.available) throw new Error(result?.unavailable ?? 'accepted cells inventory checkout failed');
   const file = join(identity.directory, `${key}.inventory.gz`), stat = lstatSync(file);
-  save(join(identity.directory, `${key}.ready.json`), { version: 1, tree: identity.tree, key, bytes: stat.size, modified: stat.mtimeMs, digest: result.descriptor.digest, mode, ancestor: prior?.commit ?? null });
+  save(join(identity.directory, `${key}.ready.json`), { version: 1, tree: identity.tree, checker: identity.checker, preloads: identity.preloads, key, bytes: stat.size, modified: stat.mtimeMs, digest: result.descriptor.digest, mode, ancestor: prior?.commit ?? null });
   try { rmSync(join(identity.directory, `${key}.failure.json`), { force: true }); } catch { /* A stale failure is advisory. */ }
   return { ...result, mode };
 }
@@ -137,12 +207,13 @@ export async function nudgeAcceptedCells(root, workerUrl, commit) {
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:' || !HASH.test(commit ?? '')) throw new TypeError('accepted cells nudge needs a worker URL and pinned commit');
   git(root, ['merge-base', '--is-ancestor', commit, 'refs/heads/main'], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'bin/cells-plan.json'], { env: gitChildEnv(root) })) return null;
-  const identity = acceptedCellsIdentity(root, commit), key = acceptedInventoryKey(identity), directory = identity.directory;
+  const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity), directory = identity.directory;
   return withFileLock(join(directory, `${key}.owner-lock.sqlite`), async () => {
     const artifact = join(directory, `${key}.inventory.gz`), readyFile = join(directory, `${key}.ready.json`), ownerFile = join(directory, `${key}.owner.json`);
     try {
       const ready = JSON.parse(readFileSync(readyFile, 'utf8')), stat = lstatSync(artifact);
-      if (ready.version === 1 && ready.key === key && ready.tree === identity.tree && stat.isFile() && !stat.isSymbolicLink()
+      if (ready.version === 1 && ready.key === key && ready.tree === identity.tree
+        && ready.checker === identity.checker && ready.preloads === identity.preloads && stat.isFile() && !stat.isSymbolicLink()
         && ready.bytes === stat.size && ready.modified === stat.mtimeMs) return null;
     } catch { /* Missing or incomplete publication needs a producer. */ }
     try { if (ownerLive(JSON.parse(readFileSync(ownerFile, 'utf8')))) return null; }
@@ -161,7 +232,65 @@ export async function nudgeAcceptedCells(root, workerUrl, commit) {
 /** Retain a bounded diagnostic when a detached producer cannot finish. */
 export function recordAcceptedCellsFailure(root, commit, error) {
   let identity, key;
-  try { identity = acceptedCellsIdentity(root, commit); key = acceptedInventoryKey(identity); }
+  try { identity = acceptedCellsIdentity(root, commit, { pinned: true }); key = acceptedInventoryKey(identity); }
   catch { identity = { directory: join(machineHome(), 'cells-cache', 'accepted'), tree: null }; key = HASH.test(commit ?? '') ? commit : 'unknown'; }
   save(join(identity.directory, `${key}.failure.json`), { version: 1, tree: identity.tree, at: new Date().toISOString(), message: String(error?.message ?? error).slice(0, 2048) });
+}
+
+/**
+ * Read the producer's owner record for a commit: 'live', 'dead' (a record whose process is gone), or 'none'.
+ * Why the pinned key: nudgeAcceptedCells writes the record under the pinned identity, so a worker whose own tooling
+ * differs from main's still finds the producer that is working on that commit.
+ */
+function ownerState(root, commit) {
+  let text;
+  try {
+    const identity = acceptedCellsIdentity(root, commit, { pinned: true });
+    text = readFileSync(join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`), 'utf8');
+  } catch { return 'none'; }
+  try { return ownerLive(JSON.parse(text)) ? 'live' : 'dead'; } catch { return 'dead'; }
+}
+
+/** Resolve after `ms`; the default sleep, replaced by a fixture's own clock. */
+function defaultSleep(ms) {
+  return new Promise(done => setTimeout(done, ms));
+}
+
+/** The retryable stop a wait ends with, carrying its commit so the caller can name it. */
+function stillPending(commit, message) {
+  return Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} ${message}`),
+    { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
+}
+
+/**
+ * Wait for a commit's accepted inventory to be published by its independent producer, and return the artifact with
+ * `waited`, the number of polls it took. Polls readAcceptedCells every intervalMs while the producer's owner record is
+ * live, calling `beat` after each poll so the job log shows the wait is alive. A producer that is dead or absent is
+ * nudged once more; if it is still not running after that, or dies again, the wait ends at once with a clear
+ * CELLS_INVENTORY_PENDING stop instead of sleeping out the deadline. limitMs bounds the whole wait.
+ * Why: a landing starts a 2 to 5 minute producer, longer than the quick infrastructure retries, so the gate waits on
+ * the producer instead of spending those retries (#3316).
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {{ now?: () => number, sleep?: (ms: number) => Promise<void>, limitMs?: number, intervalMs?: number, workerUrl?: URL, read?: Function, nudge?: Function, owner?: Function, beat?: (line: string) => void }} [options]
+ * @returns {Promise<{ available: true, waited: number }>}
+ */
+export async function waitForAcceptedCells(root, commit, { now = Date.now, sleep = defaultSleep, limitMs = 15 * 60_000, intervalMs = 15_000,
+  workerUrl = new URL('../../../../bin/main-audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
+  const started = now(), deadline = started + limitMs;
+  let renudged = false;
+  for (let waited = 0; ; waited += 1) {
+    const found = read(root, commit);
+    if (found.available) return { ...found, waited };
+    if (owner(root, commit) !== 'live') {
+      if (renudged) throw stillPending(commit, `has no live producer after one re-nudge (${found.cause}); requeue after a producer runs for it`);
+      renudged = true;
+      try { await nudge(root, workerUrl, commit); } catch { /* The owner check below names what is still missing. */ }
+      if (owner(root, commit) !== 'live') throw stillPending(commit, `has no live producer: it died or never started, and one re-nudge did not start one (${found.cause}); requeue after a producer runs for it`);
+    }
+    if (now() + intervalMs > deadline) throw stillPending(commit, `is still warming after ${Math.round(limitMs / 1000)} s (${found.cause}); requeue after the independent producer finishes`);
+    await sleep(intervalMs);
+    beat(`accepted cells inventory for ${commit.slice(0, 12)} is still warming (${found.cause}); waited ${Math.round((now() - started) / 1000)} s of ${Math.round(limitMs / 1000)} s on its live producer`);
+  }
 }

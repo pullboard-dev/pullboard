@@ -6,10 +6,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { needsFullCensus } from '../../../../packages/codemap/index.js';
-import {
-  readAcceptedCells,
-  nudgeAcceptedCells,
-} from '../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../packages/gate/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {
@@ -25,23 +22,11 @@ import {
   gitPath,
 } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { keepRunnerStderr } from './runner-stderr.js';
 import { privateCheckEnvelope } from '../../../runner/index.js';
 import { trunkRef } from '../../../../packages/sandbox/index.js';
 
 const TRUSTED_RESULT = 'PULLBOARD_TRUSTED_RESULT ';
-const STDERR_CAP = 64 * 1024;
-
-/**
- * Keep the runner bridge's stderr beside raw.log as stderr.log, capped at 64 KiB; returns the path, or null when empty.
- * Why: a step that dies prints its reason on stderr, and the Mac kept only stdout, so a red said nothing [C7].
- */
-export function keepRunnerStderr(directory, result) {
-  const text = String(result?.stderr ?? '');
-  if (!text) return null;
-  const file = join(directory, 'stderr.log');
-  writeFileSync(file, Buffer.from(text, 'utf8').subarray(0, STDERR_CAP), { mode: 0o600 });
-  return file;
-}
 
 /** The sentence tail that points a reader at the kept stderr, or an empty string when none was kept. */
 export function stderrNote(file) {
@@ -202,7 +187,10 @@ process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n')
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
-/** A submit reads completed authority only; a cold tree wakes the independent producer and defers as infrastructure. */
+/**
+ * A submit reads completed authority only; a cold tree defers as infrastructure, naming its commit, so the queued
+ * worker gets it through the tree's cells-inventory job and runs the same candidate again (RFC 0008 DJ21).
+ */
 export async function submitCellsInventory(root, main, source) {
   if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return null;
   const commits = [main];
@@ -216,11 +204,8 @@ export async function submitCellsInventory(root, main, source) {
   for (const commit of commits) {
     const artifact = readAcceptedCells(root, commit);
     if (!artifact.available) {
-      let nudgeFailure;
-      try { await nudgeAcceptedCells(root, new URL('../../../../bin/main-audit.js', import.meta.url), commit); }
-      catch (error) { nudgeFailure = String(error.message); }
-      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}${nudgeFailure ? `; ${nudgeFailure}` : ''}); requeue after the independent producer finishes`),
-        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true });
+      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}); requeue after its cells-inventory job finishes`),
+        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
     }
     directory ??= dirname(artifact.file);
     sources.push({ commit, descriptor: artifact.descriptor });
