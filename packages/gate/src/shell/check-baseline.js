@@ -24,6 +24,9 @@ import { mappedCheck } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { secretsIn } from '../../../commits/index.js';
 
+/** The local branch the baseline's temporary copy of main is checked out on. */
+const BASELINE_BRANCH = 'pullboard-check-baseline';
+
 /**
  * Capture the command and coordinator commit once on the sender; replay only receives this observation.
  * A detached coordinator checkout cannot turn an unavailable baseline into a new gate.
@@ -42,7 +45,9 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
   const env = gitChildEnv(root);
   try {
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', base.main], { cwd: checkout, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    // A branch, not a detached HEAD: the copy is main, and a check that reads accepted main (run-tests.js reads test
+    // file budgets against it) finds it here. Detached, every such baseline went red in about a second (#2463).
+    const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '-b', BASELINE_BRANCH, base.main], { cwd: checkout, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     if (!selected || selected.status !== 0) return { ...base, result: 'unavailable', reason: 'temporary checkout could not be prepared' };
     const ran = runShell(checkout, mappedCheck(checkout, command));
     const failures = baselineFailureDetails(ran.output);
