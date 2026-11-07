@@ -1,10 +1,8 @@
-import { once } from 'node:events';
-import { constants as osConstants } from 'node:os';
 import { refusalDocument } from '../../../../src/next-step-words.js';
-/** A detached continuation runs canonical Submit from its captured private source, never the builder checkout. */
+/** A gate's driver runs canonical Submit from its captured private source, never the builder checkout [C7]. */
 import {
-  readFileSync,
   existsSync,
+  readFileSync,
   writeFileSync,
   mkdirSync,
   rmSync,
@@ -36,20 +34,14 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
-import { createJob } from '../../../../packages/jobs/index.js';
-import { jobView } from '../../../../packages/jobs/index.js';
-import { shellWord } from '../../../../packages/transport/index.js';
 import { runGateStages } from '../../../../packages/gate/index.js';
-import { spawnDriveWorker } from '../../../../bin/drive-worker.js';
-
-/** How many times a drive worker that died mid-job is started again before the job ends as SUBMIT_HANDOFF_EXIT. */
-const DRIVE_RESPAWNS = 3;
-
-/**
- * How long the hand-off's drive worker rests between polls of its local gate. Why shorter than the drive cell's 5 s:
- * the shard is a local process, so a poll is one file read, and the verdict should follow the gate's exit at once.
- */
-const HANDOFF_POLL_MS = 1000;
+import { drainLoop } from '../../../../packages/drive/index.js';
+import { gateDriveJobId } from '../../../../packages/drive/index.js';
+import { GATE_DRIVE_KIND } from '../../../../packages/drive/index.js';
+import { createJob } from '../../../../packages/jobs/index.js';
+import { nameJob } from '../../../../packages/jobs/index.js';
+import { finishJob } from '../../../../packages/jobs/index.js';
+import { releaseLease } from '../../../../packages/jobs/index.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
@@ -192,179 +184,169 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * Submit's stages passed through the driver's observer, and returns the result the worker would record, green or
  * refused, so a gate driven by driveOnce runs the worker's sections in its order and records the same result [C7].
  *
+ * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
+ * more is written to the drive job, which stays resumable at its last saved step.
+ *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>> }} options
  * @returns {(observe: (stages: object[]) => object[]) => Promise<object>}
  */
-export function drivenHandoffGate(ctx, request, options) {
+export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
   return async observe => {
-    ctx.runGateStages = (stages, settings) => runGateStages(observe(stages), settings);
+    ctx.runGateStages = (stages, settings) => runGateStages(observe(stop ? stoppableStages(stages, stop, inflight) : stages), settings);
     try { return await handoffGate(ctx, request, options); }
-    catch (error) { return handoffRefusedResult(error); }
+    catch (error) {
+      if (stop?.aborted) return new Promise(() => {});
+      return handoffRefusedResult(error);
+    }
     finally { delete ctx.runGateStages; }
   };
 }
 
-/** A private request can only continue the exact native job; it supplies no actor or proof authority. */
-export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepared = false }) {
+/**
+ * Wrap a gate's stages so a driver stop reaches each running stage through its own signal: the check and proof run
+ * as asynchronous child processes, and their signal stops each child's process group. Each running stage is kept in
+ * `inflight` until it settles, so the driver can wait for its children to close before it exits. Once stopped, a
+ * stage neither starts nor settles, so no outcome of a stopped run is written as the gate's [C7].
+ *
+ * Why: no process is load-bearing; a stopped driver leaves its job at its last saved step for the next driver.
+ *
+ * @param {{ name: string, run: (signal: AbortSignal) => unknown }[]} stages
+ * @param {AbortSignal} stop - Aborted when the driver is told to stop.
+ * @param {Set<Promise<unknown>>} inflight - The stages still running, filled and emptied in place.
+ * @returns {{ name: string, run: (signal: AbortSignal) => Promise<unknown> }[]}
+ */
+export function stoppableStages(stages, stop, inflight) {
+  return stages.map(stage => ({ ...stage, run: async signal => {
+    if (stop.aborted) return new Promise(() => {});
+    const running = Promise.resolve().then(() => stage.run(AbortSignal.any([signal, stop])));
+    inflight.add(running);
+    try { return await running; }
+    catch (error) {
+      if (stop.aborted) return new Promise(() => {});
+      throw error;
+    } finally { inflight.delete(running); }
+  } }));
+}
+
+/** How long the gate's driver rests between drives that moved nothing; a whole gate moves on every drive. */
+const GATE_DRIVE_POLL_MS = 1000;
+
+/**
+ * How long a stopped driver waits for its stages' child processes to close before it exits anyway. A cancelled
+ * child gets SIGTERM and, 500 ms later, SIGKILL (spawnCaptured), so its stage settles well inside this.
+ */
+const DRIVER_STOP_GRACE_MS = 10_000;
+
+/**
+ * Wait until every promise in `running` settles, or `ms` passes, whichever is first.
+ *
+ * @param {Set<Promise<unknown>>} running
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+async function settledWithin(running, ms) {
+  let timer;
+  const bound = new Promise(resolvePromise => { timer = setTimeout(resolvePromise, ms); timer.unref?.(); });
+  try { await Promise.race([Promise.allSettled([...running]), bound]); }
+  finally { clearTimeout(timer); }
+}
+
+/**
+ * Run one queued submit gate as a drive-cell job, in this process: the dispatcher admitted it to `owner` and started
+ * this process for it. The gate (canonical Submit from the captured source) runs through driveOnce's gate path, its
+ * stages written to the drive job as they settle, and its result is recorded on the hand-off once the verdict is
+ * written. The drive lease is renewed every 5 s while the gate runs, so a dead driver is known by its row within
+ * 2 minutes, never by a worker file [C7].
+ *
+ * Why one process: the gate's state lives in the job rows, so this process holds nothing a successor needs; the
+ * dispatcher starts exactly one per admitted gate, and nothing else is launched for it.
+ *
+ * @param {string} requestFile - The hand-off's captured request.json.
+ * @param {{ nativeBoard: any, owner: string }} options - The board module, and the driver id the dispatcher admitted.
+ * @returns {Promise<void>}
+ */
+export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
+  if (typeof owner !== 'string' || !owner) throw new Refused('DRIVE_OWNER', 'a gate driver needs the owner the dispatcher admitted it under');
   const { request, directory, root } = workerRequest(requestFile);
   let ctx;
   let attached = false;
-  try {
-    if (!prepared) {
-      jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
-      attached = true;
+  const drive = gateDriveJobId(request.job);
+  const stopper = new AbortController();
+  const inflight = new Set();
+  /** Remove this driver's disposable checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
+  const removeCheckout = () => {
+    if (!attached) return;
+    attached = false;
+    jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
+  };
+  /** Remove this driver's disposable checkout and its own tool snapshot, once the gate has ended. */
+  const cleanup = () => {
+    const owned = attached;
+    try { removeCheckout(); }
+    finally { if (owned) cleanupToolSnapshot(request); }
+  };
+  /**
+   * A stop signal stops the gate's child processes through their own signals and waits for them to close, then frees
+   * the drive lease and exits without a result: the job stays at its last saved step, so the next driver admitted to
+   * it resumes it, and the builder never reads a stopped process as a red [C7].
+   * Why: no process is load-bearing; the job rows, not this process, hold the gate's state.
+   */
+  const terminate = signal => async () => {
+    stopper.abort(new Refused('SUBMIT_HANDOFF_STOPPED', `the gate driver received ${signal}; the next driver resumes its job`));
+    try {
+      await settledWithin(inflight, DRIVER_STOP_GRACE_MS);
+      if (ctx) withBoard(ctx, board => releaseLease(board.db, drive, owner));
+    } catch (error) { process.stderr.write(`stopped gate driver could not free its lease: ${error.message}\n`); }
+    finally {
+      try { removeCheckout(); } catch { /* the next driver replaces a checkout a stopped driver could not remove */ }
+      try { process.kill(-process.pid, 'SIGKILL'); } catch { /* not a group leader: only this process stops */ }
+      process.exit(signal === 'SIGINT' ? 130 : 143);
     }
+  };
+  process.once('SIGTERM', terminate('SIGTERM'));
+  process.once('SIGINT', terminate('SIGINT'));
+  try {
+    // A killed driver can leave this job's own disposable checkout behind; the admitted driver replaces it.
+    if (existsSync(root)) jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
+    jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
+    attached = true;
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
     const started = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id }]));
-    if (!started.started) return;
+    // A running job whose driver stopped is resumed by the driver admitted after it, from its last saved step.
+    if (!started.started && started.job?.state !== 'running') return;
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
-    const result = await handoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    // The dispatcher admitted the drive job by its place in line; the captured request names what it drives.
+    withBoard(ctx, board => {
+      createJob(board.db, { id: drive, kind: GATE_DRIVE_KIND, item: request.item, candidate: request.commit });
+      nameJob(board.db, drive, { item: request.item, candidate: request.commit });
+    });
+    const gate = drivenHandoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
+      stop: stopper.signal, inflight });
+    const board = nativeBoard.openBoard(ctx.file);
+    let result;
+    try {
+      const last = await drainLoop(board.db, drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS });
+      if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
+      result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
+    } finally { store.closeBoard(board); }
+    if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
+    // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
+    // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
+    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result);
+    else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    withBoard(ctx, board => finishJob(board.db, drive, owner));
   } catch (error) {
+    // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
+    if (stopper.signal.aborted) return;
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
-    // This process created the disposable checkout and its child has closed; generated files must not strand it.
-    if (attached) {
-      try { jobGit(request.commonDir, ['worktree', 'remove', '--force', root]); }
-      finally { cleanupToolSnapshot(request); }
-    }
+    // This process created the disposable checkout; generated files must not strand it.
+    if (!stopper.signal.aborted) cleanup();
   }
-}
-
-/** Whether a process with this pid still exists. */
-function alive(pid) {
-  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
-}
-
-/** The pid the gate's `--execute` process wrote for itself, or null before it started. */
-function executePid(drive) {
-  try { const pid = Number(readFileSync(join(drive.runner.root, 'execute.pid'), 'utf8')); return Number.isSafeInteger(pid) && pid > 1 ? pid : null; }
-  catch { return null; }
-}
-
-/**
- * The drive job for one hand-off: its id and the options its drive worker child runs with. Its one shard is the
- * captured `--execute` run, started on this machine through the transport's result-file protocol, writing to the
- * same worker.log and recording its own pid so a cancellation reaches exactly it.
- *
- * @param {object} ctx
- * @param {{ job: string, item: number, commit: string }} request
- * @param {string} requestFile
- * @param {string} directory
- * @param {string} root
- */
-function handoffDrive(ctx, request, requestFile, directory, root) {
-  const runner = { host: 'local', root: join(directory, 'drive') };
-  mkdirSync(runner.root, { recursive: true, mode: 0o700 });
-  const command = [`cd ${shellWord(root)}`, `printf '%s' "$$" > ${shellWord(join(runner.root, 'execute.pid'))}`,
-    `exec ${shellWord(process.execPath)} ${shellWord(realpathSync(fileURLToPath(import.meta.url)))} ${shellWord(requestFile)} --execute >> ${shellWord(join(directory, 'worker.log'))} 2>&1`].join(' && ');
-  return { file: ctx.file, job: `handoff-drive-${request.job}`, owner: `handoff-${request.job}`, repo: root, runner, local: true,
-    intervalMs: HANDOFF_POLL_MS, plan: [{ shard: 'submit', command }] };
-}
-
-/**
- * Run the hand-off's drive worker child until its drive job reaches the verdict step. A worker that dies before then
- * is started again with the same owner, which renews the lease and continues from the last written step: the gate
- * shard keeps running and is read, never rerun. A SIGINT or SIGTERM to this supervisor reaches the drive worker and
- * the exact `--execute` process, and is awaited until both have closed.
- *
- * @param {object} ctx
- * @param {{ job: string, item: number, commit: string }} request
- * @param {ReturnType<typeof handoffDrive>} drive
- * @param {string} directory
- * @returns {Promise<[number | null, string | null]>} The gate's exit code and signal, as the old child's close gave them.
- */
-async function driveExit(ctx, request, drive, directory) {
-  withBoard(ctx, board => createJob(board.db, { id: drive.job, kind: 'gate', item: request.item, candidate: request.commit }));
-  let child = null;
-  let stopped = null;
-  /** Stop the drive worker and the gate process, keeping the interrupted status for the native refusal. */
-  const stop = (signal, code) => () => {
-    stopped = signal; process.exitCode = code;
-    child?.kill(signal);
-    const pid = executePid(drive);
-    if (pid) try { process.kill(pid, signal); } catch { /* the gate process already ended */ }
-  };
-  const interrupt = stop('SIGINT', 130);
-  const terminate = stop('SIGTERM', 143);
-  process.once('SIGINT', interrupt);
-  process.once('SIGTERM', terminate);
-  try {
-    let last = [null, null];
-    for (let start = 0; start <= DRIVE_RESPAWNS && !stopped; start += 1) {
-      child = spawnDriveWorker(drive, { stdio: ['ignore', 'ignore', 'inherit'] });
-      writeFileSync(join(directory, 'drive.json'), JSON.stringify({ version: 1, job: drive.job, pid: child.pid, start }) + '\n', { mode: 0o600 });
-      last = await once(child, 'close');
-      const collected = withBoard(ctx, board => jobView(board.db, drive.job))?.steps.find(step => step.name === 'collected');
-      if (collected) {
-        const status = collected.payload.shards.submit.status;
-        const signal = status > 128 ? Object.keys(osConstants.signals).find(name => osConstants.signals[name] === status - 128) : undefined;
-        return signal ? [null, signal] : [status, null];
-      }
-    }
-    const pid = stopped ? executePid(drive) : null;
-    // The cancelled gate process ends before its source is removed, as the old owned child did.
-    for (let wait = 0; pid && wait < 600 && alive(pid); wait += 1) await new Promise(done => setTimeout(done, 50));
-    return last;
-  } finally {
-    process.removeListener('SIGINT', interrupt);
-    process.removeListener('SIGTERM', terminate);
-  }
-}
-
-/**
- * Supervise the hand-off's drive worker child while retaining only finite refusal authority for its captured native job.
- * Why the drive worker: the gate's state lives in its job row, so this supervisor's child can die mid-gate and the
- * next driver continues it (design item 15); the gate itself still runs canonical Submit from the captured source.
- */
-export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard }) {
-  const { request, directory, root } = workerRequest(requestFile);
-  let ctx;
-  let attached = false;
-  try {
-    jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
-    attached = true;
-    ctx = workerContext(request, directory, root, nativeBoard).ctx;
-    // The hand-off worker is the drive worker child: it calls driveOnce until the gate job's verdict step [C7].
-    const drive = handoffDrive(ctx, request, requestFile, directory, root);
-    const [code, signal] = await driveExit(ctx, request, drive, directory);
-    const job = withBoard(ctx, board => submitHandoff(board, request.item));
-    if (job?.id !== request.job || !['queued', 'running'].includes(job.state)) return;
-    const refused = join(directory, 'refusal.json');
-    let failure;
-    if (existsSync(refused)) {
-      try { failure = JSON.parse(readFileSync(refused, 'utf8')); }
-      catch { /* A damaged artifact cannot replace an explicit observed child-exit refusal. */ }
-    }
-    if (failure?.code !== 1 || !failure.error?.code || typeof failure.error.message !== 'string' || typeof failure.error.next !== 'string') {
-      failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_EXIT',
-        `queued submit worker exited with code ${code ?? 'none'}${signal ? ` and signal ${signal}` : ''} without a terminal result; read its worker.log before resubmitting the captured source`), { caller: 'seat' }) };
-    }
-    await recordWorkerFailure(ctx, request, directory, failure);
-  } catch (error) {
-    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }) });
-    throw error;
-  } finally {
-    // This process created the disposable checkout and its child has closed; generated files must not strand it.
-    if (attached) {
-      try { jobGit(request.commonDir, ['worktree', 'remove', '--force', root]); }
-      finally { cleanupToolSnapshot(request); }
-    }
-  }
-}
-
-/** Expose the real worker module as a declared import dependency of its launcher. */
-export function submitHandoffWorkerEntrypoint() { return fileURLToPath(import.meta.url); }
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const run = process.argv[3] === '--execute' ? runSubmitHandoffWorker : superviseSubmitHandoffWorker;
-  // The board's module graph reaches this worker through the lib front door; finish evaluating before loading it.
-  import('../core/native-board.js').then(nativeBoard => run(process.argv[2], { nativeBoard, prepared: process.argv[3] === '--execute' }))
-    .catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
 }

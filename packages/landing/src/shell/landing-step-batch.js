@@ -2,6 +2,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
@@ -21,7 +22,6 @@ import { repoInfo } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { takeLandingResource } from './landing-resource.js';
 import { requireConfirmedLanding } from '../../../../src/board-landing-lease.js';
-import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
@@ -143,7 +143,7 @@ export async function land(options) {
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
-    if (!options.due || idleLanding(options.board, trunk.commit)) {
+    if (cadenceApplies(options) && (!options.due || idleLanding(options.board, trunk.commit))) {
       const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
       if (deferred) return deferred;
     }
@@ -190,17 +190,18 @@ export async function land(options) {
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
       adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
-    return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal,
-      workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus,
-      onStall: async ({ batch, description }) => {
-        const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
-        if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
-        const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
-          refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
-        options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
-        return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true };
-      } });
+    /** A batch with no progress for the stall limit is recorded blocked; its items stay verified for the next batch. */
+    const onStall = async ({ batch, description }) => {
+      const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
+      if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
+      const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
+        refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
+      options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
+      return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true, stallDescription: description };
+    };
+    // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
+    if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
+    return await options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -341,7 +342,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
-  if ((!dryRun || due) && !adopt && !unfinished) {
+  if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }

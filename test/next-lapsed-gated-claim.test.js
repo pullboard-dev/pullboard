@@ -1,6 +1,7 @@
 /** next and claim agree on held: a lapsed claim whose own gate is in flight is never listed open [C7,#3121]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
@@ -21,8 +22,7 @@ function lapsedClaim(t) {
 
 test('a lapsed claim with a queued gate is not offered by next, which returns other work, and claim agrees [C7,#3121]', t => {
   const { board, held, other } = lapsedClaim(t);
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)')
-    .run(`submit_handoff:${held}`, JSON.stringify({ commit: 'a'.repeat(40), agentId: 'web-1', state: 'queued' }));
+  recordSubmitHandoff(board.db, held, { id: `fixture-${held}`, commit: 'a'.repeat(40), agentId: 'web-1', state: 'queued' });
   const listed = store.listItems(board, { lane: 'web' }).find(item => item.item_id === held);
   assert.equal(listed.item_status, 'claimed', 'the gate keeps the claim held in the list');
   assert.equal(listed.item_owner, 'web-1');
