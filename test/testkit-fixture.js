@@ -1,6 +1,5 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
-import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
 
 /** Normalize the two child-process result shapes used by CLI-backed fixtures. */
 function fixtureResult(result) {
@@ -9,7 +8,7 @@ function fixtureResult(result) {
 
 /** Join a fixture worktree with the model and route required by current admission rules. */
 export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(fixtureJoin(run, root,  lane, '--model', model, '--route', route, '--json'));
+  return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, '--json'));
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */
@@ -46,7 +45,7 @@ export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model'
  * @returns {unknown} Whatever the runner returns, a promise included.
  */
 export function fixtureAdd(run, cwd, ...args) {
-  return fixtureAdd(run, cwd,  ...args);
+  return run(cwd, 'add', ...args);
 }
 
 /**
@@ -60,7 +59,7 @@ export function fixtureAdd(run, cwd, ...args) {
  * @returns {unknown} Whatever the runner returns, a promise included.
  */
 export function fixtureJoin(run, cwd, ...args) {
-  return fixtureJoin(run, cwd,  ...args);
+  return run(cwd, 'join', ...args);
 }
 
 /** The argv head for a spawned `pullboard add`: the CLI path then the verb, so spawned adds share the kit seam. */
