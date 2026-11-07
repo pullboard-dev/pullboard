@@ -17,7 +17,7 @@ import {
   build,
 } from './fixture.js';
 
-test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
+test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Dashboard walk.');
   const box = machine();
@@ -51,6 +51,8 @@ test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', 
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && view.tab === 'dashboard'`);
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor('!!document.querySelector("#dashboard .dash-agent-axis") && !!document.querySelector("#dashboard .dash-split")');
     for (const [width, scheme] of [[1280, 'light'], [375, 'dark']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: false });
@@ -72,7 +74,8 @@ test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', 
           documentWidth: document.documentElement.scrollWidth,
           dashboardLeft: first.left,
           contentLeft: document.querySelector('main').getBoundingClientRect().left + parseFloat(getComputedStyle(document.querySelector('main')).paddingLeft),
-          visibleShippingHeading: [...panel.querySelectorAll('h2')].some(heading => heading.getClientRects().length > 0),
+          // Since 0ab202b994 the release card opens with the release's own name (an h2.release-name); any other visible h2 is a widget-name eyebrow.
+          visibleShippingHeading: [...panel.querySelectorAll('h2:not(.release-name)')].some(heading => heading.getClientRects().length > 0),
           shippingText: panel.textContent,
           agentSplitWidth: agentTime.getBoundingClientRect().width,
           agentContentWidth: cardRect.width - parseFloat(cardStyle.paddingLeft) - parseFloat(cardStyle.paddingRight) - 2,
