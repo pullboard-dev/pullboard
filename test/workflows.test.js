@@ -302,7 +302,25 @@ test('clause 2: check-cla fails naming a second unsigned co-author and a commit 
   assert.match(result.stderr, /no GitHub login/u);
 });
 
-test('clause 3: a landing appends a signer entry with the CLA hash', async (t) => {
+test('clause 3: the workflow events and allowed actions, a listed signer and an exact comment pass, and a near-miss, another person and a second unsigned co-author fail with the login named', (t) => {
+  assert.match(CLA_WORKFLOW, /\n {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]\n {2}issue_comment:\n {4}types: \[created\]\n/u);
+  const used = [...CLA_WORKFLOW.matchAll(/^\s*-\s+uses: ([^\s]+)/gmu)].map((m) => m[1].split('@')[0]);
+  assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
+  // Every scenario reads its signatures from a fixture file, never the real .github/cla-signatures.json.
+  assert.equal(runCla(t, { commits: [claCommit('alice')], comments: [] }, claSigned).status, 0, 'a listed signer passes');
+  assert.equal(runCla(t, { commits: [claCommit('bob')], comments: [claComment('bob', CLA_SENTENCE)] }, claSigned).status, 0, 'the exact comment passes');
+  const nearMiss = runCla(t, { commits: [claCommit('bob')], comments: [claComment('bob', `${CLA_SENTENCE} `.trim().replace('.', ''))] }, claSigned);
+  assert.notEqual(nearMiss.status, 0);
+  assert.match(nearMiss.stderr, /bob/u, 'a near-miss comment fails naming the login');
+  const other = runCla(t, { commits: [claCommit('bob')], comments: [claComment('carol', CLA_SENTENCE)] }, claSigned);
+  assert.notEqual(other.status, 0);
+  assert.match(other.stderr, /bob/u, "another person's comment fails naming the author");
+  const second = runCla(t, { commits: [claCommit('bob'), claCommit('dave')], comments: [claComment('bob', CLA_SENTENCE)] }, claSigned);
+  assert.notEqual(second.status, 0);
+  assert.match(second.stderr, /dave/u, 'a second unsigned co-author fails naming the login');
+});
+
+test('a landing appends a signer entry with the CLA hash', async (t) => {
   const { appendSignatures } = await import('../bin/check-cla.js');
   const fixture = privateFixtureFiles('cla-land-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
