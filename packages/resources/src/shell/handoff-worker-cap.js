@@ -277,11 +277,14 @@ function endUnstarted(file, name, launch, error) {
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, sweep } = {}) {
   const started = [];
-  const currentCapacity = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity ?? capacity;
+  const existing = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity;
   // Existing machine capacity can come from an explicit operator override or a prior
   // dispatcher run. Keep it while holders may depend on those slots; takeResource
   // supports safe growth but intentionally refuses an implicit shrink.
-  const effectiveCapacity = Math.max(capacity, currentCapacity);
+  // A function cap is re-read on every pass, so the join is a function too: Math.max on a function is NaN and the take refuses [C7,#3302].
+  const effectiveCapacity = typeof capacity === 'function'
+    ? () => { const wanted = capacity(); return Math.max(wanted, existing ?? wanted); }
+    : Math.max(capacity, existing ?? capacity);
   for (;;) {
     let lock;
     try {
