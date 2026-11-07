@@ -76,7 +76,7 @@ const BATCH_WRITES = new Set(['recordTrainLanding', 'recordLandingBatch', 'finis
   'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact', 'holdItem', 'releaseItemHold', 'shout']);
 
 /**
- * The batch runner `land` calls in place of runLandingWorker: it runs runLandingBatch here, with the same options,
+ * The batch runner `land` calls for every batch: it runs runLandingBatch here, with the same options,
  * ports, write list and lease checks the worker process had, so every landing the worker did still happens.
  *
  * Why: the worker was a spawned guardian and worker pair talking over IPC; the drive cell runs landing as a job in
