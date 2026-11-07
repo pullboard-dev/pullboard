@@ -6,6 +6,10 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { closeBoard } from '../../../apps/lib/index.js';
+import { openBoard } from '../../../apps/lib/index.js';
+import { driveOnce } from '../../drive/index.js';
+import { createJob } from '../../jobs/index.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { bundleFor } from '../../pin/index.js';
@@ -64,4 +68,27 @@ test('clause 1: a gate on a runner that holds the tooling pin sends zero tooling
 test('clause 1: the tooling folder is named by tree id and refuses an id that is not a full tree id [C7]', () => {
   assert.throws(() => toolingFolder('/r', '../x'), { code: 'TRANSPORT_TOOLING_TREE' });
   assert.equal(toolingFolder('/r', 'a'.repeat(40)), `'/r'/tooling/${'a'.repeat(40)}`);
+});
+
+test('clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async () => {
+  const { repo, tooling, bundle } = pinnedRepo();
+  const { transport, runner } = localRunner('runner-b');
+  await ensureTooling(transport.connect(runner), { tree: tooling, bundle });
+  const board = openBoard(join(files.root, 'board.sqlite'));
+  try {
+    const head = runFixtureGit(['-C', repo, 'rev-parse', 'HEAD']);
+    createJob(board.db, { id: 'g1', kind: 'gate', candidate: head, base: head, now: 1 });
+    const options = { owner: 'driver-a', repo, runner, transport, bundles: join(files.root, 'bundles'), now: () => 10_000,
+      plan: captured => [{ shard: 's1', command: `cat ${captured.toolingPath}/tool.txt` }] };
+    await driveOnce(board.db, 'g1', options);
+    const sent = await driveOnce(board.db, 'g1', options);
+    const running = sent.job.steps.find(step => step.name === 'running').payload;
+    assert.equal(running.tooling.held, true, 'the runner already held the pin, so the driver copied nothing');
+    assert.equal(running.tooling.bytesSent, 0);
+    assert.equal(running.tooling.tree, tooling);
+    assert.equal(running.shards[0].command, `cat ${join(runner.root, 'tooling', tooling)}/tool.txt`, 'the shard reads the pinned copy');
+  } finally {
+    closeBoard(board);
+    transport.close();
+  }
 });
