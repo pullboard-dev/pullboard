@@ -12,6 +12,7 @@ import { reviewEligibility } from '../../../../../packages/verify/src/core/revie
 import { showReviewPacket } from '../../../../../packages/verify/src/shell/review-packet.js';
 import { machineVerification } from '../../../../../packages/verify/src/shell/machine-verification.js';
 import { gatePanel } from '../../../../../packages/jobs/src/shell/gate-panel.js';
+import { handoffWorkerAlive } from '../handoff-worker-alive.js';
 import { withBoardRead } from '../cli-board-read.js';
 import { testRuntimeEnvironment } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
 import { testRuntimeRows } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
@@ -62,7 +63,7 @@ export async function run(io, { first, values }) {
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const panel = job ? gatePanel(board.db, job.id) : null;
+    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(ctx.info.commonDir, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };

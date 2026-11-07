@@ -170,6 +170,21 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    if (!values.verify) {
+      const ownerQueue = withBoardRead(ctx, board => {
+        const me = whoAmI(ctx, board);
+        return store.ownershipWaiting(board, ctx.info.isMain ? 'coordinator' : me.lane);
+      });
+      if (ownerQueue.length) {
+        io.result?.({ action: 'ownership', ownershipWaiting: ownerQueue });
+        for (const waiting of ownerQueue) {
+          io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+          io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+          io.say(waiting.diff);
+        }
+        return 0;
+      }
+    }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
     const selectionValues = redClaims.length
@@ -179,6 +194,15 @@ async function nextWithProgress(io, values, progress) {
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
+    if (found.ownershipWaiting?.length) {
+      io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
+      for (const waiting of found.ownershipWaiting) {
+        io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+        io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+        io.say(waiting.diff);
+      }
+      return 0;
+    }
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);

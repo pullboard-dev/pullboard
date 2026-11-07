@@ -1,3 +1,4 @@
+import { ownershipWaitForJob } from './board-ownership-wait.js';
 import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../state/index.js';
 import {
@@ -176,6 +177,16 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     if (!['queued', 'running'].includes(saved.state)) return saved;
     const job = { ...saved, ...lockWaitRecord(result?.lockWaits) };
     const item = getItem(board, id);
+    const ownerWait = ownershipWaitForJob(board, job.id);
+    if (ownerWait || result?.code === 0 && result.ownershipWait) {
+      const wait = ownerWait;
+      if (!wait || wait.agentId !== job.agentId || wait.commit !== job.executionCommit || result?.ownershipWait && wait.key !== result.ownershipWait
+        || wait.tree !== job.executionTree || wait.digest !== job.digest || wait.main !== job.main) {
+        throw new Refused('SUBMIT_HANDOFF_RESULT', 'the queued source needs its own immutable ownership-wait receipt');
+      }
+      return record(board, id, { ...job, state: 'ownership-wait', gateGreen: false,
+        ownershipWait: wait.key, completedAt: now(board) });
+    }
     if (result?.code === 0) {
       if (item.item_status !== 'submitted' || item.item_built_by !== job.agentId || item.item_commit !== result.commit) {
         throw new Refused('SUBMIT_HANDOFF_RESULT', 'a queue result cannot replace the normal proved submit transition');
