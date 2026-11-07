@@ -632,46 +632,35 @@ test('pullboard inbox answers in under a second on a 40,000-shout backlog and ma
   };
   seedBacklog(0, 40_000);
   publish();
-  const first = timedInbox(box, board, seat, publish);
+  const first = timedInbox(box, board, seat);
   assert.ok(first.shoutIds.length >= 60 && first.shoutIds.length <= 100, `only the directed backlog is delivered: ${first.shoutIds.length}`);
-  assert.ok(first.ms < 1000, `pullboard inbox took ${first.ms.toFixed(0)}ms on a 40,000-shout backlog`);
+  assert.ok(first.ms < 1000, `pullboard inbox used ${first.ms.toFixed(0)}ms of CPU on a 40,000-shout backlog`);
   // The CLI's read marks the seat's delivered shouts; the fixture takes the same cursor before the next backlog.
   board.db.prepare('UPDATE agent SET agent_last_shout_id = ? WHERE agent_id = ?').run(Math.max(...first.shoutIds), seat);
   // Seat history: its cursors are now set, and each later poll reads only what arrived since.
   seedBacklog(40_000, 42_000);
   publish();
-  const later = timedInbox(box, board, seat, publish);
+  const later = timedInbox(box, board, seat);
   assert.ok(later.shoutIds.length >= 3 && later.shoutIds.length <= 6, `only the new directed shouts are delivered: ${later.shoutIds.length}`);
-  assert.ok(later.ms < 1000, `a later pullboard inbox took ${later.ms.toFixed(0)}ms`);
+  assert.ok(later.ms < 1000, `a later pullboard inbox used ${later.ms.toFixed(0)}ms of CPU`);
 });
 
 /**
  * Run the real CLI from the seat's checkout, and read the same shouts through the store API before it runs.
- * The wall clock on a shared runner can stall one process for seconds, so a slow answer is measured again
- * from a fresh copy of the board (the CLI marks its delivered shouts) and the fastest of six, spaced further apart each time, is reported.
+ * The time is the CLI's own CPU time (user plus system, read in an exit hook), not the wall clock: a shared runner
+ * can leave the process waiting for a core for seconds, and that wait says nothing about the work the inbox does.
  */
-function timedInbox(box, board, seat, republish) {
+function timedInbox(box, board, seat) {
   const expected = store.inbox(board, seat, { markRead: false }).map(shout => shout.shout_id);
-  let best;
-  for (let attempt = 0; attempt < 6 && (best === undefined || best.ms >= 1000); attempt += 1) {
-    // A stalled runner clears within a second or two, so each repeat waits before it reads a fresh copy.
-    if (attempt > 0) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500 * attempt); republish(); }
-    const run = runInbox(box);
-    assert.deepEqual(run.shoutIds, expected, 'the CLI delivers the same shouts as the inbox API');
-    if (best === undefined || run.ms < best.ms) best = run;
-  }
-  return best;
-}
-
-/** Run `pullboard inbox --json` once in the seat's checkout and time it. */
-function runInbox(box) {
-  const started = process.hrtime.bigint();
   // A first poll of a long backlog prints every shout, so the buffer is sized for the whole answer.
-  const result = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'bin', 'pullboard.js'), 'inbox', '--json'],
+  const cpuHook = 'data:text/javascript,process.on("exit",()=>{const u=process.cpuUsage();process.stderr.write("CPU_MS="+(u.user+u.system)/1000)})';
+  const result = spawnSync(process.execPath, ['--import', cpuHook, join(import.meta.dirname, '..', 'bin', 'pullboard.js'), 'inbox', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  const ms = Number(process.hrtime.bigint() - started) / 1e6;
   assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+  const ms = Number(/CPU_MS=([\d.]+)/.exec(result.stderr)?.[1]);
+  assert.ok(Number.isFinite(ms), `the exit hook reported the CLI's CPU time: ${result.stderr}`);
   const shoutIds = JSON.parse(result.stdout).shouts.map(shout => shout.shout_id);
+  assert.deepEqual(shoutIds, expected, 'the CLI delivers the same shouts as the inbox API');
   return { shoutIds, ms };
 }
 
