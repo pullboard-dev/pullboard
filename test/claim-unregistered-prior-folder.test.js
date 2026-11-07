@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
@@ -33,7 +33,7 @@ function claimWithStrayFolder() {
   }
   const web2 = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', web2, '-b', 'web/two');
-  const joined = joinFixtureSeat(box, web2, 'web', { model: 'Fixture' });
+  const joined = joinFixtureSeat(box, web2, 'web', { model: FIXTURE_MODEL });
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { stray, claim: box.run(web2, 'claim', id) };
 }
