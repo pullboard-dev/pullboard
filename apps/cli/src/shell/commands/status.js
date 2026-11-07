@@ -29,6 +29,7 @@ import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
 import { ruleProofCounts } from '../../../../../packages/verify/index.js';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
+import { handoffCapLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
 import { reviewQueueLine } from '../../../../../packages/verify/index.js';
@@ -133,6 +134,8 @@ export async function run(io, { values }) {
   else for (const run of summary.memoryHeld) io.say(`local memory holds ${run.agent}${run.item ? ` #${run.item}` : ''}${run.kind ? ` (${run.kind})` : ''}${run.repo ? ` in ${run.repo}` : ''}`);
   if (summary.runnerDeadlines === null) io.say('runner wait deadline status unavailable; pullboard resources shows the queue');
   else for (const run of summary.runnerDeadlines) io.say(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${runnerDeadlineLine(run)}`);
+  const handoffCap = handoffCapLine();
+  if (handoffCap) io.say(handoffCap);
   for (const proposal of summary.submitInvariantProposals) io.say(submitInvariantLine(proposal));
   for (const need of summary.needs.filter(need => need.kind === 'agent-approved')) io.say(`${need.text}; ${need.what}`);
   if (!summary.relay.linked && !originRepository(ctx.info.root, { optional: true })) {
