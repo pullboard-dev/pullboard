@@ -265,7 +265,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
   }
 }
 
-test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', async (t) => {
+test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V6,O8]', async (t) => {
   const box = project();
   const submitted = await submitFixture(box);
   await reserveFixtureReview(box);
@@ -433,7 +433,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
     'the current CLI preserves unquoted evidence found after prose');
 });
 
-test('a red landing gate returns a verified item to its builder [B3,V4]', async (t) => {
+test('clause 2: a red landing gate returns a verified item to its builder [B3,V4]', async (t) => {
   const box = landingProject();
   const item = await submitLandingFixture(box, 1, 'export const status = "RED";\n');
   await acceptLandingFixture(box, item);
@@ -897,7 +897,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(store.getItem(board, 1).item_verdict, 'REJECT');
 });
 
-test('retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
+test('clause 3: retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
   /** Await real production commands; fixture moves do not start an unrelated next-work search. */
   const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
