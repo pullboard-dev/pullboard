@@ -54,6 +54,8 @@ function copyCode(code, env) {
     cpSync(join(REPO, file), join(code, file));
   }
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: code, env });
+  // The copied code is committed, so the resident process names it by its code trees [#3249].
+  runFixtureGit(['add', '-A'], { cwd: code, env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code one'], { cwd: code, env });
 }
 
@@ -277,6 +279,7 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   const data = JSON.parse(readFileSync(packageFile, 'utf8'));
   data.version = '0.0.0-resident-new';
   writeFileSync(packageFile, JSON.stringify(data, null, 2) + '\n');
+  runFixtureGit(['add', 'package.json'], { cwd: fx.code, env: fx.env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code two'], { cwd: fx.code, env: fx.env });
   const next = fx.runIn(fx.repo, ['version']);
   const release = (result) => result.stdout.split('\n')[0];
@@ -286,6 +289,19 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(release(warm), '0.0.0-resident-new', 'the new resident process serves the new code');
   assert.notEqual(fx.residentPid(), old);
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
+});
+
+test('clause 1: after main moves with no code change, the next show is served by the same resident pid [C7,#3249]', () => {
+  fx.awaitResident();
+  const old = fx.residentPid();
+  writeFileSync(join(fx.code, 'landed-note.txt'), 'a landing that touches no code path\n');
+  runFixtureGit(['add', 'landed-note.txt'], { cwd: fx.code, env: fx.env });
+  runFixtureGit(['commit', '-q', '-m', 'docs only'], { cwd: fx.code, env: fx.env });
+  const shown = fx.runIn(fx.repo, ['show', '1'], { modules: true });
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.ok(shown.loaded.length < 20, `the show ran in the resident process, not cold: ${shown.loaded.length} modules in the client`);
+  assert.equal(fx.residentPid(), old, 'the same resident process served it');
+  assert.equal(fx.alive(old), true, 'the resident process did not retire');
 });
 
 /**

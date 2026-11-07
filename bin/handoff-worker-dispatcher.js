@@ -42,5 +42,9 @@ export function reportDispatcherFailure(error, capacity = currentCapacity) {
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try { await drainHandoffQueue({ startOf: exactStart, capacity: currentCapacity }); }
-  catch (error) { reportDispatcherFailure(error); process.exitCode = 1; }
+  catch (error) {
+    // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
+    reportDispatcherFailure(error);
+    process.exit(1);
+  }
 }
