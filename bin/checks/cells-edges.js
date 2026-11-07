@@ -20,6 +20,20 @@ const TESTISH = /(?:^|\/)test\/|\.(?:test|spec)\.[cm]?js$/u;
 const ROOT_OWNER = '(root)';
 
 /**
+ * The six durable cells, top to bottom, and the only edges allowed between them (durable gate design, section 4):
+ * land and drive sit on top, receipt and transport read pin, and jobs and pin import none of the six. No cell imports
+ * drive or land. Any other edge between two of the six is a backwards edge, refused even when the plan declares it [C7].
+ */
+export const DURABLE_CELLS = Object.freeze({
+  jobs: Object.freeze([]),
+  drive: Object.freeze(['jobs', 'transport', 'receipt', 'pin']),
+  transport: Object.freeze(['pin']),
+  receipt: Object.freeze(['pin']),
+  pin: Object.freeze([]),
+  land: Object.freeze(['receipt', 'jobs', 'pin']),
+});
+
+/**
  * The cell that owns a repo-relative path: `packages/<name>` or `apps/<name>`; anything else is the root.
  *
  * @param {string} path
@@ -148,6 +162,29 @@ export function cellsEdgeProblems(root, { files, read, ceilings = JSON.parse(rea
       for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in bin/cells-plan.json`);
     }
   }
+  problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}) }));
+  return problems;
+}
+
+/**
+ * Refuse every backwards edge between the six durable cells: an import from one of them into another that its row in
+ * DURABLE_CELLS does not allow. A plan declaration never allows one, so these edges are read before the plan filter.
+ *
+ * @param {string} root
+ * @param {{ files?: string[], read?: (file: string) => string }} [options] - `files` limits the check to those files (the pre-commit run).
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function durableEdgeProblems(root, { files, read = file => readFileSync(resolve(root, file), 'utf8') } = {}) {
+  const problems = [];
+  for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
+    const from = cellOf(file).cell;
+    const allowed = DURABLE_CELLS[from];
+    if (!allowed) continue;
+    for (const edge of fileEdges(file, read(file))) {
+      if (!Object.hasOwn(DURABLE_CELLS, edge.to) || allowed.includes(edge.to)) continue;
+      problems.push({ path: file, line: edge.line, text: `backwards edge between durable cells: ${from} imports ${edge.to}; ${from} may import only ${allowed.join(', ') || 'none of the six'} (jobs, drive, transport, receipt, pin, land); move the code down a cell` });
+    }
+  }
   return problems;
 }
 
@@ -159,7 +196,7 @@ export function writeCellsEdgeCeilings(root) {
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
-  if (process.argv.includes('--report')) console.log(JSON.stringify(ceilingsOf(cellsEdgeReport(root)), null, 2));
+  if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) report(writeCellsEdgeCeilings(root));
   else report(cellsEdgeProblems(root));
 }
