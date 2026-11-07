@@ -13,11 +13,9 @@ import { runMainAudits } from '../packages/gate/index.js';
 import { mainAuditDirectory } from '../packages/gate/index.js';
 import { waitMainAudit } from '../packages/gate/index.js';
 import {
-  warmAcceptedCells,
   recordAcceptedCellsFailure,
 } from '../packages/gate/index.js';
-import { withMainCheckout } from '../packages/landing/index.js';
-import { withFileLock } from '../packages/outbox/index.js';
+import { produceAcceptedCells } from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { isAbsolute } from 'node:path';
 import { cellsBacklogCollector } from './cells-audit-backlog.js';
@@ -33,7 +31,7 @@ if ((args.length && !(args.length === 1 && (scheduled || forceFull)) && !wakeAt 
   throw new Error('main-audit requires an explicit root and native UUID token, optionally --scheduled or --release');
 }
 if (cellsOnly) {
-  try { await warmAcceptedCells(root, args[1], { withCheckout: withMainCheckout, withLock: withFileLock }); }
+  try { await produceAcceptedCells(root, token, args[1]); }
   catch (error) { try { recordAcceptedCellsFailure(root, args[1], error); } catch { /* Preserve the producer failure. */ } throw error; }
 } else if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
   await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root) });
