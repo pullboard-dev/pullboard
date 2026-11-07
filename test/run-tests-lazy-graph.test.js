@@ -1,3 +1,4 @@
+/** @pullboard-world-pin reads the real command modules to walk their static import graph. */
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -98,7 +99,6 @@ function importParents(entry) {
     if (parent.has(file)) continue;
     parent.set(file, from);
     let source;
-    /** @pullboard-world-pin the lazy graph walks the repository's own modules */
     try { source = readFileSync(new URL('../' + file, import.meta.url), 'utf8'); } catch { continue; }
     for (const to of staticEdges(file, source)) if (to.startsWith('.') || to.includes('/')) queue.push([to, file]);
   }

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { FIXTURE_MODEL, fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

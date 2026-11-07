@@ -12,12 +12,11 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { FIXTURE_MODEL } from './testkit-fixture.js';
 import { requestFor } from '../packages/runners/src/shell/runner-request.js';
 import { privateCheckEnvelope } from '../apps/runner/src/shell/runner-private-mode.js';
 

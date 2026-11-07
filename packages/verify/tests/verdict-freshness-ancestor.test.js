@@ -4,8 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 import { verdictProjector } from '../src/shell/verdict-freshness.js';
-import { fixture } from '../../../test/cells-plan-fixture.js';
 
 /** Run git in a directory and return trimmed output. */
 function git(cwd, ...args) {
@@ -22,7 +22,7 @@ function commit(dir, file, text) {
 
 /** Build a real repo whose reviewed trunk is on main, main moves on an unrelated file, and return the projected state. */
 function ancestorState(t, mainFile) {
-  const dir = fixture(t).root;
+  const dir = temporaryRepository(t, 'verdict-ancestor-');
   for (const file of ['x.txt', 'y.txt']) writeFileSync(join(dir, file), `${file}\n`);
   git(dir, 'add', '.');
   git(dir, 'commit', '-q', '-m', 'base');

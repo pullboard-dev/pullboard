@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import { board as store } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { SYNTHETIC_MODEL } from './testkit-fixture.js';
+
+const SYNTHETIC_MODEL = 'Synthetic fixture model';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-session-bar' });

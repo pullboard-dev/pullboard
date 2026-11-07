@@ -1,7 +1,8 @@
+/** @pullboard-world-pin copies the shipped detach entry point into the captured tooling the dispatcher is relaunched from. */
 /** Ordinary board commands revive captured launches without duplicating live dispatchers [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { copyFileSync, existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -13,8 +14,8 @@ import { HANDOFF_DISPATCHER_RESOURCE, takeResource } from '../packages/resources
 import { queueHandoffLaunch } from '../packages/resources/index.js';
 import { reserveHandoffTicket } from '../packages/resources/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
 import { fileFixtureItem } from './testkit-fixture.js';
+import { runFixtureChild } from './fixture-child.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
 /** Demand a native success before consuming fixture data. */
@@ -39,7 +40,7 @@ async function fixture(t, state) {
   });
   const box = helpers.project('true');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Dispatcher recovery fixture',
-    criterion: 'The fixture remains held.', check: null, args: ['--specs', 'G1'] }).item_id;
+    criterion: 'The fixture remains held.', diagnose: false, args: ['--specs', 'G1'] }).item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   const tools = join(box.dir, 'captured-tools');
   marker = join(box.dir, 'dispatcher-starts');
@@ -47,6 +48,8 @@ async function fixture(t, state) {
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'handoff-queue');
   mkdirSync(join(tools, 'bin'), { recursive: true });
   mkdirSync(queue, { recursive: true });
+  // The shipped detached launcher re-parents the dispatcher, so the captured tooling carries it beside the stub [C7].
+  copyFileSync(join(import.meta.dirname, '..', 'bin', 'handoff-worker-detach.js'), join(tools, 'bin', 'handoff-worker-detach.js'));
   // A working dispatcher is whoever holds the machine's dispatcher lock, so the captured stub takes it and keeps it until told to stop.
   const resourcesUrl = pathToFileURL(join(import.meta.dirname, '..', 'packages', 'resources', 'index.js')).href;
   writeFileSync(join(tools, 'bin', 'handoff-worker-dispatcher.js'), [

@@ -5,16 +5,15 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { NO_CHECKOUT_MODEL } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject } = makeLandProjectFixtures({ ...e2e,
-  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = NO_CHECKOUT_MODEL; return box; } });
+  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = FIXTURE_MODEL; return box; } });
 
 /** Run one real comparison through a runner stand-in while watching every main-red folder; return the result and sightings. */
 async function compareOnRunner({ runner = true } = {}) {

@@ -5,7 +5,8 @@ import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
-import { SYNTHETIC_MODEL } from './testkit-fixture.js';
+
+const SYNTHETIC_MODEL = 'Synthetic fixture model';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-head-family-bar' });

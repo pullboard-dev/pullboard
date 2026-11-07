@@ -7,14 +7,15 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
+import { temporaryDirectory } from './board-fixture.js';
 import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../src/builder-family-required-engine.js';
-import { privateFixtureFiles } from './fixture-child.js';
-import { FIXTURE_MODEL } from './testkit-fixture.js';
+
+const FIXTURE_MODEL = 'Fixture';
 
 /** Use a real committed required-family policy and SQLite board, with an explicitly unknown builder session. */
 function fixture(t) {
-  const root = privateFixtureFiles('pullboard-builder-family-').root;
+  const root = temporaryDirectory('pullboard-builder-family-');
   const file = repositoryBoardFile(root);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {}, verify: { family: 'require' } }));
   execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qam', 'required family'], { cwd: root });
