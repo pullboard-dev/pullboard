@@ -284,11 +284,12 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
     const nextProof = captureMergeOnly(box.web, mergeOnlyBasis(forged, store.getItem(forged, id), {}, { acceptedVerdict: store.acceptedVerdict }),
       { commit: nextHead, tree: extraTree, trunk: nextTrunk });
     assert.ok(nextProof, 'the newest merge alone is clean, but its inherited acceptance was forged');
+    // Main must hold the submit policy commit (#2375): the carried trunk lands before the submit is prepared.
+    box.git(box.repo, 'merge', '--ff-only', nextTrunk);
     const chained = prepareEngineMove(forged, 'submit', [id, nextOptions]);
     chained.args[1].mergeOnly = nextProof;
     applyEngineMove(forged, chained, { sequence: 2, at: '2026-01-01T00:00:01.000Z' });
     assert.equal(store.getItem(forged, id).item_status, 'verified');
-    box.git(box.repo, 'merge', '--ff-only', nextTrunk);
     await assert.rejects(land({ landingPorts, root: box.repo, board: forged, dryRun: true, say: () => {},
       config: { landing: { perItem: false, publish: 'separate' } } }), error => error.code === 'STALE_VERDICT',
       'a later clean carry must not launder a forged earlier carry into a landable acceptance');
