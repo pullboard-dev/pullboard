@@ -15,6 +15,7 @@ export {
 export {
   mainRedBuildOffer,
   nextTake,
+  closePassingMainReds,
   nextProgress,
 } from './src/shell/next-take.js';
 export {
