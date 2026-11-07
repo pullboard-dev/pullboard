@@ -79,14 +79,14 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
     lapsedJob(seed.db, 'g-new', head, takenAt + 1);
   } finally { closeBoard(seed); }
 
-  // A preload counts every reclaimLapsed query (the only SQL on job_lease_until) in each command's process.
+  // A preload counts every reclaimLapsed query (its one SELECT; takeJob's UPDATE is not counted) in each command's process.
   const countFile = join(files.root, 'reclaim-count.log');
   files.write('count-reclaim.mjs', [
     "import { DatabaseSync } from 'node:sqlite';",
     "import { appendFileSync } from 'node:fs';",
     'const prepare = DatabaseSync.prototype.prepare;',
     'DatabaseSync.prototype.prepare = function (sql, ...rest) {',
-    "  if (/job_lease_until < \\?/.test(String(sql))) appendFileSync(process.env.RECLAIM_COUNT_FILE, 'x');",
+    "  if (/^SELECT job_id, job_kind.*job_lease_until < \\?/.test(String(sql))) appendFileSync(process.env.RECLAIM_COUNT_FILE, 'x');",
     '  return prepare.call(this, sql, ...rest);',
     '};', ''].join('\n'));
   const preload = join(files.root, 'count-reclaim.mjs');
