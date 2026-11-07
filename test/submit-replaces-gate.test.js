@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { driverRecord } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
@@ -68,7 +70,9 @@ function fixture(t) {
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
-    helpers.cleanup();
+    // The driver and dispatcher still write for a moment after the job ends; remove the tree only once they are done.
+    await gateSettled(helpers, box, state(box, id).job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, started };
 }

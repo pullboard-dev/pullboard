@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { driverRecord } from '../../../test/gate-driver-fixture.js';
+import { gateSettled } from '../../../test/submit-handoff-fixture.js';
+import { removeSandboxes } from '../../../test/submit-handoff-fixture.js';
 import { test } from 'node:test';
 import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
@@ -77,10 +79,16 @@ test('launched gate driver completes a native queued request without unsettled a
 
 test('resubmitting an orphaned queue without request or worker launches a fresh captured job [V4,H16,E18]', async t => {
   const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
+  let box;
+  let fresh;
+  t.after(async () => {
+    // The fresh driver and its dispatcher still write for a moment after the job ends; remove the tree once they are done.
+    try { if (box) await gateSettled(helpers, box, fresh); }
+    finally { await removeSandboxes(helpers); }
+  });
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
-  const box = helpers.project('true', isolated);
+  box = helpers.project('true', isolated);
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true } }));
@@ -115,6 +123,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   let current;
   try { current = submitHandoff(currentBoard, id); }
   finally { currentBoard.db.close(); }
+  fresh = current.id;
   assert.notEqual(current.id, orphan.id, 'the dead queue is closed before the same candidate gets a new identity');
   // The replacement's detached worker starts at once, so by the time this read runs the job may already be running or finished.
   assert.ok(['queued', 'running', 'green'].includes(current.state), `the replacement is a live job: ${current.state}`);
