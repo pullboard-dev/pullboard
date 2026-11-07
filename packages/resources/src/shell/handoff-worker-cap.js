@@ -301,7 +301,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
   for (;;) {
     let lock;
     try {
-      lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher',
+      lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher', loopHeartbeat: true,
         onWait() { throw new Refused('HANDOFF_DISPATCHER_RUNNING', 'another dispatcher is starting the queued workers'); } });
     } catch (error) {
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
@@ -311,7 +311,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
     }
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
     await sweepGoneHandoffs(sweep);
-    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -372,14 +372,19 @@ function passCapacity(capacity) {
   return handoffWorkerCapacity({ env: {} });
 }
 
-/** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS) {
+/**
+ * Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs.
+ * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
+ * next submit starts a fresh dispatcher [C7,#2990].
+ */
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock) {
   const running = new Map();
   let wake = () => {};
   let lastLaunchAt = Date.now();
   let lastError = 'none';
   let prunedAt = 0;
   while (waitingTickets().length || running.size) {
+    lock.renew();
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
     if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
     releaseExited(running, releaseSlot);
