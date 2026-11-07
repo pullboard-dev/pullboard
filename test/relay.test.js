@@ -15,7 +15,7 @@ import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { fetchFresh } from './http-fixture.js';
-import { joinFixtureSeat } from './testkit-fixture.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
@@ -1244,6 +1244,25 @@ test('offline linked reads use the local board, moves refuse, and the same relay
       else process.env[name] = value;
     }
   }
+});
+
+test('clause 1: relay.test.js fixture seats claim on the strong route', async (t) => {
+  const box = await relayClientFixture(t);
+  symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
+  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const agentRoot = join(box.root, '..', 'strong-route-agent');
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-strong-route-agent', agentRoot, 'HEAD'], {
+    cwd: box.root, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(worktree.status, 0, worktree.stderr);
+  const run = fixtureCli(box);
+  const item = fileFixtureItem({ run }, box.root, { lane: box.lane, title: 'strong route claim fixture' });
+  assert.equal(joinFixtureSeat({ run }, agentRoot, box.lane).code, 0, 'the fixture seat joins on the strong route');
+  const claimed = run(agentRoot, 'claim', String(item.item_id), '--no-next', '--json');
+  assert.doesNotMatch(`${claimed.stdout}${claimed.stderr}`, /"ROUTE"|\[ROUTE\]|ROUTE:/, 'the claim is not refused ROUTE');
 });
 
 test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
