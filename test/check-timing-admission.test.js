@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 import { recentReceipts } from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
@@ -53,7 +53,7 @@ for (const timing of [true, false]) {
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(box.run(reviewer, 'join', 'api', '--model', 'fixture-model', '--route', 'strong', '--json'));
+    document(box.run(reviewer, 'join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong', '--json'));
     const accepted = document(box.run(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json'));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);

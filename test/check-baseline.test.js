@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: clause 1 reads the two named test files themselves. */
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync } from './fixture-child.js';
@@ -8,6 +9,7 @@ import { startFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { FIXTURE_MODEL } from "./e2e-helpers.js";
 import { after, test } from 'node:test';
 import { closeBoard, getItem } from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
@@ -117,7 +119,7 @@ function project({ gate = 'true', content = 'green', commit = true, worktrees = 
 function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane, '--model', 'fixture-model', '--route', 'strong']);
+  const joined = box.run(path, ['join', lane, '--model', FIXTURE_MODEL, '--route', 'strong']);
   assert.equal(joined.status, 0, joined.stderr);
   return path;
 }
