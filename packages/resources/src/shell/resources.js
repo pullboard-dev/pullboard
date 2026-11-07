@@ -1349,7 +1349,7 @@ export async function takeResource(options) {
             startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
           }
           db.close();
-          const retryingInfrastructure = quarantine || infrastructureRetryCount > 0;
+          const retryingInfrastructure = infrastructureRetryCount > 0 || quarantine && reason !== 'worker-unresponsive'; // a first missed READY keeps its deadline: one bounded late start [C7,Q1,Q2]
           return takeResource({ ...options, requiredExecutor: retryRestriction ?? undefined, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
