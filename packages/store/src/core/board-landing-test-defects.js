@@ -10,7 +10,7 @@ import {
   logEvent,
 } from "../shell/board.js";
 import { COORDINATOR } from "../../../config/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
 import { Refused } from "../../../kernel/core.js";
