@@ -138,7 +138,7 @@ function approvedEntryRetirement(entry, candidateRoot, criterion, map) {
 }
 
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
-function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
+export function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
   const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
   problems.push(...engineStays.problems);
