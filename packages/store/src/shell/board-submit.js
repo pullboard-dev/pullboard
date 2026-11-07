@@ -1,4 +1,6 @@
 import { boardWriteSnapshot } from './board-write-preparation.js';
+import { builderFamilyProblem } from './builder-family-required.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../src/builder-family-required-engine.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
@@ -109,6 +111,9 @@ export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
+  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -137,6 +142,8 @@ export function submit(board, id, options) {
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
     }
     reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
+    if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
