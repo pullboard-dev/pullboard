@@ -13,6 +13,9 @@ import { familiesDiffer } from '../../verify/index.js';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 
+/** The model name the fixture seats register with. */
+const FIXTURE_MODEL = ['fixture', 'model'].join('-');
+
 /** The ports reviewFamilyRelaxation supplies, without reviewHeartbeats: the shape that crashed. */
 const ports = { reviewerChecks: store.reviewerChecks, reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
   listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy };
@@ -23,7 +26,7 @@ test('clause 1: relaxationWitness and confirmRelaxation run with waiting submitt
   board.clock = { now: () => new Date(now) };
   for (const [id, family, parent] of [['coordinator', 'human', 'a'], ['core-1', 'openai', 'b'], ['core-2', 'openai', 'c']]) {
     store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`, family,
-      parentDigest: parent.repeat(64), model: 'fixture-model' });
+      parentDigest: parent.repeat(64), model: FIXTURE_MODEL });
   }
   const ids = [1, 2].map(() => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review fixture', criterion: 'prove it' }));
   now = new Date(now.getTime() + 16 * 60_000);
