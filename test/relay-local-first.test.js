@@ -393,7 +393,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
 
   await box.stopRelay();
   const queued = await box.cliAt(here.path, 'claim', String(contested));
-  assert.equal(queued.code, 0, `the claim succeeds here at once, with no up-front coordination: ${queued.failure}`);
+  assert.equal(queued.code, 0, `the claim succeeds here at once, with no up-front coordination: ${queued.failure}; ${JSON.stringify(queued.document?.error ?? queued.document?.refusal ?? null)}`);
   await box.restartRelay();
   const won = await other.cliAt(otherPath, 'claim', String(contested));
   assert.equal(won.code, 0, won.failure);
