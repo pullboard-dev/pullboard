@@ -46,7 +46,6 @@ function fixtureRepo() {
   function redFolder(job, item, log = LOG) {
     const directory = join(pullboard, 'submit-handoffs', job);
     mkdirSync(join(directory, 'output', 'run-1'), { recursive: true });
-    writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job, pid: null }));
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item, job }));
     writeFileSync(join(directory, 'output', 'run-1', 'output.log'), log);
     writeFileSync(join(directory, 'refusal.json'), '{}');

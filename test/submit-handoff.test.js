@@ -193,20 +193,20 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
   assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
   assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
-  const workerPath = join(request.tools, 'apps/lib/src/shell/submit-handoff-worker.js');
+  const workerPath = join(request.tools, 'bin/gate-drive-worker.js');
   const originalWorker = readFileSync(workerPath, 'utf8');
   await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
-  writeFileSync(join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), "throw new Error('changed builder tooling');\n");
   assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   assert.equal(state(box, box.id).item.item_commit, box.commit);
   await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
   assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder tool installation');
-  writeFileSync(join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), originalWorker);
+  writeFileSync(join(tools, 'bin/gate-drive-worker.js'), originalWorker);
   const malformed = join(box.dir, 'malformed-worker-request.json');
   writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
-  const refused = runFixtureChild(process.execPath, [join(tools, 'apps/lib/src/shell/submit-handoff-worker.js'), malformed],
+  const refused = runFixtureChild(process.execPath, [join(tools, 'bin/gate-drive-worker.js'), malformed, 'test-driver'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
   assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');

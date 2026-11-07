@@ -1435,9 +1435,6 @@
   "test/landing-stale-reopen.test.js": {
     "model": 1
   },
-  "test/landing-stalled-batch.test.js": {
-    "tempdir": 1
-  },
   "test/landing-trunk-moved-rebuild.test.js": {
     "model": 1
   },
@@ -1449,9 +1446,6 @@
   },
   "test/landing-worker-capacity.test.js": {
     "tempdir": 2
-  },
-  "test/landing-worker-stderr.test.js": {
-    "tempdir": 1
   },
   "test/lane-add.test.js": {
     "tempdir": 2
