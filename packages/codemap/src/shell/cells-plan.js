@@ -87,12 +87,41 @@ export function inPlanScope(file) {
   return /^(?:src|relay)\//u.test(file) || /^bin\/.*\.[cm]?js$/u.test(file);
 }
 
+/** The reason every stay row for a sealed engine snapshot carries, kept in one place so rows and the rule agree. */
+export const MOVE_HISTORY_REASON = 'canonical engine identity retained in src during package moves';
+
+/**
+ * The reason a path is placed by rule, or null: any src/move-history/<digits>.json is a stay with the stay rows' reason.
+ * Each landing that adds an engine writes the next snapshot, so waiting for a plan row would jam that landing (#3225).
+ * Every check that reports unplaced paths asks this one function, whether or not the plan lists the file.
+ *
+ * @param {string} file - A repository-relative path.
+ * @returns {string|null} The placement reason, or null when the path is not an engine history snapshot.
+ */
+export function moveHistoryPlacement(file) {
+  return /^src\/move-history\/\d+\.json$/u.test(file) ? MOVE_HISTORY_REASON : null;
+}
+
 /** Translate a dry-run cell to its one-word plan name, so seeds and rules agree on one vocabulary. */
 export function planCellName(cell) { return CELL_NAMES[cell] ?? cell; }
 
 /** Name the folder a cell lives in: apps for what runs, packages for what apps use [CD12]. */
 export function cellRoot(cell) {
   return cell.startsWith('app:') ? `apps/${cell.slice(4)}` : `packages/${cell}`;
+}
+
+/** The reason every feature engine leaf carries in the plan [C7]. */
+export const ENGINE_LEAF_REASON = 'canonical feature engine identity; landing assigns its next number and freezes move history';
+
+/**
+ * The stays row the rule gives a src/<name>-engine.js leaf, or null for any other path. Why a rule: a leaf is added by the
+ * item that needs an engine and takes its number at landing, so no plan row could name it in advance [C7].
+ *
+ * @param {string} file
+ * @returns {{ path: string, reason: string } | null}
+ */
+export function engineLeafPlacement(file) {
+  return /^src\/[a-z0-9]+(?:-[a-z0-9]+)*-engine\.js$/u.test(file) ? { path: file, reason: ENGINE_LEAF_REASON } : null;
 }
 
 /** Match the dry run's name rules for one path, or null; bin/ stays in place as the report found. */

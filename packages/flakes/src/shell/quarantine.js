@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { legacyFlakeObservations } from '../core/flake-ratchet.js';
 import { flakeRatchet } from '../core/flake-ratchet.js';
 import { pairedFlakeObservations } from '../core/flake-ratchet.js';
@@ -29,6 +30,7 @@ import {
 import { GATE_RUN_ENGINE } from "../../../../src/gate-run-engine.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { RUN_TIMING_ENGINE } from "../../../../src/run-timing-engine.js";
+import { SHADOW_TIER1_ENGINE } from "../../../../src/shadow-tier1-engine.js";
 import {
   boardReceiptStore,
   receiptBinds,
@@ -154,6 +156,11 @@ function captureFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLe
 function structuredRun(run) {
   return !['suite', 'main-red'].includes(run.kind) && Array.isArray(run.testOutcomes) && (run.version === 1 || run.version === 2
     && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode));
+}
+
+/** A Submit diagnostic belongs to its admission, so the general quarantine path cannot count it as a separate run. */
+function submitDiagnostic(run) {
+  return run.kind === 'check' && run.proof?.submitPhase === 'diagnostic' && run.proof.frozenDigest === null;
 }
 
 /** Count one identity's actual consecutive verdicts; missing, skipped and duplicate runs add nothing. */
@@ -315,6 +322,9 @@ function gateRunValue(board, { agentId, receipt }) {
     && (board.executionEngineVersion ?? ENGINE_VERSION) < RUN_TIMING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `run phase timings require engine ${RUN_TIMING_ENGINE}`);
   }
+  if (Object.hasOwn(receipt ?? {}, 'shadow') && (board.executionEngineVersion ?? ENGINE_VERSION) < SHADOW_TIER1_ENGINE) {
+    throw new Refused('ENGINE_VERSION', `tier 1 shadow facts require engine ${SHADOW_TIER1_ENGINE}`);
+  }
   if (Object.hasOwn(receipt ?? {}, 'collection') && (board.executionEngineVersion ?? ENGINE_VERSION) < MAIN_AUDIT_ENGINE) {
     throw new Refused('ENGINE_VERSION', `collection receipts require engine ${MAIN_AUDIT_ENGINE}`);
   }
@@ -387,8 +397,13 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners, aut
       value.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
-      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
-    logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+      Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE,
+      Object.hasOwn(value, 'shadow') ? SHADOW_TIER1_ENGINE : GATE_RUN_ENGINE);
+    const itemId = value.proof?.item ?? null;
+    logEvent(board, agentId, 'gate-run', itemId, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+    if (itemId !== null && value.shadow) logEvent(board, agentId, 'fact', itemId, { id: randomUUID(), kind: 'measurement',
+      text: `Tier-1 shadow for gate receipt ${value.id} at ${value.head}: ${value.shadow.verdict}; real gate result: ${value.shadow.real}; differs: ${value.shadow.differs}.`,
+      ref: { kind: 'gate-run', id: value.id }, supersedes: null });
     if (autoSubmit) {
       const filed = recordSubmitQuarantines(board, agentId, value);
       // A seat's Submit pair is a pair the landing ratchet counts; file it now, or landing stops until a coordinator run.
@@ -436,7 +451,7 @@ export function warmFlakeHistory(board) {
 
 /** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
 function recordStructuredQuarantines(board, agentId, value, lane, owners) {
-  const all = gateRuns(board), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
+  const all = gateRuns(board).filter(run => !submitDiagnostic(run)), known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row])), filed = [];
   if (structuredRun(value)) {
     const runs = all.filter(run => run.tree === value.tree && structuredRun(run));
     for (const outcome of value.testOutcomes) {

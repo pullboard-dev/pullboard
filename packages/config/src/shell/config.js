@@ -62,9 +62,16 @@ export function defaults() {
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
-    review: { starveMinutes: 10 },
+    review: { starveMinutes: 5 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
+    modelTiers: [
+      { contains: 'haiku', route: 'light' },
+      { contains: 'luna', route: 'light' },
+      { contains: 'sonnet', route: 'mid' },
+      { contains: 'sol', route: 'mid' },
+      { contains: 'opus', route: 'strong' },
+    ],
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
@@ -206,6 +213,13 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
+  if (!Array.isArray(config.modelTiers) || config.modelTiers.some(entry => !entry || typeof entry !== 'object'
+    || Array.isArray(entry) || Object.keys(entry).some(key => !['contains', 'route'].includes(key))
+    || typeof entry.contains !== 'string' || !entry.contains.trim() || entry.contains.trim() !== entry.contains
+    || !['light', 'mid', 'strong'].includes(entry.route))
+    || new Set((config.modelTiers ?? []).map(entry => typeof entry?.contains === 'string' ? entry.contains.toLowerCase() : null)).size !== (config.modelTiers ?? []).length) {
+    problems.push('"modelTiers" is a list of unique { "contains": "model label fragment", "route": "light|mid|strong" } entries; unmatched models use mid');
+  }
   if (!config.toolBuild || typeof config.toolBuild.enabled !== 'boolean'
     || typeof config.toolBuild.autoGate !== 'boolean'
     || !Number.isSafeInteger(config.toolBuild.refreshMs) || config.toolBuild.refreshMs < 1

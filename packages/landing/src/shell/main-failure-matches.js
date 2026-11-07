@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { secretsIn } from '../../../commits/index.js';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from './land.js';
+import { classifyMainRed } from '../../../receipt/index.js';
+import { comparisonStatus } from '../../../receipt/index.js';
 import {
   MAIN_FAILURE_SIGNATURE_VERSION,
   normalizedFailureDiagnostics,
@@ -95,7 +97,9 @@ export function matchingMainFailures(failures, comparison, main, { byCase = fals
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     // Landing asks only whether main fails this exact case: a case red on main cannot be one the item broke, however its
     // run-specific details (checkout paths, timings) read. Submit and verify keep the exact failure signature [C7,#3073].
-    if (file?.result !== 'red' || matches?.length !== 1 || (!byCase && matches[0].signature !== failure.signature)) return null;
+    // The receipt lookup decides ownership: a case is main's own only when main's receipt for the file names it [C7,#3424].
+    if (classifyMainRed([failure.name], comparisonStatus(file, failure.file)).owner !== 'main') return null;
+    if (matches?.length !== 1 || (!byCase && matches[0].signature !== failure.signature)) return null;
   }
   return { main, failures };
 }

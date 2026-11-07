@@ -6,6 +6,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
@@ -34,6 +36,8 @@ function fixture() {
     PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
   };
   delete env.PULLBOARD_RELAY_TOKEN;
+  // The fixture is a shell with no agent session: an inherited session id would make the builder's session judge its own work.
+  for (const name of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[name];
   const repo = join(dir, 'repo');
   mkdirSync(repo);
   /** Run Git in this private fixture with its isolated identity. */
@@ -80,7 +84,7 @@ function isAncestor(box, cwd, ancestor, commitId) {
 function addBuilder(box, name) {
   const cwd = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/${name}`, cwd, 'main');
-  const joined = box.run(cwd, 'join', 'web', '--route', 'strong');
+  const joined = fixtureJoin(box.run, cwd, 'web', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   return cwd;
 }
@@ -88,7 +92,7 @@ function addBuilder(box, name) {
 /** Add and claim a strong item with the complete brief shape expected by production. */
 function addAndClaim(box, cwd, title, row) {
   const brief = `Files:\n- web/fixture.txt\nTest:\n- inspect the committed fixture history`;
-  const added = box.run(box.repo, 'add', 'web', title, '--route', 'strong', '--specs', row,
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--route', 'strong', '--specs', row,
     '--criterion', 'the cited row holds', '--check', 'true', '--brief', brief);
   assert.equal(added.code, 0, added.err || added.out);
   const id = Number(/#(\d+)/u.exec(added.out)?.[1]);
@@ -123,7 +127,7 @@ function integrationEvidence(box, cwd, id, kind, outcome, commitId, text) {
   return JSON.parse(result.out).id;
 }
 
-test("the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3]", () => {
+test("clause 1: the coordinator's handoff brief orders current work and leaves agent resumes unchanged [N19,B3,C7]", () => {
   const box = fixture();
   const cleanBuilder = box.web;
   const cleanId = addAndClaim(box, cleanBuilder, 'Clean item', 'G1');
