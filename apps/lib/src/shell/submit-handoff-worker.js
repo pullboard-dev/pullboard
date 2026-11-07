@@ -44,6 +44,12 @@ import { spawnDriveWorker } from '../../../../bin/drive-worker.js';
 /** How many times a drive worker that died mid-job is started again before the job ends as SUBMIT_HANDOFF_EXIT. */
 const DRIVE_RESPAWNS = 3;
 
+/**
+ * How long the hand-off's drive worker rests between polls of its local gate. Why shorter than the drive cell's 5 s:
+ * the shard is a local process, so a poll is one file read, and the verdict should follow the gate's exit at once.
+ */
+const HANDOFF_POLL_MS = 1000;
+
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
   const result = gitSpawnSync(['--git-dir', commonDir, ...args], { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
@@ -206,7 +212,7 @@ function handoffDrive(ctx, request, requestFile, directory, root) {
   const command = [`cd ${shellWord(root)}`, `printf '%s' "$$" > ${shellWord(join(runner.root, 'execute.pid'))}`,
     `exec ${shellWord(process.execPath)} ${shellWord(realpathSync(fileURLToPath(import.meta.url)))} ${shellWord(requestFile)} --execute >> ${shellWord(join(directory, 'worker.log'))} 2>&1`].join(' && ');
   return { file: ctx.file, job: `handoff-drive-${request.job}`, owner: `handoff-${request.job}`, repo: root, runner, local: true,
-    plan: [{ shard: 'submit', command }] };
+    intervalMs: HANDOFF_POLL_MS, plan: [{ shard: 'submit', command }] };
 }
 
 /**
