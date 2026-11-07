@@ -26,6 +26,7 @@ import {
 import {
   Refused,
 } from '../../../kernel/index.js';
+import { COORDINATOR } from '../../../config/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
 function selected(ctx, board, values, services) {
@@ -48,17 +49,36 @@ function selected(ctx, board, values, services) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
     workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
+    reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
   });
 }
 
 /** Preview whether ordinary next needs the main-red build routing path; no move or worktree is written. */
-export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems, claimWorktrees }) {
+export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems, claimWorktrees, agentSessionDigest }) {
   return withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
-    if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family })?.mandatory) return null;
+    if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
+      skipIds: agentSessionDigest ? ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) : [] })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
       workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
+  });
+}
+
+/**
+ * Close open Main red items whose test the newest recorded main run shows passing, so no builder claims them. The closing
+ * goes through the ordinary withdraw move as the coordinator and cites the recorded run; it adds no test run.
+ */
+export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
+  if (!passingMainRedItems) return;
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  if (!passing.length) return;
+  await withBoard(ctx, async board => {
+    const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));
+    for (const row of passing.filter(entry => open.has(entry.item))) {
+      await ordered(ctx, board, 'withdraw', [row.item, { agentId: COORDINATOR,
+        reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); fixed by the landing ${(row.turnedGreen ?? row.main).slice(0, 12)}${row.landing ? ` "${row.landing}"` : ''} that turned it green; closed without a builder` }]);
+    }
   });
 }
 
@@ -66,6 +86,9 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
+  await closePassingMainReds(ctx, services);
+  const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+  values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   // Select once, on the read snapshot; the write runs only the chosen item's own guards (#2978).
   const { me, ...looked } = withBoardRead(ctx, board => ({ ...takeSelection.selected(ctx, board, values, services), me: whoAmI(ctx, board) }));
   if (looked.releaseRequest) {
@@ -84,6 +107,7 @@ export async function nextTake(ctx, values = {}, services) {
     || !store.ROUTES.includes(looked.item.item_route) || !store.canTake(me.route, looked.item.item_route)))
     return { reasons: [`#${looked.item.item_id} is available in ${looked.item.item_lane} on the ${looked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
   return await withBoard(ctx, async board => {
+    if (!looked.review && store.diagnoseWanted(board, looked.item, me.route)) return { diagnose: looked.item, reasons: looked.reasons ?? [] };
     ctx.io.nextPhase?.(looked.review ? 'review reservation' : 'claim', looked.item.item_id);
     if (looked.review) {
       let reviewed;

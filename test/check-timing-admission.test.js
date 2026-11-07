@@ -35,7 +35,7 @@ for (const timing of [true, false]) {
     box.git(box.repo, 'commit', '-q', '-m', 'test: real timing admission target [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const command = 'node --test --test-reporter=tap test/admission.test.js';
-    document(box.run(box.repo, 'add', 'web', 'Real timing check', '--criterion', 'the actual selected check executes', '--check', command,
+    document(fixtureAdd(box.run, box.repo, 'web', 'Real timing check', '--criterion', 'the actual selected check executes', '--check', command,
       ...(timing ? ['--check-timing', 'true'] : []), '--specs', 'G1', '--wait', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     const frozen = document(box.run(box.repo, 'show', '1', '--json'));
@@ -53,7 +53,7 @@ for (const timing of [true, false]) {
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(box.run(reviewer, 'join', 'api', '--json'));
+    document(fixtureJoin(box.run, reviewer, 'api', '--json'));
     const accepted = document(box.run(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json'));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);
@@ -117,6 +117,8 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
   const board = fixtureBoard(t);

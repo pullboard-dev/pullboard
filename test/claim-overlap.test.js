@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
 import { recordClaimWorktrees } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('two claimed Git worktrees name shared edits and protect an open item until release [N2]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-'));
@@ -59,6 +60,10 @@ test('two claimed Git worktrees name shared edits and protect an open item until
     heartbeatCommand({ err: line => lines.push(line) }, { ctx: { info: { root } }, board });
     assert.match(lines.join('\n'), new RegExp(`#${id} overlaps #${peer} \\(${owner}\\) on shared\\.js`));
   }
+
+  const bounded = [];
+  heartbeatCommand({ err: line => bounded.push(line) }, { ctx: { info: { root: first } }, board, overlaps: false });
+  assert.deepEqual(bounded, [], 'the flag-free next loop leaves overlap text out of its bounded output');
 
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
@@ -124,7 +129,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const box = helpers.project('true');
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  const joined = box.run(second, 'join', 'web');
+  const joined = fixtureJoin(box.run, second, 'web', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err + joined.out);
   // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -165,9 +170,10 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const initial = await (await apiFetch(api, path)).json();
   mkdirSync(join(second, 'web'), { recursive: true });
   writeFileSync(join(second, 'web', 'shared.js'), 'other work\n');
+  // The state reads the worktree record maintenance wrote, so record the new edit before the delta read.
+  recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   const updated = await (await apiFetch(api, `${path}?since=${initial.state.sequence}`)).json();
   assert.deepEqual(updated.delta.replace.claimOverlaps[changed].overlaps[0].files, ['web/shared.js']);
-  recordClaimWorktrees(board, store.listItems(board), store.listAgents(board));
   const submit = box.run(box.web, 'submit', String(changed));
   assert.match(submit.err, new RegExp(`#${changed} overlaps #${free} .*web/shared\\.js`));
 });

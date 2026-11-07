@@ -9,10 +9,12 @@ import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
 import { mainRedReviewItems } from '../../../../../packages/landing/index.js';
 import { mainRedReworkItems } from '../../../../../packages/landing/index.js';
+import { passingMainRedItems } from '../../../../../packages/landing/index.js';
 import { computedReturnArgs } from '../../../../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
+  closePassingMainReds,
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
@@ -99,17 +101,27 @@ export function foldedReasons(lines, more, keep = 5) {
  * @returns {Promise<number>}
  */
 export async function nextHere(io, values) {
+  const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
+  values = { ...values, defaultLoop };
   const monitor = await startNextProgressMonitor(io);
+  const previousDefaultLoop = io.defaultLoop;
+  // A successful default next can claim through the shared native move pipeline; keep presence diagnostics inside its 2 KB output contract.
+  if (defaultLoop) io.defaultLoop = true;
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try { return await nextWithProgress(io, values, progress); }
-  finally { progress.stop(); await monitor?.close(); if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous; }
+  finally {
+    progress.stop(); await monitor?.close();
+    if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
+    if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
+  }
 }
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
   const hasQueuedReds = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
@@ -126,14 +138,15 @@ async function nextWithProgress(io, values, progress) {
         observedThrough: Math.max(...reds.map(red => red.observedThrough)), interrupts: reds.map(red => ({
           id: `event:${red.eventId}`, eventId: red.eventId, reason: 'queued-red', item: red.id, commit: red.commit,
         })) });
-      for (const line of store.queuedRedLines(reds)) io.say(line);
+      const lines = values.defaultLoop === true ? store.boundedQueuedRedLines(reds) : store.queuedRedLines(reds);
+      for (const line of lines) io.say(line);
     }
   });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -164,6 +177,8 @@ async function nextWithProgress(io, values, progress) {
     const selectionValues = redClaims.length
       ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
       : values;
+    // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
+    await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;
@@ -173,6 +188,7 @@ async function nextWithProgress(io, values, progress) {
       await progress.retry({ retryDetail: { phase: 'main spec merge', item: found.specMerged.item, code: 'MAIN_SPEC_MERGED' } });
       continue;
     }
+    if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
@@ -255,6 +271,11 @@ async function nextWithProgress(io, values, progress) {
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
+      if (values.defaultLoop && !found.laneWork) {
+        io.result?.({ item: null, next: 'nothing for this seat: end your turn', reasons: found.reasons ?? [] });
+        io.say('next: nothing for this seat: end your turn');
+        return 0;
+      }
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
@@ -269,4 +290,15 @@ async function nextWithProgress(io, values, progress) {
 /** Run `pullboard next` and return its exit code. */
 export function run(io, { first, values }) {
   return nextHere(io, { ...values, verifyId: first });
+}
+
+/** Offer a capable seat the handoff a light seat needs, claiming nothing, so light work reaches light seats (#2973). */
+function sayDiagnoseOffer(io, { diagnose: item, reasons }) {
+  const id = item.item_id;
+  io.result?.({ diagnose: { item_id: id, item_title: item.item_title }, item: null, reasons });
+  io.say(`diagnose #${id}: ${item.item_title} is light work with no diagnosis, so no light seat can take it`);
+  if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
+  if (item.item_check) io.say(`check: ${item.item_check}`);
+  io.say(`next: read it with pullboard show ${id}, then record the handoff: pullboard fact ${id} diagnosis "Files: <exact paths> Change: <the exact fix> Test case: <the named case and assertion>"; then pullboard next`);
+  io.say(`if it is not light work, build it yourself: pullboard claim ${id}`);
 }
