@@ -9,6 +9,7 @@ import { assertRunnerModuleParserCurrent } from './runner-module-parser.js';
 import { createHash } from 'node:crypto';
 import { importsWithCompiler as importsIn } from '../../../kernel/index.js';
 import { createRunnerModuleParser } from './runner-module-parser.js';
+import { parseWithPaths } from './runner-module-parser.js';
 
 const readers = new WeakMap();
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
@@ -28,7 +29,7 @@ function controllerProviderReader(root, source) {
   const parser = createRunnerModuleParser();
   let entries;
   try {
-    entries = [...new Set(importsIn([source], parser.parse)[0]
+    entries = [...new Set(importsIn([source], parseWithPaths(parser.parse, [join(resolve(root), 'bin/runner-controller.js')]))[0]
       .filter(specifier => specifier.startsWith('../packages/'))
       .map(specifier => specifier.slice(3)))].sort();
   } finally { parser.close(); }

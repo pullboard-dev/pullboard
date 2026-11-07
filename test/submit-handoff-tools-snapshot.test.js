@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from './board-fixture.js';
 import { temporaryRepository } from './board-submit-fixture.js';
-import { sweepToolSnapshots, toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
+import { toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
+import { sweepToolTrees } from '../packages/items/index.js';
 
 /** Run git in a folder with no user config. */
 function git(cwd, ...args) {
@@ -52,6 +53,6 @@ test('clause 2: snapshots older than 24 h with no running worker are removed and
   for (const name of [old, fresh]) mkdirSync(join(temp, name));
   const past = new Date(Date.now() - 25 * 3600 * 1000);
   utimesSync(join(temp, old), past, past);
-  assert.deepEqual(sweepToolSnapshots(null, { directory: temp }), [old]);
+  assert.deepEqual(sweepToolTrees({ temp, maxAgeMs: 24 * 3600 * 1000 }), [join(temp, old)]);
   assert.deepEqual(snapshots(temp), [fresh]);
 });
