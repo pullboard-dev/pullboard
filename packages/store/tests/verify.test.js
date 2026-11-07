@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
+import { joinFixtureSeat } from "../../../test/testkit-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
@@ -42,7 +43,7 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   delete box.env.CODEX_THREAD_ID;
   const secondPath = join(box.dir, 'second-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', secondPath, 'main');
-  const second = document(box.run(secondPath, 'join', 'web', '--model', 'fixture-model', '--json')).agent;
+  const second = document(joinFixtureSeat(box, secondPath, 'web')).agent;
   const id = store.addItem(board, { by:'coordinator', lane:'web', title:'A handed-over item', criterion:'The page is ready.', check:'true', specs:'G1' });
   const freeze = () => ({ text:JSON.stringify({ rows:[] }), digest:'historical-author-1085' });
   const claim = agentId => store.claim(board, id, { agentId, lane:'web', leaseMs:3_600_000, freeze });
@@ -67,7 +68,7 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   const review = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
-  document(box.run(review, 'join', 'web', '--model', 'fixture-model', '--json'));
+  document(joinFixtureSeat(box, review, 'web'));
   refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
   refused(box, board, review, ['next','--verify'], 'NOTHING_FREE');
   refused(box, board, review, ['verify',String(id),'reject','--reason','TEST_FAILURE','--note','synthetic review attempt'], 'SELF_SESSION_VERIFY');
@@ -120,7 +121,7 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   const before = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, before.item_commit);
-  document(box.run(reviewer, 'join', 'api', '--model', 'fixture-model', '--json'));
+  document(joinFixtureSeat(box, reviewer, 'api'));
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
   const after = document(box.run(box.repo, 'show', '1', '--json'));
@@ -194,7 +195,7 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   const submitted = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
-  document(box.run(reviewer, 'join', 'api', '--model', 'fixture-model', '--json'));
+  document(joinFixtureSeat(box, reviewer, 'api'));
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
   return { box, result };
