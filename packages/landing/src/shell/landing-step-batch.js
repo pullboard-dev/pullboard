@@ -27,6 +27,8 @@ import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
 import { heldBatchEntries } from '../core/runner-source-hold.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
+import { repeatedLandingHold } from '../core/runner-source-hold.js';
+import { repeatedLandingHoldCleared } from '../core/runner-source-hold.js';
 import { landingContext } from '../core/landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
@@ -55,6 +57,8 @@ import { returnMergeConflicts } from './landing-step-diagnose.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
+import { parkRepeatedItem } from './landing-step-diagnose.js';
+import { compareMainFailures } from './main-red.js';
 import { landingFault } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
@@ -128,6 +132,9 @@ export async function land(options) {
   const trunk = mainCheckout(options.root);
   const branch = trunk?.branch;
   if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
+  if (trunk.commit && !options.dryRun && !options.adopt) {
+    await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
+  }
   if (trunk.commit) {
     const policy = policyAt(options.root, trunk.commit).config;
     requireParallelGateAdmission(options.root, policy);
@@ -275,6 +282,10 @@ async function recordRefusal(state, error) {
   const held = record.refusal.code === 'RUNNER_SOURCE' ? heldBatchEntries(batches, next, id => store.getItem(state.board, id)) : [];
   await save(state, { ...record, ...(held.length ? { state: 'blocked', blocked: [...(state.batch.blocked ?? []), ...held] } : {}) });
   for (const entry of held) state.say(`${entry.code} #${entry.id}: ${entry.message}`);
+  for (const entry of state.batch.items ?? state.batch.candidates ?? []) {
+    const item = store.getItem(state.board, entry.id);
+    if (item) await parkRepeatedItem(state, { id: entry.id, item_commit: entry.commit, commit: entry.commit });
+  }
 }
 
 /**
@@ -334,6 +345,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
+  if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
   const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
@@ -492,3 +504,24 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
 }
 
+/** Lift only automatic repeat holds whose bound refusal context changed or exact case now passes on main. */
+async function releaseClearedRepeatHolds(root, board, trunk, write, onWait) {
+  for (const item of store.listItems(board, { all: true })) {
+    if (!item.item_hold_at || item.item_hold_by !== 'coordinator') continue;
+    const hold = repeatedLandingHold(item.item_hold_reason);
+    if (!hold) continue;
+    let comparison = null;
+    if (hold.kind === 'case') {
+      const [file] = hold.key.split('::');
+      if (!file) continue;
+      try {
+        comparison = await compareMainFailures(root, { tests: [{ file, passed: false }] }, onWait, '',
+          { commit: trunk.commit, detailed: true });
+      } catch { comparison = null; }
+    }
+    /** The refusal's own condition, read from the worktree the refusal named; a vanished worktree is no longer dirty. */
+    const facts = hold.kind === 'refusal' && hold.root
+      ? { worktreeDirty: existsSync(hold.root) && (!isClean(hold.root) || untracked(hold.root).length > 0) } : null;
+    if (repeatedLandingHoldCleared(hold, item, trunk.commit, comparison, facts)) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
+  }
+}
