@@ -7,7 +7,7 @@ import { relayRecovered } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
@@ -184,19 +184,19 @@ async function relayServer(t, directory, auth, { legacyRelay = false } = {}) {
     advance(days) { now = Date.now() + days * 86400000; } };
 }
 
-
 /**
  * Copy this checkout's doctrine into a fixture repo, with every check script its rows run and the
  * scripts' own relative imports, so the fixture's Rigor checks count what the repository's do [D1,H3].
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
+ * A bin/pullboard.js row gets the CLI's whole runtime minus the cells plan: it imports lazily and reads skills from disk [C7].
  */
 function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
   writeFileSync(join(seed, 'PRACTICE.md'), text);
-  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]);
-  const copied = new Set();
+  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
+  if (pending.includes('bin/pullboard.js')) for (const part of ['bin', 'apps', 'packages', 'src', 'relay', 'skills', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') });
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
