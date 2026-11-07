@@ -33,7 +33,7 @@ export const RESIDENT_ENTRY = fileURLToPath(new URL('./resident-board.js', impor
  * signal handler; servers, hooks, the gate, landing and interactive setup keep their own process.
  */
 export const RESIDENT_COMMANDS = new Set(['add', 'agents', 'answer', 'claim', 'decisions', 'edit', 'escalate', 'fact', 'help',
-  'hold', 'inbox', 'lanes', 'list', 'log', 'next', 'release', 'roadmap', 'seats', 'shout', 'show', 'stats', 'status',
+  'heartbeat', 'hold', 'inbox', 'lanes', 'list', 'log', 'next', 'release', 'roadmap', 'seats', 'shout', 'show', 'stats', 'status',
   'version', 'whoami', 'why']);
 
 /** Unix socket paths are limited to about 104 bytes on macOS; a longer one falls back in-process. */
