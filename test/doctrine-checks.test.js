@@ -6,6 +6,8 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from '
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -28,7 +30,7 @@ function checkedProject(fields, extraRows = []) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: add the quality doctrine');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   return box;
 }
@@ -43,14 +45,14 @@ function commitWeb(box, files, message) {
 
 /** Create and claim a fresh web item from main so it cannot stack on an unverified candidate. */
 function nextWebItem(box, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.ok(Number.isSafeInteger(id) && id > 0, `the board returns a real item id: ${added.out}`);
   const web = join(box.dir, `web-${id}`);
   const source = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/fixture-${id}`, web, source);
-  assert.match(box.run(web, 'join', 'web', '--model', 'Fixture').out, /joined as web-/);
+  assert.match(fixtureJoin(box.run, web, 'web', '--model', 'Fixture').out, /joined as web-/);
   assert.equal(box.run(web, 'claim', String(id)).code, 0, `#${id} is claimed in its own worktree`);
   return { id, web };
 }

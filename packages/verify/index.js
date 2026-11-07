@@ -13,6 +13,7 @@ export { recordNativeProof } from './src/core/proof-cli.js';
 export { counterCaught, counterProofStats } from './src/shell/proof-counter-read.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/shell/proof-counters.js';
 export { refreshCapacityOutsideWrite } from './src/shell/proof-counters.js';
+export { tier1Shadow, tier1ShadowFields } from './src/core/tier1-shadow.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/core/proof-provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/core/required-review-family.js';
 export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibility.js';
@@ -46,6 +47,9 @@ export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
+
+export { machineBarDigest, machineClauseCommands, machineProofProblem } from './src/core/machine-verdict.js';
+export { machineVerification, validateMachineVerification, saveMachineVerification, machineVerificationEligible, acceptMachineSubmission } from './src/shell/machine-verification.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/shell/kernel-gate.js';
