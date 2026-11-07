@@ -297,7 +297,7 @@ async function loadCustomReporter(reporter) {
  * @returns {Promise<{status:number,signal:null}>}
  */
 async function runTests(args, env, concurrency) {
-  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../packages/gate/index.js');
+  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   if (legacyFileMode(args)) return legacyNativeFileRun(args, env, concurrency, { runner, knownNodeOption, optionTakesValue });
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
@@ -308,7 +308,7 @@ async function runTests(args, env, concurrency) {
 
 /** Convert the Node test CLI subset to the supported node:test run() options. */
 async function landingTestOptions(args, env, concurrency) {
-  const { testFileOptions } = await import('../packages/gate/index.js');
+  const { testFileOptions } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   return testFileOptions(args, env, concurrency, { runner, optionTakesValue, knownNodeOption });
 }
 
@@ -724,7 +724,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
-  const { dispatchTestFiles, legacyFileMode } = await import('../packages/gate/index.js');
+  const { dispatchTestFiles, legacyFileMode } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
@@ -1135,7 +1135,7 @@ async function longestFilesFirst(args) {
     at.push(index);
   }
   if (at.length < 2) return args;
-  const { readFileTimes } = await import('../packages/gate/index.js');
+  const { readFileTimes } = await import('../packages/gate/src/shell/test-value-timing.js');
   const times = readFileTimes(process.cwd());
   if (!Object.keys(times).length) return args;
   const ordered = longestFirst(at.map(index => args[index]), times, file => relative(process.cwd(), resolve(file)));
@@ -1243,7 +1243,7 @@ async function main(args) {
       }
     }
     testTimeoutMs();
-    const { testConcurrency } = await import('../packages/gate/index.js');
+    const { testConcurrency } = await import('../packages/gate/src/shell/test-concurrency.js');
     const { browserByLaunchEnabled } = await import('../packages/config/index.js');
     concurrency = { ...testConcurrency(process.cwd()), byLaunch: browserByLaunchEnabled() };
   } catch (error) {
@@ -1264,13 +1264,13 @@ async function main(args) {
   const shortEligible = namesOnlyTestFiles(args);
   let browser = fullSuite;
   if (!browser) {
-    const { testsNeedBrowser } = await import('../packages/gate/index.js');
+    const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
-  const actions = await (await import('../packages/gate/index.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  const actions = await (await import('../packages/gate/src/shell/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
   process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
-  const { testsNeedGui } = await import('../packages/gate/index.js');
+  const { testsNeedGui } = await import('../packages/gate/src/shell/gui-admission.js');
   let guiFiles;
   try {
     guiFiles = actions.files ?? (fullSuite
@@ -1282,7 +1282,7 @@ async function main(args) {
     return;
   }
   const gui = testsNeedGui(process.cwd(), guiFiles);
-  const { cpuRunnerRequired } = await import('../packages/gate/index.js');
+  const { cpuRunnerRequired } = await import('../packages/gate/src/shell/cpu-load-admission.js');
   const runnerAdmission = (await import('../packages/config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
@@ -1317,7 +1317,7 @@ async function main(args) {
             process.exitCode = 1;
           }
         }
-      } finally { (await import('../packages/gate/index.js')).removeTestSandbox(sandbox); }
+      } finally { (await import('../packages/gate/src/shell/test-sandbox-cleanup.js')).removeTestSandbox(sandbox); }
     }
   };
   try {
@@ -1339,7 +1339,7 @@ async function main(args) {
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
-        const { browserBoundFiles } = await import('../packages/gate/index.js');
+        const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
         // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
         const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
@@ -1361,9 +1361,11 @@ async function main(args) {
     /** Acquire all required capabilities before creating the sandbox or starting test processes. */
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
-      const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+      // Gate slot and services by direct file: the gate, runner and landing front doors reach gate.js, board and machine [C7,V4].
+      const [{ withGateSlot }, { loadMachineSettings }, { gateSlotServices }] = await Promise.all([
+        import('../packages/gate/src/shell/gate-slot.js'), import('../packages/config/index.js'), import('./gate-slot-services.js'),
       ]);
+      const executionServices = await gateSlotServices();
       const capacity = loadMachineSettings().gateSlots;
       const { timingSeat } = await import('../src/seat-timing.js');
       const seat = timingSeat(process.cwd());
@@ -1383,7 +1385,7 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
+        executionServices, browser, gui,
         kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
         // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
         // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
@@ -1420,7 +1422,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
-  (await import('../packages/gate/index.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
+  (await import('../packages/gate/src/shell/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
   const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
   let tokenWaitMs = 0;
   // Only this test file reports; anything it starts is not one of the shard's files.
@@ -1469,7 +1471,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     // The test body never sees the setting itself: its own fixtures classify with their own machine settings.
     const byLaunch = process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
     delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
-    const { testsNeedBrowser } = await import('../packages/gate/index.js');
+    const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
     if (await testsNeedBrowser(process.cwd(), [process.argv[1]], { byLaunch })) {
       const { takeResource } = await import('../packages/resources/index.js');
       const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,

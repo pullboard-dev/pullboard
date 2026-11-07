@@ -18,6 +18,7 @@ after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
+const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
 
 test('a named-file import check meets its declared ten-second budget [C7,V4]', { cpuLoad: true }, t => {
   const declaredBudget = 10_000;
@@ -128,7 +129,7 @@ function knownLiteralBoardImporters(closures, modules) {
   return known;
 }
 
-test('a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.
+test('clause 1: a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.
 () => {
   const box = fixture();
   const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
@@ -139,7 +140,7 @@ test('a plain test run loads no gate board or machine modules through its runner
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
 });
 
-test('a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
+test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
 () => {
   const box = fixture({ currentReleaseFirst: true });
   const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
@@ -174,7 +175,8 @@ ${executionServicesSource(gate)} const result = await runGate(process.cwd(), {ga
   const { child, urls } = observed(box, ['--input-type=module', '-e', source]);
   assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
   assert.match(child.stdout, /FULL_GATE_EXECUTED/u);
-  for (const file of HEAVY) assert.ok(urls.includes(pathToFileURL(join(ROOT, file)).href), `a real full gate retains ${file}`);
+  // src/machine.js is a pure forward of the state front door; the full gate loads what it forwards to, not the shim [C7].
+  for (const file of FULL_GATE_PROOF) assert.ok(urls.includes(pathToFileURL(join(ROOT, file)).href), `a real full gate retains ${file}`);
 });
 
 test('a board change selects its real importers in the actual committed repository [C7,V4]', { timeout: 120_000 }, // budget: complete actual committed import graph; correctness only, no benchmark.
