@@ -59,12 +59,12 @@ function save(board, id, value) {
 }
 
 /**
- * Mirror a saved hand-off into the job tables through the optional `shadowJob` port, never changing the hand-off.
- * Why: the durable gate proves its job rows beside today's records first; a board without the tables or the port is unaffected [C7].
+ * Save a hand-off onto its gate job through the jobs cell's `shadowJob` port, in the same transaction as board_meta.
+ * Why: the job row is where submitHandoff() reads the record, so a failed write fails the hand-off rather than
+ * leaving the two copies apart; a board without the tables or the port keeps board_meta only [C7].
  */
 function shadow(board, id, job) {
-  try { board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board))); }
-  catch { /* A shadow row is an observation: its failure must never fail the hand-off it mirrors. */ }
+  board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board)));
 }
 
 /** Keep private job identifiers and refusal text out of the public native event payload. */

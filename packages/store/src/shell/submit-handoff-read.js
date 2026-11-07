@@ -1,10 +1,15 @@
 /** Read-only queued-submit projections never grant proof or actor authority [V4,H16]. */
 const PREFIX = 'submit_handoff:';
 
-/** Read only new-engine queue observations; historical selection has no new metadata. */
+/**
+ * Read only new-engine queue observations; historical selection has no new metadata. The record comes from the
+ * item's gate job in the jobs cell; board_meta answers only for a hand-off saved before the job held it [C7].
+ */
 export function submitHandoff(board, id) {
   const engines = board.enginePorts.submitHandoffEngines();
   if ((board.executionEngineVersion ?? engines.current) < engines.handoff) return null;
+  const owned = board.enginePorts.submitHandoffRecord?.(board.db, id);
+  if (owned !== undefined) return structuredClone(owned);
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(PREFIX + id);
   return row ? JSON.parse(row.meta_value) : null;
 }

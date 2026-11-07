@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
@@ -45,6 +46,8 @@ function ageJob(box, id, ms) {
     const job = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
     job.at = new Date(Date.now() - ms).toISOString();
     board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
+    // The gate job holds the record submitHandoff() reads, so the aged copy goes there too (#3474).
+    recordSubmitHandoff(board.db, id, job);
   });
 }
 

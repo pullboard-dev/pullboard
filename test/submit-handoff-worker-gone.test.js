@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { fixture, state } from './submit-handoff-fixture.js';
 
 /** Age the queued or running job's recorded start by `ms`, standing in for time passing on the fixture's own board. */
@@ -17,6 +18,8 @@ function ageHandoff(box, id, ms) {
     job.at = new Date(Date.now() - ms).toISOString();
     if (job.startedAt) job.startedAt = job.at;
     board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
+    // The gate job holds the record submitHandoff() reads, so the aged copy goes there too (#3474).
+    recordSubmitHandoff(board.db, id, job);
   } finally { board.db.close(); }
 }
 

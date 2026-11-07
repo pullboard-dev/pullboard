@@ -40,6 +40,7 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
 import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
+import { submitHandoffRecord } from '../../../../packages/jobs/index.js';
 import { reserveReview as reserveReviewLease } from '../../../../packages/jobs/index.js';
 import { renewReview } from '../../../../packages/jobs/index.js';
 import { reclaimLapsedReviews } from '../../../../packages/jobs/index.js';
@@ -315,7 +316,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    shadowJob: shadowSubmitHandoff,
+    shadowJob: shadowSubmitHandoff, submitHandoffRecord,
     reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
