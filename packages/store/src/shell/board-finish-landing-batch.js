@@ -9,7 +9,7 @@ import { ENGINE_VERSION } from "../../../state/index.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../state/index.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../src/land-engine.js";
 import { Refused } from "../../../kernel/index.js";
-import { landingBatches } from "../../../git/index.js";
+import { latestLandingBatch } from "../../../git/index.js";
 import { coordinatorOnly } from "./board.js";
 import { merged } from "./board-merged.js";
 import { recordLandingBatch } from "./board-record-landing-batch.js";
@@ -21,7 +21,7 @@ export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
   board.nativePorts.landingEnvironment.requireTrunk(board);
   return atomic(board, () => {
     guardLandingWrite(board, landingFence);
-    const batch = landingBatches(board).find((entry) => entry.id === id);
+    const batch = latestLandingBatch(board, id);
     if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
     board.nativePorts.landingEnvironment.requireStoredBatch(board, batch);
     if (batch.state === 'landed') return batch;
