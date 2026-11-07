@@ -5,6 +5,7 @@ export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'm
 const KINDS = EVIDENCE_KINDS.join('|');
 const CLAUSE_MARKER = /(?:^|\s)(\d+)[.)]\s+/gu;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
+const RUN_EVIDENCE = /^green pullboard test run of \S/u;
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
 /** The clauses of a criterion, or [] when it is free text: sequential numbered outcomes. */
@@ -56,7 +57,7 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set() }
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
-    const proven = () => [...greenFiles].some(file => file && tick.evidence.includes(file));
+    const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick) problems.push(`${label} has no evidence`);
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -66,6 +67,19 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set() }
   }
   if (!problems.length) return null;
   return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`);
+}
+
+/**
+ * The tick notes a green `pullboard test` run earns: one per clause that is a test clause (declared [test] or
+ * undeclared) when every file the run named is part of the item's check. Why: the run is the proof the clause cites,
+ * so the builder never retypes a case name or spends a second run after a green runner proof [C7].
+ */
+export function testRunTickNotes(item, files, head) {
+  const clauses = criterionClauses(item.item_criterion);
+  const check = String(item.item_check ?? '');
+  if (!clauses.length || !files.length || !files.every(file => check.includes(file))) return [];
+  return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
+    .map(clause => `clause ${clause.number} [test]: green pullboard test run of ${files.join(' ')} at ${head}`);
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */

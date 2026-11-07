@@ -3,12 +3,17 @@ import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 import { mainFailureNotices } from '../../../../../packages/landing/index.js';
+import { getItem } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { compareMainFailures } from '../../../../../packages/landing/index.js';
 import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
+import { testRunTickNotes } from '../../../../../packages/state/index.js';
+import { headCommit } from '../../../../../packages/git/index.js';
 import {
+  actOn,
+  ordered,
   context,
   resourceAgent,
   withBoardRead,
@@ -19,6 +24,19 @@ function claimedItem(ctx, agent) {
   return withBoardRead(ctx, board => {
     const claims = itemsInStatus(board, 'claimed', agent);
     return claims.length === 1 ? claims[0].item_id : undefined;
+  });
+}
+
+/**
+ * Tick the claimed item's test clauses after a green run of files inside its check, as ordinary note facts.
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ */
+async function recordClauseTicks(io, itemId, files, head) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of testRunTickNotes(found, files, head)) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
   });
 }
 
@@ -41,6 +59,7 @@ export async function run(io, { first, second, rest, values }) {
   for (const notice of [...result.mainFailures, ...result.mainFileFailures]) io.say(notice.message);
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
+  if (result.green && item !== undefined) await recordClauseTicks(io, item, files, headCommit(ctx.info.root));
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
   return result.green ? 0 : 1;
