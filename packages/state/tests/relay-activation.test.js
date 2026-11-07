@@ -12,6 +12,7 @@ import {
 } from '../../../apps/lib/index.js';
 import { agentGrantMinimum } from '../src/core/agent-grant.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../src/rigor-instructions-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { applyEngineMove } from '../src/shell/engine.js';
 import { prepareEngineMove } from '../src/shell/engine.js';
@@ -43,7 +44,7 @@ function fixture(t) {
   move('addItem', [{ by: 'coordinator', lane: 'web', title: 'Unmarked legacy item', criterion: 'Keep its original authority' }]);
   const probe = { ...prepareEngineMove(board, 'editItem', [1, { agentId: actor, title: 'A later edit' }]), engine: LEGACY };
   /** A real modern receipt is the witness, even when the activating operation is administrative. */
-  const activate = () => move('shout', [{ from: 'coordinator', to: actor, text: 'Modern engine recorded', lanes: ['web'] }], AGENT_GRANT_ENGINE);
+  const activate = () => move('shout', [{ from: 'coordinator', to: actor, text: 'Modern engine recorded', lanes: ['web'] }], RIGOR_INSTRUCTIONS_ENGINE);
   return { board, actor, probe, move, activate };
 }
 
