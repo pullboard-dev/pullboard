@@ -1,8 +1,8 @@
 /** A handoff dispatcher with queued tickets and free capacity keeps launching through slot-pool errors, and logs when it launched nothing for too long [C7,#3326]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { temporaryDirectory } from './board-fixture.js';
 import { test } from 'node:test';
 import { Refused } from '../packages/kernel/index.js';
 import {
@@ -22,7 +22,7 @@ appendFileSync(process.env.HANDOFF_TEST_LOG, basename(dirname(process.argv[2])) 
 
 /** Build a private machine home and a captured tools tree holding a worker. */
 function fixture() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-keeps-launching-')));
+  const dir = realpathSync(temporaryDirectory('pullboard-keeps-launching-'));
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
   writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);

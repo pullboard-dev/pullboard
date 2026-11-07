@@ -15,6 +15,7 @@ import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { itemRefusalText } from '../core/item-refusal.js';
+import { entriesTouching } from './landing-static-checks.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -92,13 +93,15 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
     if (row) rows.set(file, row);
   }));
   if (!rows.size) return null;
-  const known = [], own = [...absent];
+  const known = [], own = [...absent], unattributed = [];
   for (const failure of present) {
     const row = rows.get(failure.file);
     // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    // It is also listed apart: a lone item is charged only for reds main passes, never for these [C7,#3346].
+    if (row?.result === 'red' && !(row.failures ?? []).length) unattributed.push(failure);
     (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
-  return { known, own };
+  return { known, own, unattributed };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
@@ -152,7 +155,8 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   failures = unwaivedFailures(state.board, failures, state.landingPorts);
   // Cases base main already fails the same way are set aside; only the batch's own reds split it [C7,#2941].
   const split = await splitBaseRed(state, failures, compare);
-  if (!split) {
+  // A lone item is never charged for a file main fails without naming a case: nothing shows the red is the item's [C7,#3346].
+  if (!split || (items.length === 1 && split.unattributed?.length)) {
     await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
       message: 'a failing file could not be compared on base main', at: state.board.clock.now().toISOString() } });
     state.flaky = true;
@@ -307,13 +311,10 @@ export async function returnRefusedItem(state, error) {
   return returned;
 }
 
-/** The batch entries whose own change touches a file a LAND_MODULE_PARSE refusal named; none for any other refusal. */
+/** The batch entries whose own change touches a file a LAND_MODULE_PARSE or LAND_STATIC_RED refusal named; none for any other refusal. */
 function parseImplicated(state, entries, error) {
-  if (error.code !== 'LAND_MODULE_PARSE' || !error.broken?.length) return [];
-  return entries.filter(entry => {
-    const changed = gitSpawnSync(['--no-replace-objects', 'diff', '--name-only', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
-    return changed.status === 0 && changed.stdout.split('\n').some(file => error.broken.includes(file));
-  });
+  const files = error.code === 'LAND_MODULE_PARSE' ? error.broken : error.code === 'LAND_STATIC_RED' ? error.files : null;
+  return files?.length ? entriesTouching(state.batch.root, state.batch.base, entries, files) : [];
 }
 
 /** Return recorded red candidates once, including a saved failure interrupted before its move. */
