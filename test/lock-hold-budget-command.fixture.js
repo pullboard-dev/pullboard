@@ -13,6 +13,7 @@ import { loadavg } from 'node:os';
 import { freemem } from 'node:os';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Timings include the observer's begin-record append while held: conservative instrumented bounds. */
 const N = 3;
@@ -70,7 +71,7 @@ export async function assertCommandHoldBudget(t) {
     const box = e2e.project('test ! -f RED', e2e.sandbox(), { withWorktree: false });
     box.web = join(box.dir, 'web-1');
     box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
-    const joined = box.run(box.web, 'join', 'web', '--model', 'gpt-6.1-sol', '--family', 'openai');
+    const joined = fixtureJoin(box.run, box.web, 'web', '--model', 'gpt-6.1-sol', '--family', 'openai');
     assert.equal(joined.code, 0, joined.err || joined.out);
     seed(box);
     const file = join(box.dir, 'lock-budget.jsonl');

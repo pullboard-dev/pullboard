@@ -17,6 +17,8 @@ import { RESUME_HOOK } from '../apps/cli/index.js';
 import { proofStats } from '../packages/stats/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { takeDefaultViewPort } from './view-port-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
@@ -190,7 +192,7 @@ test('resume says what is new once after an upgrade [N19]', t => {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize resume release fixture [N19]');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'other', otherCheckout);
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
-  const joined = box.run(otherCheckout, 'join', lane, '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, otherCheckout, lane, '--model', 'Fixture');
   assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
   const firstCheckoutRun = box.run(otherCheckout, 'resume');
   assert.equal(firstCheckoutRun.status, 0, firstCheckoutRun.failure || firstCheckoutRun.stderr || firstCheckoutRun.stdout);
@@ -468,7 +470,7 @@ test('resume shows the coordinator its unread shouts through the SessionStart ho
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize hook inbox fixture [N19]');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'other', other);
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
-  const joined = box.run(other, 'join', lane, '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, other, lane, '--model', 'Fixture');
   assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
   const shouted = box.run(other, 'shout', 'coordinator', 'Can the hook show this shout?', '--kind', 'question');
   assert.equal(shouted.status, 0, shouted.failure || shouted.stderr || shouted.stdout);
@@ -691,7 +693,7 @@ test('a reused authenticated view completes setup for its new board [N26,N32]', 
     config.gate = 'true';
     config.lanes = { app: { owns: ['app/'] } };
     writeFileSync(file, JSON.stringify(config));
-    const added = box.run(box.repo, 'add', 'app', 'First setup item', '--specs', 'N19', '--criterion', 'The fixture has work.');
+    const added = fixtureAdd(box.run, box.repo, 'app', 'First setup item', '--specs', 'N19', '--criterion', 'The fixture has work.');
     assert.equal(added.status, 0, added.failure || added.stderr || added.stdout);
     assert.equal(JSON.parse(box.run(box.repo, 'resume', '--diagnostics', '--json').stdout).setup?.step, 5);
   }
@@ -949,7 +951,7 @@ test('a board building without spec rows is not told to draft the spec first [I1
   const spec = box.run(box.repo, 'spec', '--json');
   assert.equal(spec.status, 0, spec.failure || spec.stderr);
   assert.deepEqual(JSON.parse(spec.stdout).rows.filter(row => row.file === 'SPEC.md'), []);
-  const added = box.run(box.repo, 'add', 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'app', 'Build the first useful thing', '--criterion', 'The first useful thing works.', '--json');
   assert.equal(added.status, 0, added.failure || added.stderr || added.stdout);
   assert.equal(JSON.parse(added.stdout).item.item_spec_ids, '', 'real board items need no spec rows');
   for (let repeat = 0; repeat < 2; repeat++) {
