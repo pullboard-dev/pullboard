@@ -300,7 +300,8 @@ function recordEventContract() {
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
   const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
-  register(board, { lane: 'docs', path: '/builder', family: 'codex' });
+  // The seat joined as codex, so naming another vendor family records the documented family event.
+  register(board, { lane: 'docs', path: '/builder', family: 'claude' });
   register(board, { lane: 'docs', path: '/builder', model: 'Fixture Model' });
   const reviewer = register(board, { lane: 'tests', path: '/reviewer', family: 'Fixture Review' });
   setLaneLead(board, { agentId: coordinator, lane: 'docs', seat: builder, lanes: ['docs', 'tests'] });
