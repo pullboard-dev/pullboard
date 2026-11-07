@@ -1,0 +1,112 @@
+/** Test-action parts and shared file lists are pruned to a size cap, never a record a key or receipt still names [C7]. */
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+
+export const PARTS_CAP_BYTES = 10 * 1024 ** 3;
+const HASH = /^[0-9a-f]{64}$/u;
+const GRACE_MS = 10 * 60_000;
+const INTERVAL_MS = 10 * 60_000;
+
+/** Read one JSON file, or null when it is missing or unreadable. */
+function load(path) {
+  try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
+}
+
+/** The file names in a folder, or none when it does not exist. */
+function names(directory) {
+  try { return readdirSync(directory); } catch { return []; }
+}
+
+/**
+ * Every input key a current record names: key memos (their per-file values), green and red result records, and each
+ * file's latest-key record. A part named by none of them can no longer explain a miss or back a reuse.
+ *
+ * @param {string} store the test-action store
+ * @returns {Set<string>}
+ */
+export function namedInputKeys(store) {
+  const named = new Set();
+  /** Add a record's input key when it has one. */
+  const add = (record) => {
+    const key = record?.inputKey ?? record?.value?.inputKey;
+    if (typeof key === 'string' && HASH.test(key)) named.add(key);
+  };
+  for (const identity of names(join(store, 'keys'))) {
+    for (const file of names(join(store, 'keys', identity))) if (file.endsWith('.json')) add(load(join(store, 'keys', identity, file)));
+  }
+  for (const folder of ['green', 'red', 'last']) {
+    for (const file of names(join(store, folder))) add(load(join(store, folder, file)));
+  }
+  return named;
+}
+
+/**
+ * Remove parts no record names, then shared file lists no remaining part names, oldest first, until the parts and
+ * lists together fit under the cap. A record younger than the grace period is kept: its run may not have been named yet.
+ *
+ * @param {string} store the test-action store
+ * @param {{ capBytes?: number, graceMs?: number, now?: number }} [options]
+ * @returns {{ removedParts: number, removedLists: number, bytes: number }} what was removed and the size left
+ */
+export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = GRACE_MS, now = Date.now() } = {}) {
+  const partsDirectory = join(store, 'parts'), listsDirectory = join(store, 'lists');
+  /** Size and age of every record in a folder. */
+  const scan = (directory) => names(directory).flatMap(file => {
+    try { const stat = statSync(join(directory, file)); return [{ file, path: join(directory, file), size: stat.size, at: stat.mtimeMs }]; }
+    catch { return []; }
+  });
+  const parts = scan(partsDirectory), lists = scan(listsDirectory);
+  let bytes = [...parts, ...lists].reduce((sum, row) => sum + row.size, 0);
+  const named = namedInputKeys(store);
+  let removedParts = 0, removedLists = 0;
+  /** Remove one record and its size from the total. */
+  const drop = (row) => { try { rmSync(row.path, { force: true }); bytes -= row.size; return true; } catch { return false; } };
+  const unnamedParts = parts.filter(row => !named.has(row.file.replace(/\.json$/u, '')) && now - row.at >= graceMs).sort((a, b) => a.at - b.at);
+  const gone = new Set();
+  for (const row of unnamedParts) {
+    if (bytes <= capBytes) break;
+    if (drop(row)) { removedParts += 1; gone.add(row.file); }
+  }
+  if (bytes > capBytes) {
+    const used = new Set();
+    for (const row of parts) {
+      if (gone.has(row.file)) continue;
+      const part = load(row.path);
+      for (const value of [part?.files, part?.runner]) if (typeof value === 'string') used.add(value);
+    }
+    for (const row of lists.filter(row => !used.has(row.file.replace(/\.json$/u, '')) && now - row.at >= graceMs).sort((a, b) => a.at - b.at)) {
+      if (bytes <= capBytes) break;
+      if (drop(row)) removedLists += 1;
+    }
+  }
+  return { removedParts, removedLists, bytes };
+}
+
+/**
+ * Routine maintenance entry: prune at most once per ten minutes per store, under a configurable cap
+ * (PULLBOARD_TEST_PARTS_CAP_BYTES, default 10 GB). A failure here never changes whether a test runs.
+ *
+ * @param {string} store the test-action store
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ removedParts: number, removedLists: number, bytes: number } | null} null when throttled or on failure
+ */
+export function maintainPartsStore(store, env = process.env) {
+  try {
+    const marker = join(store, 'parts-prune');
+    const at = Date.now();
+    try { if (at - statSync(marker).mtimeMs < INTERVAL_MS) return null; } catch { /* Never pruned. */ }
+    mkdirSync(store, { recursive: true, mode: 0o700 });
+    if (existsSync(marker)) utimesSync(marker, new Date(at), new Date(at)); else writeFileSync(marker, '', { mode: 0o600 });
+    const configured = Number(env.PULLBOARD_TEST_PARTS_CAP_BYTES);
+    return prunePartsStore(store, { capBytes: Number.isFinite(configured) && configured > 0 ? configured : PARTS_CAP_BYTES });
+  } catch { return null; }
+}
