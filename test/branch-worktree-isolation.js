@@ -12,7 +12,10 @@ function run(command, args, cwd, env) {
   return spawnSync(command, args, { cwd, env, encoding: 'utf8' });
 }
 
-/** Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations. */
+/**
+ * Create a real branch worktree with a same-version DDL/trigger delta and exercise shared-board operations.
+ * Returns the combined stdout and stderr of the branch's status read and claim so a caller can count diagnostics.
+ */
 export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-branch-board-isolation-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -59,7 +62,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.equal(existsSync(join(repo, '.git', 'pullboard', 'board.sqlite')), false, 'the refused open creates no shared database');
   const initialized = cli(repo, 'init');
   assert.equal(initialized.status, 0, initialized.stderr + initialized.stdout);
-  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker');
+  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker', '--route', 'strong');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const joinedDocument = JSON.parse(joined.stdout);
   const added = cli(repo, 'add', 'web', 'shared schema fixture item', '--criterion', 'the branch claim uses the shared board');
@@ -140,8 +143,9 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   for (const result of [read, move]) {
     const output = [result.stdout, result.stderr].join('\n');
     assert.equal(output.match(/item_branch_probe/gu)?.length ?? 0, 1,
-      'one diagnostic per invocation names the uninstalled column exactly once');
+      `one diagnostic per invocation names the uninstalled column exactly once:\n${output}`);
     assert.equal(output.match(/machine_item_move/gu)?.length ?? 0, 1,
-      'the same diagnostic names the changed machine trigger exactly once');
+      `the same diagnostic names the changed machine trigger exactly once:\n${output}`);
   }
+  return { read: [read.stdout, read.stderr].join('\n'), claim: [move.stdout, move.stderr].join('\n') };
 }

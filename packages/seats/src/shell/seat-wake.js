@@ -72,9 +72,9 @@ export function hasSeatWake(info, { boardId, seat }) {
   return registeredWake(info, boardId, seat) !== null;
 }
 
-/** Wake an idle locally enrolled seat after routing commits, without ever holding the board writer. */
+/** Wake a dormant locally enrolled seat after routing commits, without ever holding the board writer. */
 export async function wakeRoutedSeat(info, { boardId, seat, item }) {
-  if (seat?.presence !== 'idle' || !Number.isSafeInteger(item) || item < 1) return { woke: false };
+  if (!['idle', 'gone'].includes(seat?.presence) || !Number.isSafeInteger(item) || item < 1) return { woke: false };
   const registration = registeredWake(info, boardId, seat);
   if (!registration) return { woke: false };
   return new Promise(resolveWake => {

@@ -8,12 +8,13 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 test('submit skips cells inventory for an accepted private tree without a cells plan [C7]', t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Generic private project change', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Generic private project change', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id));
