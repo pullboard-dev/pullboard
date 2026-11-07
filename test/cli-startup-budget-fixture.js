@@ -84,7 +84,7 @@ export async function assertStartupBudgets(t) {
       ineligible:authors.map(agent=>({agent,code:'SELF_VERIFY',
         rule:'[SELF_VERIFY] the builder never verifies its own work; another agent must'}))};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
-      thread:store.itemThread(board,4),progress:itemProgress(board,4),checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
+      thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples={version:[],show:[],status:[],list:[]};
     const childEnvironment={...process.env,PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
