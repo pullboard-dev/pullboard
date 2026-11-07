@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Preserve every independent observable failure so the prefeature control proves both paths. */
 export function assertNoRemoteLanding(sandbox, commitFile) {
@@ -22,7 +24,7 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   writeFileSync(join(repo, 'SPEC.md'), '# Local fixture\n\n## Goals\n- G1 [approved, must] The local result exists. | gate: true\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure local landing');
-  const added = box.run(repo, 'add', 'web', 'Local result', '--specs', 'G1', '--criterion', 'The result exists.', '--check', 'test -f web/result.txt', '--wait', '--json');
+  const added = fixtureAdd(box.run, repo, 'web', 'Local result', '--specs', 'G1', '--criterion', 'The result exists.', '--check', 'test -f web/result.txt', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
   const made = box.run(repo, 'worktree', 'web', '--model', 'local-builder', '--json');
@@ -36,7 +38,7 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   const head = JSON.parse(submitted.out).commit;
   const reviewer = join(box.dir, 'local-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'local-reviewer').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'local-reviewer').code, 0);
   const accepted = box.run(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 

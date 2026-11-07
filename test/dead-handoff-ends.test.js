@@ -18,6 +18,7 @@ import { INFRASTRUCTURE_CODES as boardCodes } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { endedSubmitHandoff } from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -70,7 +71,7 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(box.run(box.repo, 'add', 'web', 'Swept dead handoff', '--route', 'strong', '--specs', 'G1',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Swept dead handoff', '--route', 'strong', '--specs', 'G1',
     '--criterion', 'A dead handoff ends within one sweep.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
   document(box.run(box.repo, 'fact', String(id), 'diagnosis',
     'Files: web/snapshot.txt test/dead-handoff-ends.test.js Change: hold and release a real submitted gate Test case: one sweep retires the handoff without returning a builder red', '--json'));
@@ -134,7 +135,8 @@ test('clause 1: one sweep ends a killed worker as infrastructure and retries its
   assert.equal(after.item.item_lease_until, before.item_lease_until, 'recovery does not replace or renew the claim');
   assert.equal(after.returns, 0, 'no builder-red return is recorded');
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the recovered candidate finishes', 120000); // budget: worker completion ceiling, no timing assertion.
+  // The worker records the job green and then moves the item in a later write, so wait for both before reading either.
+  await box.helpers.waitFor(() => { const seen = state(box, box.id); return ['green', 'submitted'].includes(seen.job?.state) && seen.item.item_status === 'submitted'; }, 'the recovered candidate finishes and the item is submitted', 120000); // budget: worker completion ceiling, no timing assertion.
   assert.equal(state(box, box.id).item.item_status, 'submitted');
   assert.equal(state(box, box.id).job.commit, job.commit, 'no builder command or newer source was required');
 });
