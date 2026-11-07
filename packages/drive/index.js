@@ -2,3 +2,4 @@
 export { driveOnce } from './src/shell/drive-once.js';
 export { PHASES, phaseOf, owedShards, shardSections } from './src/core/drive-phase.js';
 export { ensureDispatcher, renewDispatcher, DISPATCHER_JOB } from './src/shell/dispatcher.js';
+export { drainLoop, DRAIN_INTERVAL_MS } from './src/shell/drain-loop.js';
