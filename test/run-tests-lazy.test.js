@@ -12,6 +12,7 @@ import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
+import { testsNeedCpuRunner } from '../packages/gate/index.js';
 import { copyPackageFiles, toolSourcePath } from '../packages/runners/index.js';
 
 const helpers = createE2eHelpers();
@@ -20,6 +21,49 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
 const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
+
+test('clause 1: a real named-file run meets its declared ten-second import-check budget [C7,V4]', { cpuLoad: true }, t => {
+  const declaredBudget = 10_000;
+  const started = performance.now();
+  assert.equal(testsNeedCpuRunner(ROOT, ['test/run-tests-lazy.test.js']), true,
+    'the optimized classifier still recognizes this real CPU declaration');
+  const elapsed = performance.now() - started;
+  t.diagnostic(`named-file import check: ${elapsed.toFixed(1)}ms; declared budget ${declaredBudget}ms`);
+  assert.ok(elapsed < declaredBudget, `named-file import check took ${elapsed.toFixed(1)}ms`); // budget: declared #2425 ten-second named-file import-check limit.
+  const box = fixture();
+  assert.equal(testsNeedCpuRunner(box.repo, ['web/plain.test.js']), false, 'ordinary tests do not acquire CPU authority');
+  const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', 'web/plain.test.js'], {
+    cwd: box.repo, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(child.status, 0, child.context ?? child.stderr + child.stdout);
+  const phases = /^run-tests: phases selection ([\d.]+)s, admission ([\d.]+)s, tests ([\d.]+)s, cleanup ([\d.]+)s, total ([\d.]+)s$/mu.exec(child.stderr);
+  assert.ok(phases, 'the real node bin/run-tests.js <one file> run prints its phase line');
+  t.diagnostic(`real named-file run: selection ${phases[1]}s of total ${phases[5]}s; declared budget ${declaredBudget / 1000}s`);
+  assert.ok(Number(phases[1]) * 1000 < declaredBudget, `the real run's selection phase (the named-file import check) took ${phases[1]}s`); // budget: declared #2425 ten-second named-file import-check limit.
+});
+
+test('clause 2: every named run prints one per-phase timing line, successful or refused [C7,V4]', () => {
+  const box = fixture();
+  for (const [extra, status] of [[[], 0], [['--test-name-pattern=no-such-case'], 1]]) {
+    const child = runFixtureChild(process.execPath, [RUNNER, '--test-reporter=tap', ...extra, 'web/plain.test.js'], {
+      cwd: box.repo, env: box.env, encoding: 'utf8',
+    });
+    assert.equal(child.status, status, child.context ?? child.stderr + child.stdout);
+    const lines = child.stderr.split('\n').filter(line => line.startsWith('run-tests: phases '));
+    assert.equal(lines.length, 1, 'each actual controller prints once');
+    assert.match(lines[0], /selection [\d.]+s, admission [\d.]+s, tests [\d.]+s, cleanup [\d.]+s, total [\d.]+s/u);
+  }
+});
+
+/** The package front doors bin/run-tests.js imports statically; #3056 trimmed the closure to this set and main holds it. */
+const MAIN_STATIC_FRONT_DOORS = ['../packages/git/index.js'];
+
+test('clause 3: bin/run-tests.js adds no static front-door import that main lacks [C7,V4]', () => {
+  const source = readFileSync(RUNNER, 'utf8');
+  const doors = [...source.matchAll(/^import\s[^;]*?\sfrom\s+['"]([^'"]+\/index\.js)['"]/gmu)].map(match => match[1]).sort();
+  assert.deepEqual(doors, MAIN_STATIC_FRONT_DOORS, 'a static package front door pulls its whole barrel into every run-tests start');
+  assert.doesNotMatch(source, /^import\s[^;]*?from\s+['"]\.\.\/packages\/gate\/index\.js['"]/mu, 'the gate front door stays a dynamic import');
+});
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
 function moduleObserver(box) {
