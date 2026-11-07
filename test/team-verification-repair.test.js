@@ -30,7 +30,7 @@ import {
 } from './team-scenarios.fixture.js';
 import { join } from 'node:path';
 
-test('a checkout or trunk moving during verification cannot acquire proof [E8]', () => {
+test('clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', () => {
   const box = helpers.project();
   const reviewer = join(box.dir, 'moving-reviewer');
   const moveHead = join(box.dir, 'move-review-head');
