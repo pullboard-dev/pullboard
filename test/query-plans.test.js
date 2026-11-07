@@ -444,7 +444,7 @@ function seed(file, { rigor = [] } = {}) {
   db.close();
 }
 
-test('coordinator resume never reads the whole event history for rigor [C7,D1,N19]', () => {
+test('clause 2: coordinator resume never reads the whole event history for rigor [C7,D1,N19]', () => {
   const box = fixture();
   seed(box.board, { rigor: [
     { kind: 'reject', item: 1, detail: { cause: 'row:G1', commit: 'a'.repeat(40) } },
@@ -514,7 +514,7 @@ function scanNames(sql) {
   return names;
 }
 
-test('hot board queries never scan events or shouts [C7]', () => {
+test('clause 1: hot board queries never scan events or shouts [C7]', () => {
   const box = fixture();
   seed(box.board);
   // The commands run worktree code, which never changes a shared board's schema, so the board gets
