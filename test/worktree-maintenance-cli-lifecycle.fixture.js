@@ -14,6 +14,8 @@ import { workingDirectories } from '../packages/landing/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Keep an exact native timer owner registered so lifecycle cases never launch a scheduler. */
 function retainFixtureTimer(box) {
@@ -39,7 +41,7 @@ function enable(box) {
 
 /** Add one ordinary native item for a private builder checkout. */
 function addFixtureItem(box, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'mid',
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--route', 'mid',
     '--criterion', 'The private lifecycle fixture retains the builder source.', '--check', 'true',
     '--brief', 'Files: web/page.js\nChange: exercise private lifecycle cleanup\nTest: native cleanup archives source first', '--json');
   assert.equal(added.code, 0, added.err);
@@ -67,7 +69,7 @@ function assertArchivedBytes(archive, name, expected) {
 /** Join a temporary agent checkout and return its native seat identity. */
 function joinAgent(box, path) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-  const joined = box.run(path, 'join', 'web', '--json');
+  const joined = fixtureJoin(box.run, path, 'web', '--json');
   assert.equal(joined.code, 0, joined.err);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.listAgents(board).find(row => resolve(row.agent_path) === resolve(path)).agent_id; }

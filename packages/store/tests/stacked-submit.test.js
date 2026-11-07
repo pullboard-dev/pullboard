@@ -13,14 +13,15 @@ import {
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
-import { joinFixtureSeat } from "../../../test/testkit-fixture.js";
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { joinFixtureSeat } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Add a work item through the fixture's real CLI. */
 function add(box, lane, title) {
-  const result = box.run(box.repo, 'add', lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', title);
+  const result = fixtureAdd(box.run, box.repo, lane, title, '--specs', lane === 'web' ? 'G1' : 'G2', '--criterion', title);
   assert.equal(result.code, 0, result.out + result.err);
   return Number(result.out.match(/#(\d+)/u)?.[1]);
 }

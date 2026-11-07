@@ -13,6 +13,7 @@ import { openBoard } from "../../../apps/lib/index.js";
 import { joinFixtureSeat } from "../../../test/testkit-fixture.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 /** Read a successful JSON CLI response; setup failures must not masquerade as eligibility failures. */
 function document(result) {
@@ -116,7 +117,7 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   if (runs.length === 2 && ${JSON.stringify(mode)} === 'once') assert.equal(fs.readFileSync('docs/arrived.txt', 'utf8'), 'main 1\\n');
 }
 `);
-  document(box.run(box.repo, 'add', 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(fixtureAdd(box.run, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
   document(box.run(box.web, 'submit', '1', '--json'));
@@ -191,7 +192,7 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure frozen check ceiling');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  document(box.run(box.repo, 'add', 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(fixtureAdd(box.run, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
   document(box.run(box.web, 'submit', '1', '--json'));
