@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   realpathSync,
   readFileSync,
   renameSync,
@@ -19,6 +20,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
   relative,
   resolve,
@@ -169,8 +171,10 @@ function gitCall(cwd, args, env) {
  * Detached by default; `onMainBranch` puts the commit on main's branch name instead. Why: a detached clone has no
  * accepted main, so bin/run-tests.js refused a main comparison before any test and it came back a red that proved
  * nothing (#2950). Snapshots and candidate checkouts stay detached so they never pose as accepted main.
+ * `tree: false` writes no files: every path stays skip-worktree, so the clone is clean at the commit with only `.git`
+ * on disk. A runner job reads the commit from the object store, so a comparison sent to a runner needs no tree here [C7].
  */
-export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
+export async function withMainCheckout(root, commit, run, { onMainBranch = false, tree = true } = {}) {
   // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
   const directory = join(realpathSync(tmpdir()), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
@@ -179,6 +183,12 @@ export async function withMainCheckout(root, commit, run, { onMainBranch = false
   try {
     const cloned = gitCall(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], env);
     if (cloned.status !== 0) return { unavailable: 'temporary main checkout could not be prepared' };
+    if (!tree) {
+      // An empty sparse set marks every path skip-worktree, so checkout writes no file and status stays clean.
+      gitCall(checkout, ['config', 'core.sparseCheckout', 'true'], env);
+      mkdirSync(join(checkout, '.git', 'info'), { recursive: true });
+      writeFileSync(join(checkout, '.git', 'info', 'sparse-checkout'), '/.pullboard-no-working-tree\n');
+    }
     // A main comparison sits on main's own branch name, so tools that look up accepted main (test budgets) find it (#2950).
     const branch = onMainBranch ? (mainCheckout(root)?.branch ?? 'refs/heads/main').replace(/^refs\/heads\//u, '') : null;
     const selected = gitCall(checkout, branch ? ['checkout', '--quiet', '--force', '-B', branch, commit] : ['checkout', '--quiet', '--force', '--detach', commit], env);
@@ -192,6 +202,31 @@ export async function withMainCheckout(root, commit, run, { onMainBranch = false
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Whether main's copy of a test file asks for a desktop, read from the object store.
+ * Why: a comparison with no working tree has no file to read, and only this one file is ever written, to a private folder.
+ */
+function committedNeedsGui(root, commit, path) {
+  const blob = gitCall(root, ['show', `${commit}:${path}`], cleanGitEnvironment());
+  if (blob.status !== 0) return false;
+  const directory = mkdtempSync(join(realpathSync(tmpdir()), 'pullboard-main-gui-'));
+  try {
+    mkdirSync(dirname(join(directory, path)), { recursive: true });
+    writeFileSync(join(directory, path), blob.stdout);
+    return testsNeedGui(directory, [path]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+/**
+ * Write the files of a checkout made with `tree: false`.
+ * Why: the slot is known only after the checkout exists, and a slot that lands on this machine runs the files in place.
+ */
+function writeMainTree(checkout) {
+  const env = cleanGitEnvironment();
+  const written = gitCall(checkout, ['sparse-checkout', 'disable'], env);
+  if (written.status !== 0) throw new Error('the temporary main checkout could not write its files');
 }
 
 /** Hold the repo cache only for synchronous metadata access, never a checkout or a proof run. */
@@ -409,14 +444,18 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
       // Another submit may have completed this file after the initial snapshot.
       if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return;
       // The slot is taken on the clean main checkout, so a runner can take it even when this worktree is dirty.
-      const measured = await withMainCheckout(root, main.commit, async checkout => {
+      // A runner job is built from the object store, so a remote comparison writes no working tree here; only a run
+      // on this machine needs the files [C7].
+      const inCheckout = remote => withMainCheckout(root, main.commit, async checkout => {
         // Use the same exact-file capability checks as ordinary named tests, on main's source.
-        const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, [path]);
-        const gui = testsNeedGui(checkout, [path]);
+        const browser = !browserFreeChecksEnabled() || await (remote ? testsNeedBrowser(root, [path], { commit: main.commit }) : testsNeedBrowser(checkout, [path]));
+        const gui = remote ? committedNeedsGui(root, main.commit, path) : testsNeedGui(checkout, [path]);
         /** Run main's copy of the file under one gate slot, retaining detailed identity when requested. */
-        const measure = remote => withGateSlot(checkout, async lease => {
+        return withGateSlot(checkout, async lease => {
           // The runner is known only now: tell the caller before the run starts [C7,#3268].
           onStart?.({ file: path, runner: lease.runner?.host ?? null });
+          // A slot taken on this machine runs in the checkout, so it gets its files now; a runner never needs them [C7].
+          if (remote && !lease.runner) writeMainTree(checkout);
           // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
           const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
           if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
@@ -444,15 +483,16 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
             ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}) };
         }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
-        // A comparison a landing waits for is a landing-class run; a diagnostic slot refuses the landing flag [C7].
-        // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
-        try { return await measure(pinned ? executor.kind === 'ssh' : true); }
-        catch (error) {
-          if (pinned || error?.code !== 'RUNNER_SECRET') throw error;
-          if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
-          return measure(false);
-        }
-      }, { onMainBranch: true });
+      }, { onMainBranch: true, tree: !remote });
+      let measured;
+      // A comparison a landing waits for is a landing-class run; a diagnostic slot refuses the landing flag [C7].
+      // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
+      try { measured = await inCheckout(pinned ? executor.kind === 'ssh' : true); }
+      catch (error) {
+        if (pinned || error?.code !== 'RUNNER_SECRET') throw error;
+        if (runnerAdmission.runnerOnly) throw new Refused('RUNNER_SECRET', `${error.message}; gate.runnersOnly forbids local retry; correct the source privacy refusal and retry submit`);
+        measured = await inCheckout(false);
+      }
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (pinned) pinnedEntries[path] = measured;
       await withComparisonCache(root, onWait, () => {
