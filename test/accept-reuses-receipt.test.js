@@ -3,6 +3,8 @@ import { performance } from 'node:perf_hooks';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileFixtureItem } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('accept reuses sealed submit receipts when clean plan derivation is unavailable [C7]', { timeout: 180000 }, async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
@@ -15,7 +17,7 @@ test('accept reuses sealed submit receipts when clean plan derivation is unavail
   const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
   const box = helpers.project(`printf x >> ${quote(gateCount)}`, sandbox);
   const check = `printf x >> ${quote(checkCount)}`;
-  assert.equal(box.run(box.repo, 'add', 'web', 'Receipt plan fallback', '--specs', 'G1', '--criterion', 'the check passes', '--check', check).code, 0);
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Receipt plan fallback', criterion: 'the check passes', check, args: ['--specs', 'G1'] });
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   const committed = helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
@@ -27,7 +29,7 @@ test('accept reuses sealed submit receipts when clean plan derivation is unavail
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'receipt-reuse-reviewer-session';
-  const joined = box.run(reviewer, 'join', 'web', '--model', 'receipt-reuse-reviewer');
+  const joined = fixtureJoin(box.run, reviewer, 'web', '--model', 'receipt-reuse-reviewer');
   assert.equal(joined.code, 0, joined.err || joined.out);
   // This leaves the reviewed commit unchanged while making clean-plan derivation unavailable.
   writeFileSync(join(reviewer, 'reviewer-note.tmp'), 'uncommitted reviewer-local note');

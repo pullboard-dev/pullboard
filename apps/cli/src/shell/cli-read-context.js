@@ -117,7 +117,9 @@ export function context(io) {
   let doctrine;
   const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
     get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
-  if (existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))) io.automaticLandingContext = ctx;
+  // Every successful repository command can recover a lost automatic-landing wake, including when its pending record
+  // disappeared before this CLI version started. The post-command bootstrap is guarded against replacing live custody.
+  io.automaticLandingContext = ctx;
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
   if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;
@@ -190,7 +192,7 @@ export function itemLine(item, name = (id) => id, mainMerge = false) {
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
   const hold = item.item_hold_reason ? `  held by ${name(item.item_hold_by)}: ${item.item_hold_reason}` : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
 }
 
 /** Format a stable agent id for human-facing CLI output. */

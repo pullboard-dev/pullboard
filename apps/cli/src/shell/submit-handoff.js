@@ -1,11 +1,18 @@
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { ENGINE_VERSION } from '../../../../packages/state/index.js';
+import { healthyExecutor } from '../../../../apps/lib/index.js';
 import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
+import { handoffToolsAllowed } from '../../../../packages/items/index.js';
+import { assertToolTreeRoom } from '../../../../packages/items/index.js';
+import { touchToolTree } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
+import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
@@ -13,6 +20,8 @@ import {
   mkdirSync,
   mkdtempSync,
   cpSync,
+  renameSync,
+  rmSync,
   realpathSync,
   readFileSync,
   existsSync,
@@ -36,6 +45,47 @@ import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 
+/** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
+function copyTools(toolRoot, target) {
+  cpSync(toolRoot, target, { recursive: true, mode: constants.COPYFILE_FICLONE,
+    filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+}
+
+/**
+ * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per commit under the OS temp
+ * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
+ * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
+ */
+function toolsSnapshot(toolRoot, job, commonDir) {
+  const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
+  const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
+  const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
+    && realpathSync(top.stdout) === realpathSync(toolRoot)
+    && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
+  if (clean && existsSync(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`))) {
+    touchToolTree(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`));
+    return join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  }
+  assertToolTreeRoom({ commonDirs: [commonDir] });
+  if (!clean) {
+    const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
+    copyTools(toolRoot, tools);
+    return tools;
+  }
+  const shared = join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  if (existsSync(shared)) return shared;
+  const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  try {
+    copyTools(toolRoot, staging);
+    renameSync(staging, shared);
+  } catch (error) {
+    rmSync(staging, { recursive: true, force: true });
+    // A concurrent submit won the rename; its finished snapshot is the same commit's tools.
+    if (!existsSync(shared)) throw error;
+  }
+  return shared;
+}
+
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   const result = await withHandoffQueueOrder(() => withBoard(ctx, async board => {
@@ -53,9 +103,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
-    const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${result.job.id}-`));
-    cpSync(toolRoot, tools, { recursive: true, mode: constants.COPYFILE_FICLONE,
-      filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+    const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
@@ -70,7 +118,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   if (ctx.submissionResult) Object.assign(ctx.submissionResult,
     { queued: true, job: result.job.id, value: acknowledgment });
   ctx.io.result?.(acknowledgment);
-  ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; the board will wake the next actor when it finishes`);
+  ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; take your next item now: pullboard next --take (the board returns this one to you only if its gate goes red)`);
   return 0;
 }
 
@@ -142,6 +190,25 @@ async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
 
 /** Re-observe under the per-job OS-released lock before any spawn or native failure move. */
 async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory) {
+  const workerRecord = readWorkerRecord(directory);
+  if (!workerRecord && observed.state === 'queued') {
+    const unlaunched = await withHandoffQueueOrder(() => {
+      const current = withBoardRead(ctx, board => {
+        const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
+        const job = submitHandoff(board, itemId);
+        return job?.id === observed.id && job.state === 'queued' && item?.item_status === 'claimed'
+          && item.item_owner === actor && item.item_frozen_digest === observed.digest;
+      });
+      if (!current || existsSync(join(directory, 'request.json')) || handoffTicketWaiting(observed.id)) return false;
+      // The dispatcher writes worker.json before it removes the ticket. Recheck both artifacts after the ticket read so
+      // a just-started worker cannot be mistaken for a queue whose capture never began.
+      return !readWorkerRecord(directory) && !existsSync(join(directory, 'request.json')) && !handoffTicketWaiting(observed.id);
+    });
+    if (unlaunched) {
+      await failUnlaunchedSubmitHandoff(ctx, itemId, actor, observed, 'both request.json and worker.json are missing');
+      return;
+    }
+  }
   const worker = queuedWorkerRecord(observed, { readWorker: () => readWorkerRecord(directory) });
   if (!worker || !deadWorker(worker, observed)) return;
   let owned = false;
@@ -162,7 +229,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
     const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
     if (request.job !== current.id || request.item !== itemId || request.commit !== current.commit || request.commonDir !== ctx.info.commonDir
-      || !basename(request.tools ?? '').startsWith(`pullboard-handoff-tools-${current.id}-`)
+      || !handoffToolsAllowed(request.tools, current.id)
       || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())
       || existsSync(submitHandoffRoot(ctx.info.commonDir, current))) {
       throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the dead queued worker lacks safe captured tooling or already has a private source; preserve its evidence and resubmit the captured commit');
@@ -172,7 +239,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     return;
   } catch (error) {
     let retry = null;
-    if (owned && current.state === 'running') {
+    if (owned && current.state === 'running' && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
       try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
@@ -197,6 +264,18 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
   }
 }
 
+/** End a queue whose captured request and worker were never created, so its owner can submit the same source again. */
+async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
+  const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_NOT_LAUNCHED',
+    `queued submit worker was not launched: ${cause}; no gate ran`,
+    'resubmit the same committed source to launch a fresh worker'), { caller: 'seat' }) };
+  const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
+  return withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+    { agentId: actor, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+}
+
 /**
  * The health sweep ends every queued or running handoff on the board whose worker process is gone, whichever seat
  * queued it and whatever its item's state now. Why: recovery ran only when the queuing seat itself ran next or submit
@@ -208,6 +287,7 @@ export async function sweepDeadSubmitHandoffs(ctx) {
     .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
   for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
+  await recoverInfrastructureHandoffs(ctx);
   return jobs.length;
 }
 
@@ -266,4 +346,50 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
   });
   ctx.io.say(`replaced the queued gate for #${itemId} at ${job.commit.slice(0, 12)}; the new head gates instead`);
   return null;
+}
+
+/** Requeue stopped immutable jobs only after a healthy-executor probe; a private guard prevents duplicate launches [C7,V4]. */
+export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExecutor, launch = launchCapturedWorker } = {}) {
+  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) }))
+    .filter(({ job }) => job?.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
+      && (job.infrastructureRetries ?? 0) < 2));
+  if (!jobs.length || !(await healthy())) return 0;
+  let recovered = 0;
+  for (const { itemId, job } of jobs) {
+    const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+    await withFileLock(join(directory, 'recovery.guard.sqlite'), async () => {
+      const current = withBoardRead(ctx, board => {
+        const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest,item_lease_until FROM item WHERE item_id=?').get(itemId);
+        const saved = submitHandoff(board, itemId);
+        return saved?.id === job.id && saved.state === 'infrastructure' && item?.item_status === 'claimed'
+          && item.item_owner === job.agentId && item.item_frozen_digest === job.digest && item.item_lease_until > new Date().toISOString() ? saved : null;
+      });
+      if (!current) return;
+      let retry;
+      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
+        { limit: 2, retries: current.infrastructureRetries ?? 0 }); }
+      catch (error) {
+        ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
+        await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));
+        return;
+      }
+      if (!retry) return;
+      let queued;
+      try { queued = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId,
+        { agentId: job.agentId, job: job.id, retryJob: retry.id }])); }
+      catch (error) { retry.discard(); throw error; }
+      if (queued.job?.id !== retry.id || queued.job.state !== 'queued') { retry.discard(); return; }
+      recovered++;
+      try { await launch(retry.directory, retry.tools, ctx.info.commonDir, queued.job); }
+      catch (error) {
+        const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
+          `recovery worker could not launch: ${error.message}`, 'the next health sweep retries within the captured budget'), { caller: 'seat' }) };
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+          { agentId: job.agentId, job: retry.id, result: failure }]));
+      }
+    });
+  }
+  return recovered;
 }

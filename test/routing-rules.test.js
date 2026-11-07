@@ -17,6 +17,7 @@ import { parentSessionDigest } from '../packages/items/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-routing-bar' });
@@ -80,7 +81,7 @@ function assertComputedReview(f, id, agentId, expectedCode = null, options = {})
 
 test('a release without a reason code is refused naming the list, and a coded release records it [C7]', () => {
   const box = helpers.project('true');
-  const added = JSON.parse(box.run(box.repo, 'add', 'web', 'Release target', '--json').out).item.item_id;
+  const added = JSON.parse(fixtureAdd(box.run, box.repo, 'web', 'Release target', '--json').out).item.item_id;
   const claim = box.run(box.web, 'claim', String(added), '--json');
   assert.equal(claim.code, 0, claim.err + claim.out);
   const bare = box.run(box.web, 'release', String(added), '--json');

@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A landing batch never fails on a case already red on its main base, and still fails on a case red only in the batch [B3,C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
@@ -46,12 +46,14 @@ test('known-main cancellation accounting excludes only fully accounted cancellat
 });
 
 /** A separate-publish landing project whose main already carries one red case, committed and pushed through real hooks. */
-function redMainProject({ perItem = false } = {}) {
+function redMainProject({ perItem = false, focused = true } = {}) {
   const box = landProject({ withWorktree: false });
   box.env.PULLBOARD_MODEL = 'landing-fixture';
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { perItem, manualOverride: true, publish: 'separate' } }, null, 2));
+  const projectConfig = { ...config, landing: { perItem, manualOverride: true, publish: 'separate' } };
+  if (!focused) delete projectConfig.affectedTests; // main then has no focused runner, so its comparison is unavailable
+  writeFileSync(path, JSON.stringify(projectConfig, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: land separately');
   box.env.LAND_SUPPRESS_RED = '1';
@@ -90,7 +92,7 @@ function landBatch(box, itemId) {
     'const write = async (operation, args) => board.enginePorts.store[operation](board, ...args);',
     'let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); }',
     'const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId));',
-    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit }));',
+    'console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit, status: item.item_status }));',
     '} finally { store.closeBoard(board); }',
   ].join('\n');
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
@@ -98,7 +100,24 @@ function landBatch(box, itemId) {
   return JSON.parse(run.stdout.trim().split('\n').at(-1));
 }
 
-test('a batch red only in a case red on main lands and names that case as known-main [B3,C7]', () => {
+/**
+ * The published-main refresh runs in a detached child after the landing; its completion line in the lander's
+ * refresh log is the signal, watched rather than polled, and the landing's own exit never waits for it.
+ */
+function refreshLogged(box, tip, exited) {
+  const directory = join(box.repo, '.git', 'pullboard', 'automatic-landing');
+  mkdirSync(directory, { recursive: true }); // the child creates it too; watching needs it now
+  const file = join(directory, 'main-red-refresh.log');
+  const done = () => existsSync(file) && readFileSync(file, 'utf8').includes(`refresh at ${tip.slice(0, 12)}:`);
+  if (done()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const watcher = watch(directory, () => { if (done()) { watcher.close(); resolve(true); } });
+    exited.then(() => { watcher.close(); resolve(done()); });
+    if (done()) { watcher.close(); resolve(true); }
+  });
+}
+
+test('clause 1: a batch red only in a case red on main lands and refreshes that named comparison at the published main [B3,C7]', async () => {
   const box = redMainProject();
   const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
@@ -109,6 +128,13 @@ test('a batch red only in a case red on main lands and names that case as known-
   assert.deepEqual(result.batch.proof.failures, [], 'no failure is waived or carried');
   assert.deepEqual(result.batch.proof.knownMain.map(row => [row.file, row.name]), [[MAIN_RED, 'main-red-case']]);
   assert.ok(result.lines.some(line => /known main red/u.test(line) && line.includes(`${MAIN_RED} :: main-red-case`)), result.lines.join('\n'));
+  // The landing already returned; the detached refresh finishes on its own and logs its completion.
+  const deadline = new Promise(resolve => { const timer = setTimeout(resolve, 120_000); timer.unref(); });
+  assert.equal(await refreshLogged(box, result.batch.tip, deadline), true, 'the detached refresh completed within the test budget');
+  const mainRedCache = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'main-red.json'), 'utf8'));
+  const refreshed = mainRedCache.entries[result.batch.tip]?.[MAIN_RED];
+  assert.equal(refreshed?.result, 'red', 'the landing refresh targets the newly published main');
+  assert.ok(refreshed.failures?.some(row => row.name === 'main-red-case'), JSON.stringify(refreshed));
 });
 
 test('a batch holding a main red and a case passing on base fails only on the merged-only case [B3,C7]', () => {
@@ -160,7 +186,7 @@ test('an observer error without observations isolates each failing file once; re
   assert.equal(readFileSync(box.calls, 'utf8').trim().split('\n').length, callsBefore + 1, 'recorded evidence triggers no extra isolation');
 });
 
-test('a per-item landing red only in a case red on main reruns it at base main and lands, charging nothing to the item [C7,#3073]', () => {
+test('clause 1: a per-item landing red only in a case red on main reruns it at base main and lands, charging nothing to the item [C7,#3073]', () => {
   const box = redMainProject({ perItem: true });
   const entry = acceptedItem(box, 1, '// PASS\n');
   box.env.LAND_CANCEL = '1';
@@ -174,7 +200,7 @@ test('a per-item landing red only in a case red on main reruns it at base main a
   assert.ok(Number.isInteger(result.batch.mainRedRepairs[0].item), JSON.stringify(result.batch.mainRedRepairs));
 });
 
-test('a per-item landing red in a case green at main still blocks and names its item as the culprit [C7,#3073]', () => {
+test('clause 2: a per-item landing red in a case green at main still blocks and names its item as the culprit [C7,#3073]', () => {
   const box = redMainProject({ perItem: true });
   box.env.LAND_SUPPRESS_RED = '1';
   try {
@@ -186,4 +212,14 @@ test('a per-item landing red in a case green at main still blocks and names its 
   assert.equal(result.merged, null);
   assert.ok(result.batch.culprits.some(culprit => culprit.id === entry.item), JSON.stringify(result.batch));
   assert.ok(!result.batch.culprits.some(culprit => JSON.stringify(culprit).includes(MAIN_RED)), 'the main red is never a reason');
+});
+
+test('clause 3: a per-item landing whose base-main comparison is unavailable blocks as a landing fault and leaves the item verified [C7,#3065]', () => {
+  const box = redMainProject({ perItem: true, focused: false });
+  const entry = acceptedItem(box, 1, '// PASS\n');
+  box.env.LAND_CANCEL = '1';
+  const result = landBatch(box, entry.item);
+  assert.ok(result.lines.some(line => line.includes('[LAND_MAIN_COMPARISON]')), JSON.stringify(result.lines));
+  assert.equal(result.merged, null);
+  assert.equal(result.status, 'verified', 'an unavailable comparison cannot reopen an accepted item');
 });
