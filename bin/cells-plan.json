@@ -1704,6 +1704,10 @@
     {
       "path": "bin/gate-slot-services.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/244.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
