@@ -57,7 +57,12 @@ function project(t, { born = BORN, grace = '1s' } = {}) {
       text: `Archived ${record.path}; head ${record.head}; recovery ref ${record.ref}` });
     archives.push({ ...record, fact });
   }
-  const ports = { agentId: coordinator, readSnapshot, recordArchive, workingDirectories: () => { censusCount++; return []; } };
+  /** Append the fact naming a kept dirty folder and its dirty paths. */
+  async function recordDirty(record) {
+    store.appendFact(board, factItem, { agentId: coordinator, kind: 'note',
+      text: `Kept ${record.path}; uncommitted changes: ${record.paths.join(', ')}` });
+  }
+  const ports = { agentId: coordinator, readSnapshot, recordArchive, recordDirty, workingDirectories: () => { censusCount++; return []; } };
   return { box, board, coordinator, factItem, config, ports, archives, readSnapshot, addTree,
     setNow(value) { at = value; }, now() { return at; }, censusCount() { return censusCount; }, common() { return repoInfo(box.repo).commonDir; } };
 }
@@ -89,6 +94,14 @@ function makeDirty(box, path) {
   return maintenanceSnapshot(path, { includeMetadata: true });
 }
 
+/** Add only an ignored leaf: Git status stays clean, so maintenance may still archive and remove the tree. */
+function makeIgnoredOnly(box, path) {
+  fs.mkdirSync(join(path, 'ignored'), { recursive: true });
+  fs.writeFileSync(join(path, 'ignored', 'private.bin'), Buffer.from([9, 0, 10, 255]));
+  fs.appendFileSync(join(box.repo, '.git', 'info', 'exclude'), '\nignored/\n');
+  return maintenanceSnapshot(path, { includeMetadata: true });
+}
+
 /** Independently inventory the original linked Git directory without consulting its archive manifest. */
 function gitDirectoryFiles(directory, prefix = '') {
   return fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry => {
@@ -105,8 +118,9 @@ function gitDirectoryFiles(directory, prefix = '') {
 /** Recreate source checkout changes from only the private archive, never from the removed source. */
 function restoreArchivedWorktree(box, archive, destination) {
   maintenanceGit(box.repo, ['worktree', 'add', '-q', '--detach', destination, archive.ref]);
-  maintenanceGit(destination, ['apply', '--index', '--binary', join(archive.directory, 'staged.patch')]);
-  maintenanceGit(destination, ['apply', '--binary', join(archive.directory, 'unstaged.patch')]);
+  for (const [flags, name] of [[['--index'], 'staged.patch'], [[], 'unstaged.patch']]) {
+    if (fs.statSync(join(archive.directory, name)).size) maintenanceGit(destination, ['apply', ...flags, '--binary', join(archive.directory, name)]);
+  }
   for (const file of archive.files) {
     const target = join(destination, file.path), bytes = fs.readFileSync(join(archive.directory, 'blobs', file.sha256));
     fs.mkdirSync(join(target, '..'), { recursive: true });
@@ -148,7 +162,7 @@ export function registerMaintenanceEngineTests() {
     assert.deepEqual(archiveFacts(fx), []);
   });
 
-  test('maintenance archives native facts, staged and unstaged binary changes, ignored leaves and linked Git metadata before pruning [B3,C7]', async t => {
+  test('maintenance archives native facts, ignored leaves and linked Git metadata before pruning [B3,C7]', async t => {
     const fx = project(t, { born: BORN, grace: '1d' });
     const finished = fx.addTree('finished-seat', { seat: true });
     const orphan = fx.addTree('orphan-tree');
@@ -159,7 +173,7 @@ export function registerMaintenanceEngineTests() {
     submitFixture(fx.board, item, { agentId: finished.agent, commit: head, tree });
     store.withdraw(fx.board, item, { agentId: fx.coordinator, reason: 'closed private maintenance lifecycle fixture' });
     fx.setNow(BORN + 3 * DAY);
-    const dirty = makeDirty(fx.box, finished.path);
+    const dirty = makeIgnoredOnly(fx.box, finished.path);
     const gitDir = fx.box.git(finished.path, 'rev-parse', '--path-format=absolute', '--git-dir').trim();
     const rawMetadata = gitDirectoryFiles(gitDir);
     seedOldTrees(fx, [orphan.path, scratch.path]);
@@ -226,6 +240,49 @@ export function registerMaintenanceEngineTests() {
     assert.equal(archiveFacts(changed).length, 1);
   });
 
+  test('clause 1: maintenance keeps a worktree with modified, staged or untracked changes and records a fact naming the folder and its dirty paths [C7]', async t => {
+    const fx = project(t, { born: BORN, grace: '1d' });
+    const dirty = fx.addTree('dirty-orphan');
+    const clean = fx.addTree('clean-orphan');
+    seedOldTrees(fx, [dirty.path, clean.path]);
+    fx.box.git(dirty.path, 'mv', 'SPEC.md', 'SPEC-moved.md');
+    const before = makeDirty(fx.box, dirty.path);
+    fx.setNow(BORN + 3 * DAY);
+    const first = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
+    assert.equal(fs.existsSync(dirty.path), true, 'the dirty worktree stays in place');
+    assert.equal(fs.existsSync(clean.path), false, 'only the clean worktree is removed');
+    assert.equal(first.pruned, 1);
+    assert.equal(maintenanceSnapshot(dirty.path, { includeMetadata: true }).signature, before.signature);
+    const entry = first.entries.find(row => row.path === dirty.path);
+    assert.equal(entry.action, 'kept');
+    assert.deepEqual(entry.dirtyPaths, ['SPEC-moved.md', 'SPEC.md', 'pullboard.json', 'untracked.bin'], 'a staged rename reports both its destination and its source');
+    assert.match(entry.reason, /uncommitted changes/u);
+    const facts = store.itemThread(fx.board, fx.factItem).filter(row => row.type === 'fact' && row.text.includes('uncommitted'));
+    assert.equal(facts.length, 1);
+    assert.ok(facts[0].text.includes('SPEC-moved.md') && facts[0].text.includes('SPEC.md'), 'the fact names both rename paths');
+    assert.ok(facts[0].text.includes(dirty.path) && facts[0].text.includes('pullboard.json') && facts[0].text.includes('untracked.bin'));
+    await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() + HOUR });
+    assert.equal(store.itemThread(fx.board, fx.factItem).filter(row => row.type === 'fact' && row.text.includes('uncommitted')).length, 1,
+      'the same dirty paths are not recorded again on the next sweep');
+    assert.equal(fs.existsSync(dirty.path), true);
+  });
+
+  test('clause 1: maintenance release cleanup leaves a worktree with uncommitted changes in place and records the dirty paths [C7]', async t => {
+    const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
+    const owner = fx.addTree('released-dirty-owner', { seat: true });
+    const released = claimItem(fx, owner.agent, 'Owner release with unfinished work');
+    store.release(fx.board, released, owner.agent, 'Return the fixture claim.', 'OTHER');
+    fs.writeFileSync(join(owner.path, 'untracked.bin'), 'unfinished work\n');
+    const before = maintenanceSnapshot(owner.path, { includeMetadata: true }).signature;
+    const result = await cleanMaintenanceSeat(owner.path, fx.config, fx.ports,
+      { path: owner.path, item: released, agent: owner.agent, now: fx.now() });
+    assert.equal(result, null);
+    assert.equal(maintenanceSnapshot(owner.path, { includeMetadata: true }).signature, before);
+    assert.deepEqual(archiveFacts(fx), [], 'no archive, reset or clean runs on a dirty tree');
+    const fact = store.itemThread(fx.board, fx.factItem).find(row => row.type === 'fact' && row.text.includes('uncommitted'));
+    assert.ok(fact.text.includes(owner.path) && fact.text.includes('untracked.bin'));
+  });
+
   test('maintenance health reports only retained dirty observations before the longer prune grace [B3,C7]', async t => {
     const fx = project(t, { born: BORN, grace: '48h' });
     const tree = fx.addTree('dirty-gone-seat', { seat: true });
@@ -252,7 +309,7 @@ export function registerMaintenanceEngineTests() {
     const released = claimItem(fx, clean.agent, 'Owner release that may clean this checkout');
     store.release(fx.board, released, clean.agent,
       'Fixture releases owner claim for cleanup.', undefined, 'OTHER');
-    fs.writeFileSync(join(clean.path, 'untracked.bin'), 'release cleanup fixture\n');
+    makeIgnoredOnly(fx.box, clean.path);
     const cleanResult = await cleanMaintenanceSeat(clean.path, fx.config, fx.ports,
       { path: clean.path, item: released, agent: clean.agent, now: fx.now() });
     assert.equal(cleanResult.clean, true);
@@ -326,7 +383,7 @@ export function registerMaintenanceEngineTests() {
       const claim = claimItem(fx, retired.agent, `${name} released checkout`);
       store.release(fx.board, claim, retired.agent,
         'Fixture releases retired checkout claim before takeover.', undefined, 'OTHER');
-      fs.writeFileSync(join(retired.path, 'untracked.bin'), Buffer.from([0, 31, 255]));
+      makeIgnoredOnly(fx.box, retired.path);
       const takenAt = completeTakeover(fx, retired.agent, incoming.agent);
       return { retired, incoming, claim, takenAt, before: maintenanceSnapshot(retired.path, { includeMetadata: true }).signature };
     };
