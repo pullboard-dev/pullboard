@@ -40,6 +40,10 @@
       "cells": 1,
       "deep": 0
     },
+    "apps/cli/src/shell/cli-main/handoff-recovery.js": {
+      "cells": 3,
+      "deep": 0
+    },
     "apps/cli/src/shell/cli-main/run-command.js": {
       "cells": 3,
       "deep": 0
@@ -89,7 +93,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/next.js": {
-      "cells": 13,
+      "cells": 14,
       "deep": 0
     },
     "apps/cli/src/shell/cli/project-ports.js": {
@@ -117,7 +121,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/cli/submit.js": {
-      "cells": 5,
+      "cells": 6,
       "deep": 0
     },
     "apps/cli/src/shell/cli/sweep.js": {
@@ -181,7 +185,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/claim.js": {
-      "cells": 4,
+      "cells": 5,
       "deep": 0
     },
     "apps/cli/src/shell/commands/companion.js": {
@@ -205,7 +209,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/edit.js": {
-      "cells": 8,
+      "cells": 9,
       "deep": 0
     },
     "apps/cli/src/shell/commands/escalate.js": {
@@ -285,7 +289,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/land.js": {
-      "cells": 14,
+      "cells": 15,
       "deep": 4
     },
     "apps/cli/src/shell/commands/lane.js": {
@@ -325,7 +329,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/merged.js": {
-      "cells": 11,
+      "cells": 12,
       "deep": 0
     },
     "apps/cli/src/shell/commands/milestone.js": {
@@ -337,7 +341,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/next.js": {
-      "cells": 10,
+      "cells": 11,
       "deep": 0
     },
     "apps/cli/src/shell/commands/pass.js": {
@@ -437,7 +441,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/show.js": {
-      "cells": 14,
+      "cells": 15,
       "deep": 0
     },
     "apps/cli/src/shell/commands/skills.js": {
@@ -457,11 +461,11 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/status.js": {
-      "cells": 15,
+      "cells": 16,
       "deep": 2
     },
     "apps/cli/src/shell/commands/submit.js": {
-      "cells": 20,
+      "cells": 21,
       "deep": 2
     },
     "apps/cli/src/shell/commands/sync.js": {
@@ -516,6 +520,10 @@
       "cells": 6,
       "deep": 0
     },
+    "apps/cli/src/shell/fallback-reclaim.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/src/shell/full-suite-bar-sweep.js": {
       "cells": 3,
       "deep": 0
@@ -526,6 +534,10 @@
     },
     "apps/cli/src/shell/generated-docs.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/cli/src/shell/handoff-worker-alive.js": {
+      "cells": 1,
       "deep": 0
     },
     "apps/cli/src/shell/init-finish.js": {
@@ -592,8 +604,16 @@
       "cells": 5,
       "deep": 0
     },
+    "apps/cli/src/shell/submit-handoff-sweep.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/src/shell/submit-handoff.js": {
       "cells": 9,
+      "deep": 0
+    },
+    "apps/cli/src/shell/submit-main-receipt.js": {
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/submit-neighbour-reds.js": {
@@ -649,11 +669,19 @@
       "deep": 0
     },
     "apps/lib/src/core/native-board.js": {
-      "cells": 16,
+      "cells": 17,
       "deep": 0
     },
     "apps/lib/src/shell/cli-hook-work.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "apps/lib/src/shell/main-audit-produce.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "apps/lib/src/shell/ownership-wait-seal.js": {
+      "cells": 5,
       "deep": 0
     },
     "apps/lib/src/shell/relay-checkpoint-worker.js": {
@@ -665,7 +693,7 @@
       "deep": 0
     },
     "apps/lib/src/shell/submit-handoff-worker.js": {
-      "cells": 2,
+      "cells": 5,
       "deep": 0
     },
     "apps/lib/src/shell/submit-infra-requeue.js": {
@@ -986,7 +1014,7 @@
     },
     "bin/check-signoffs.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "bin/checks/board-write-io.js": {
       "cells": 2,
@@ -1008,6 +1036,14 @@
       "cells": 2,
       "deep": 0
     },
+    "bin/drive-worker.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "bin/gate-slot-services.js": {
+      "cells": 4,
+      "deep": 5
+    },
     "bin/guarded-docs-refresh.js": {
       "cells": 2,
       "deep": 0
@@ -1025,7 +1061,7 @@
       "deep": 1
     },
     "bin/main-audit.js": {
-      "cells": 7,
+      "cells": 6,
       "deep": 0
     },
     "bin/main-red-refresh.js": {
@@ -1038,6 +1074,10 @@
     },
     "bin/pullboard.js": {
       "cells": 2,
+      "deep": 3
+    },
+    "bin/release-gate.js": {
+      "cells": 1,
       "deep": 1
     },
     "bin/resident-board.js": {
@@ -1046,7 +1086,7 @@
     },
     "bin/run-tests.js": {
       "cells": 6,
-      "deep": 2
+      "deep": 29
     },
     "bin/runner-controller.js": {
       "cells": 2,
@@ -1276,6 +1316,34 @@
       "cells": 3,
       "deep": 0
     },
+    "packages/drive/src/core/flake-diagnose.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/drive/src/shell/dispatcher.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/shell/drive-once.js": {
+      "cells": 5,
+      "deep": 0
+    },
+    "packages/drive/src/shell/fallback-reclaim.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/drive/src/shell/flake-diagnose.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/shell/keyed-result.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/shell/main-red.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/flakes/src/shell/flake-command.js": {
       "cells": 4,
       "deep": 0
@@ -1317,6 +1385,10 @@
       "deep": 0
     },
     "packages/gate/src/core/gate-policy-load.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/src/core/load-bearing.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1378,10 +1450,10 @@
     },
     "packages/gate/src/shell/gate-run-receipt.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/shell/gate-slot.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/gate/src/shell/gate-static-check.js": {
@@ -1420,6 +1492,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/gate/src/shell/proof-shards.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/gate/src/shell/quarantine-run-verdict.js": {
       "cells": 1,
       "deep": 0
@@ -1434,7 +1510,7 @@
     },
     "packages/gate/src/shell/run-timing.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/shell/seals.js": {
       "cells": 3,
@@ -1466,11 +1542,11 @@
     },
     "packages/gate/src/shell/test-file-budget-policy.js": {
       "cells": 2,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/shell/test-file-dispatch.js": {
       "cells": 3,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/shell/test-file-pool.js": {
       "cells": 2,
@@ -1490,7 +1566,7 @@
     },
     "packages/gate/src/shell/test-selection.js": {
       "cells": 2,
-      "deep": 0
+      "deep": 1
     },
     "packages/gate/src/shell/test-tier-selection.js": {
       "cells": 2,
@@ -1502,6 +1578,10 @@
     },
     "packages/gate/src/shell/test-value.js": {
       "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/shell/tier1-shadow-run.js": {
+      "cells": 1,
       "deep": 0
     },
     "packages/gate/src/shell/timed-shell-worker.js": {
@@ -1602,6 +1682,10 @@
     },
     "packages/health/src/shell/landing-failure.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "packages/health/src/shell/review-family-cover.js": {
+      "cells": 3,
       "deep": 0
     },
     "packages/health/src/shell/stale-run-observation.js": {
@@ -1789,7 +1873,7 @@
       "deep": 0
     },
     "packages/items/src/shell/item-patches.js": {
-      "cells": 1,
+      "cells": 3,
       "deep": 0
     },
     "packages/items/src/shell/item-receipt.js": {
@@ -1821,10 +1905,22 @@
       "deep": 0
     },
     "packages/items/src/shell/submit-handoff-recovery.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/items/src/shell/submit-wait.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/shell/job-lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/shell/job-store.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/jobs/src/shell/review-lease.js": {
       "cells": 1,
       "deep": 0
     },
@@ -1841,6 +1937,14 @@
       "deep": 1
     },
     "packages/keys/src/shell/relay-person-enrollment.js": {
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/land/src/shell/finish-sequence.js": {
+      "cells": 4,
+      "deep": 0
+    },
+    "packages/land/src/shell/landing-runs.js": {
       "cells": 3,
       "deep": 0
     },
@@ -1930,7 +2034,7 @@
     },
     "packages/landing/src/shell/landing-host.js": {
       "cells": 3,
-      "deep": 0
+      "deep": 2
     },
     "packages/landing/src/shell/landing-known-main.js": {
       "cells": 3,
@@ -1946,6 +2050,10 @@
     },
     "packages/landing/src/shell/landing-shards.js": {
       "cells": 5,
+      "deep": 11
+    },
+    "packages/landing/src/shell/landing-static-checks.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/landing/src/shell/landing-step-batch.js": {
@@ -1953,7 +2061,7 @@
       "deep": 0
     },
     "packages/landing/src/shell/landing-step-diagnose.js": {
-      "cells": 5,
+      "cells": 6,
       "deep": 0
     },
     "packages/landing/src/shell/landing-step-failures.js": {
@@ -1993,7 +2101,15 @@
       "deep": 0
     },
     "packages/landing/src/shell/main-failure-matches.js": {
-      "cells": 2,
+      "cells": 3,
+      "deep": 0
+    },
+    "packages/landing/src/shell/main-red-passing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/landing/src/shell/main-red-receipt.js": {
+      "cells": 4,
       "deep": 0
     },
     "packages/landing/src/shell/main-red.js": {
@@ -2013,7 +2129,7 @@
       "deep": 0
     },
     "packages/landing/src/shell/release-queue.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 0
     },
     "packages/landing/src/shell/train-check-repoints.js": {
@@ -2436,11 +2552,35 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/pin/src/shell/pin.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/pin/src/shell/tooling-pin.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/pin/src/shell/tree-cache.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/queue/src/core/line-setting-definitions.js": {
       "cells": 1,
       "deep": 0
     },
     "packages/queue/src/shell/queue-settings.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/core/judge.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/core/main-red.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/receipt/src/core/reuse.js": {
       "cells": 1,
       "deep": 0
     },
@@ -2461,6 +2601,10 @@
       "deep": 0
     },
     "packages/resources/src/shell/machine-home.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/resources/src/shell/resource-recovery.js": {
       "cells": 1,
       "deep": 0
     },
@@ -2553,8 +2697,8 @@
       "deep": 0
     },
     "packages/runners/src/shell/run.js": {
-      "cells": 5,
-      "deep": 0
+      "cells": 6,
+      "deep": 1
     },
     "packages/runners/src/shell/runner-capacity-read.js": {
       "cells": 2,
@@ -2562,7 +2706,7 @@
     },
     "packages/runners/src/shell/runner-dispatch.js": {
       "cells": 2,
-      "deep": 0
+      "deep": 1
     },
     "packages/runners/src/shell/runner-health.js": {
       "cells": 2,
@@ -2590,15 +2734,15 @@
     },
     "packages/runners/src/shell/runner-remote-tooling.js": {
       "cells": 5,
-      "deep": 0
+      "deep": 1
     },
     "packages/runners/src/shell/runner-request.js": {
       "cells": 6,
-      "deep": 0
+      "deep": 1
     },
     "packages/runners/src/shell/runner-result.js": {
       "cells": 6,
-      "deep": 0
+      "deep": 8
     },
     "packages/runners/src/shell/runner-source-scan.js": {
       "cells": 4,
@@ -2614,7 +2758,7 @@
     },
     "packages/runners/src/shell/runner-utilization.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "packages/runners/src/shell/runner-wait.js": {
       "cells": 2,
@@ -2622,7 +2766,7 @@
     },
     "packages/runners/src/shell/runners.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 3
     },
     "packages/runners/src/shell/submit-tooling-retry.js": {
       "cells": 1,
@@ -2633,7 +2777,7 @@
       "deep": 2
     },
     "packages/sandbox/src/shell/next-take.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/sandbox/src/shell/push-receipt-smoke.js": {
@@ -3129,11 +3273,11 @@
       "deep": 0
     },
     "packages/store/src/core/board-landing-lease.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/store/src/core/board-landing-test-defects.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "packages/store/src/core/board-link-state.js": {
@@ -3149,7 +3293,7 @@
       "deep": 0
     },
     "packages/store/src/core/board-recurring-jobs.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/store/src/core/board-release-claim.js": {
@@ -3364,6 +3508,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/store/src/shell/board-ownership-wait.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "packages/store/src/shell/board-pass-decision.js": {
       "cells": 3,
       "deep": 1
@@ -3444,6 +3592,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/store/src/shell/board-review-lease.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/store/src/shell/board-review-offer.js": {
       "cells": 3,
       "deep": 0
@@ -3503,6 +3655,10 @@
     "packages/store/src/shell/board.js": {
       "cells": 10,
       "deep": 4
+    },
+    "packages/store/src/shell/builder-family-required.js": {
+      "cells": 2,
+      "deep": 0
     },
     "packages/store/src/shell/companion.js": {
       "cells": 2,
@@ -3580,6 +3736,38 @@
       "cells": 6,
       "deep": 1
     },
+    "packages/transport/src/core/pull-token.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/core/result-file.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/shell/channel.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/shell/gate-run.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/shell/pull-http.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/shell/pull.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/transport/src/shell/ssh-shards.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/transport/src/shell/transport.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/verify/core.js": {
       "cells": 2,
       "deep": 0
@@ -3590,6 +3778,10 @@
     },
     "packages/verify/src/core/check-baseline-automatic.js": {
       "cells": 1,
+      "deep": 0
+    },
+    "packages/verify/src/core/machine-verdict.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/core/next-review.js": {
@@ -3660,8 +3852,16 @@
       "cells": 2,
       "deep": 0
     },
+    "packages/verify/src/shell/comparison-worker.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/verify/src/shell/kernel-gate.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "packages/verify/src/shell/machine-verification.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/verify/src/shell/proof-counter-read.js": {
@@ -4317,8 +4517,8 @@
       "deep": 0
     },
     "src/import-only-change.js": {
-      "cells": 1,
-      "deep": 0
+      "cells": 2,
+      "deep": 1
     },
     "src/item-edit-bar.js": {
       "cells": 1,
@@ -4450,7 +4650,7 @@
     },
     "src/module-imports.js": {
       "cells": 1,
-      "deep": 0
+      "deep": 1
     },
     "src/move-registry.js": {
       "cells": 1,
@@ -4642,14 +4842,17 @@
         "commits",
         "config",
         "doctrine",
+        "drive",
         "flakes",
         "gate",
         "git",
         "github",
         "health",
         "items",
+        "jobs",
         "kernel",
         "keys",
+        "land",
         "landing",
         "link",
         "mcp",
@@ -4688,11 +4891,11 @@
     },
     "<-commits": {
       "imports": [],
-      "deepImporters": 3
+      "deepImporters": 4
     },
     "<-landing": {
       "imports": [],
-      "deepImporters": 5
+      "deepImporters": 6
     },
     "<-kernel": {
       "imports": [],
@@ -4703,11 +4906,14 @@
         "blueprints",
         "commits",
         "config",
+        "drive",
         "flakes",
         "gate",
+        "git",
         "github",
         "health",
         "items",
+        "jobs",
         "kernel",
         "landing",
         "link",
@@ -4723,6 +4929,7 @@
         "state",
         "stats",
         "store",
+        "transport",
         "verify"
       ],
       "deepImporters": 0
@@ -4766,15 +4973,15 @@
     },
     "<-runners": {
       "imports": [],
-      "deepImporters": 7
+      "deepImporters": 9
     },
     "<-gate": {
       "imports": [],
-      "deepImporters": 6
+      "deepImporters": 18
     },
     "<-sandbox": {
       "imports": [],
-      "deepImporters": 7
+      "deepImporters": 11
     },
     "apps/view": {
       "imports": [
@@ -4814,6 +5021,7 @@
         "commits",
         "config",
         "doctrine",
+        "drive",
         "flakes",
         "gate",
         "git",
@@ -4833,17 +5041,22 @@
         "spec",
         "state",
         "store",
+        "transport",
         "verify"
       ],
       "deepImporters": 0
     },
     "<-codemap": {
       "imports": [],
-      "deepImporters": 1
+      "deepImporters": 2
     },
     "<-apps/cli": {
       "imports": [],
       "deepImporters": 3
+    },
+    "<-verify": {
+      "imports": [],
+      "deepImporters": 21
     },
     "activity": {
       "imports": [
@@ -4925,6 +5138,16 @@
       ],
       "deepImporters": 0
     },
+    "drive": {
+      "imports": [
+        "jobs",
+        "kernel",
+        "pin",
+        "receipt",
+        "transport"
+      ],
+      "deepImporters": 0
+    },
     "flakes": {
       "imports": [
         "codemap",
@@ -4950,6 +5173,7 @@
         "git",
         "items",
         "kernel",
+        "landing",
         "link",
         "outbox",
         "resources",
@@ -4959,6 +5183,7 @@
         "state",
         "stats",
         "store",
+        "transport",
         "verify"
       ],
       "deepImporters": 0
@@ -5026,9 +5251,16 @@
         "config",
         "git",
         "kernel",
+        "resources",
         "seats",
         "spec",
         "state"
+      ],
+      "deepImporters": 0
+    },
+    "jobs": {
+      "imports": [
+        "kernel"
       ],
       "deepImporters": 0
     },
@@ -5043,6 +5275,15 @@
       ],
       "deepImporters": 0
     },
+    "land": {
+      "imports": [
+        "jobs",
+        "kernel",
+        "pin",
+        "receipt"
+      ],
+      "deepImporters": 0
+    },
     "landing": {
       "imports": [
         "codemap",
@@ -5052,9 +5293,11 @@
         "gate",
         "git",
         "items",
+        "jobs",
         "kernel",
         "merge",
         "outbox",
+        "receipt",
         "resources",
         "runners",
         "sandbox",
@@ -5115,10 +5358,6 @@
       ],
       "deepImporters": 0
     },
-    "<-verify": {
-      "imports": [],
-      "deepImporters": 18
-    },
     "<-merge": {
       "imports": [],
       "deepImporters": 1
@@ -5161,7 +5400,20 @@
       ],
       "deepImporters": 0
     },
+    "pin": {
+      "imports": [
+        "git",
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
     "queue": {
+      "imports": [
+        "kernel"
+      ],
+      "deepImporters": 0
+    },
+    "receipt": {
       "imports": [
         "kernel"
       ],
@@ -5171,7 +5423,8 @@
       "imports": [
         "git",
         "kernel",
-        "queue"
+        "queue",
+        "transport"
       ],
       "deepImporters": 0
     },
@@ -5212,7 +5465,8 @@
         "queue",
         "resources",
         "sandbox",
-        "seats"
+        "seats",
+        "store"
       ],
       "deepImporters": 0
     },
@@ -5328,6 +5582,13 @@
         "landing",
         "state",
         "store"
+      ],
+      "deepImporters": 0
+    },
+    "transport": {
+      "imports": [
+        "kernel",
+        "pin"
       ],
       "deepImporters": 0
     },
