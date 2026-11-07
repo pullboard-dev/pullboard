@@ -194,6 +194,7 @@ import {
   browserAdmissionReporter,
   context,
   filesSince,
+  gateTestFiles,
   freezer,
   idArg,
   ordered,
@@ -383,7 +384,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id)) : null;
+    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
     if (clauseProblem) throw clauseProblem;
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
@@ -514,7 +515,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   });
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
   if (inspectClauses) await withBoard(ctx, async board => {
-    const summary = clauseInspectionSummary(held, store.itemThread(board, id));
+    const summary = clauseInspectionSummary(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
     if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
