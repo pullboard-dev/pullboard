@@ -16,7 +16,17 @@ import { landingHost } from '../packages/landing/index.js';
 import { landingProcessLive } from '../packages/landing/index.js';
 
 // DIAGNOSTIC (remove): per-case stderr lines and a live-handle dump at the end.
-afterEach((t) => { process.stderr.write(`DIAG case done: ${t.name} ${t.passed === false ? 'FAILED' : 'ok'}\n`); });
+let diagBox = null;
+afterEach((t) => {
+  try {
+    if (diagBox) {
+      const rows = onBoard(diagBox, board => ({ batches: store.landingBatches(board).map(b => ({ id: b.id.slice(0, 8), state: b.state, items: (b.items ?? []).map(i => i.id), cands: (b.candidates ?? []).map(i => i.id), refusal: b.refusal?.code, blocked: b.blocked, dropped: b.dropped, superseded: b.supersededByMain })),
+        items: store.listItems(board, { all: true }).map(i => ({ id: i.item_id, status: i.item_status, merged: Boolean(i.item_merged_commit), hold: i.item_hold_reason ?? null })),
+        events: store.events(board).slice(-14).map(e => `${e.event_kind}#${e.item_id}`) }));
+      process.stderr.write(`DIAG board: ${JSON.stringify(rows)}\n`);
+    }
+  } catch (error) { process.stderr.write(`DIAG board read failed: ${error.message}\n`); }
+  process.stderr.write(`DIAG case done: ${t.name} ${t.passed === false ? 'FAILED' : 'ok'}\n`); });
 after(() => {
   const handles = process._getActiveHandles().map((h) => `${h.constructor?.name} ${h.remoteAddress ?? ''}:${h.remotePort ?? ''} fd=${h._handle?.fd ?? ''} spawnfile=${h.spawnfile ?? ''} pid=${h.pid ?? ''}`);
   process.stderr.write(`DIAG handles at end: ${JSON.stringify(handles)}\n`);
@@ -38,7 +48,9 @@ function acceptItem(box, reviewer, file, title) {
   const head = commit(box, box.web, `feat(web): ${title.toLowerCase()} [G1]`);
   json(box, box.web, 'submit', String(id));
   box.git(reviewer, 'checkout', '-q', '--detach', head);
-  return { id, head, verify: box.run(reviewer, 'verify', String(id), 'accept', '--note', `The frozen ${file} check passed.`) };
+  const verify = box.run(reviewer, 'verify', String(id), 'accept', '--note', `The frozen ${file} check passed.`);
+  process.stderr.write(`DIAG verify #${id} lines: ${(verify.out + verify.err).split('\n').filter(l => /land|adopt|retire|drop|hold|stale/i.test(l)).join(' | ')}\n`);
+  return { id, head, verify };
 }
 
 /** Accept item A while a person holds landing, then return landing to the board so A waits on trunk. */
@@ -46,6 +58,7 @@ function waitingItem(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  diagBox = box;
   const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride: true } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
