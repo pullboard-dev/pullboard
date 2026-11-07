@@ -31,14 +31,13 @@ export function refusalConditionHolds(hold, facts) {
 
 /**
  * Decide whether an automatic repeat hold's recorded cause has cleared.
- * Why: the cause is evaluated first; a moved main base or a new item commit alone lifts nothing. Only a refusal code
- * with no probe, whose cause cannot be read, falls back to a moved base or head as its sole signal.
+ * Why: the cause is evaluated first; a moved main base or a new item commit alone lifts nothing. A refusal code
+ * with no probe has no readable cause, so its hold stays until the coordinator releases it.
  */
 export function repeatedLandingHoldCleared(hold, item, base, comparison, facts = null) {
   if (hold.kind === 'refusal') {
     const holds = refusalConditionHolds(hold, facts);
-    if (holds === null) return base !== hold.base || item.item_commit !== hold.commit;
-    return !holds;
+    return holds === null ? false : !holds;
   }
   if (hold.kind !== 'case') return false;
   const [file, ...rest] = hold.key.split('::');

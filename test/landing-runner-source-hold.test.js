@@ -115,12 +115,12 @@ test('clause 2: a LAND_DIRTY hold lifts only when its worktree is clean, never o
   assert.equal(repeatedLandingHold(reason).root, '/tmp/landing-batch', 'the hold remembers the worktree it named');
 });
 
-test('clause 2: a refusal code with no probe waits for a new head or base, the only signal it has [C7]', () => {
+test('clause 2: a refusal code with no probe stays held on a moved base or new head alone [C7]', () => {
   const hold = { kind: 'refusal', key: 'LAND_ADOPT', base: BASE, commit: ITEM.item_commit };
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null), false);
   assert.equal(repeatedLandingHoldCleared(hold, ITEM, BASE, null, { worktreeDirty: false }), false);
-  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), true);
-  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), true);
+  assert.equal(repeatedLandingHoldCleared(hold, ITEM, 'c'.repeat(40), null), false);
+  assert.equal(repeatedLandingHoldCleared(hold, { ...ITEM, item_commit: 'd'.repeat(40) }, BASE, null), false);
 });
 
 test('clause 2: a repeated named-case hold clears only when main no longer reproduces that exact case [C7]', () => {
