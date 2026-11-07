@@ -41,6 +41,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
+import { getItem } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -291,14 +292,84 @@ async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
  * queued it and whatever its item's state now. Why: recovery ran only when the queuing seat itself ran next or submit
  * on an item it still held, so a seat that stopped, or an item released or withdrawn, left its job running for hours
  * (#2627). A live worker, or one whose identity cannot be read, is left alone.
+ *
+ * One hand-off that cannot be recovered never stops the pass: on 7 Nov a seat taken over by another (the board
+ * refused AGENT_REPLACED) ended the sweep on its first job, and two gates read running with no worker for hours
+ * (#3450). Each failure is recorded on stderr and the rest are still recovered; a replaced seat's job is skipped,
+ * and any other failure is raised after the pass so the sweep exits non-zero and the dispatcher runs it again.
+ *
+ * @param {object} ctx - The CLI context of the repository's main checkout.
+ * @param {{ list?: Function, recover?: Function, recoverInfrastructure?: Function, returnNoVerdict?: Function }} [ports] - How unfinished hand-offs
+ *   are listed and recovered; the defaults read and write the real board.
+ * @returns {Promise<number>} How many unfinished hand-offs the sweep looked at.
  */
-export async function sweepDeadSubmitHandoffs(ctx) {
-  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHandoffs, recover = recoverSubmitHandoff, recoverInfrastructure = recoverInfrastructureHandoffs, returnNoVerdict = returnNoVerdictHandoffs } = {}) {
+  const jobs = list(ctx);
+  let failure = null;
+  for (const { itemId, job } of jobs) {
+    try { await recover(ctx, itemId, job.agentId, job); }
+    catch (error) {
+      const skipped = error?.code === 'AGENT_REPLACED';
+      ctx.io.err(`[HANDOFF_SWEEP] #${itemId} ${skipped ? 'skipped' : 'not recovered'}: ${error?.message ?? error}`);
+      if (!skipped) failure ??= error;
+    }
+  }
+  await recoverInfrastructure(ctx);
+  await returnNoVerdict(ctx);
+  if (failure) throw failure;
+  return jobs.length;
+}
+
+/** Every queued or running submit hand-off on the board, with its item id. */
+function unfinishedSubmitHandoffs(ctx) {
+  return withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
     .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
-  for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
-  await recoverInfrastructureHandoffs(ctx);
-  return jobs.length;
+}
+
+/**
+ * Whether a hand-off finished 'submitted' with no green gate for the item's current submitted head. Why: a submit
+ * whose proof was red only in cases that also fail on main is recorded with gateGreen false, so no review packet is
+ * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448).
+ *
+ * @param {{ state?: string, gateGreen?: boolean, submitted?: string, commit?: string } | null} job
+ * @param {{ item_status?: string, item_commit?: string | null } | null} item
+ * @returns {boolean}
+ */
+export function noVerdictHandoff(job, item) {
+  return job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
+    && typeof item.item_commit === 'string' && item.item_commit === (job.submitted ?? job.commit);
+}
+
+/**
+ * Return every item whose hand-off ended with no gate verdict to its builder: the coordinator reopens it with the
+ * named reason HANDOFF_NO_VERDICT and shouts the builder. Each item is re-read inside the writer before it moves.
+ *
+ * @param {object} ctx - The CLI context of the main checkout.
+ * @returns {Promise<number>} How many items were returned.
+ */
+export async function returnNoVerdictHandoffs(ctx) {
+  const stranded = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .filter(itemId => noVerdictHandoff(submitHandoff(board, itemId), getItem(board, itemId))));
+  let returned = 0;
+  for (const itemId of stranded) {
+    try {
+      returned += await withBoard(ctx, async board => {
+        const job = submitHandoff(board, itemId), item = getItem(board, itemId);
+        if (!noVerdictHandoff(job, item)) return 0;
+        const head = item.item_commit.slice(0, 12);
+        const note = `HANDOFF_NO_VERDICT: hand-off ${job.id} ended submitted at ${head} with no green gate, so no review packet exists and every reviewer is refused NO_REVIEW_PACKET; returned to its builder ${item.item_built_by ?? 'unknown'}`;
+        await ordered(ctx, board, 'reopen', [itemId, { agentId: 'coordinator', note }]);
+        if (item.item_built_by) {
+          await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: item.item_built_by, lanes: [],
+            text: `#${itemId} is back with you (HANDOFF_NO_VERDICT): its gate at ${head} ended with no green verdict, so it could not be reviewed. Read pullboard show ${itemId}, make its proof green, then claim and submit again.` }]);
+        }
+        return 1;
+      });
+    } catch (error) { ctx.io.err(`no-verdict hand-off #${itemId} was not returned: ${error.message}`); }
+  }
+  return returned;
 }
 
 /** Next may recover this seat's queued or running claims whose worker is gone, never another seat's or a live gate. */

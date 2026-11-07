@@ -265,7 +265,7 @@ function waitingCommonDirs() {
 
 /**
  * Run the caller's sweep once for the dispatcher's own directory and for each repository with a waiting launch.
- * A failed sweep is logged and never stops dispatch.
+ * A failed sweep is logged and never stops dispatch; it never rejects, so it may run beside the dispatch loop.
  *
  * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
  */
@@ -273,8 +273,32 @@ async function sweepGoneHandoffs(sweep) {
   if (!sweep) return;
   for (const commonDir of new Set([process.cwd(), ...waitingCommonDirs()])) {
     try { await sweep(commonDir); }
-    catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+    catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; it runs again on a later pass`); }
   }
+}
+
+/** How often a dispatcher that stays busy sweeps again for hand-offs whose worker is gone [C7,#3450]. */
+const HANDOFF_SWEEP_EVERY_MS = 60_000;
+
+/**
+ * A sweep that runs once at the start of a drain and again, in the background, at most every `everyMs` while it lasts.
+ * Why: a drain lasts as long as any worker runs, so on 7 Nov one failed sweep at its start was never retried and two
+ * gates read running with no worker for hours (#3450). At most one sweep runs at a time, and a slow one never holds up launches.
+ *
+ * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
+ * @param {number} everyMs - The least time between the starts of two sweeps.
+ * @returns {{ now: () => Promise<void>, due: () => void, settled: () => Promise<void> }} Run now, start one if due, and wait for one in flight.
+ */
+function repeatingSweep(sweep, everyMs) {
+  let startedAt = 0;
+  let running = null;
+  /** Start one sweep and remember it until it ends. */
+  const start = () => { startedAt = Date.now(); running = sweepGoneHandoffs(sweep).finally(() => { running = null; }); return running; };
+  return {
+    now: () => start(),
+    due() { if (sweep && !running && Date.now() - startedAt >= everyMs) start(); },
+    settled: () => running ?? Promise.resolve(),
+  };
 }
 
 /** Start one captured worker detached from the dispatcher's terminal, keeping its incarnation on disk. */
@@ -321,11 +345,13 @@ function endUnstarted(file, name, launch, error) {
  *   function read again on every pass so a running dispatcher picks up a raised cap without a restart, how often new tickets
  *   are noticed, how an exited worker's slot is freed (a throw is logged and retried on the next pass), how to take a worker slot, how long
  *   an idle dispatcher with queued tickets waits before it logs why it launched nothing, and a
- *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone.
+ *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone, and
+ *   how often a drain that stays busy runs that sweep again (sweepEveryMs).
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS } = {}) {
   const started = [];
+  const sweeps = repeatingSweep(sweep, sweepEveryMs);
   let existing;
   try { existing = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity; }
   catch (error) { if (!RETRIED_SLOT_ERRORS.has(error.code)) throw error; logDispatcher(`worker pool unreadable at start: ${error.code}; using the cap alone`); }
@@ -348,9 +374,10 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       throw error;
     }
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
-    await sweepGoneHandoffs(sweep);
-    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock); }
-    finally { lock.release(); }
+    // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
+    await sweeps.now();
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps.due); }
+    finally { await sweeps.settled(); lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
   }
@@ -415,7 +442,7 @@ function passCapacity(capacity) {
  * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
  * next submit starts a fresh dispatcher [C7,#2990].
  */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweepIfDue = () => {}) {
   const running = new Map();
   let wake = () => {};
   let lastLaunchAt = Date.now();
@@ -425,6 +452,7 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
     lock.renew();
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
     if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
+    sweepIfDue();
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = passCapacity(capacity);
