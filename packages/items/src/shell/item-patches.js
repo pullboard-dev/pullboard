@@ -14,6 +14,7 @@ import { itemPatchRecords as records } from "./item-patch-state.js";
 import { itemPatchDigest } from "./item-patch-state.js";
 import { itemPatchPaths } from "./item-patch-compose.js";
 import { outOfLane } from "../../../seats/index.js";
+import { IN_STATE } from "../../../state/index.js";
 export { itemPatches, itemPatchDigest, itemPatchAuthors, itemPatchSetDigest } from "./item-patch-state.js";
 
 const PREFIX = 'item_patches:';

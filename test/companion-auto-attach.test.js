@@ -39,7 +39,7 @@ function companionFixture(t) {
 test('clause 1: submit automatically attaches the builder recorded companion and its owner objection reopens the item [C7]', t => {
   const { box, id, owner, ownerSeat, patchFile } = companionFixture(t);
   const submitted = document(box.run(box.web, 'submit', String(id), '--companion', patchFile, '--key', 'api-view', '--author', ownerSeat, '--wait', '--json'));
-  assert.equal(submitted.item, id);
+  assert.equal(submitted.id, id);
   assert.equal(document(box.run(box.repo, 'show', String(id), '--json')).item.item_status, 'submitted');
   const patches = document(box.run(box.web, 'patch', 'list', String(id), '--json')).patches;
   assert.equal(patches.length, 1, 'the builder attached the companion during submit without a coordinator command');
