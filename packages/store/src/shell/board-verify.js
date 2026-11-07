@@ -42,6 +42,7 @@ import { holdItem } from "./board-hold-item.js";
 import { persistShout } from "./board-shout.js";
 import { shout } from "./board-shout.js";
 import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
+import { listAgents } from './board-query.js';
 
 /**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
@@ -75,6 +76,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   const suppliedNote = note.trim();
+  const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
     const relaxation = relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null;
@@ -105,7 +107,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
-        ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
+        ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? isAccept ? itemPatchReviewProblem(board, found, companionDigest, { getItem }) : null

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
 import { recordClaimWorktrees } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('two claimed Git worktrees name shared edits and protect an open item until release [N2]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-'));
@@ -128,7 +129,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const box = helpers.project('true');
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  const joined = box.run(second, 'join', 'web', '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, second, 'web', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err + joined.out);
   // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

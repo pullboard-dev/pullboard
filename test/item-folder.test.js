@@ -5,12 +5,13 @@ import { crossLaneFixture } from './e2e-helpers.js';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('[B5,C7] claim opens a folder; release removes a clean folder and the next claim reuses its branch', t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'item folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'item folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const first = box.run(box.web, 'claim', String(id), '--json');
@@ -40,7 +41,7 @@ test('[B5,C7] a new item folder starts at the current main with an empty index a
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'item folder follows main fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'item folder follows main fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
 
@@ -60,7 +61,7 @@ test('[B5,C7] claim refuses a dirty reused folder and names files that are not i
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'dirty reused folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'dirty reused folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const first = box.run(box.web, 'claim', String(id), '--json');
@@ -83,7 +84,7 @@ test('[B5,C7] a same-holder claim renewal preserves uncommitted item work', t =>
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'renew a dirty item folder', '--criterion', 'A claim renewal preserves item work', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'renew a dirty item folder', '--criterion', 'A claim renewal preserves item work', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const first = box.run(box.web, 'claim', String(id), '--json');
@@ -113,7 +114,7 @@ test('[B5,C7] an ignored cache does not make a reused item folder dirty', t => {
   writeFileSync(join(box.repo, '.gitignore'), 'cache/\n');
   box.git(box.repo, 'add', '.gitignore');
   box.git(box.repo, 'commit', '-q', '-m', 'test: ignore generated cache');
-  const added = box.run(box.repo, 'add', 'web', 'ignore generated item folder files', '--criterion', 'Ignored cache files do not block reuse', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'ignore generated item folder files', '--criterion', 'Ignored cache files do not block reuse', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const first = box.run(box.web, 'claim', String(id), '--json');

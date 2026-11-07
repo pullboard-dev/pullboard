@@ -7,6 +7,7 @@ import { after } from 'node:test';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 // Seats must declare a model; the fixture project's own join reads it from the runner's environment.
 process.env.PULLBOARD_MODEL ??= 'Test Model';
@@ -63,16 +64,16 @@ test('the join CLI confirms the recorded family in its text and --json, on first
     return dir;
   };
   const none = seat('undeclared'), declared = seat('declared');
-  const bare = box.run(none, 'join', 'api', '--model', 'Test Model', '--json');
+  const bare = fixtureJoin(box.run, none, 'api', '--model', 'Test Model', '--json');
   assert.equal(bare.code, 0, bare.err);
   assert.equal(JSON.parse(bare.out).family, null);
-  assert.doesNotMatch(box.run(none, 'join', 'api', '--model', 'Test Model').out, /family/u);
-  const first = box.run(declared, 'join', 'api', '--model', 'Test Model', '--family', 'anthropic');
+  assert.doesNotMatch(fixtureJoin(box.run, none, 'api', '--model', 'Test Model').out, /family/u);
+  const first = fixtureJoin(box.run, declared, 'api', '--model', 'Test Model', '--family', 'anthropic');
   assert.equal(first.code, 0, first.err);
   assert.match(first.out, /joined as .*\(family anthropic\) in the api lane/u);
-  assert.equal(JSON.parse(box.run(declared, 'join', 'api', '--model', 'Test Model', '--family', 'anthropic', '--json').out).family, 'anthropic');
+  assert.equal(JSON.parse(fixtureJoin(box.run, declared, 'api', '--model', 'Test Model', '--family', 'anthropic', '--json').out).family, 'anthropic');
   // A seat that joined bare, then rejoins naming a family: the response reports what is now recorded.
-  const later = box.run(none, 'join', 'api', '--model', 'Test Model', '--family', 'openai');
+  const later = fixtureJoin(box.run, none, 'api', '--model', 'Test Model', '--family', 'openai');
   assert.match(later.out, /\(family openai\)/u);
-  assert.equal(JSON.parse(box.run(none, 'join', 'api', '--model', 'Test Model', '--json').out).family, 'openai');
+  assert.equal(JSON.parse(fixtureJoin(box.run, none, 'api', '--model', 'Test Model', '--json').out).family, 'openai');
 });
