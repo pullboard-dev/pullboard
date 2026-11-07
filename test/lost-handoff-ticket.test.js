@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
@@ -62,7 +63,7 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const id = document(box.run(box.repo, 'add', 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Lost ticket handoff', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'A lost queued launch ends within one sweep.', '--check', 'true', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/lost.txt', 'lost\n', 'feat(web): lost ticket candidate [G1]').status, 0);

@@ -13,6 +13,7 @@ import { leaveConflictNotice, takeConflictNotices } from '../packages/outbox/ind
 import { earlierMoves, refusalLine } from '../packages/outbox/index.js';
 import { undoQueued } from '../packages/outbox/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Make genuine native submitted history, then freeze the public replay test's immutable policy. */
 function submittedBoard(t) {
@@ -25,7 +26,7 @@ function submittedBoard(t) {
     for (const handle of handles.reverse()) store.closeBoard(handle);
     helpers.cleanup();
   });
-  const added = box.run(box.repo, 'add', 'web', 'A queued verdict keeps its reviewed head', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'A queued verdict keeps its reviewed head', '--specs', 'G1',
     '--criterion', 'The page renders. [test]');
   assert.equal(added.code, 0, added.err + added.out);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);

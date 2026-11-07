@@ -11,6 +11,8 @@ export function receiptRecorder(ctx, { agentId, acceptedConfig, board, ordered, 
   return async receiptId => {
     const receipt = readGateReceipt(receiptStore(ctx.info.root), receiptId);
     if (!receipt || agentId !== COORDINATOR && !(receipt.version === 2 && receipt.testOutcomes && receipt.proof.seat === agentId)) return;
+    // A native proof without per-test outcomes has nothing for the flake ledger; recording it would refuse the submit with GATE_RUN_EVIDENCE.
+    if (receipt.version === 2 && !receipt.testOutcomes) return;
     const files = [...new Set((receipt.testOutcomes ?? receipt.failures).map(row => row.file))];
     const owners = Object.fromEntries(files.map(file => {
       const owner = laneOf(acceptedConfig, file);
