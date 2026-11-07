@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { loadConfig } from '../packages/config/index.js';
@@ -30,11 +31,14 @@ function read(box, id, clock) {
   finally { board.db.close(); }
 }
 
+/** The model the fixture's seats join under; join refuses a seat with none. */
+const QUEUED_RED_MODEL = 'Queued red fixture model';
+
 /** A real project whose accepted main carries an empty cells plan, so an unplaced source is refused after queueing. */
 function fixture(t) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
-  isolated.env.PULLBOARD_MODEL = 'Queued red fixture model';
+  isolated.env.PULLBOARD_MODEL = QUEUED_RED_MODEL;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   let box;
   try { box = helpers.project('true', isolated); }
@@ -50,8 +54,8 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // Strong authoring accepts a new item before a capable seat records any light-route diagnosis.
-  const add = (title, criterion = `${title} passes its gate.`) => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
-    '--route', 'strong', '--criterion', criterion, '--check', 'true', '--wait', '--json')).item.item_id;
+  const add = (title, criterion = `${title} passes its gate.`) => fileFixtureItem(box, box.repo, { lane: 'web', title, criterion,
+    args: ['--specs', 'G1'], wait: true, diagnose: false }).item_id;
   const ids = [add('Cells cut: refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
   t.after(async () => {
     for (const id of ids) {
@@ -83,8 +87,8 @@ async function terminal(box, id) {
  * bound to the rule's content, so a real probe submit records that identity first and the ledger is then aged.
  */
 async function enforcePlacement(box) {
-  const probe = document(box.run(box.repo, 'add', 'web', 'Cells cut: placement trial probe', '--specs', 'G1',
-    '--route', 'strong', '--criterion', 'Cells cut: probe the placement trial [test]', '--check', 'true', '--wait', '--json')).item.item_id;
+  const probe = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cells cut: placement trial probe',
+    criterion: 'Cells cut: probe the placement trial [test]', args: ['--specs', 'G1'], wait: true, diagnose: false }).item_id;
   box.ids.push(probe);
   const folder = document(box.run(box.web, 'claim', String(probe), '--json')).itemFolder;
   assert.equal(box.helpers.commitFile(box, folder, 'src/probe.js', 'export const probe = true;\n', 'feat(web): probe source [G1]').status, 0);
