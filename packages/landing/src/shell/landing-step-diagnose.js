@@ -15,6 +15,7 @@ import { withLandingGateSlot } from '../../../gate/index.js';
 import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { itemRefusalText } from '../core/item-refusal.js';
+import { entriesTouching } from './landing-static-checks.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -290,13 +291,10 @@ export async function returnRefusedItem(state, error) {
   return returned;
 }
 
-/** The batch entries whose own change touches a file a LAND_MODULE_PARSE refusal named; none for any other refusal. */
+/** The batch entries whose own change touches a file a LAND_MODULE_PARSE or LAND_STATIC_RED refusal named; none for any other refusal. */
 function parseImplicated(state, entries, error) {
-  if (error.code !== 'LAND_MODULE_PARSE' || !error.broken?.length) return [];
-  return entries.filter(entry => {
-    const changed = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', `${state.batch.base}...${entry.commit}`], { cwd: state.batch.root, encoding: 'utf8' });
-    return changed.status === 0 && changed.stdout.split('\n').some(file => error.broken.includes(file));
-  });
+  const files = error.code === 'LAND_MODULE_PARSE' ? error.broken : error.code === 'LAND_STATIC_RED' ? error.files : null;
+  return files?.length ? entriesTouching(state.batch.root, state.batch.base, entries, files) : [];
 }
 
 /** Return recorded red candidates once, including a saved failure interrupted before its move. */
