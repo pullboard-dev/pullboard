@@ -24,8 +24,8 @@ const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. |
 const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
-/** Remove every fixture directory, retrying while a finishing gate child still writes its last log lines. */
-after(() => { for (const dir of TEMP) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); });
+/** Remove every fixture directory, letting rmSync retry for about 30 s while a detached submit handoff worker finishes writing its last files. */
+after(() => { for (const dir of TEMP) rmSync(dir, { recursive: true, force: true, maxRetries: 100, retryDelay: 300 }); });
 
 /** Create an isolated CLI sandbox and real local Git helpers. */
 function sandbox() {
