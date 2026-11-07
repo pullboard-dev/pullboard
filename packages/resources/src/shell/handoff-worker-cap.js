@@ -21,7 +21,13 @@ import {
   takeResource,
 } from './resources.js';
 import { machineHome } from './machine-home.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
+import {
+  handoffRoots,
+  pruneFinishedHandoffs,
+  rememberHandoffRoot,
+} from './handoff-folder-prune.js';
 
 /** The machine resource whose slots count running handoff workers. */
 export const HANDOFF_WORKER_RESOURCE = 'submit-handoff-workers';
@@ -37,6 +43,25 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 
 /** The environment variable that overrides the worker cap. */
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
+/** The most hand-off workers this machine runs at once, whatever the runner fleet offers. */
+export const DISPATCH_WORKER_BOUND = 16;
+
+/** Preserve the launching seat's environment while preventing detached processes from inheriting its session identity. */
+function handoffProcessEnvironment(env = process.env) {
+  const clean = { ...env };
+  for (const name of AGENT_SESSION_IDS) delete clean[name];
+  return clean;
+}
+
+/** Keep the detached dispatcher functional without passing agent or command session state to it. */
+function handoffDispatcherEnvironment(source) {
+  const env = {};
+  for (const name of ['HOME', 'PATH', 'TMPDIR', 'TMP', 'TEMP', 'SYSTEMROOT', 'PULLBOARD_MACHINE_HOME',
+    'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_HOME']) {
+    if (source[name] !== undefined) env[name] = source[name];
+  }
+  return env;
+}
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
@@ -56,7 +81,11 @@ export function handoffWorkerCapacity({ env = process.env, cores = availablePara
   }
   const local = Math.max(1, Math.min(4, cores));
   if (!Number.isSafeInteger(runnerSlots) || runnerSlots < 1) return local;
-  return Math.max(local, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5));
+  // Each worker holds a Node process, a tool-tree copy and an SSH controller on this machine for its gate's whole run,
+  // so the cap is bounded whatever the runner count: at 55 (every runner slot) the coordinator Mac ran 46 such
+  // processes at load 47 on 6 Nov and every board command took seconds; at 12 the queue reached 70 submits an hour later, and at 20 the Mac went disk-bound (9,000 IOPS: each worker checks out the source and copies the tools) and every runner was quarantined; with the per-admission SSH probes off (loadAwareDispatch, measuredSlots) the Mac held load 32 at 20 workers, so 16 keeps the runners fed without the thrash. The bound lifts when gates become records
+  // served by one dispatcher connection per runner [C7].
+  return Math.max(local, Math.min(DISPATCH_WORKER_BOUND, runnersOnly ? runnerSlots : Math.floor(runnerSlots / 5)));
 }
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
@@ -187,7 +216,7 @@ async function startWorker(launch, relaunches, startOf) {
   const log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
   try {
     const worker = spawn(process.execPath, [join(realpathSync(launch.tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(launch.directory, 'request.json')],
-      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
     await once(worker, 'spawn');
     try { writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: worker.pid, started: startOf(worker.pid), relaunches }) + '\n', { mode: 0o600 }); }
     catch (error) {
@@ -222,13 +251,24 @@ function endUnstarted(file, name, launch, error) {
  * Each running worker holds one slot of the machine resource pool, so the count is the pool's own.
  * Returns at once when another dispatcher already holds the machine.
  *
- * @param {{ capacity?: number | (() => number), pollMs?: number, releaseSlot?: (slot: object) => void }} [options] - The cap, or a
+ * @param {{ capacity?: number | (() => number), pollMs?: number, releaseSlot?: (slot: object) => void, takeSlot?: Function, stallMs?: number }} [options] - The cap, or a
  *   function read again on every pass so a running dispatcher picks up a raised cap without a restart, how often new tickets
- *   are noticed, and how an exited worker's slot is freed (a throw is logged and retried on the next pass).
+ *   are noticed, and how an exited worker's slot is freed (a throw is logged and retried on the next pass), how to take a worker slot, and how long
+ *   an idle dispatcher with queued tickets waits before it logs why it launched nothing.
  * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS } = {}) {
   const started = [];
+  let existing;
+  try { existing = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity; }
+  catch (error) { if (!RETRIED_SLOT_ERRORS.has(error.code)) throw error; logDispatcher(`worker pool unreadable at start: ${error.code}; using the cap alone`); }
+  // Existing machine capacity can come from an explicit operator override or a prior
+  // dispatcher run. Keep it while holders may depend on those slots; takeResource
+  // supports safe growth but intentionally refuses an implicit shrink.
+  // A function cap is re-read on every pass, so the join is a function too: Math.max on a function is NaN and the take refuses [C7,#3302].
+  const effectiveCapacity = typeof capacity === 'function'
+    ? () => { const wanted = capacity(); return Math.max(wanted, existing ?? wanted); }
+    : Math.max(capacity, existing ?? capacity);
   for (;;) {
     let lock;
     try {
@@ -236,9 +276,11 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
         onWait() { throw new Refused('HANDOFF_DISPATCHER_RUNNING', 'another dispatcher is starting the queued workers'); } });
     } catch (error) {
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
+      // A locked slot database must not end a dispatcher that has tickets to start: wait a pass and take the lock again [C7,#3326].
+      if (RETRIED_SLOT_ERRORS.has(error.code)) { logDispatcher(`dispatcher lock not taken: ${error.code}; retrying on the next pass`); await new Promise(done => setTimeout(done, pollMs)); if (!waitingTickets().length) return { started }; continue; }
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -271,23 +313,63 @@ function boundAfterResult(entry, now, graceMs) {
   else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
 }
 
+/** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
+function sweepFinished(running) {
+  try {
+    const protect = new Set([...running.values()].map(entry => entry.job));
+    for (const name of waitingTickets()) protect.add(name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, ''));
+    pruneFinishedHandoffs(handoffRoots(), { protect });
+  } catch (error) { logDispatcher(`handoff folder sweep failed: ${error?.message ?? error}`); }
+}
+
+/** How long a dispatcher with queued tickets and no running worker may launch nothing before it logs why [C7,#3326]. */
+export const HANDOFF_LAUNCH_STALL_MS = 120_000;
+
+/** Slot-pool errors that only mean "not this pass": the dispatcher logs them and tries again on its next pass [C7,#3326]. */
+const RETRIED_SLOT_ERRORS = new Set(['SLOT_DB_LOCKED', 'BAD_RESOURCE_CAPACITY']);
+
+/**
+ * The worker cap for this pass; a capacity that throws or is not a whole number of 1 or more falls back to the local cap.
+ * Why: a bad capacity read must cost one pass at most, never the launching itself [C7,#3326].
+ */
+function passCapacity(capacity) {
+  try {
+    const cap = typeof capacity === 'function' ? capacity() : capacity;
+    if (Number.isSafeInteger(cap) && cap >= 1) return cap;
+    logDispatcher(`worker cap ${String(cap)} is not a whole number of 1 or more; using the local cap for this pass`);
+  } catch (error) { logDispatcher(`worker cap unreadable: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; using the local cap for this pass`); }
+  return handoffWorkerCapacity({ env: {} });
+}
+
 /** Hold the dispatcher lock, filling free slots from the oldest tickets, until nothing waits or runs. */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS) {
   const running = new Map();
   let wake = () => {};
+  let lastLaunchAt = Date.now();
+  let lastError = 'none';
+  let prunedAt = 0;
   while (waitingTickets().length || running.size) {
+    // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
+    if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
-    const cap = typeof capacity === 'function' ? capacity() : capacity;
+    const cap = passCapacity(capacity);
+    const queued = waitingTickets().length;
+    if (running.size) lastLaunchAt = Date.now();
+    else if (queued && Date.now() - lastLaunchAt >= stallMs) {
+      logDispatcher(`no worker launched for ${Math.round((Date.now() - lastLaunchAt) / 1000)}s with ${queued} queued and cap ${cap}; last slot error ${lastError}; launching on this pass`);
+      lastLaunchAt = Date.now();
+    }
     for (const name of waitingTickets()) {
       // A live reservation holds its place: later submits wait behind it.
       if (name.endsWith('.reserved')) { if (reservationAbandoned(name, startOf)) continue; break; }
       let slot;
       try {
-        slot = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: cap, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
+        slot = await takeSlot({ name: HANDOFF_WORKER_RESOURCE, capacity: cap, scope: 'machine', agent: 'handoff-worker', kind: 'submit-handoff', allowCapacityGrowth: true, allowCapacityShrink: true,
           onWait() { throw new Refused('HANDOFF_WORKERS_FULL', 'every worker slot is busy'); } });
       } catch (error) {
         if (error.code === 'HANDOFF_WORKERS_FULL') break;
+        if (RETRIED_SLOT_ERRORS.has(error.code)) { lastError = error.code; logDispatcher(`worker slot not taken: ${error.code} ${error.message}; retrying on the next pass`); break; }
         throw error;
       }
       const file = join(handoffQueueDirectory(), name);
@@ -299,6 +381,8 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
       catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
       rmSync(file);
+      lastLaunchAt = Date.now();
+      rememberHandoffRoot(launch.directory);
       started.push(launch.job);
       const entry = { slot, job: launch.job, exited: false, worker, directory: launch.directory, startedAt, resultAt: null, stoppedAt: 0 };
       running.set(worker, entry);
@@ -331,14 +415,24 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' }
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
     const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
-    const log = openSync(handoffDispatcherLog(), 'a', 0o600);
-    let dispatcher;
-    try {
-      dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
-      await once(dispatcher, 'spawn');
-    } finally { closeSync(log); }
-    try { writeFileSync(receipt, JSON.stringify({ pid: dispatcher.pid, started: startOf(dispatcher.pid) }) + '\n', { mode: 0o600 }); }
-    catch (error) { const closed = once(dispatcher, 'close'); dispatcher.kill('SIGTERM'); await closed; throw error; }
-    dispatcher.unref();
+    const detachedLauncher = join(realpathSync(tools), 'bin', 'handoff-worker-detach.js');
+    const env = handoffDispatcherEnvironment(process.env);
+    const launcher = spawn(process.execPath, [detachedLauncher, JSON.stringify({ entry, cwd, env, log: handoffDispatcherLog() })], {
+      cwd, stdio: ['ignore', 'pipe', 'pipe'], env,
+    });
+    const output = [];
+    const errors = [];
+    launcher.stdout.on('data', chunk => output.push(chunk));
+    launcher.stderr.on('data', chunk => errors.push(chunk));
+    await once(launcher, 'spawn');
+    const [code, signal] = await once(launcher, 'close');
+    if (code !== 0) throw new Error(Buffer.concat(errors).toString('utf8').trim() || `detached launcher exited ${signal ?? code}`);
+    const pid = Number(Buffer.concat(output).toString('utf8').trim());
+    if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('detached launcher did not report its dispatcher pid');
+    try { writeFileSync(receipt, JSON.stringify({ pid, started: startOf(pid) }) + '\n', { mode: 0o600 }); }
+    catch (error) {
+      try { process.kill(pid, 'SIGTERM'); } catch (killError) { if (killError.code !== 'ESRCH') throw killError; }
+      throw error;
+    }
   } finally { lock.release(); }
 }
