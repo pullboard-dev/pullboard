@@ -37,6 +37,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor("typeof data === 'object' && !!data?.project");
     // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.click("document.querySelector('[data-tab=\"items\"]')");
