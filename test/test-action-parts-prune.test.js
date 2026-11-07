@@ -34,7 +34,8 @@ test('clause 1: a part for an unchanged tree adds under 2 KB because it names th
   const before = readdirSync(join(store, 'lists')).length;
   recordInputParts(store, hash('2'), { ...first, test: 'src/file-1.js' });
   assert.equal(readdirSync(join(store, 'lists')).length, before, 'the second part adds no file list');
-  assert.ok(statSync(join(store, 'parts', `${hash('2')}.json`)).size < 2048, 'the second part is a reference, not a manifest');
+  assert.ok(statSync(join(store, 'parts-ref', `${hash('2')}.json`)).size < 2048, 'the second part is a reference, not a manifest');
+  assert.equal(existsSync(join(store, 'parts')), false, 'nothing is written where an older reader looks');
   recordInputParts(store, hash('3'), { ...first, files: fileList(4000, 17) });
   assert.equal(firstChangedInput(store, { inputKey: hash('1'), context: {} }, { inputKey: hash('3'), context: {} }), 'import src/file-17.js');
   put(store, 'parts', `${hash('4')}.json`, { ...first, files: fileList(4000, 17) });
@@ -47,24 +48,24 @@ function populated() {
   const pad = 'x'.repeat(1000);
   put(store, 'lists', `${hash('a')}.json`, [['a.js', 'a'.repeat(40)]], 5);
   put(store, 'lists', `${hash('b')}.json`, [['b.js', 'b'.repeat(40)]], 5);
-  put(store, 'parts', `${hash('1')}.json`, { files: hash('a'), runner: hash('a'), pad }, 5);
-  put(store, 'parts', `${hash('2')}.json`, { files: hash('a'), runner: hash('a'), pad }, 5);
-  put(store, 'parts', `${hash('c')}.json`, { files: hash('b'), runner: hash('b'), pad }, 4);
-  put(store, 'parts', `${hash('d')}.json`, { files: hash('b'), runner: hash('b'), pad }, 3);
-  put(store, 'parts', `${hash('e')}.json`, { files: hash('b'), runner: hash('b'), pad }, 2);
-  put(store, 'parts', `${hash('f')}.json`, { files: hash('b'), runner: hash('b'), pad }, 0);
+  put(store, 'parts-ref', `${hash('1')}.json`, { files: hash('a'), runner: hash('a'), pad }, 5);
+  put(store, 'parts-ref', `${hash('2')}.json`, { files: hash('a'), runner: hash('a'), pad }, 5);
+  put(store, 'parts-ref', `${hash('c')}.json`, { files: hash('b'), runner: hash('b'), pad }, 4);
+  put(store, 'parts-ref', `${hash('d')}.json`, { files: hash('b'), runner: hash('b'), pad }, 3);
+  put(store, 'parts-ref', `${hash('e')}.json`, { files: hash('b'), runner: hash('b'), pad }, 2);
+  put(store, 'parts-ref', `${hash('f')}.json`, { files: hash('b'), runner: hash('b'), pad }, 0);
   put(store, 'keys/identity', 'one.json', { identity: 'identity', file: 'one', value: { inputKey: hash('1'), key: hash('9'), reason: '' } });
   put(store, 'green', `${hash('8')}.json`, { key: hash('8'), inputKey: hash('2'), status: 'pass' });
   return store;
 }
 
 /** The part names left in a store. */
-const left = (store) => readdirSync(join(store, 'parts')).map(name => name.slice(0, 1)).sort();
+const left = (store) => readdirSync(join(store, 'parts-ref')).map(name => name.slice(0, 1)).sort();
 
 test('clause 2: a prune removes unnamed parts and lists, oldest first, only until the folder is under the cap, and never a named record [C7]', () => {
   const store = populated();
-  const size = (name) => statSync(join(store, 'parts', `${hash(name)}.json`)).size;
-  const total = [...readdirSync(join(store, 'parts')).map(name => statSync(join(store, 'parts', name)).size),
+  const size = (name) => statSync(join(store, 'parts-ref', `${hash(name)}.json`)).size;
+  const total = [...readdirSync(join(store, 'parts-ref')).map(name => statSync(join(store, 'parts-ref', name)).size),
     ...readdirSync(join(store, 'lists')).map(name => statSync(join(store, 'lists', name)).size)].reduce((sum, bytes) => sum + bytes, 0);
   const result = prunePartsStore(store, { capBytes: total - size('c') - size('d') });
   assert.equal(result.removedParts, 2);
@@ -78,7 +79,7 @@ test('clause 2: a prune removes unnamed parts and lists, oldest first, only unti
 
 test('clause 2: a list no remaining part names is removed once the parts are gone, and maintenance prunes at most once per interval under the configured cap [C7]', () => {
   const store = populated();
-  put(store, 'parts', `${hash('f')}.json`, { files: hash('b'), runner: hash('b'), pad: 'x' }, 3);
+  put(store, 'parts-ref', `${hash('f')}.json`, { files: hash('b'), runner: hash('b'), pad: 'x' }, 3);
   const result = maintainPartsStore(store, { PULLBOARD_TEST_PARTS_CAP_BYTES: '1' });
   assert.deepEqual(left(store), ['1', '2'], 'every unnamed part went under a one byte cap');
   assert.equal(result.removedLists, 1);

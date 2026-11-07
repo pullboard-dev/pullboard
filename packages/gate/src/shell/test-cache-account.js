@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
+export const REFERENCE_PARTS = 'parts-ref';
 const FRAME = '# pullboard test cache ';
 const SUMMARY = /^(?:# )?test cache: (\d+) files, (\d+) reused, (\d+) ran; top missed inputs: (.*)$/mu;
 
@@ -53,6 +54,11 @@ export function recordList(store, list) {
   return id;
 }
 
+/** A part by input key: the by-reference record, or an inline one an older writer left under `parts`. */
+function loadPart(store, inputKey) {
+  return load(join(store, REFERENCE_PARTS, `${inputKey}.json`)) ?? load(join(store, 'parts', `${inputKey}.json`));
+}
+
 /** A part's list: the list itself in an older part, or the shared record a newer part names. Null when unreadable. */
 function listOf(store, value) {
   if (Array.isArray(value)) return value;
@@ -69,7 +75,8 @@ function listOf(store, value) {
  */
 export function recordInputParts(store, inputKey, parts) {
   try {
-    const directory = join(store, 'parts');
+    // By-reference parts live in their own folder: a reader built before shared lists reads only `parts` and expects inline arrays.
+    const directory = join(store, REFERENCE_PARTS);
     const path = join(directory, `${inputKey}.json`);
     try { statSync(path); return; } catch { /* Not recorded yet. */ }
     const record = { ...parts, files: recordList(store, parts.files), runner: recordList(store, parts.runner) };
@@ -111,8 +118,8 @@ function firstPathDifference(before, now) {
 export function firstChangedInput(store, before, now) {
   if (!before) return 'no earlier key';
   if (before.inputKey !== now.inputKey) {
-    const first = load(join(store, 'parts', `${before.inputKey}.json`));
-    const second = load(join(store, 'parts', `${now.inputKey}.json`));
+    const first = loadPart(store, before.inputKey);
+    const second = loadPart(store, now.inputKey);
     if (!first || !second) return 'unknown (earlier inputs not recorded)';
     const old = { ...first, files: listOf(store, first.files), runner: listOf(store, first.runner) };
     const current = { ...second, files: listOf(store, second.files), runner: listOf(store, second.runner) };

@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { REFERENCE_PARTS } from './test-cache-account.js';
 
 export const PARTS_CAP_BYTES = 10 * 1024 ** 3;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -73,13 +74,14 @@ export function namedInputKeys(store) {
  * @returns {{ removedParts: number, removedLists: number, bytes: number }} what was removed and the size left
  */
 export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = GRACE_MS, now = Date.now() } = {}) {
-  const partsDirectory = join(store, 'parts'), listsDirectory = join(store, 'lists');
-  /** Size and age of every record in a folder. */
+  const listsDirectory = join(store, 'lists');
+  /** Size and age of every record in a folder, tagged with the folder. */
   const scan = (directory) => names(directory).flatMap(file => {
-    try { const stat = statSync(join(directory, file)); return [{ file, path: join(directory, file), size: stat.size, at: stat.mtimeMs }]; }
+    try { const stat = statSync(join(directory, file)); return [{ file, path: join(directory, file), size: stat.size, at: stat.mtimeMs, by: directory }]; }
     catch { return []; }
   });
-  const parts = scan(partsDirectory), lists = scan(listsDirectory);
+  // Inline parts (an older writer's, under parts) and by-reference parts (under parts-ref) are pruned alike.
+  const parts = [...scan(join(store, 'parts')), ...scan(join(store, REFERENCE_PARTS))], lists = scan(listsDirectory);
   let bytes = [...parts, ...lists].reduce((sum, row) => sum + row.size, 0);
   const named = namedInputKeys(store);
   let removedParts = 0, removedLists = 0;
@@ -89,12 +91,12 @@ export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = G
   const gone = new Set();
   for (const row of unnamedParts) {
     if (bytes <= capBytes) break;
-    if (drop(row)) { removedParts += 1; gone.add(row.file); }
+    if (drop(row)) { removedParts += 1; gone.add(row.path); }
   }
   if (bytes > capBytes) {
     const used = new Set();
     for (const row of parts) {
-      if (gone.has(row.file)) continue;
+      if (gone.has(row.path)) continue;
       const part = load(row.path);
       for (const value of [part?.files, part?.runner]) if (typeof value === 'string') used.add(value);
     }
