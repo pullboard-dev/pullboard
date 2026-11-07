@@ -29,7 +29,7 @@ test('Dashboard is the first board tab and Home is removed [N26]', () => {
 });
 
 // A private board, Chrome startup and two viewport/theme passes share the existing 90-second journey budget.
-test('a board opens on Dashboard with API-backed work, shared pace and existing Items navigation [N26]', { timeout: 90_000 }, async () => {
+test('clause 1: a board opens on Dashboard with API-backed work, shared pace and existing Items navigation [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the Dashboard journey.');
   const box = machine();
@@ -47,6 +47,8 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
     assert.equal(await chrome.stable('view.tab'), 'dashboard', 'opening a board selects Dashboard');
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual stats are measured.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     const state = await boardOf(view, alpha.repo);
     const activeClaims = state.items.filter(item => item.status === 'claimed');
     assert.equal(activeClaims.length, 1, 'the real API contains the seeded live claim');

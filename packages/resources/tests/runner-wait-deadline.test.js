@@ -445,8 +445,7 @@ test('a failed late dispatch cannot buy another startup budget on a different fr
       assert.equal(late.runner.host, runners[0].host);
       assert.equal(late.lateRunnerDispatch.budgetMs, 60);
       second.release(); second = null;
-      // An infrastructure retry (quarantine on, #1953) renews the deadline by design; only an ordinary retry has spent its one late start.
-      const requeued = late.requeueRunner('transport-lost', { quarantine: false }); late = null;
+      const requeued = late.requeueRunner('transport-lost', { quarantine: false }); // a quarantined requeue starts a fresh attempt on purpose (10d8e44f17, #2657) late = null;
       await assert.rejects(requeued, { code: 'RUNNER_WAIT_DEADLINE' }, 'the same original request has spent its one late start');
       const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
       assert.equal(pool.holders.length + pool.line.length, 0, 'refusal cleans the transferred original ticket');
