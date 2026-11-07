@@ -51,6 +51,8 @@ test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', 
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)} && view.tab === 'dashboard'`);
+    // A board with no landing opens the first-run Dashboard (0de17112c6); set it aside so the usual cards are measured.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor('!!document.querySelector("#dashboard .dash-agent-axis") && !!document.querySelector("#dashboard .dash-split")');
     for (const [width, scheme] of [[1280, 'light'], [375, 'dark']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: false });
