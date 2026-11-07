@@ -45,7 +45,7 @@ export function registerMaintenanceCliTests() {
     assert.equal(JSON.parse(json.out).enabled, false);
   });
 
-  test('ordinary release archives dirty owner work before cleaning and records its recovery fact [B3,C7,N26]', t => {
+  test('clause 1: ordinary release archives dirty owner work before cleaning and records its recovery fact [B3,C7,N26]', t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
     enable(box);
@@ -53,7 +53,7 @@ export function registerMaintenanceCliTests() {
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
     const joined = box.run(owner, 'join', 'web', '--json');
     assert.equal(joined.code, 0, joined.err);
-    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'mid',
+    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'light',
       '--criterion', 'The fixture can release its own work.', '--check', 'true',
       '--brief', 'Files: web/page.js\nChange: exercise private release\nTest: native release retains archive evidence', '--json');
     assert.equal(added.code, 0, added.err);
@@ -62,8 +62,8 @@ export function registerMaintenanceCliTests() {
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
     fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
-    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note',
-      'Fixture releases the owner claim for maintenance cleanup.', '--no-next', '--json');
+    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER',
+      '--note', 'Release fixture work after archival.', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
     assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, released.err);
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');

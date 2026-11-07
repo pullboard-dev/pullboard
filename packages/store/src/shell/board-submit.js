@@ -1,4 +1,6 @@
 import { boardWriteSnapshot } from './board-write-preparation.js';
+import { builderFamilyProblem } from './builder-family-required.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../src/builder-family-required-engine.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
 import { gateJudgmentPath } from '../../../verify/index.js';
@@ -6,6 +8,7 @@ import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
+import { proofReceipts } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
@@ -104,6 +107,9 @@ export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
+  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -132,6 +138,8 @@ export function submit(board, id, options) {
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
     }
     reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
+    if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
@@ -152,7 +160,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id)) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit) }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -208,4 +216,11 @@ export function submit(board, id, options) {
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
   if (autoMainReds) return { mainRedRepairs };
+}
+
+
+/** The test files every green proof of this exact commit ran, so a tick naming one of them is already proven. */
+function greenProofFiles(board, id, commit) {
+  return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
+    .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
 }
