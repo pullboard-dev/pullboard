@@ -1182,7 +1182,7 @@ async function recoverReplicaReplies(fixture, timing) {
   const beforeMerge = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'merged', item: 2, key, boardId });
   const lostMerge = await timing.wait('merge the lost reference with its reply dropped', () => cliResult(clones[0], envs[0], 'merged', '2', lostRef));
-  assertDroppedReplyConsumed(relay, 'the lost merge reply');
+  assertDroppedReplyConsumed(relay, `the lost merge reply (merged exited ${lostMerge.status}; stdout ${JSON.stringify(lostMerge.document)}; stderr ${lostMerge.stderr})`);
   assert.equal(lostMerge.document.error.code, 'RELAY_UNAVAILABLE');
   relay.failReads(false);
   await timing.wait('sync clone A before retrying the merge', () => cli(clones[0], envs[0], 'status'));
