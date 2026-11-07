@@ -157,6 +157,8 @@ function scopedFamily(board, scope, id) {
 export function seatFamily(board, id) {
   // Unset, the board runs this code's own engine, which includes the declaration engine.
   if ((board.executionEngineVersion ?? Infinity) >= FAMILY_DECLARE_ENGINE) {
+    // Inside a read scope the bulk snapshot already holds every seat's family, so no per-seat projection query is needed (#3251).
+    if (id && FAMILY_SCOPES.has(board.db)) return derivedFamily(board, id);
     const stored = storedFamily(board, id);
     if (stored !== undefined) return stored;
     const family = derivedFamily(board, id);
