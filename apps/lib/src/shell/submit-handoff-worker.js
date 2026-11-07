@@ -266,7 +266,10 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
     } finally { store.closeBoard(board); }
     if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
+    // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
+    // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
+    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result);
+    else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
     withBoard(ctx, board => finishJob(board.db, drive, owner));
   } catch (error) {
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));

@@ -122,7 +122,7 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_NOT_LAUNCHED');
   assert.match(refusal.error.message, /request\.json and its driver record are missing/u);
   const freshDirectory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id);
-  await helpers.waitFor(() => driverRecord(join(commonDir, 'pullboard/board.sqlite'), current.id)?.pid > 0, 'fresh gate driver record', 30000); // budget: owned driver launch ceiling, no timing claim.
+  await helpers.waitFor(() => driverRecord(boardPath, current.id)?.pid > 0, 'fresh gate driver record', 30000); // budget: owned driver launch ceiling, no timing claim.
   const request = JSON.parse(readFileSync(join(freshDirectory, 'request.json'), 'utf8'));
   assert.equal(request.job, current.id);
   assert.equal(request.commit, current.commit);
