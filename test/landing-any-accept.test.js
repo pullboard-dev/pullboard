@@ -82,7 +82,7 @@ function fixture(t, lanes) {
     assert.equal(submitted.code, 0, submitted.out + submitted.err);
     const reviewer = join(box.dir, `reviewer-${index}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', 'Landing reviewer');
+    jsonAs(box, `reviewer-session-${index}`, reviewer, 'join', lane === 'web' ? 'api' : 'web', '--model', 'Landing reviewer', '--route', 'strong');
     return { id, head, reviewer, session: `reviewer-session-${index}`, file: files[lane] };
   });
   return { box, items, binding: mainBinding(box) };
