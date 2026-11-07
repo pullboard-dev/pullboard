@@ -149,3 +149,14 @@ test('liveness reads the recorded pid or a legacy pid owner, only on its own mac
   assert.equal(landingProcessLive({ pid: 4242, host: landingHost('other-host') }, { host, probe: alive }), false, 'a foreign pid is never compared');
   assert.notEqual(landingHost('fixture-host'), 'fixture-host', 'the public board never sees the host name');
 });
+
+test('clause 1: an interrupted batch is adopted on main and both its waiting item and the new accept land [B35,B3,R3]', t => {
+  const { box, reviewer, first, trunk } = waitingItem(t);
+  const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
+  const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
+  assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
+  assert.equal(batchById(box, stuck.id).state, 'landed', 'the interrupted batch itself lands');
+  for (const id of [first.id, second.id]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit, `#${id} lands`);
+  assert.equal(box.git(box.repo, 'show', 'main:web/first.txt'), 'First result');
+  assert.equal(box.git(box.repo, 'show', 'main:web/second.txt'), 'Second result');
+});
