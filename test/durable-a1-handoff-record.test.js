@@ -53,7 +53,7 @@ function metaRecord(board, id) {
   return row ? JSON.parse(row.meta_value) : null;
 }
 
-test('clause 1: submitHandoff reads the record from the job', (t) => {
+test('clause 1: submitHandoff reads the record from the job [C7]', (t) => {
   const { box, id, commit } = claimed(t);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
@@ -80,7 +80,7 @@ test('clause 1: submitHandoff reads the record from the job', (t) => {
   } finally { board.db.close(); }
 });
 
-test('clause 1: a retried job is the record submitHandoff reads, not the job it replaced', (t) => {
+test('clause 1: a retried job is the record submitHandoff reads, not the job it replaced [C7]', (t) => {
   const { box, id, commit } = claimed(t);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
@@ -102,7 +102,7 @@ test('clause 1: a retried job is the record submitHandoff reads, not the job it 
   } finally { board.db.close(); }
 });
 
-test('clause 1: a hand-off saved before the job held its record still reads from board_meta', (t) => {
+test('clause 1: a hand-off saved before the job held its record still reads from board_meta [C7]', (t) => {
   const { box, id } = claimed(t);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
