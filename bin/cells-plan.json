@@ -1254,6 +1254,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/machine-verdict-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1678,6 +1682,14 @@
     },
     {
       "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/242.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/243.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
