@@ -23,10 +23,10 @@ export function recordedMoveRefusal(io, error) {
 export function requestedCommandMove(command, operation) {
   if (!command) return false;
   const forms = {
-    add: ['addItem'], companion: ['requestCompanion'], slice: ['createItemSlice'], patch: ['attachItemPatch', 'removeItemPatch'], edit: ['editItem'], merged: ['merged', 'recordTrainLanding'], move: ['rehomeItem'], submit: ['submit'], done: ['submit'],
+    add: ['addItem'], companion: ['requestCompanion'], slice: ['createItemSlice'], patch: ['attachItemPatch', 'removeItemPatch'], edit: ['editItem'], merged: ['merged', 'recordTrainLanding'], move: ['rehomeItem'], submit: ['submit', 'deferOwnership'], done: ['submit', 'deferOwnership'],
     claim: ['claim'], release: ['release'], verify: ['verify'], withdraw: ['withdraw', 'editMilestoneItems'],
     refreeze: ['refreeze'], reopen: ['reopen'], escalate: ['escalate', 'shout'],
-    next: ['claim', 'reserveReview', 'reserveNextReview', 'recordNextIdle'], run: ['claim', 'release', 'submit', 'reserveReview', 'reserveNextReview', 'verify', 'escalate', 'shout'],
+    next: ['claim', 'reserveReview', 'reserveNextReview', 'recordNextIdle'], run: ['claim', 'release', 'submit', 'deferOwnership', 'reserveReview', 'reserveNextReview', 'verify', 'escalate', 'shout'],
     init: ['register'], join: ['register'], worktree: ['register'], takeover: ['takeCoordinator'],
     relay: ['setBoardMembers'],
     inbox: ['recordActivityDelivery', 'actOnActivity'],
