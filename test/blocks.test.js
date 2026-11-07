@@ -4,7 +4,6 @@ import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/in
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
@@ -25,6 +24,7 @@ import {
 import { relayPresentation } from '../packages/pages/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -243,7 +243,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
 });
 
 test('clause 1: readBlocks with a since bound parses no line older than the bound and reads a 20 MB ledger in under 20 ms [C7]', t => {
-  const commonDir = fs.mkdtempSync(join(tmpdir(), 'pullboard-blocks-tail-'));
+  const commonDir = privateFixtureFiles('pullboard-blocks-tail-').root;
   t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
   fs.mkdirSync(join(commonDir, 'pullboard'));
   const now = Date.parse('2026-11-06T12:00:00Z'), line = (i, at, extra = {}) => JSON.stringify({ at: new Date(at).toISOString(), code: 'B1', id: `b${i}`, command: 'x'.repeat(180), ...extra });
