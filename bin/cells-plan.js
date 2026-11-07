@@ -5,11 +5,11 @@ import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
 import { withParseScope } from '../packages/gate/index.js';
 import { formatJson } from '../packages/merge/index.js';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
+import { cellExistsSync as existsSync } from '../packages/codemap/index.js';
+import { cellLstatSync as lstatSync } from '../packages/codemap/index.js';
 import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { cellReaddirSync as readdirSync } from '../packages/codemap/index.js';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -25,9 +25,9 @@ import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
 import { engineLeafPlacement } from '../packages/codemap/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
-import { tryGit } from '../src/git.js';
+import { tryGit } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { runnerWorkerFiles } from './cells-move-closure.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
@@ -42,7 +42,10 @@ import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
 import { writeShimHandoff } from './cells-remove-shims.js';
-import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
+import {
+  readMoveDataReads,
+  staleDataReads,
+} from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
 
@@ -240,8 +243,8 @@ export function computePlan(root) {
 }
 
 /** Name the in-scope paths at HEAD the committed plan does not place, so drift is reported rather than guessed. */
-export function unplanned(root, plan) {
-  const retired = retiredProblems(root, plan);
+export function unplanned(root, plan, inventory) {
+  const retired = retiredProblems(root, plan, inventory);
   if (retired.length) throw new Refused('CELLS_PLAN_RETIRED', retired.join('; '));
   const map = readPathMap(root);
   const known = new Set();
@@ -356,13 +359,13 @@ function historyShimReferences(root, acceptedBase) {
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export through the reachable front door, and no enforced cell lint rose. This is each move item's frozen check.
  */
-export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintReport, lintBaseline } = {}) {
+export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintReport, lintBaseline, inventory: suppliedInventory } = {}) {
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
   let workerFiles;
   let moveFiles;
-  let inventory;
+  let inventory = suppliedInventory;
   let exceptions;
   let history;
   /** Build the repository inventory once and share it across move closure and lint checks. */

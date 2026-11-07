@@ -60,7 +60,18 @@ async function executeNativePersonRequests(root, io, runCommand) {
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
   /** Preserve this invocation's native capabilities for signed recursive commands. */
-  const run = main && ((args, streams) => main(args, { ...streams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender }));
+  const run = main && ((args, streams) => main(args, { ...streams,
+    gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard,
+    hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender,
+    withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord,
+    remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure,
+    decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher,
+    relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground,
+    scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck,
+    checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts,
+    outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox,
+    queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem,
+  }));
   ctx.personPorts = { DEFAULT_RELAY, relayStatus: root => relayStatus(root, io), syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
