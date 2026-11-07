@@ -17,13 +17,14 @@ import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
 import { requestFor } from '../packages/runners/src/shell/runner-request.js';
 import { privateCheckEnvelope } from '../apps/runner/src/shell/runner-private-mode.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject } = makeLandProjectFixtures({ ...e2e,
-  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = 'cache-id-fixture'; return box; } });
+  sandbox(...args) { const box = e2e.sandbox(...args); box.env.PULLBOARD_MODEL = FIXTURE_MODEL; return box; } });
 
 /**
  * Two real comparisons of one red file at the same main through the runner stand-in, watching for main-red folders.

@@ -1,20 +1,21 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { waitForCondition } from './runner-fixture-state.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
 /** Prove the machine dispatcher survives a command ending and receives no agent session environment [C7]. */
 test('a handoff dispatcher is re-parented and survives its launcher process tree [C7]', async t => {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-handoff-dispatcher-'));
+  const root = privateFixtureFiles('pullboard-handoff-dispatcher-').root;
   const machine = join(root, 'machine');
   const tools = join(root, 'tools');
   const entryDir = join(tools, 'bin');
   const marker = join(root, 'dispatcher.json');
   mkdirSync(entryDir, { recursive: true });
+  /** @pullboard-world-pin the real detach launcher is the unit under test */
   copyFileSync(join(import.meta.dirname, '../bin/handoff-worker-detach.js'), join(entryDir, 'handoff-worker-detach.js'));
   writeFileSync(join(entryDir, 'handoff-worker-dispatcher.js'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, session: process.env.AGENT_SESSION_TOKEN ?? null, home: process.env.PULLBOARD_MACHINE_HOME }));\nsetInterval(() => {}, 60_000);\n`);
