@@ -260,7 +260,7 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
-    if (automaticLandingAfterCommand) {
+    if (automaticLandingAfterCommand && await landingWakeMayAct(automaticLandingAfterCommand)) {
       // A release run from an item folder removes that folder before this wake; the pending record names the
       // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
       const { info } = automaticLandingAfterCommand;
@@ -306,6 +306,21 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
+}
+
+/**
+ * Whether an automatic-landing wake could act: a pending record exists, or accepted work waits to land.
+ * With neither, a read command never loads the landing package and the gate behind it [C7]. Any doubt answers yes,
+ * so the full wake keeps its own guards and reports its own failures.
+ */
+async function landingWakeMayAct({ info, file }) {
+  if (existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))) return true;
+  if (!existsSync(file)) return false;
+  try {
+    const db = (await import('../../../../../packages/store/src/shell/board-read-open.js')).openBoardReadOnly(file);
+    try { return Boolean(db.prepare("SELECT 1 FROM item WHERE item_status = 'verified' AND item_merged_commit IS NULL LIMIT 1").get()); }
+    finally { db.close(); }
+  } catch { return true; }
 }
 
 /** The trunk checkout the pending landing record names, or null when there is no readable record. */

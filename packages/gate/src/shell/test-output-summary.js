@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gitPath } from '../../../../src/git.js';
-import { safeLog } from './gate-execution.js';
+import { secretsIn } from '../../../commits/src/core/secrets.js';
 import { tapTests } from './tap-tests.js';
 import { readCacheRows } from './test-cache-account.js';
 
@@ -172,4 +172,16 @@ export function retainedGateAssertions(commonDir, jobId) {
     }
     return newest ? failedAssertionLines(readFileSync(newest.file, 'utf8')) : [];
   } catch { return []; }
+}
+
+/**
+ * Replace a possible secret-bearing line before persisting a direct item-check log.
+ * It lives here, not in gate-execution, so show can print retained gate logs without loading the gate runner [C7].
+ */
+export function safeLog(output) {
+  return output.split('\n').map((line, index) => {
+    if (Buffer.byteLength(line, 'utf8') > 64 * 1024) return '[redacted output line exceeds 64 KiB safe-scan limit]';
+    const findings = secretsIn([{ path: 'item check output', line: index + 1, text: line }]);
+    return findings.length ? `[redacted ${findings.map(finding => finding.slice(0, finding.lastIndexOf(' at '))).join(', ')}]` : line;
+  }).join('\n');
 }

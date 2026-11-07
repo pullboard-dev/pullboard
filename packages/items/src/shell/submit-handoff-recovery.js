@@ -23,7 +23,7 @@ import {
 } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/index.js';
-import { handoffQueueDirectory } from '../../../resources/index.js';
+import { handoffQueueDirectory } from '../../../resources/src/shell/handoff-worker-cap.js';
 
 /** The shared snapshot's folder name: one clone per Pullboard commit, named by its 40-hex hash [C7]. */
 const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;

@@ -1,13 +1,9 @@
-import { trunkRef } from '../../../../../packages/sandbox/index.js';
+import { trunkRef } from '../../../../../packages/sandbox/src/shell/trusted-policy-read.js';
 import { withBoardRead } from '../cli-board-read.js';
 /** The pullboard list command, in its own module so an item adding another command never edits these lines. */
-import * as store from '../../../../../packages/store/index.js';
-import {
-  mainMergeFor,
-} from '../../../../../packages/merge/index.js';
-import {
-  verdictProjector,
-} from '../../../../../packages/verify/index.js';
+import * as store from '../cli-read-store.js';
+import { mainMergeFor } from '../../../../../packages/merge/src/shell/trunk-conflict.js';
+import { verdictProjector } from '../../../../../packages/verify/src/shell/verdict-freshness.js';
 import {
   agentDisplayName,
   context,

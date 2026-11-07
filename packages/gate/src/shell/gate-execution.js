@@ -117,9 +117,7 @@ import {
 import {
   logLines,
 } from './timing.js';
-import {
-  secretsIn,
-} from '../../../commits/index.js';
+import { safeLog } from './test-output-summary.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
@@ -190,14 +188,7 @@ export function refuseSandboxBlocked(run) {
     `The environment refused ${run.sandboxBlocked}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged.`);
 }
 
-/** Replace a possible secret-bearing line before persisting a direct item-check log. */
-export function safeLog(output) {
-  return output.split('\n').map((line, index) => {
-    if (Buffer.byteLength(line, 'utf8') > 64 * 1024) return '[redacted output line exceeds 64 KiB safe-scan limit]';
-    const findings = secretsIn([{ path: 'item check output', line: index + 1, text: line }]);
-    return findings.length ? `[redacted ${findings.map(finding => finding.slice(0, finding.lastIndexOf(' at '))).join(', ')}]` : line;
-  }).join('\n');
-}
+export { safeLog };
 
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
