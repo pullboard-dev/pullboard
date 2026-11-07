@@ -1284,7 +1284,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   const reviewerPath = join(directory, 'reviewer');
   git(repo, 'worktree', 'add', '-q', '-b', 'review/one', reviewerPath, 'main');
   const reviewerRoot = git(reviewerPath, 'rev-parse', '--show-toplevel');
-  const joined = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  const joined = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--route', 'strong', '--json']);
   assert.equal(joined.code, 0, joined.stderr || joined.stdout);
   const joinResult = JSON.parse(joined.stdout);
   assertJsonShape(joinResult, 'join');
@@ -1300,7 +1300,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   finally { if (savedModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = savedModel; }
   assert.equal(missingModel.code, 1);
   assert.equal(JSON.parse(missingModel.stdout).error.code, 'MODEL_REQUIRED', 'join without a flag or model environment refuses');
-  const joinedWithout = await runMain(noFamilyRoot, ['join', 'web']);
+  const joinedWithout = await runMain(noFamilyRoot, ['join', 'web', '--route', 'strong']);
   assert.equal(joinedWithout.code, 0, joinedWithout.stderr || joinedWithout.stdout);
 
   const file = join(repo, '.git', 'pullboard', 'board.sqlite');
