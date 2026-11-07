@@ -1,11 +1,10 @@
 /** A verified item whose reviewed trunk is an ancestor of main is fresh, never STALE_VERDICT [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { temporaryRepository } from '../../../test/board-submit-fixture.js';
 import { verdictProjector } from '../src/shell/verdict-freshness.js';
 
 /** Run git in a directory and return trimmed output. */
@@ -22,9 +21,8 @@ function commit(dir, file, text) {
 }
 
 /** Build a real repo whose reviewed trunk is on main, main moves on an unrelated file, and return the projected state. */
-function ancestorState(mainFile) {
-  const dir = mkdtempSync(join(tmpdir(), 'verdict-ancestor-'));
-  git(dir, 'init', '-q', '-b', 'main');
+function ancestorState(t, mainFile) {
+  const dir = temporaryRepository(t, 'verdict-ancestor-');
   for (const file of ['x.txt', 'y.txt']) writeFileSync(join(dir, file), `${file}\n`);
   git(dir, 'add', '.');
   git(dir, 'commit', '-q', '-m', 'base');
@@ -40,15 +38,15 @@ function ancestorState(mainFile) {
   return projector.state(item);
 }
 
-test('clause 2: a verified item whose reviewed trunk is an ancestor of main is fresh, not STALE_VERDICT [C7]', () => {
-  assert.equal(ancestorState('x.txt'), null, 'main moving on an unreviewed file leaves the accept fresh');
-  const overlap = ancestorState('y.txt');
+test('clause 2: a verified item whose reviewed trunk is an ancestor of main is fresh, not STALE_VERDICT [C7]', t => {
+  assert.equal(ancestorState(t, 'x.txt'), null, 'main moving on an unreviewed file leaves the accept fresh');
+  const overlap = ancestorState(t, 'y.txt');
   assert.equal(overlap.code, 'STALE_VERDICT');
   assert.equal(overlap.file, 'y.txt', 'a real overlap names the file, not an unavailable history');
   assert.equal(overlap.reason, undefined);
 });
 
-test('clause 1: the ancestor check runs through the Git adapter, so a trunk on main raises no ReferenceError [C7]', () => {
-  const state = ancestorState('x.txt');
+test('clause 1: the ancestor check runs through the Git adapter, so a trunk on main raises no ReferenceError [C7]', t => {
+  const state = ancestorState(t, 'x.txt');
   assert.equal(state, null, 'an undefined spawnSync would surface as a history-unavailable stale state');
 });
