@@ -64,5 +64,28 @@ export function runStaticTreeRegistry(root) {
   return STATIC_TREE_CHECKS.flatMap(check => check.run(root, sources));
 }
 
-/** Every static class name submit runs, whole-tree and changed-file, each once. */
-export const STATIC_CHECK_CLASSES = Object.freeze([...new Set([...STATIC_TREE_CHECKS, ...STATIC_CHECKS].map(check => check.name))]);
+/**
+ * Run one repository command in a checkout and return its output as one failure message, or nothing when it exits 0.
+ *
+ * @param {string} root - Checkout root.
+ * @param {string[]} args - Node arguments naming the script and its flags.
+ * @returns {string[]} The failure text, or an empty list.
+ */
+function commandFailures(root, args) {
+  const ran = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', ...args], { cwd: root, encoding: 'utf8' });
+  return ran.status === 0 ? [] : [`${ran.stdout}${ran.stderr}`.trim() || `${args.join(' ')} failed`];
+}
+
+/**
+ * The classes submit judges as their own stages beside the static command: cells, cell lints and spec ids. Each runs its
+ * repository command on a tree. They are listed here so every class submit runs is named once, but `runStaticTreeRegistry`
+ * leaves them to their stages, which run them in parallel with their receipts (#3233).
+ */
+export const STATIC_STAGE_CHECKS = Object.freeze([
+  { name: 'cells', run: root => commandFailures(root, ['bin/cells-plan.js', '--check']) },
+  { name: 'cell-lints', run: root => commandFailures(root, ['bin/cell-lints.js', '--check', root]) },
+  { name: 'spec-ids', run: root => commandFailures(root, ['bin/pullboard.js', 'spec', 'check']) },
+]);
+
+/** Every static class name submit runs, whole-tree, changed-file and stage, each once. */
+export const STATIC_CHECK_CLASSES = Object.freeze([...new Set([...STATIC_TREE_CHECKS, ...STATIC_CHECKS, ...STATIC_STAGE_CHECKS].map(check => check.name))]);

@@ -21,6 +21,9 @@ test('clause 1: one registry lists every static check class with a function that
   for (const expected of ['test-waits', 'test-fixtures', 'relay-boundary', 'import-style', 'engine-folder', 'view-pure', 'board-write-io', 'prose-commands', 'wall-clock-budgets', 'doctrine']) {
     assert.ok(tree.includes(`name: '${expected}'`), `whole-tree class ${expected}`);
   }
+  for (const expected of ['cells', 'cell-lints', 'spec-ids']) {
+    assert.ok(tree.includes(`name: '${expected}'`), `stage class ${expected}`);
+  }
   const entry = readFileSync(new URL('../bin/static-style-checks.js', import.meta.url), 'utf8');
   assert.match(entry, /runStaticTreeRegistry\(/u);
   assert.doesNotMatch(entry, /doctrineReport|viewPureGate|boardWriteIoProblems/u, 'the submit static command reads the registry, not an inline list');
