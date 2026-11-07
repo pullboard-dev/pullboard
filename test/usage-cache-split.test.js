@@ -18,6 +18,7 @@ import { COST_INPUT_SPLIT_ENGINE } from '../src/cost-input-split-engine.js';
 import { MOVE_REGISTRY } from '../packages/moves/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read only the three numeric split fields under test. */
 function split(row) { return SPLIT_COUNTS.map(name => row[name]); }
@@ -117,7 +118,7 @@ for (const provider of ['codex', 'claude']) test(`clause 1: synthetic ${provider
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(box.run(box.repo, 'add', 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Usage split fixture', '--criterion', 'Usage split is visible.',
     '--brief', 'Files: web/ready\nTest: synthetic usage is visible in native item and stats reads\nChange: seed a lightweight provider usage fixture.',
     '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
   const identity = 'input-split-fixture-' + provider;
@@ -150,7 +151,7 @@ test('clause 1: a supported historical usage record without splits shows unknown
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(box.run(box.repo, 'add', 'web', 'Legacy numeric usage', '--criterion', 'Legacy split remains unknown.',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Legacy numeric usage', '--criterion', 'Legacy split remains unknown.',
     '--brief', 'Files: web/ready\nTest: historical usage without split counters displays unknown in item and stats reads\nChange: seed a supported historical usage record.',
     '--route', 'mid', '--specs', 'G1', '--check', 'test -f web/ready', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));

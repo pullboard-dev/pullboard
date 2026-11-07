@@ -37,6 +37,9 @@ export function loadMachineSettings() {
   if (value.gate?.runnersOnly !== undefined && typeof value.gate.runnersOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersOnly in ${file} must be true or false`);
   }
+  if (value.gate?.handoffWorkers != null && (!Number.isSafeInteger(value.gate.handoffWorkers) || value.gate.handoffWorkers < 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.handoffWorkers in ${file} must be a whole number of 1 or more; remove it for the computed default`);
+  }
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
