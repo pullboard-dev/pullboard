@@ -6,7 +6,7 @@ import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
-import { IN_STATE } from "../../../../src/machine.js";
+import { IN_STATE } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
