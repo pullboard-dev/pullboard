@@ -1,13 +1,13 @@
 /** The handoff dispatcher's lock proves its loop is alive, and an error out of the loop frees it [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { handoffQueueDirectory, listResources, takeResource } from '../packages/resources/index.js';
+import { ensureHandoffDispatcher, handoffQueueDirectory, listResources, takeResource } from '../packages/resources/index.js';
 
 /** Run with a private machine home, restoring the environment afterwards. */
 async function withHome(action) {
@@ -40,7 +40,7 @@ test('clause 1: a loop-driven lock heartbeat moves only when the loop renews it,
   } finally { lock.release(); mock.timers.reset(); }
 }));
 
-test('clause 2: an error out of the drain loop releases the dispatcher lock and the process exits [C7]', () => withHome(async () => {
+test('clause 2: an error out of the drain loop releases the dispatcher lock and exits, and the next submit starts a fresh dispatcher at once [C7]', () => withHome(async () => {
   mkdirSync(handoffQueueDirectory(), { recursive: true });
   writeFileSync(join(handoffQueueDirectory(), '0001-broken.json'), '{ not json');
   const entry = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
@@ -49,4 +49,10 @@ test('clause 2: an error out of the drain loop releases the dispatcher lock and 
   assert.match(run.stderr, /HANDOFF_QUEUE_SOURCE|cannot read queued worker/u);
   const held = listResources({ scope: 'machine' }).find(row => row.name === 'submit-handoff-dispatcher');
   assert.ok(!held?.holders?.length, 'the dispatcher lock is free for the next submit to take');
+  // The next submit: with the broken ticket gone and the lock free, ensureHandoffDispatcher launches a fresh dispatcher on that very call.
+  rmSync(join(handoffQueueDirectory(), '0001-broken.json'), { force: true });
+  const receipt = join(handoffQueueDirectory(), 'dispatcher.json');
+  assert.ok(!existsSync(receipt), 'no dispatcher has been launched yet');
+  await ensureHandoffDispatcher(fileURLToPath(new URL('..', import.meta.url)), process.cwd());
+  assert.ok(Number.isInteger(JSON.parse(readFileSync(receipt, 'utf8')).pid), 'a fresh dispatcher process was started');
 }));
