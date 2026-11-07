@@ -14,6 +14,7 @@ import { computedReturnArgs } from '../../../../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
+  closePassingMainReds,
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
@@ -170,6 +171,8 @@ async function nextWithProgress(io, values, progress) {
     const selectionValues = redClaims.length
       ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
       : values;
+    // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
+    await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
     if (found.context) ctx = found.context;

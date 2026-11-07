@@ -9,7 +9,6 @@ import { startFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { FIXTURE_MODEL } from "./e2e-helpers.js";
 import { after, test } from 'node:test';
 import { closeBoard, getItem } from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
@@ -20,6 +19,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../packages/verify/index.js';
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { fixtureAddArgv } from './testkit-fixture.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -119,7 +119,7 @@ function project({ gate = 'true', content = 'green', commit = true, worktrees = 
 function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane, '--model', FIXTURE_MODEL, '--route', 'strong']);
+  const joined = box.run(path, ['join', lane, '--model', 'claude-opus-5-5']);
   assert.equal(joined.status, 0, joined.stderr);
   return path;
 }
@@ -219,7 +219,7 @@ test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', 
   const box = project({ content: 'committed' });
   const held = heldCheck(box, 'add-checkout-release');
   box.env.CODEX_THREAD_ID = 'baseline-add-wait-fixture';
-  const child = startFixtureChild(process.execPath, [BIN, 'add', 'web', 'Wait without checkout lock', '--check', held.command, '--wait', '--json'],
+  const child = startFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Wait without checkout lock', '--check', held.command, '--wait', '--json'],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; child.stdout.on('data', chunk => { stdout += chunk; });
   const done = new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));

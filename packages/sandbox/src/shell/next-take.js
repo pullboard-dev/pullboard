@@ -69,7 +69,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
  * Close open Main red items whose test the newest recorded main run shows passing, so no builder claims them. The closing
  * goes through the ordinary withdraw move as the coordinator and cites the recorded run; it adds no test run.
  */
-async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
+export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
   if (!passingMainRedItems) return;
   const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
   if (!passing.length) return;
@@ -77,7 +77,7 @@ async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withB
     const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));
     for (const row of passing.filter(entry => open.has(entry.item))) {
       await ordered(ctx, board, 'withdraw', [row.item, { agentId: COORDINATOR,
-        reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); closed without a builder` }]);
+        reason: `${row.file} already passes on main ${row.main.slice(0, 12)} (recorded run ${row.receiptId}); fixed by the landing ${(row.turnedGreen ?? row.main).slice(0, 12)}${row.landing ? ` "${row.landing}"` : ''} that turned it green; closed without a builder` }]);
     }
   });
 }
