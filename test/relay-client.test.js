@@ -1163,7 +1163,7 @@ async function recoverReplicaReplies(fixture, timing) {
   const lostEditBrief = join(clones[0], 'lost-edit-brief.md');
   writeFileSync(lostEditBrief, 'Files: web/README.md\nTest: the original edit is recovered once.\n');
   const beforeEdit = relay.uploads.length;
-  relay.dropNextReply({ offline: true });
+  relay.dropNextReply({ offline: true, operation: 'editItem', item: 1, key, boardId });
   const lostEdit = await timing.wait('edit item 1 with its relay reply dropped', () => cliResult(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief));
   assertDroppedReplyConsumed(relay, 'the lost item-1 edit reply');
   assert.equal(lostEdit.document.error.code, 'RELAY_UNAVAILABLE');
@@ -1172,7 +1172,7 @@ async function recoverReplicaReplies(fixture, timing) {
   rmSync(lostEditBrief);
   const editRetry = await timing.wait('retry the original edit after its brief file is removed', () => cli(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief));
   assert.equal(editRetry.item.item_brief, 'Files: web/README.md\nTest: the original edit is recovered once.');
-  assert.deepEqual((await Promise.all(relay.uploads.slice(beforeEdit).map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence }))).operation))).filter(operation => operation === 'edit'), ['edit'], 'edit retries recover the original receipt after its brief disappears, never a second edit');
+  assert.deepEqual((await Promise.all(relay.uploads.slice(beforeEdit).map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence }))).operation))).filter(operation => operation === 'editItem'), ['editItem'], 'edit retries recover the original receipt after its brief disappears, never a second edit');
 
   const lostRef = 'lost-merge-reference';
   gitAt(clones[0], envs[0], 'merge', '--ff-only', originalCommit);
