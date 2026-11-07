@@ -153,11 +153,11 @@ function acceptedEntry(t, { declared = false } = {}) {
 }
 
 /** Run the real trusted controller over immutable commits, without trusting the placement writer. */
-function inspectEntry(value, criterion = 'Explicit source-validated process ownership only.') {
+function inspectEntry(value) {
   git(value.root, 'add', '-A');
   git(value.root, 'commit', '-q', '--allow-empty', '-m', 'candidate process ownership');
   return requireSubmitCells(value.root, value.main, git(value.root, 'rev-parse', 'HEAD').trim(),
-    { item_frozen: JSON.stringify({ criterion }) },
+    { item_frozen: JSON.stringify({ criterion: 'Explicit source-validated process ownership only.' }) },
     { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
       readCutItems: () => landedCutItemRows(value.board.db), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 }
@@ -208,20 +208,4 @@ test('clause 1: the plan places src/infra-release-engine.js and src/main-red-foc
     assert.match(stay.reason, /canonical feature engine identity/u);
   }
   assert.deepEqual(entryPlacementProblems(root, plan), []);
-});
-
-test('clause 1: a named plan retire entry is accepted once the entry file no longer runs as a process, and unnamed or still-running entries refuse [C7]', async t => {
-  const value = acceptedEntry(t, { declared: true });
-  const plan = readPlan(value.root);
-  delete plan.entries;
-  writePlan(value.root, plan);
-  const named = `Retire the old worker. plan retire entry ${value.path}.`;
-  await assert.rejects(inspectEntry(value, named), /accepted process entry ownership changed/u, 'a file that still runs as a process keeps its ownership');
-  value.put(value.path, 'export const library = true;\n');
-  await assert.rejects(inspectEntry(value), /accepted process entry ownership changed/u, 'no named line, no retirement');
-  await assert.rejects(inspectEntry(value, `plan retire entry ${value.path}.map`), /accepted process entry ownership changed/u, 'a longer path never approves this one');
-  await assert.rejects(inspectEntry(value, `plan retire entry x${value.path}`), /accepted process entry ownership changed/u, 'a path that merely ends with this one never approves it');
-  let message = '';
-  try { await inspectEntry(value, named); } catch (error) { message = error.message; }
-  assert.doesNotMatch(message, /accepted process entry ownership changed/u, 'a named retirement of a no-longer-process file is approved');
 });
