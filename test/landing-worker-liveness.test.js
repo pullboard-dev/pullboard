@@ -22,7 +22,7 @@ const dueAt = '2099-01-01T00:00:00.000Z';
 /** Read only this fixture's private wake record; it is not a board proof receipt. */
 function pending(root) { return JSON.parse(readFileSync(join(automaticLandingDirectory(root), 'pending.json'), 'utf8')); }
 
-test('a dead landing worker mid-batch is replaced and the adoption names its pid and the gap [C7]', async t => {
+test('clause 1, clause 2: a dead landing worker mid-batch is replaced and the adoption names its pid and the gap [C7]', async t => {
   const root = fixture(t), schedule = async () => {}, timers = [];
   await scheduleAutomaticLanding(root, dueAt, worker, { schedule });
   const file = join(automaticLandingDirectory(root), 'pending.json');
