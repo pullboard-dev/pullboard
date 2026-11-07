@@ -197,6 +197,20 @@ function readItem(box, id) {
   finally { store.closeBoard(board); }
 }
 
+/**
+ * Shape a current export for an archived client, which predates the additive job tables.
+ *
+ * Why: 7d16c88b1f added job and job_step on open, and old exchange.js refuses any table it does not know.
+ * The fixture boards hold no jobs, so dropping the empty tables hands the old client the same board.
+ * @param {any} snapshot
+ * @returns {any}
+ */
+function legacySnapshot(snapshot) {
+  const { job = [], job_step: jobStep = [], ...tables } = snapshot.tables;
+  assert.deepEqual([job.length, jobStep.length], [0, 0], 'the replayed fixture board holds no jobs');
+  return { ...snapshot, tables };
+}
+
 /** Accepted engine-9 source before verified-item reopening; the 0.8.8 tag is not yet published. */
 const engine9Source = '314ef28751c44c96186b337cc4ace0fd8bf33d42';
 
@@ -237,7 +251,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
     const legacyExchange = await import(pathToFileURL(join(oldDirectory, 'src/exchange.js')).href);
     const legacyReceiver = legacyStore.openBoard(join(directory, 'legacy.sqlite'));
     t.after(() => legacyStore.closeBoard(legacyReceiver));
-    legacyExchange.importBoard(legacyReceiver, snapshot);
+    legacyExchange.importBoard(legacyReceiver, legacySnapshot(snapshot));
     assert.equal((await import(pathToFileURL(join(oldDirectory, 'src/machine.js')).href)).ENGINE_VERSION, version);
     const legacyBefore = legacyStore.getItem(legacyReceiver, item.id);
     const legacyResult = legacyEngine.applyRelayMove(legacyReceiver, move, receipt);
@@ -304,7 +318,10 @@ test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V
   assert.equal(item.item_verified_by, null);
   assert.equal(item.item_review_by, null, 'the old review reservation is cleared without a release/cooldown');
   assert.deepEqual(store.stats(board), {
-    items: { open: 1, claimed: 0, submitted: 0, verified: 0, withdrawn: 0 }, accepted: 0, rejected: 0,
+    items: { open: 1, claimed: 0, submitted: 0, verified: 0, withdrawn: 0 },
+    // c85ddac55a (pipeline stages) added the named stages beside the status counts.
+    stages: { open: 1, building: 0, 'in the gate': 0, 'back with builder': 0, 'in review': 0, accepted: 0, landed: 0, withdrawn: 0 },
+    accepted: 0, rejected: 0,
   });
   const last = store.events(board).at(-1);
   assert.equal(last.event_kind, 'reopen');
@@ -746,7 +763,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     const legacyReceiver = legacyStore.openBoard(join(box.dir, `engine-${version}-reopen.sqlite`));
     t.after(() => legacyStore.closeBoard(legacyReceiver));
     const submittedSnapshot = exportBoard(copies[0]);
-    legacyExchange.importBoard(legacyReceiver, submittedSnapshot);
+    legacyExchange.importBoard(legacyReceiver, legacySnapshot(submittedSnapshot));
     assert.throws(() => legacyEngine.applyRelayMove(legacyReceiver, move, {
       sequence: 1, at: '2026-10-10T12:00:00.000Z', kind: 'move', sender,
     }), (error) => error.code === 'ENGINE_VERSION');
@@ -934,7 +951,7 @@ test('clause 3: retained main controls builder first refusal during detached rev
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), main);
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder')).code, 0);
+  assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder', '--route', 'strong')).code, 0);
   // db3dba1506 (#2779, reopen rejects to every eligible seat) dropped the builder hold on purpose: a second builder's
   // claim on the returned item is no longer refused REOPEN_HELD_FOR_BUILDER.
   const claimedOther = await command(other, 'claim', '1', '--json');
