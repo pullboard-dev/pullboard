@@ -27,6 +27,9 @@ test('clause 1: each pattern is flagged and a clean file is not [C7]', () => {
   assert.deepEqual(kinds("git(dir, ['init', '-q']);"), ['tempdir']);
   assert.deepEqual(kinds("run(dir, 'add', 'Title');"), ['raw-cli']);
   assert.deepEqual(kinds("run(dir, 'join', 'core');"), ['raw-cli']);
+  assert.deepEqual(kinds("box.run('lane', 'add', 'web', '--owns', 'web/');"), []);
+  assert.deepEqual(kinds("fixtureAdd(box.run, box.repo, 'web', 'Title'); fixtureJoin(box.run, dir, 'core');"), []);
+  assert.deepEqual(kinds("spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Title']);"), []);
   assert.deepEqual(kinds("run(dir, ['join', 'core', '--model', 'claude-x']);"), ['model']);
   assert.deepEqual(kinds("const env = { PULLBOARD_MODEL: 'gpt-x' };"), ['model']);
   assert.deepEqual(kinds("const text = readFileSync(join(import.meta.dirname, '../SPEC.md'), 'utf8');"), ['repo-read']);
