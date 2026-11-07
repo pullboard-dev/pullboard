@@ -5,10 +5,13 @@ export { workFreeReleases, readWorkFreeReleases } from './src/core/work-free-rel
 export { buildTimeStats, buildTimeLines } from './src/core/stats-build-time.js';
 export {
   nativeToolCallIds,
+  nativeLastPrompt,
 } from './src/core/exit-rules-calls.js';
 export {
   repeatedExitFailure,
   exitRulesDecision,
+  contextCeiling,
+  exitContextDecision,
 } from './src/core/exit-rules-policy.js';
 export {
   replayHistory,
