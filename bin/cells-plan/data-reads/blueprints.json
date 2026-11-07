@@ -640,14 +640,14 @@
     },
     {
       "file": "test/submit-gate-fixture.js",
-      "line": 70,
+      "line": 79,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 678,
+      "line": 681,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -693,6 +693,34 @@
       "expression": "join(trusted.box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
+    },
+    {
+      "file": "test/submit-gate-selection.test.js",
+      "line": 182,
+      "expression": "resolve(box.root, log)",
+      "kind": "marker",
+      "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
+    },
+    {
+      "file": "test/submit-gate-selection.test.js",
+      "line": 424,
+      "expression": "stamp",
+      "kind": "marker",
+      "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
+    },
+    {
+      "file": "test/submit-gate-selection.test.js",
+      "line": 587,
+      "expression": "mandatory.marker",
+      "kind": "marker",
+      "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
+    },
+    {
+      "file": "test/submit-gate-selection.test.js",
+      "line": 634,
+      "expression": "named.marker",
+      "kind": "marker",
+      "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
       "file": "test/submit-note-single-line.test.js",
