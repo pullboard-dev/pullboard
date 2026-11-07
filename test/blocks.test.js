@@ -140,7 +140,9 @@ async function apiNeeds(api, root) {
   return { needs: state.needs.filter(row => row.kind === 'block'), blocks: state.blocks };
 }
 
-test('a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', async (t) => {
+test('a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', {
+  timeout: 240_000, // budget: about 60 real CLI subprocess spawns on a loaded runner (89 s green, 174 s red at load 19), never a hang allowance.
+}, async (t) => {
   const box = e2e.project();
 
   // A person-only move from an agent's terminal: the person, not the agent, can clear it.
@@ -212,7 +214,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.deepEqual(report.blocks.drafts.map(draft => draft.cause), ['refusal:COORDINATOR_ONLY', 'refusal:TOKEN_EXPIRED']);
   const [draft] = report.blocks.drafts;
   assert.equal(draft.title, 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY');
-  const text = box.run(box.repo, 'health').out;
+  const text = box.run(box.repo, 'health', '--detail').out;
   assert.match(text, /^ {2}COORDINATOR_ONLY 3x on pullboard hold, stopped web-1; the coordinator clears it: ask the coordinator/mu);
   assert.match(text, /^ {2}repeated, draft an item: pullboard add coordinator 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY'/mu);
 
