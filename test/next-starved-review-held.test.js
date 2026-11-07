@@ -45,14 +45,14 @@ test('clause 3: a seat holding one claim and a seat holding two each get the sta
   box.advance(11 * 60_000);
 
   for (const [seat, kept] of [[box.seats.actor, one], [box.seats.outside, first]]) {
-    const offered = await cli(box, seat.path, ['next']);
+    const offered = await cli(box, seat.path, ['next', '--wait', '0']);
     assert.equal(offered.code, 0, offered.out + offered.err);
     assert.equal(offered.document.item.item_id, waiting, 'the starved review comes before the held build');
     assert.equal(offered.document.review, true);
     assert.equal(offered.document.buildHeld, true);
     assert.equal(offered.document.build.item_id, kept);
   }
-  const said = await main(box, box.seats.actor.path, ['next']);
+  const said = await main(box, box.seats.actor.path, ['next', '--wait', '0']);
   assert.match(said, /waited over 5 minutes without a reviewer/u);
   assert.match(said, new RegExp(`build #${one} stays held with its lease and folder; after the verdict, pullboard next resumes it`, 'u'));
   assert.deepEqual({ one: holding(box, box.seats.actor, one), first: holding(box, box.seats.outside, first), second: holding(box, box.seats.outside, second) },
@@ -77,7 +77,7 @@ test('a review waiting under the limit is not offered to a seat that holds a cla
   await claimed(box, box.seats.actor, one);
   const before = holding(box, box.seats.actor, one);
   box.advance(4 * 60_000);
-  const next = await cli(box, box.seats.actor.path, ['next']);
+  const next = await cli(box, box.seats.actor.path, ['next', '--wait', '0']);
   assert.equal(next.code, 0, next.out + next.err);
   assert.equal(next.document.item.item_id, one, 'the held build resumes; the fresh review waits for a free seat');
   assert.equal(next.document.review, false);
