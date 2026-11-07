@@ -7,6 +7,9 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { fileFixtureItem } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { maintainStaleState } from '../packages/store/index.js';
 import { staleStateLimits } from '../packages/store/index.js';
@@ -87,6 +90,12 @@ async function terminal(box, id) {
  * bound to the rule's content, so a real probe submit records that identity first and the ledger is then aged.
  */
 async function enforcePlacement(box) {
+  // A queued gate reads only a completed accepted-cells inventory and ends as infrastructure when main's is cold, so the
+  // fixture's own producer run finishes it first (the real producer is a background process the fixture never starts); same as #2934's probe.
+  const previousHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
+  try { await warmAcceptedCells(box.repo, box.git(box.repo, 'rev-parse', 'main'), { withCheckout: withMainCheckout, withLock: withFileLock }); }
+  finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
   const probe = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cells cut: placement trial probe',
     criterion: 'Cells cut: probe the placement trial [test]', args: ['--specs', 'G1'], wait: true, diagnose: false }).item_id;
   box.ids.push(probe);
