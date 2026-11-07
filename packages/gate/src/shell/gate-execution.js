@@ -201,11 +201,12 @@ export function safeLog(output) {
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
- * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
+ * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
  */
-function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal, pinnedSource } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
-  const timingSourceBefore = stages ? timingSourceForReceipt(root) : null;
+  // A pinned runner source is the exact commit the runner received, never this checkout's HEAD [C7,#3323].
+  const timingSourceBefore = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
@@ -249,7 +250,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     // The controller cannot realpath remote files; retain the network denial signal without treating remote paths as local paths.
     ? sandboxBlockedOperation(root, run.output, { includeFilePaths: false })
     : sandboxBlockedOperation(root, run.output));
-  const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? headCommit(root),
+  const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? pinnedSource?.head ?? headCommit(root),
     readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
   const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
   if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
@@ -258,7 +259,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
-  const timingSourceAfter = stages ? timingSourceForReceipt(root) : null;
+  const timingSourceAfter = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
   const executionSource = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
   const accountingSource = sameTimingSource(timingSourceBefore, timingSourceAfter)
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
@@ -523,10 +524,19 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
   });
 }
 
-/** Run the accepted exact-file main comparison and seal only its own observed execution duration. */
-export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture } = {}) {
+/**
+ * Run the accepted exact-file main comparison and seal only its own observed execution duration. A `source` of
+ * `{head, tree}` runs that exact commit on the admitted runner from this repository's objects, so `root` may be any
+ * checkout of the repository and its HEAD is never read [C7,#3323].
+ */
+export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture, source } = {}) {
   if (gateLease && signatureCapture) gateLease.signatureCapture = signatureCapture;
-  const before = timingSourceForReceipt(root);
+  // A pinned source is main's exact commit, sent to a runner from the object store; only a runner can run it [C7,#3323].
+  if (source && (!gateLease?.runner || gateLease.source?.pinned !== true || gateLease.source.commit !== source.head || gateLease.source.tree !== source.tree)) {
+    throw new Refused('RUNNER_SOURCE', 'a pinned main comparison needs its runner slot admitted for the same commit; retry the comparison');
+  }
+  const pinnedSource = source ? { head: source.head, tree: source.tree } : undefined;
+  const before = pinnedSource ?? timingSourceForReceipt(root);
   const policy = before && policyAt(root, before.head);
   if (!policy || typeof policy.config.affectedTests !== 'string' || !policy.config.affectedTests.trim()
     || typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..')) {
@@ -535,13 +545,13 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
   const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
   const command = `PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`;
   const started = performance.now();
-  const run = detailed ? runProfiledShell(root, command, { gateLease, waitMs, stages: true })
-    : await runProfiledShellAsync(root, command, { gateLease, waitMs });
+  const run = detailed ? runProfiledShell(root, command, { gateLease, waitMs, stages: true, pinnedSource })
+    : await runProfiledShellAsync(root, command, { gateLease, waitMs, pinnedSource });
   const compareMs = performance.now() - started;
-  const after = timingSourceForReceipt(root);
+  const after = pinnedSource ?? timingSourceForReceipt(root);
   const receiptId = sameTimingSource(before, after) && !run.sandboxBlocked
     ? leaveRunReceipt(root, { gate: command }, run, { before: before.tree, kind: 'main-red',
-      comparison: { path, source: before, compareMs }, gateLease, receiptAt: new Date().toISOString() }) : null;
+      comparison: { path, source: before, compareMs, pinned: Boolean(pinnedSource) }, gateLease, receiptAt: new Date().toISOString() }) : null;
   return { ...run, ...(receiptId ? { receiptId } : {}) };
 }
 
@@ -562,7 +572,10 @@ export async function recordRun(observer, run) {
  */
 function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt, comparison, gateLease }) {
   try {
-    if (before === null || committedTree(root) !== before || run.executionSourceUnchanged === false) return null;
+    // A pinned comparison's tree is the one the runner signed for, so its receipt binds that, not this checkout [C7,#3323].
+    const pinned = kind === 'main-red' && comparison?.pinned === true;
+    if (pinned && (run.executionSource?.commit !== comparison.source.head || run.executionSource?.tree !== before)) return null;
+    if (before === null || !pinned && committedTree(root) !== before || run.executionSourceUnchanged === false) return null;
     const head = kind === 'main-red' ? comparison?.source.head : headCommit(root);
     const policy = kind === 'main-red' ? policyAt(root, head)
       : auditBatchId === undefined && !releaseRequest ? mainPolicy(root) : policyAt(root, head);
@@ -572,7 +585,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       : kind === 'suite' ? 'node ./bin/run-tests.js'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store
-      || kind === 'main-red' && !sameTimingSource(comparison?.source, timingSourceForReceipt(root))) return null;
+      || kind === 'main-red' && !pinned && !sameTimingSource(comparison?.source, timingSourceForReceipt(root))) return null;
     const failures = new Map();
     for (const row of rawRunGreen(run) ? [] : tapTests(run.output ?? '', run.executionRoot ?? root)) {
       if (row.passed || row.skip || row.type === 'suite' || ['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType)) continue;
