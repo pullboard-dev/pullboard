@@ -24,9 +24,9 @@ const files = privateFixtureFiles('pullboard-tooling-reuse-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** A repo whose one commit is also the landed tooling, so the pin names its tree. */
-function pinnedRepo() {
-  const repo = join(files.root, 'repo');
-  files.write('repo/tool.txt', 'tooling\n');
+function pinnedRepo(name = 'repo') {
+  const repo = join(files.root, name);
+  files.write(`${name}/tool.txt`, 'tooling\n');
   runFixtureGit(['-C', repo, 'init', '-q']);
   runFixtureGit(['-C', repo, 'config', 'user.email', 'pin@example.test']);
   runFixtureGit(['-C', repo, 'config', 'user.name', 'Pin Test']);
@@ -71,7 +71,7 @@ test('clause 1: the tooling folder is named by tree id and refuses an id that is
 });
 
 test('clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async () => {
-  const { repo, tooling, bundle } = pinnedRepo();
+  const { repo, tooling, bundle } = pinnedRepo('repo-b');
   const { transport, runner } = localRunner('runner-b');
   await ensureTooling(transport.connect(runner), { tree: tooling, bundle });
   const board = openBoard(join(files.root, 'board.sqlite'));
