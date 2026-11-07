@@ -180,7 +180,8 @@ export function proofFields(value) {
   const hasTestRuntimes = Object.hasOwn(value, 'testRuntimes');
   const testRuntimes = hasTestRuntimes ? testRuntimeRows(value.testRuntimes) : null;
   if (hasTestRuntimes && value.testRuntimes !== null && testRuntimes === null) return null;
-  const actualEnvironment = hasTestRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
+  // Captured test workers outrank the executor; a run with none (testRuntimes null) keeps the observed executor [C7,#2662].
+  const actualEnvironment = testRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
   const names = ['passed', 'failed', 'skipped'];
   if (!value.counts || !names.every(name => value.counts[name] === null
     || Number.isSafeInteger(value.counts[name]) && value.counts[name] >= 0)) return null;
