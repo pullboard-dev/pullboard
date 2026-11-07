@@ -256,7 +256,7 @@ const claCommit = (login, parents = ['p']) => ({ sha: 'abcdef012345', login, par
 const claComment = (login, body) => ({ login, body, id: 1, url: 'https://example.test/c/1', created_at: '2026-11-06T00:00:00Z' });
 const claSigned = { exempt: ['maintainer'], signatures: [{ login: 'alice', id: 1, comment_url: 'u', agreed_at: 't', cla_sha256: 'h' }] };
 
-test('clause 1: the CLA workflow runs on pull requests and PR comments with only checkout and setup-node', () => {
+test('clause 1: the CLA workflow runs on pull requests and PR comments with only checkout and setup-node [C7]', () => {
   assert.match(CLA_WORKFLOW, /^name: CLA\n/u);
   assert.match(CLA_WORKFLOW, /\n {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]\n {2}issue_comment:\n {4}types: \[created\]\n/u);
   assert.match(CLA_WORKFLOW, /github\.event\.issue\.pull_request/u, 'comments on plain issues are skipped');
@@ -269,31 +269,31 @@ test('clause 1: the CLA workflow runs on pull requests and PR comments with only
   assert.doesNotMatch(CLA_WORKFLOW, /contents: write/u);
 });
 
-test('clause 2: check-cla passes for a listed signer', (t) => {
+test('clause 2: check-cla passes for a listed signer [C7]', (t) => {
   const result = runCla(t, { commits: [claCommit('alice')], comments: [] }, claSigned);
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('clause 2: check-cla passes for the exact comment and for exempt authors', (t) => {
+test('clause 2: check-cla passes for the exact comment and for exempt authors [C7]', (t) => {
   const result = runCla(t, { commits: [claCommit('bob'), claCommit('maintainer'), claCommit('bob', ['a', 'b'])],
     comments: [claComment('bob', `  ${CLA_SENTENCE}\n`)] }, claSigned);
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('clause 2: check-cla fails naming the login for a near-miss comment', (t) => {
+test('clause 2: check-cla fails naming the login for a near-miss comment [C7]', (t) => {
   const result = runCla(t, { commits: [claCommit('bob')], comments: [claComment('bob', 'I have read CLA.md and I agree to it')] }, claSigned);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bob/u);
   assert.ok(result.stderr.includes(CLA_SENTENCE), 'the failure quotes the exact sentence');
 });
 
-test('clause 2: check-cla fails naming the login for a comment by a different person', (t) => {
+test('clause 2: check-cla fails naming the login for a comment by a different person [C7]', (t) => {
   const result = runCla(t, { commits: [claCommit('bob')], comments: [claComment('carol', CLA_SENTENCE)] }, claSigned);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bob/u);
 });
 
-test('clause 2: check-cla fails naming a second unsigned co-author and a commit with no login', (t) => {
+test('clause 2: check-cla fails naming a second unsigned co-author and a commit with no login [C7]', (t) => {
   const result = runCla(t, { commits: [claCommit('bob'), claCommit('dave'), claCommit(null)],
     comments: [claComment('bob', CLA_SENTENCE)] }, claSigned);
   assert.notEqual(result.status, 0);
@@ -302,7 +302,7 @@ test('clause 2: check-cla fails naming a second unsigned co-author and a commit 
   assert.match(result.stderr, /no GitHub login/u);
 });
 
-test('clause 3: the workflow events and allowed actions, a listed signer and an exact comment pass, and a near-miss, another person and a second unsigned co-author fail with the login named', (t) => {
+test('clause 3: the workflow events and allowed actions, a listed signer and an exact comment pass, and a near-miss, another person and a second unsigned co-author fail with the login named [C7]', (t) => {
   assert.match(CLA_WORKFLOW, /\n {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]\n {2}issue_comment:\n {4}types: \[created\]\n/u);
   const used = [...CLA_WORKFLOW.matchAll(/^\s*-\s+uses: ([^\s]+)/gmu)].map((m) => m[1].split('@')[0]);
   assert.deepEqual([...new Set(used)].sort(), ['actions/checkout', 'actions/setup-node']);
@@ -320,7 +320,7 @@ test('clause 3: the workflow events and allowed actions, a listed signer and an 
   assert.match(second.stderr, /dave/u, 'a second unsigned co-author fails naming the login');
 });
 
-test('a landing appends a signer entry with the CLA hash', async (t) => {
+test('a landing appends a signer entry with the CLA hash [C7]', async (t) => {
   const { appendSignatures } = await import('../bin/check-cla.js');
   const fixture = privateFixtureFiles('cla-land-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
