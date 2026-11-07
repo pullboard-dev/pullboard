@@ -30,18 +30,20 @@ import {
 } from './team-scenarios.fixture.js';
 import { join } from 'node:path';
 
-test('a checkout or trunk moving during verification cannot acquire proof [E8]', () => {
+test('clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', () => {
   const box = helpers.project();
   const reviewer = join(box.dir, 'moving-reviewer');
   const moveHead = join(box.dir, 'move-review-head');
   const moveMain = join(box.dir, 'move-review-main');
   const baseline = box.git(box.repo, 'rev-parse', 'main');
-  const check = `grep -q '^feature = 1$' web/feature.js && if test -f '${moveHead}'; then git -C '${reviewer}' checkout -q --detach '${baseline}'; fi && if test -f '${moveMain}'; then git -C '${box.repo}' commit -q --allow-empty -m 'chore: move review trunk [G1]'; fi`;
-  run(box, box.repo, 'add', 'web', 'Moving review', '--specs', 'G1', '--check', check, '--wait');
+  const check = `grep -q '^feature = 1$' web/feature.js && if test -f '${moveHead}'; then git -C '${reviewer}' checkout -q --detach '${baseline}'; fi && if test -f '${moveMain}'; then mkdir -p '${box.repo}/web' && printf 'feature = 1\\n' > '${box.repo}/web/feature.js' && git -C '${box.repo}' add web/feature.js && git -C '${box.repo}' commit -q -m 'chore: move review trunk [G1]'; fi`;
+  run(box, box.repo, 'add', 'web', 'Moving review', '--specs', 'G1', '--check', check, '--brief', 'Files: web/feature.js\nTest: the frozen check', '--criterion', 'The feature matches the caller.', '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\n', 'feat(web): moving review feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   run(box, box.web, 'submit', '1');
+  // Main moving after the submit makes its proof unreusable, so the review runs the frozen check itself.
+  box.git(box.repo, 'commit', '--allow-empty', '-q', '-m', 'chore: main moves after the submit');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   run(box, reviewer, 'join', 'web');
   writeFileSync(moveHead, 'armed');
@@ -52,6 +54,7 @@ test('a checkout or trunk moving during verification cannot acquire proof [E8]',
   assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), []);
   rmSync(moveHead);
   box.git(reviewer, 'checkout', '-q', '--detach', submitted);
+  const preMove = box.git(box.repo, 'rev-parse', 'main');
   writeFileSync(moveMain, 'armed');
   const mainMoved = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The check moved the known main.');
   assert.equal(mainMoved.code, 1, mainMoved.out + mainMoved.err);
@@ -59,17 +62,20 @@ test('a checkout or trunk moving during verification cannot acquire proof [E8]',
   assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), baseline);
   assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), []);
   rmSync(moveMain);
+  // The moved trunk added the item's file itself: it merges, but the reviewed patch no longer composes unchanged,
+  // so verify refuses VERDICT_TRUNK_MOVED. Put main back to run the review again.
+  box.git(box.repo, 'reset', '-q', '--hard', preMove);
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The candidate and known trunk stayed fixed through the complete frozen check.');
   assert.equal(withBoard(box.repo, board => store.verdictsFor(board, 1)).length, 1);
 });
 
-test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
+test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
   const box = helpers.project();
   const source = (feature, expected) => `feature = ${feature}\n${'// independent caller line\n'.repeat(12)}expected = ${expected}\n`;
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 1), 'feat(web): baseline caller [G1]').status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const check = `test "$(sed -n 's/^feature = //p' web/feature.txt)" = "$(sed -n 's/^expected = //p' web/feature.txt)"`;
-  run(box, box.repo, 'add', 'web', 'Repair follows its review', '--specs', 'G1', '--check', check, '--wait');
+  run(box, box.repo, 'add', 'web', 'Repair follows its review', '--specs', 'G1', '--check', check, '--brief', 'Files: web/feature.js\nTest: the frozen check', '--criterion', 'The feature matches the caller.', '--wait');
   run(box, box.web, 'claim', '1');
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.txt', source(1, 1), 'feat(web): original feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
@@ -79,9 +85,10 @@ test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', 
   run(box, reviewer, 'join', 'web');
   run(box, reviewer, 'verify', '1', 'accept', '--note', 'The original feature matches the original caller.');
   const original = withBoard(box.repo, board => store.verdictsFor(board, 1));
-  assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 2), 'feat(web): caller now requires two [G1]').status, 0);
+  assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 2).replace('feature = 0\n', 'feature = 0\n// the caller reads this beside the feature\n'), 'feat(web): caller now requires two [G1]').status, 0);
+  // Main inserts directly beside the line the item changed: the patch no longer merges cleanly, so the accept is stale [#2896].
   assert.equal(JSON.parse(run(box, box.repo, 'show', '1', '--json')).item_verdict_state?.code, 'STALE_VERDICT');
-  box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
+  box.git(reviewer, 'merge', '-q', '--no-edit', '-X', 'theirs', 'main');
   assert.equal(helpers.commitFile(box, reviewer, 'web/feature.txt', source(2, 2), 'feat(web): repair against the new caller [G1]').status, 0);
   assert.equal(helpers.commitFile(box, reviewer, 'web/repair.txt', 'ready\n', 'feat(web): add the repair companion [G1]').status, 0);
   const checked = box.git(reviewer, 'rev-parse', 'HEAD');
@@ -108,13 +115,13 @@ test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', 
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_commit, submitted, 'the original submission remains the immutable item identity');
 });
 
-test('an older pushed landing shows stale checked proof and a correction path across public views [E8,H16,R3]',
+test('clause 2: an older pushed landing shows stale checked proof and a correction path across public views [E8,H16,R3]',
   { timeout: 120_000 }, async t => { // budget: hang ceiling for real Git, private push and CLI verification; not a speed target.
     const box = helpers.project();
     assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', 'feature = 0\n', 'feat(web): legacy landing base [G1]').status, 0);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const base = box.git(box.repo, 'rev-parse', 'HEAD');
-    run(box, box.repo, 'add', 'web', 'Legacy landing review', '--specs', 'G1', '--check', 'test -f web/feature.txt', '--wait');
+    run(box, box.repo, 'add', 'web', 'Legacy landing review', '--specs', 'G1', '--check', 'test -f web/feature.txt', '--brief', 'Files: web/feature.txt\nTest: the frozen check', '--criterion', 'web/feature.txt exists.', '--wait');
     run(box, box.web, 'claim', '1');
     assert.equal(helpers.commitFile(box, box.web, 'web/feature.txt', 'feature = 1\n', 'feat(web): legacy pushed feature [G1]').status, 0);
     const submitted = box.git(box.web, 'rev-parse', 'HEAD');
