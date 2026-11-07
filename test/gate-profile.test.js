@@ -24,8 +24,31 @@ const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. |
 const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
 const FAKE_SECRET = 'ghp_' + 'A'.repeat(36);
 
-/** Remove every fixture directory, letting rmSync retry for about 30 s while a detached submit handoff worker finishes writing its last files. */
-after(() => { for (const dir of TEMP) rmSync(dir, { recursive: true, force: true, maxRetries: 100, retryDelay: 300 }); });
+// budget: run-tests SIGKILLs a file that has not exited 30 s after its last test, so cleanup stops retrying well inside that ceiling.
+const CLEANUP_CEILING_MS = 15_000;
+
+/**
+ * Remove every fixture directory, retrying while a detached submit hand-off worker finishes its last writes.
+ * rmSync's own maxRetries backs off linearly (100 retries at 300 ms blocked far past the 30 s file-exit
+ * ceiling and the gate killed the file), so each attempt is short and the whole loop is bounded; a tree a
+ * worker still holds at the ceiling stays in the run's temporary root and is named on stderr.
+ */
+after(() => {
+  const deadline = Date.now() + CLEANUP_CEILING_MS;
+  for (const dir of TEMP) {
+    for (;;) {
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        break;
+      } catch (error) {
+        if (error.code !== 'ENOTEMPTY' && error.code !== 'EBUSY') throw error;
+        if (Date.now() < deadline) continue;
+        process.stderr.write(`gate-profile cleanup left ${dir}: ${error.code} at ${error.path ?? dir} after ${CLEANUP_CEILING_MS} ms\n`);
+        break;
+      }
+    }
+  }
+});
 
 /** Create an isolated CLI sandbox and real local Git helpers. */
 function sandbox() {
