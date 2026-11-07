@@ -29,6 +29,8 @@ import { testOutcomeCollector } from './test-outcomes.js';
 import { readTestFileBudgets } from './test-file-budget-policy.js';
 import { testFileRelative } from './test-file-budget-policy.js';
 import { testFileBudgetFailure } from '../core/test-file-budget.js';
+import { fileRuntimeCapRefusal } from './file-runtime-cap.js';
+import { readFileTimes } from './test-value-timing.js';
 import { repoInfo } from '../../../git/index.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
@@ -101,6 +103,7 @@ export function dispatchTestFiles(options, env) {
   let budgetRoot = cwd;
   try { budgetRoot = repoInfo(cwd).root; } catch { /* A non-repository test run uses the default limit. */ }
   const budgets = readTestFileBudgets(budgetRoot, files.map(file => resolve(cwd, file)));
+  const lastRuntimes = readFileTimes(budgetRoot);
   const limit = options.concurrency === false ? 1 : options.concurrency === true
     ? Math.max(1, availableParallelism() - 1) : options.concurrency ?? 1;
   const acquire = acquisitionQueue();
@@ -179,7 +182,8 @@ export function dispatchTestFiles(options, env) {
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
         const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
         const budget = budgets.get(portableFile);
-        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit);
+        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit)
+          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms, lastRuntimes, events));
         if (over) {
           process.stderr.write(`test file budget: ${over}\n`);
           events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
