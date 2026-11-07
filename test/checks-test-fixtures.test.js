@@ -10,9 +10,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  FIXTURE_HELPERS,
   fixtureProblems,
   fixtureSites,
 } from '../bin/checks/test-fixtures.js';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /** The kinds the scanner finds in one source, sorted and de-duplicated. */
 function kinds(source) {
@@ -58,4 +61,20 @@ test('clause 2: a test file one over its ceiling is refused [C7]', () => {
     assert.equal(refused[0].line, 2);
     assert.match(refused[0].text, /^raw-cli:/u);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+/** The repository root this test file lives in. */
+const REPO = fileURLToPath(new URL('..', import.meta.url));
+
+test('clause 1: the fixture check finds no site past its ceilings in this repository [C7]', () => {
+  assert.deepEqual(fixtureProblems(REPO), []);
+});
+
+test('clause 2: every helper path the check names exists in the tree and appears in its messages [C7]', () => {
+  for (const [kind, path] of Object.entries(FIXTURE_HELPERS)) {
+    assert.ok(existsSync(join(REPO, path)), `${kind} names ${path}, which must exist`);
+    const message = fixtureSites(kind === 'model' ? "x({ model: 'm' });" : kind === 'raw-cli' ? "box.run(box.repo, 'add', 'web');" : "mkdtempSync('x');", 'test/example.test.js')
+      .find(row => row.kind === kind)?.text ?? '';
+    assert.ok(message.includes(path), `${kind} message names ${path}`);
+  }
 });
