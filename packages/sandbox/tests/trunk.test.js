@@ -222,13 +222,17 @@ test('clause 1: [B34,V6,C7] clean divergent submit and accept preserve every che
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
   const submitted = box.run(box.web, 'submit', String(box.id));
   assert.equal(submitted.code, 0, submitted.err);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  // Submit composes current main into the builder source: the builder's own checkout gains one clean merge commit, the coordinator's is untouched.
+  const afterSubmit = [checkoutState(box, box.repo), checkoutState(box, box.web)];
+  assert.deepEqual(afterSubmit[0], before[0]);
+  assert.deepEqual({ ...afterSubmit[1], head: null, index: null }, { ...before[1], head: null, index: null });
+  assert.equal(box.git(box.web, 'rev-list', '--parents', '-n', '1', 'HEAD').split(' ')[1], before[1].head, 'the merge keeps the builder commit as its first parent');
   const review = mergeReviewer(box);
   const reviewBefore = checkoutState(box, review);
   const accepted = box.run(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
-  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
+  assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], afterSubmit);
 });
 
 test('[B34,V6] conflicting submit names files and refuses without changing any checkout or index', () => {
