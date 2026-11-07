@@ -188,10 +188,12 @@ function mergeCandidate(branch = 'trunk') {
 
 /** Capture the bytes and state a speculative merge must leave alone. */
 function checkoutState(box, cwd) {
+  // git status refreshes stat data in the index, so take it first and read the index bytes after it settles.
+  const status = box.git(cwd, 'status', '--porcelain');
   return {
     head: box.git(cwd, 'rev-parse', 'HEAD'),
     index: readFileSync(resolve(cwd, box.git(cwd, 'rev-parse', '--git-path', 'index'))).toString('base64'),
-    status: box.git(cwd, 'status', '--porcelain'),
+    status,
     staged: box.git(cwd, 'diff', '--cached', '--binary'),
     work: box.git(cwd, 'diff', '--binary'),
     result: readFileSync(join(cwd, 'web/result.txt'), 'utf8'),
@@ -237,7 +239,7 @@ test('[B34,V6] conflicting submit names files and refuses without changing any c
   assert.notEqual(refused.code, 0, refused.out + refused.err);
   assert.match(refused.err, /MERGE_CONFLICT/);
   assert.match(refused.err, /web\/result\.txt/);
-  assert.match(refused.err, /merge the trunk into your branch.*resubmit/);
+  assert.match(refused.err, /merge main into your branch.*run the command again/);
   assert.deepEqual([checkoutState(box, box.repo), checkoutState(box, box.web)], before);
   const shown = box.run(box.web, 'show', String(box.id), '--json');
   assert.equal(JSON.parse(shown.out).item_status, 'claimed', 'refusal leaves the claim available for a resolved new commit');
