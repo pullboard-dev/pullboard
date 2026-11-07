@@ -45,7 +45,7 @@ test('clause 3: reclaimLapsed returns taken jobs whose lease lapsed, 2 minutes a
   withBoard('reclaim', (db) => {
     for (const id of ['queued', 'live', 'silent']) createJob(db, { id, kind: 'gate', now: 0 });
     takeJob(db, 'live', 'a', { now: 50_000 });
-    takeJob(db, 'silent', 'a', { now: 0 });
+    takeJob(db, 'silent', 'a', { now: 1 });
     renewLease(db, 'silent', 'a', { now: 10_000 });
     assert.deepEqual(reclaimLapsed(db, { now: 10_000 + LEASE_MS }), [], 'at the lease end it is still held');
     const lapsed = reclaimLapsed(db, { now: 10_000 + LEASE_MS + 1 });
