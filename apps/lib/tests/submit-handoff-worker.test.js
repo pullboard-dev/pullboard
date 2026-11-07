@@ -191,7 +191,8 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   try { current = submitHandoff(currentBoard, id); }
   finally { currentBoard.db.close(); }
   assert.notEqual(current.id, orphan.id, 'the dead queue is closed before the same candidate gets a new identity');
-  assert.equal(current.state, 'queued');
+  // The replacement's detached worker starts at once, so by the time this read runs the job may already be running or finished.
+  assert.ok(['queued', 'running', 'green'].includes(current.state), `the replacement is a live job: ${current.state}`);
   const refusal = JSON.parse(readFileSync(join(orphanDirectory, 'refusal.json'), 'utf8'));
   assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_NOT_LAUNCHED');
   assert.match(refusal.error.message, /request\.json and worker\.json are missing/u);
