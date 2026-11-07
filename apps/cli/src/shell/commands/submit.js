@@ -748,9 +748,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
-  // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
+  // Independent stages start together; a red refuses immediately. A driven gate (ctx.runGateStages) records each stage [C7].
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
-  const stages = await runGateStages([
+  const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
       if (remoteMode) return runRemotePart('preflight', signal);
       return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
