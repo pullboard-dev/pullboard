@@ -90,7 +90,12 @@ export function runCommitCliSmoke(root, commit) {
   try {
     const archive = gitSpawnSync(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
-    if (unpacked.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${String(archive.stderr ?? unpacked.stderr).trim()}`);
+    if (unpacked.status !== 0) {
+      // Name the step that failed: git archive when it failed, else tar, whose error may be a spawn error with no stderr.
+      const tool = archive.status === 0 ? 'tar' : 'git archive';
+      const reason = String(unpacked.stderr ?? '').trim() || unpacked.error?.message || `exit ${unpacked.status ?? unpacked.signal}`;
+      throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${tool} failed: ${reason}`);
+    }
     return runLandingCliSmoke(directory);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }

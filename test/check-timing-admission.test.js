@@ -5,7 +5,8 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
+import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
 import { recentReceipts } from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
@@ -25,6 +26,7 @@ for (const timing of [true, false]) {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
     const box = helpers.project('true');
+    box.env.CODEX_THREAD_ID = 'timing-builder-session';
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
     mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
     writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
@@ -51,9 +53,14 @@ for (const timing of [true, false]) {
     assert.equal(submitReceipt.occupiedSlots, timing ? 2 : 1);
     assert.deepEqual(submitReceipt.unfencedClients, []);
     const head = box.git(box.web, 'rev-parse', 'HEAD');
+    // A moved main makes the submit proof unreusable, so verification runs the frozen check and writes its own review receipt.
+    writeFileSync(join(box.repo, 'main-moved.txt'), 'main moved\n');
+    box.git(box.repo, 'add', 'main-moved.txt');
+    box.git(box.repo, 'commit', '-q', '-m', 'test: move main after submit');
+    box.env.CODEX_THREAD_ID = 'timing-reviewer-session';
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(fixtureJoin(box.run, reviewer, 'api', '--json'));
+    document(fixtureJoin(box.run, reviewer, 'api', '--model', FIXTURE_MODEL, '--json'));
     const accepted = document(box.run(reviewer, 'verify', '1', 'accept', '--note', 'real timed admission observed', '--no-next', '--json'));
     assert.equal(accepted.decision, 'ACCEPT');
     const reviewReceipt = recentReceipts(box.repo).filter(row => row.kind === 'review').at(-1);
@@ -117,8 +124,6 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
-import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
   const board = fixtureBoard(t);
