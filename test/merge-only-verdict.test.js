@@ -312,7 +312,10 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
   try {
     importBoard(historical, pending.snapshot);
     const { gateGreen, mergeOnly, ...oldOptions } = options;
-    const move = prepareEngineMove(historical, 'submit', [id, oldOptions]);
+    const prepared = prepareEngineMove(historical, 'submit', [id, oldOptions]);
+    // A submit sealed before the merge-only engine cannot hold the clause and rename policy fields later engines added (clause inspection, #2711 era; strict renames, engine 221): drop them so the minimum engine is the one this replay claims.
+    const { clausePolicyCommit, inspectClauses, strictRenames, ...sealedThen } = prepared.args[1];
+    const move = { ...prepared, args: [prepared.args[0], sealedThen] };
     applyEngineMove(historical, { ...move, engine: MERGE_ONLY_VERDICT_ENGINE - 1 },
       { sequence: 1, at: '2026-01-01T00:00:00.000Z' });
     assert.equal(store.getItem(historical, id).item_status, 'submitted', 'historical submit replay never gains carry semantics');
