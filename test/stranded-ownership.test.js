@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
+import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
 import { runFixtureChild, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard, getItem, ownershipWaiting, submitHandoff, deferOwnership } from '../packages/store/index.js';
@@ -42,13 +43,13 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   const isolated = helpers.sandbox();
   const repo = join(isolated.dir, 'owner-repo'), builder = join(isolated.dir, 'owner-builder');
   mkdirSync(repo);
-  const env = { ...isolated.env, PULLBOARD_MODEL: 'Owner wait fixture model' };
+  const env = { ...isolated.env };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
   /** Use real Git with the fixture's isolated environment, including normal commit hooks after init. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8' });
   /** Run the candidate CLI only against this private board. */
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-  git(repo, 'init', '-q', '-b', 'main');
+  git(repo, ...['init', '-q', '-b', 'main']); // the repository is the fixture's own, before any hook exists
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, submit: { handoff },
     verify: { policy: 'any', family: 'off' }, lanes: { web: { owns: ['web/'], specs: ['G1'] } } }));
   writeFileSync(join(repo, 'SPEC.md'), '# Owner fixture\n\n## G · Goals\n- G1 [approved, must] Finished source reaches its owner. | gate: none\n');
@@ -63,8 +64,8 @@ function fixture(t, { gate = 'true', handoff = true } = {}) {
   assert.equal(initialized.status, 0, initialized.failure || initialized.stderr);
   git(repo, 'add', '-A'); git(repo, 'commit', '-q', '--allow-empty', '-m', 'chore: initialize owner fixture [G1]');
   const claimBase = git(repo, 'rev-parse', 'HEAD');
-  document(run(builder, 'join', 'web', '--model', 'Owner wait fixture model', '--json'));
-  const added = document(run(repo, 'add', 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
+  document(fixtureJoin(run, builder, 'web', '--model', FIXTURE_MODEL, '--json'));
+  const added = document(fixtureAdd(run, repo, 'web', 'Historical owner candidate', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/done.txt.\nChange: preserve the historical finished source for its owner.\nTest: the real frozen command checks web/done.txt.', '--wait', '--json'));
   const id = added.item.item_id;
@@ -107,7 +108,7 @@ test('a green coordinator-owned path waits in its owner next with the exact diff
   const notices = inbox.shouts.filter(shout => shout.shout_text.includes(wait.sourceRef));
   assert.equal(notices.length, 1, 'the owner receives one source-bound notification');
   assert.ok(notices[0].shout_text.includes(wait.diff), 'the notice includes the exact diff');
-  const peer = document(box.run(box.repo, 'add', 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
+  const peer = document(fixtureAdd(box.run, box.repo, 'web', 'Next ordinary build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The next finished web file is present.', '--check', 'test -f web/done.txt',
     '--brief', 'Files: web/next.txt.\nChange: the freed builder can take ordinary work.\nTest: the next fixture check.', '--wait', '--json'));
   const next = document(box.run(box.builder, 'next', '--build', '--json'));

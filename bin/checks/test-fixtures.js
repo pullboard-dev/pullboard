@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Test fixtures come from the kit: raw setup in tests is a ceiling that only falls [C7]. */
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -15,20 +16,28 @@ import { walk } from './scan.js';
 
 const CEILINGS_URL = new URL('./test-fixtures.json', import.meta.url);
 const TEST_SOURCE = /(?:^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/tests\/).*\.[cm]?js$|\.(?:test|spec)\.[cm]?js$)/u;
-const KIT = /^test\/kit\//u;
+const KIT = /^test\/(?:kit\/|testkit-fixture\.js$)/u; // the kit itself holds the one raw seam
 const GIT_CALLEE = /(?<![\w$.])(?:git|tryGit|runFixtureGit|execFileSync|spawnSync)\s*\(\s*(?:[^,()]*,\s*)?\[?\s*(['"`])init\1/gu;
-const RAW_CALL = /(?:((?:[\w$]+\s*\.\s*)*[\w$]*run[\w$]*)\s*\(\s*[^,()]+,\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\2/gu;
+const RAW_CALL = /(?:((?:[\w$]+\s*\.\s*)*[\w$]*run[\w$]*)\s*\(\s*([^,()]+),\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\3/gu;
 const MODEL = /(['"`])--model\1\s*,\s*['"`]|\bPULLBOARD_MODEL\s*(?:\?\?=|\|\|=|=|:)\s*['"`]|\bmodel\s*:\s*['"`][^'"`]/gu;
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|existsSync|createReadStream|cpSync|copyFileSync)\s*\(/gu;
 const ANCHOR = /import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
+const SUBCOMMAND = /^\s*(['"`])[\w-]+\1\s*$/u; // run('lane', 'add', …): a quoted command word, not a checkout
+
+/** The shared fixture helpers the messages point at; a test asserts each path exists. */
+export const FIXTURE_HELPERS = {
+  tempdir: 'test/fixture-child.js',
+  'raw-cli': 'test/testkit-fixture.js',
+  model: 'test/testkit-fixture.js',
+};
 
 const MESSAGES = {
-  tempdir: 'creates a temporary directory or repository outside test/kit; build the fixture with the kit',
-  'raw-cli': 'adds an item or joins a seat with a raw CLI call; use the kit item and persona helpers',
-  model: 'passes a literal model string; join by kit persona name',
+  tempdir: `creates a temporary directory or repository outside the shared helpers; use privateFixtureFiles in ${FIXTURE_HELPERS.tempdir}`,
+  'raw-cli': `adds an item or joins a seat with a raw CLI call; use fileFixtureItem or joinFixtureSeat in ${FIXTURE_HELPERS['raw-cli']}`,
+  model: `passes a literal model string; use a model constant or joinFixtureSeat from ${FIXTURE_HELPERS.model}`,
   'repo-read': 'reads a repository file from the test own directory outside a world-pin comment; declare @pullboard-world-pin or use a fixture',
-  hex64: 'holds a 64-character hex literal; take it from the kit or list it as a world pin',
+  hex64: 'holds a 64-character hex literal; keep it in a shared fixture helper or list it as a world pin',
 };
 
 /** Return the matching closing bracket offset in masked code, or the end of the code. */
@@ -61,7 +70,9 @@ export function fixtureSites(source, path) {
     && code[match.index] !== ' ';
   for (const match of code.matchAll(/\bmkdtemp(?:Sync)?\s*\(/gu)) add(match.index, 'tempdir');
   for (const match of source.matchAll(GIT_CALLEE)) if (live(match)) add(match.index, 'tempdir');
-  for (const match of source.matchAll(RAW_CALL)) if (live(match) && !/git/iu.test(match[1] ?? '')) add(match.index, 'raw-cli');
+  for (const match of source.matchAll(RAW_CALL)) {
+    if (live(match) && !/git/iu.test(match[1] ?? '') && !SUBCOMMAND.test(match[2] ?? '')) add(match.index, 'raw-cli');
+  }
   for (const match of source.matchAll(MODEL)) {
     if (!live(match)) continue;
     const line = source.slice(source.lastIndexOf('\n', match.index) + 1, match.index);
@@ -103,10 +114,46 @@ export function fixtureGrowth(problems, ceilings) {
   });
 }
 
-/** The check: growth past the ceilings file as `path:line: text` rows. */
-export function fixtureProblems(root, ceilingsPath = CEILINGS_URL) {
-  const ceilings = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
-  return fixtureGrowth(fixtureReport(root), ceilings).map(({ path, line, kind, text }) => ({ path, line, text: `${kind}: ${text}` }));
+/**
+ * The trunk commit this tree was composed on: the second parent of a merge HEAD (the gate merges main into the builder's
+ * source), else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7].
+ */
+export function compositionBase(root) {
+  const result = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}'], { cwd: root, encoding: 'utf8' });
+  return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+}
+
+/** One file's text at the base commit, or null when the base does not have it. */
+function baseText(root, base, path) {
+  const result = spawnSync('git', ['show', `${base}:${path}`], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  return result.status === 0 ? result.stdout : null;
+}
+
+/**
+ * The check: growth past the ceilings file as `path:line: text` rows. With a base commit, a file's allowance is the
+ * greater of its committed ceiling and the count its own text has at the base, per kind, so only rows the submission
+ * adds count; a file the base lacks has only its committed ceiling. The ceilings file is read, never changed.
+ *
+ * @param {string} root
+ * @param {string | URL} [ceilingsPath]
+ * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null }} [options]
+ */
+export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText } = {}) {
+  const committed = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
+  const problems = fixtureReport(root);
+  let ceilings = committed;
+  if (base && fixtureGrowth(problems, committed).length) {
+    ceilings = { ...committed };
+    for (const path of new Set(fixtureGrowth(problems, committed).map(row => row.path))) {
+      const text = read(root, base, path);
+      if (text === null) continue;
+      const inherited = fixtureCounts(fixtureSites(text, path))[path] ?? {};
+      const merged = { ...(committed[path] ?? {}) };
+      for (const [kind, count] of Object.entries(inherited)) merged[kind] = Math.max(merged[kind] ?? 0, count);
+      ceilings[path] = merged;
+    }
+  }
+  return fixtureGrowth(problems, ceilings).map(({ path, line, kind, text }) => ({ path, line, text: `${kind}: ${text}` }));
 }
 
 /** Write today's counts as the ceilings, or lower them; growth over an existing file is returned and nothing is written. */

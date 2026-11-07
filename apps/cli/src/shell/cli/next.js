@@ -100,8 +100,9 @@ export async function nextOnce(ctx, values) {
     return nextReview(ctx, board, whoAmI(ctx, board), values, {
       ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
-      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
-      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+      nextFor: reviewPreview,
+      idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
+      mainRedReviewItems, agentSessionDigest,
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values));
@@ -143,6 +144,12 @@ export async function nextOnce(ctx, values) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
+function reviewPreview(board, selection) {
+  const reviewHeartbeats = new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
+  return store.nextFor(board, { ...selection, reviewHeartbeats });
 }
 
 /** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
