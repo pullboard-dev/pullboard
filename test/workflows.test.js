@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/gate.yml'), 'utf8');
@@ -236,15 +236,16 @@ test('the release workflow publishes exactly the tagged changelog section [O3]',
   assert.match(workflow, /publish:\n\s+permissions:\n\s+contents: write/u, 'only the publishing job gains release-write authority');
 });
 
-const CLA_WORKFLOW = readFileSync(resolve(ROOT, '.github/workflows/cla.yml'), 'utf8');
+const CLA_WORKFLOW = workflowText(resolve(ROOT, '.github/workflows/cla.yml'));
 const CLA_SENTENCE = 'I have read CLA.md and I agree to it.';
 
 /** Run bin/check-cla.js against a fixture pull request and signatures file in a temp folder. */
 function runCla(t, pr, signatures) {
-  const dir = mkdtempSync(join(tmpdir(), 'cla-'));
+  const fixture = privateFixtureFiles('cla-');
+  const dir = fixture.root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  writeFileSync(join(dir, 'pr.json'), JSON.stringify(pr));
-  writeFileSync(join(dir, 'signatures.json'), JSON.stringify(signatures));
+  fixture.write('pr.json', JSON.stringify(pr));
+  fixture.write('signatures.json', JSON.stringify(signatures));
   return runFixtureChild(process.execPath, [resolve(ROOT, 'bin/check-cla.js')], {
     encoding: 'utf8',
     env: { ...process.env, CLA_PR_FILE: join(dir, 'pr.json'), CLA_SIGNATURES_FILE: join(dir, 'signatures.json') },
@@ -303,10 +304,10 @@ test('clause 2: check-cla fails naming a second unsigned co-author and a commit 
 
 test('clause 3: a landing appends a signer entry with the CLA hash', async (t) => {
   const { appendSignatures } = await import('../bin/check-cla.js');
-  const dir = mkdtempSync(join(tmpdir(), 'cla-land-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const file = join(dir, 'cla-signatures.json');
-  writeFileSync(file, JSON.stringify(claSigned));
+  const fixture = privateFixtureFiles('cla-land-');
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  const file = join(fixture.root, 'cla-signatures.json');
+  fixture.write('cla-signatures.json', JSON.stringify(claSigned));
   const claText = 'CLA text at base\n';
   appendSignatures(file, [{ login: 'bob', comment: { user_id: 7, url: 'https://example.test/c/1', created_at: '2026-11-06T00:00:00Z' } }], claText);
   const entries = JSON.parse(readFileSync(file, 'utf8')).signatures;
