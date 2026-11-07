@@ -1,0 +1,2526 @@
+{
+  "apps/cli/tests/exit-rules.test.js": {
+    "model": 5
+  },
+  "apps/cli/tests/worktree-maintenance-archive.fixture.js": {
+    "tempdir": 2
+  },
+  "apps/cli/tests/worktree-maintenance-scheduler.fixture.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "docs/api.test.js": {
+    "repo-read": 3
+  },
+  "docs/architecture.test.js": {
+    "repo-read": 4,
+    "tempdir": 1
+  },
+  "docs/changelog.test.js": {
+    "repo-read": 2
+  },
+  "docs/contributing.test.js": {
+    "repo-read": 1,
+    "hex64": 2
+  },
+  "docs/formats.test.js": {
+    "repo-read": 1,
+    "tempdir": 6,
+    "model": 4
+  },
+  "docs/handoff.test.js": {
+    "repo-read": 1
+  },
+  "docs/readme-badges.test.js": {
+    "repo-read": 2,
+    "raw-cli": 3
+  },
+  "docs/rfcs.test.js": {
+    "hex64": 1,
+    "repo-read": 1
+  },
+  "docs/run-skill.test.js": {
+    "repo-read": 1
+  },
+  "docs/shots/capture-browser.test.js": {
+    "tempdir": 3,
+    "repo-read": 1
+  },
+  "docs/shots/demo-env.test.js": {
+    "tempdir": 2
+  },
+  "docs/shots/shots.test.js": {
+    "repo-read": 9,
+    "tempdir": 2
+  },
+  "docs/triage-skill.test.js": {
+    "repo-read": 2,
+    "hex64": 1
+  },
+  "packages/blueprints/tests/blueprint.test.js": {
+    "repo-read": 4,
+    "model": 2,
+    "tempdir": 3
+  },
+  "packages/codemap/tests/root-allowlist.test.js": {
+    "tempdir": 2
+  },
+  "packages/commits/tests/landing-message.test.js": {
+    "model": 1
+  },
+  "packages/commits/tests/merge-hooks.test.js": {
+    "tempdir": 4
+  },
+  "packages/config/tests/lanes.test.js": {
+    "tempdir": 4
+  },
+  "packages/config/tests/registry.test.js": {
+    "tempdir": 3
+  },
+  "packages/config/tests/submit-infra.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/config/tests/watch.test.js": {
+    "tempdir": 2,
+    "model": 5
+  },
+  "packages/doctrine/tests/package.test.js": {
+    "repo-read": 2,
+    "tempdir": 2
+  },
+  "packages/gate/tests/browser-scan-cache.test.js": {
+    "tempdir": 2
+  },
+  "packages/gate/tests/check-baseline-delivery.test.js": {
+    "tempdir": 1
+  },
+  "packages/gate/tests/check.test.js": {
+    "tempdir": 1
+  },
+  "packages/gate/tests/cpu-callable-options.test.js": {
+    "tempdir": 2
+  },
+  "packages/gate/tests/gate-resource.test.js": {
+    "tempdir": 3,
+    "model": 2
+  },
+  "packages/gate/tests/gate-timing-output.test.js": {
+    "tempdir": 2
+  },
+  "packages/gate/tests/gui-admission.test.js": {
+    "tempdir": 3
+  },
+  "packages/gate/tests/gui-marker-guard.test.js": {
+    "tempdir": 2
+  },
+  "packages/gate/tests/land-affected.test.js": {
+    "model": 1
+  },
+  "packages/gate/tests/landing-no-nested-shards.test.js": {
+    "tempdir": 1
+  },
+  "packages/gate/tests/landing-stage-composition.test.js": {
+    "tempdir": 2
+  },
+  "packages/gate/tests/resources.test.js": {
+    "tempdir": 1
+  },
+  "packages/gate/tests/runner-closure.test.js": {
+    "repo-read": 1
+  },
+  "packages/gate/tests/runner-timing.test.js": {
+    "model": 1
+  },
+  "packages/git/tests/flakes-fixture.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/git/tests/git-provenance.test.js": {
+    "tempdir": 5
+  },
+  "packages/items/tests/bar-native-session.test.js": {
+    "model": 7
+  },
+  "packages/items/tests/decision-handoff.test.js": {
+    "repo-read": 1,
+    "tempdir": 1
+  },
+  "packages/items/tests/item-offer.test.js": {
+    "tempdir": 2
+  },
+  "packages/kernel/tests/seal.test.js": {
+    "tempdir": 2,
+    "repo-read": 3
+  },
+  "packages/landing/tests/main-red-content-cache.test.js": {
+    "tempdir": 2
+  },
+  "packages/landing/tests/main-red.test.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "packages/landing/tests/retention-prune.test.js": {
+    "tempdir": 2,
+    "repo-read": 1
+  },
+  "packages/link/tests/relay-device-keys.test.js": {
+    "tempdir": 1
+  },
+  "packages/link/tests/relay-lock.test.js": {
+    "tempdir": 3
+  },
+  "packages/link/tests/relay-stall-phases.test.js": {
+    "tempdir": 1
+  },
+  "packages/outbox/tests/relay-checkpoint.test.js": {
+    "tempdir": 1
+  },
+  "packages/outbox/tests/relay-outbox-format.test.js": {
+    "tempdir": 1
+  },
+  "packages/outbox/tests/relay-outbox-guard.test.js": {
+    "tempdir": 1
+  },
+  "packages/outbox/tests/relay-outbox-undo.test.js": {
+    "tempdir": 1
+  },
+  "packages/person/tests/add-lanes.test.js": {
+    "tempdir": 2
+  },
+  "packages/person/tests/agent-session.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "packages/person/tests/approved-row-changes.test.js": {
+    "tempdir": 5
+  },
+  "packages/person/tests/person-credential-vault.test.js": {
+    "repo-read": 1
+  },
+  "packages/person/tests/person.test.js": {
+    "tempdir": 1
+  },
+  "packages/person/tests/qr.test.js": {
+    "hex64": 1
+  },
+  "packages/person/tests/relay-key.test.js": {
+    "tempdir": 1
+  },
+  "packages/person/tests/row-decisions.test.js": {
+    "tempdir": 1
+  },
+  "packages/person/tests/stale-frozen-items.test.js": {
+    "tempdir": 2
+  },
+  "packages/resources/tests/lsof-lookups.test.js": {
+    "tempdir": 1,
+    "repo-read": 2
+  },
+  "packages/resources/tests/resource-inheritance.test.js": {
+    "tempdir": 1
+  },
+  "packages/runners/tests/cleanup-diagnostics.test.js": {
+    "tempdir": 2
+  },
+  "packages/runners/tests/runner-controller-generation.test.js": {
+    "tempdir": 2
+  },
+  "packages/runners/tests/runner-slots-measured.test.js": {
+    "tempdir": 1
+  },
+  "packages/sandbox/tests/lane-bypass.test.js": {
+    "tempdir": 1
+  },
+  "packages/sandbox/tests/owns-new-file.test.js": {
+    "tempdir": 2
+  },
+  "packages/sandbox/tests/privacy-words.test.js": {
+    "tempdir": 2,
+    "repo-read": 1
+  },
+  "packages/sandbox/tests/trunk.test.js": {
+    "tempdir": 1
+  },
+  "packages/sandbox/tests/trusted-policy-ancestry.test.js": {
+    "tempdir": 2
+  },
+  "packages/spec/tests/doctrine-rulings.test.js": {
+    "model": 1
+  },
+  "packages/spec/tests/signoff.test.js": {
+    "tempdir": 2
+  },
+  "packages/state/tests/bar-corrections.test.js": {
+    "tempdir": 2
+  },
+  "packages/state/tests/decision-queue.test.js": {
+    "tempdir": 1
+  },
+  "packages/state/tests/engine-replay.test.js": {
+    "tempdir": 1
+  },
+  "packages/state/tests/exchange.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/state/tests/implies.test.js": {
+    "tempdir": 2
+  },
+  "packages/state/tests/item-hold.test.js": {
+    "model": 1
+  },
+  "packages/state/tests/landing-waiver-replay.test.js": {
+    "tempdir": 1
+  },
+  "packages/state/tests/merged.test.js": {
+    "tempdir": 2
+  },
+  "packages/state/tests/milestone-limit.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/state/tests/milestones.test.js": {
+    "tempdir": 4,
+    "model": 1
+  },
+  "packages/state/tests/registry-merge.test.js": {
+    "tempdir": 2
+  },
+  "packages/state/tests/relay-activation.test.js": {
+    "tempdir": 1
+  },
+  "packages/state/tests/reopen.test.js": {
+    "tempdir": 4,
+    "model": 1
+  },
+  "packages/state/tests/settings.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/state/tests/state-core-cut.test.js": {
+    "repo-read": 1
+  },
+  "packages/state/tests/team-engine.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/state/tests/team-grants.test.js": {
+    "model": 3
+  },
+  "packages/stats/tests/coordinator-actions.test.js": {
+    "tempdir": 2
+  },
+  "packages/stats/tests/cost-dollars.test.js": {
+    "model": 1
+  },
+  "packages/stats/tests/flow-report.test.js": {
+    "tempdir": 2
+  },
+  "packages/stats/tests/stats-build-time.test.js": {
+    "tempdir": 2
+  },
+  "packages/stats/tests/stats-compare.test.js": {
+    "tempdir": 2
+  },
+  "packages/stats/tests/stats-flow.test.js": {
+    "tempdir": 2
+  },
+  "packages/stats/tests/stats-time.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/stats/tests/usage-publish-batch.test.js": {
+    "model": 3
+  },
+  "packages/store/tests/api-identity.test.js": {
+    "tempdir": 1
+  },
+  "packages/store/tests/board-capture.test.js": {
+    "tempdir": 3
+  },
+  "packages/store/tests/claim-reopen-clock.test.js": {
+    "tempdir": 1
+  },
+  "packages/store/tests/infra-release.test.js": {
+    "tempdir": 1
+  },
+  "packages/store/tests/item-notes.test.js": {
+    "model": 2
+  },
+  "packages/store/tests/verdict-check.test.js": {
+    "tempdir": 1,
+    "model": 2,
+    "hex64": 135
+  },
+  "packages/sync/tests/local-fetch.test.js": {
+    "tempdir": 1
+  },
+  "packages/verify/tests/evidence.test.js": {
+    "tempdir": 1
+  },
+  "test/accept-from-packet.test.js": {
+    "model": 1
+  },
+  "test/accept-reuses-receipt.test.js": {
+    "model": 2
+  },
+  "test/accepted-green-relands.test.js": {
+    "model": 1
+  },
+  "test/add-default-route-brief.test.js": {
+    "model": 1
+  },
+  "test/add-lane-check.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/affected-graph-cache.test.js": {
+    "tempdir": 2
+  },
+  "test/affected-source-loads.test.js": {
+    "tempdir": 2
+  },
+  "test/affected-tests.test.js": {
+    "tempdir": 2
+  },
+  "test/agent-model-engine.test.js": {
+    "model": 4,
+    "tempdir": 1
+  },
+  "test/api-agent-family.test.js": {
+    "model": 3
+  },
+  "test/api-catalog.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/api-events.test.js": {
+    "tempdir": 2
+  },
+  "test/api-fixture.js": {
+    "tempdir": 2
+  },
+  "test/api-http.test.js": {
+    "tempdir": 4,
+    "model": 13
+  },
+  "test/api-requests.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/api.test.js": {
+    "model": 5,
+    "tempdir": 1
+  },
+  "test/attach-submit-eligibility.test.js": {
+    "model": 1
+  },
+  "test/automatic-landing-main-worker.test.js": {
+    "tempdir": 2
+  },
+  "test/automatic-landing-wake.test.js": {
+    "tempdir": 2
+  },
+  "test/badge-fixture.js": {
+    "model": 2
+  },
+  "test/bar-coverage.test.js": {
+    "tempdir": 2
+  },
+  "test/bar-no-full-suite.test.js": {
+    "model": 2
+  },
+  "test/blueprint-web-defaults.test.js": {
+    "tempdir": 2
+  },
+  "test/board-busy-retry.test.js": {
+    "tempdir": 1,
+    "model": 4
+  },
+  "test/board-composition-root.test.js": {
+    "tempdir": 9
+  },
+  "test/board-fixture.js": {
+    "tempdir": 1
+  },
+  "test/board-link-fixture.js": {
+    "tempdir": 3
+  },
+  "test/board-link.test.js": {
+    "tempdir": 1
+  },
+  "test/board-lock-hold.test.js": {
+    "tempdir": 1
+  },
+  "test/board-lock-no-io.test.js": {
+    "repo-read": 1
+  },
+  "test/board-read-cantopen-retry.test.js": {
+    "tempdir": 1
+  },
+  "test/board-scale-1000-seats.test.js": {
+    "tempdir": 1
+  },
+  "test/board-schema.test.js": {
+    "tempdir": 2
+  },
+  "test/board-submit-fixture.js": {
+    "tempdir": 1
+  },
+  "test/board-write-latency.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/board-writer.test.js": {
+    "tempdir": 2
+  },
+  "test/board.test.js": {
+    "tempdir": 9,
+    "model": 3
+  },
+  "test/boundary.test.js": {
+    "repo-read": 3
+  },
+  "test/branch-worktree-isolation.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/browser-admission-runners.test.js": {
+    "tempdir": 3
+  },
+  "test/browser-barrel-admission.test.js": {
+    "tempdir": 1
+  },
+  "test/browser-source-files.test.js": {
+    "tempdir": 3
+  },
+  "test/browser-verdict-by-launch.test.js": {
+    "tempdir": 2
+  },
+  "test/capacity-cache.test.js": {
+    "tempdir": 2
+  },
+  "test/capacity.test.js": {
+    "tempdir": 2
+  },
+  "test/case-study.test.js": {
+    "tempdir": 2
+  },
+  "test/cell-binding-uses.test.js": {
+    "tempdir": 7,
+    "repo-read": 2
+  },
+  "test/cell-lints.test.js": {
+    "tempdir": 2
+  },
+  "test/cells-data-reads.test.js": {
+    "tempdir": 2
+  },
+  "test/cells-inventory-incremental.test.js": {
+    "tempdir": 1
+  },
+  "test/cells-move.test.js": {
+    "tempdir": 3
+  },
+  "test/cells-plan-cut-cases.js": {
+    "repo-read": 1
+  },
+  "test/cells-plan-fixture.js": {
+    "tempdir": 2
+  },
+  "test/cells-plan-trunk-read.test.js": {
+    "tempdir": 1
+  },
+  "test/cells-port-board-query.test.js": {
+    "tempdir": 2
+  },
+  "test/cells-remote-cache.test.js": {
+    "tempdir": 1
+  },
+  "test/cells-remove-shims-read.js": {
+    "repo-read": 1
+  },
+  "test/cells-remove-shims.test.js": {
+    "tempdir": 2
+  },
+  "test/cells-shards.test.js": {
+    "tempdir": 2
+  },
+  "test/cells-shims.test.js": {
+    "tempdir": 1
+  },
+  "test/cells-temporary-edges.test.js": {
+    "tempdir": 1
+  },
+  "test/cells-tools.test.js": {
+    "tempdir": 3
+  },
+  "test/check-accept.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/check-baseline.test.js": {
+    "tempdir": 1
+  },
+  "test/check-receipts.test.js": {
+    "model": 1,
+    "tempdir": 4
+  },
+  "test/check-widen-self.test.js": {
+    "tempdir": 2
+  },
+  "test/checks-test-fixtures.test.js": {
+    "tempdir": 1
+  },
+  "test/chrome-clone-cleanup.test.js": {
+    "tempdir": 1
+  },
+  "test/chrome-clone-proof.js": {
+    "tempdir": 1
+  },
+  "test/chrome-fixture.js": {
+    "tempdir": 1
+  },
+  "test/chrome-fixture.test.js": {
+    "tempdir": 6
+  },
+  "test/ci.test.js": {
+    "repo-read": 3,
+    "tempdir": 2
+  },
+  "test/claim-hygiene.test.js": {
+    "tempdir": 2
+  },
+  "test/claim-overlap.test.js": {
+    "tempdir": 4,
+    "model": 1
+  },
+  "test/claim-reopen.test.js": {
+    "tempdir": 1
+  },
+  "test/clarify-stale-fixture.js": {
+    "repo-read": 3
+  },
+  "test/clarify-workflows.test.js": {
+    "repo-read": 2
+  },
+  "test/cli-help.test.js": {
+    "tempdir": 5
+  },
+  "test/cli-in-process.test.js": {
+    "tempdir": 1
+  },
+  "test/cli-io-gate-wait-default.test.js": {
+    "tempdir": 2
+  },
+  "test/cli-read-performance.test.js": {
+    "tempdir": 2
+  },
+  "test/cli-startup-budget-fixture.js": {
+    "tempdir": 2
+  },
+  "test/cli-startup.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/cockpit/activity-data.js": {
+    "model": 1
+  },
+  "test/cockpit/activity-journey.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/activity-polish.test.js": {
+    "raw-cli": 2
+  },
+  "test/cockpit/activity-sentences.test.js": {
+    "model": 3
+  },
+  "test/cockpit/activity.test.js": {
+    "raw-cli": 10,
+    "tempdir": 3,
+    "repo-read": 1
+  },
+  "test/cockpit/addresses.test.js": {
+    "raw-cli": 5,
+    "tempdir": 4
+  },
+  "test/cockpit/agent-floor-data.js": {
+    "model": 1
+  },
+  "test/cockpit/agent-floor-journey.test.js": {
+    "raw-cli": 3,
+    "model": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/agents-exclude-board-actors.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/agents.test.js": {
+    "raw-cli": 9,
+    "tempdir": 3,
+    "model": 2
+  },
+  "test/cockpit/auth.test.js": {
+    "tempdir": 3
+  },
+  "test/cockpit/cost-tab-redesign.test.js": {
+    "model": 12,
+    "repo-read": 2,
+    "tempdir": 2,
+    "raw-cli": 1
+  },
+  "test/cockpit/cost-tab.test.js": {
+    "model": 11,
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/count-consistency.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/dashboard-api-journey.test.js": {
+    "raw-cli": 2,
+    "model": 1
+  },
+  "test/cockpit/dashboard-clock.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/dashboard-row-visibility.test.js": {
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/dashboard-walk-1029.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/dashboard.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/demo.test.js": {
+    "raw-cli": 5,
+    "tempdir": 10
+  },
+  "test/cockpit/detail.test.js": {
+    "raw-cli": 4
+  },
+  "test/cockpit/doctrine-redesign.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/doctrine.test.js": {
+    "raw-cli": 3,
+    "tempdir": 3
+  },
+  "test/cockpit/export-replay-control.test.js": {
+    "raw-cli": 2
+  },
+  "test/cockpit/first-run-dashboard.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/first-run.test.js": {
+    "model": 2
+  },
+  "test/cockpit/fixture.test.js": {
+    "tempdir": 6,
+    "repo-read": 2,
+    "raw-cli": 3
+  },
+  "test/cockpit/floor-fixes.test.js": {
+    "raw-cli": 3,
+    "model": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/home.test.js": {
+    "tempdir": 2
+  },
+  "test/cockpit/import-style.test.js": {
+    "tempdir": 1,
+    "repo-read": 2
+  },
+  "test/cockpit/item-panel.test.js": {
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/item-timeline.test.js": {
+    "raw-cli": 2,
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/item-waits.test.js": {
+    "raw-cli": 3
+  },
+  "test/cockpit/items-empty.test.js": {
+    "repo-read": 1,
+    "tempdir": 1,
+    "raw-cli": 1
+  },
+  "test/cockpit/items-rows.test.js": {
+    "raw-cli": 1,
+    "model": 1
+  },
+  "test/cockpit/items-walk-1029.test.js": {
+    "raw-cli": 1,
+    "model": 1
+  },
+  "test/cockpit/items.test.js": {
+    "raw-cli": 38,
+    "tempdir": 10,
+    "model": 1
+  },
+  "test/cockpit/lan.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/layout.test.js": {
+    "raw-cli": 10,
+    "tempdir": 6,
+    "repo-read": 7
+  },
+  "test/cockpit/lifecycle-chart.test.js": {
+    "model": 1,
+    "raw-cli": 1,
+    "tempdir": 2
+  },
+  "test/cockpit/lifecycle-native-seed.js": {
+    "model": 1
+  },
+  "test/cockpit/lifecycle-ordinary-seed.js": {
+    "model": 2
+  },
+  "test/cockpit/lifecycle-returns.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/live.test.js": {
+    "raw-cli": 9,
+    "tempdir": 2
+  },
+  "test/cockpit/local-origin.test.js": {
+    "raw-cli": 7,
+    "tempdir": 12,
+    "repo-read": 1
+  },
+  "test/cockpit/machine-fixture.js": {
+    "tempdir": 1,
+    "raw-cli": 1
+  },
+  "test/cockpit/milestone-limit.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/milestone-order.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/model-display-names.test.js": {
+    "model": 3,
+    "raw-cli": 3
+  },
+  "test/cockpit/needs-sentinel-draft.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/needs.test.js": {
+    "tempdir": 3,
+    "repo-read": 1,
+    "raw-cli": 5
+  },
+  "test/cockpit/newcomer.test.js": {
+    "tempdir": 2
+  },
+  "test/cockpit/open-board.test.js": {
+    "tempdir": 3,
+    "raw-cli": 1
+  },
+  "test/cockpit/perf/generate.mjs": {
+    "model": 4,
+    "tempdir": 1
+  },
+  "test/cockpit/perf/run.mjs": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/cockpit/plain-words.test.js": {
+    "raw-cli": 3,
+    "tempdir": 1
+  },
+  "test/cockpit/projector.test.js": {
+    "raw-cli": 2
+  },
+  "test/cockpit/projects.test.js": {
+    "raw-cli": 17,
+    "tempdir": 4
+  },
+  "test/cockpit/prose.test.js": {
+    "repo-read": 1,
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/provenance.test.js": {
+    "tempdir": 2
+  },
+  "test/cockpit/public-export.test.js": {
+    "model": 1,
+    "raw-cli": 3
+  },
+  "test/cockpit/references.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/relay-hosted-boards.test.js": {
+    "raw-cli": 2
+  },
+  "test/cockpit/relay-needs.test.js": {
+    "raw-cli": 2,
+    "repo-read": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/relay-person-requests.test.js": {
+    "raw-cli": 1,
+    "repo-read": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/relay-person-scroll.test.js": {
+    "raw-cli": 1,
+    "repo-read": 1
+  },
+  "test/cockpit/relay-signin.test.js": {
+    "tempdir": 1,
+    "repo-read": 3
+  },
+  "test/cockpit/relay-transport.test.js": {
+    "raw-cli": 1,
+    "repo-read": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/relay.test.js": {
+    "raw-cli": 3,
+    "repo-read": 2
+  },
+  "test/cockpit/release-header.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/retained-refreeze-timeline.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/rigor-view.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap-count.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap-held.test.js": {
+    "raw-cli": 3,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap-panel-counts.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap-redesign.test.js": {
+    "raw-cli": 6,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap-summary-card.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/roadmap.test.js": {
+    "raw-cli": 25,
+    "tempdir": 15
+  },
+  "test/cockpit/row-component.test.js": {
+    "repo-read": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/scope.test.js": {
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/search.test.js": {
+    "tempdir": 4,
+    "raw-cli": 4
+  },
+  "test/cockpit/seg-toggle.test.js": {
+    "raw-cli": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/settings-redesign.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/settings.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/shared-wait-browser.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/shout-overlap.test.js": {
+    "tempdir": 2
+  },
+  "test/cockpit/shouts-redesign.test.js": {
+    "model": 1,
+    "raw-cli": 2,
+    "tempdir": 1
+  },
+  "test/cockpit/shouts.test.js": {
+    "raw-cli": 11,
+    "tempdir": 7
+  },
+  "test/cockpit/snapshot.test.js": {
+    "raw-cli": 10,
+    "tempdir": 2
+  },
+  "test/cockpit/spec-redesign.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/spec-revision.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/spec.test.js": {
+    "repo-read": 2,
+    "tempdir": 12,
+    "raw-cli": 1
+  },
+  "test/cockpit/stable.test.js": {
+    "tempdir": 1
+  },
+  "test/cockpit/stage-vocabulary.test.js": {
+    "raw-cli": 2,
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/cockpit/star-line.js": {
+    "repo-read": 1
+  },
+  "test/cockpit/stats.test.js": {
+    "raw-cli": 9,
+    "tempdir": 7,
+    "model": 1
+  },
+  "test/cockpit/tab-title.test.js": {
+    "repo-read": 1,
+    "raw-cli": 1
+  },
+  "test/cockpit/timeline-notes.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/upgrade-geometry.test.js": {
+    "raw-cli": 1
+  },
+  "test/cockpit/view-data.js": {
+    "model": 3
+  },
+  "test/cockpit/view-pure.test.js": {
+    "model": 1
+  },
+  "test/cockpit/window-compare.test.js": {
+    "raw-cli": 1
+  },
+  "test/companion-three-way.test.js": {
+    "tempdir": 8
+  },
+  "test/companion.test.js": {
+    "model": 1
+  },
+  "test/controller-registration-diagnostics.test.js": {
+    "tempdir": 1
+  },
+  "test/coordinator-resume.test.js": {
+    "tempdir": 2
+  },
+  "test/cost-analytics.test.js": {
+    "model": 7,
+    "tempdir": 1
+  },
+  "test/cost.test.js": {
+    "model": 16
+  },
+  "test/cross-lane-import-edits.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/default-route-mid.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/digest.test.js": {
+    "tempdir": 2
+  },
+  "test/direct-open-board-regression.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/doctor.test.js": {
+    "tempdir": 2
+  },
+  "test/doctrine-count-follows-moves.test.js": {
+    "tempdir": 2
+  },
+  "test/doctrine-diff-only.test.js": {
+    "tempdir": 2
+  },
+  "test/doctrine-hold-composed.test.js": {
+    "tempdir": 3
+  },
+  "test/doctrine-measured-baseline.test.js": {
+    "tempdir": 3
+  },
+  "test/doctrine-name.test.js": {
+    "tempdir": 1
+  },
+  "test/doctrine.test.js": {
+    "tempdir": 1,
+    "repo-read": 2
+  },
+  "test/e2e-helpers.js": {
+    "repo-read": 1,
+    "tempdir": 1,
+    "model": 3
+  },
+  "test/e2e-model-names.test.js": {
+    "model": 10
+  },
+  "test/e2e-view.test.js": {
+    "model": 1
+  },
+  "test/e2e.test.js": {
+    "repo-read": 1
+  },
+  "test/engine-folder.test.js": {
+    "tempdir": 3
+  },
+  "test/engine.test.js": {
+    "tempdir": 3,
+    "repo-read": 1
+  },
+  "test/executor-affinity-cases.js": {
+    "tempdir": 1
+  },
+  "test/family-stored-once.test.js": {
+    "tempdir": 2,
+    "model": 3
+  },
+  "test/fixture-child.js": {
+    "tempdir": 1
+  },
+  "test/fixture-copier.test.js": {
+    "tempdir": 2
+  },
+  "test/fixture-copiers.test.js": {
+    "tempdir": 1
+  },
+  "test/fixture-env-isolated.test.js": {
+    "model": 1
+  },
+  "test/fixture-source-edits.test.js": {
+    "tempdir": 1
+  },
+  "test/flake-auto-quarantine.test.js": {
+    "model": 1
+  },
+  "test/flake-ratchet-busy-board.test.js": {
+    "tempdir": 2
+  },
+  "test/flakes.test.js": {
+    "tempdir": 1
+  },
+  "test/flow-replay.test.js": {
+    "tempdir": 2
+  },
+  "test/flow-report-cache.test.js": {
+    "tempdir": 2
+  },
+  "test/gate-admission-p95-fixture.js": {
+    "tempdir": 1
+  },
+  "test/gate-admission-wait.test.js": {
+    "tempdir": 2
+  },
+  "test/gate-admission.test.js": {
+    "tempdir": 2
+  },
+  "test/gate-async.test.js": {
+    "tempdir": 2
+  },
+  "test/gate-profile.test.js": {
+    "tempdir": 1
+  },
+  "test/gate-records-test-account.test.js": {
+    "model": 1
+  },
+  "test/gate-red-names-failures.test.js": {
+    "tempdir": 1
+  },
+  "test/gate-stages-concurrent.test.js": {
+    "repo-read": 1
+  },
+  "test/gate.test.js": {
+    "tempdir": 11,
+    "repo-read": 2,
+    "model": 1
+  },
+  "test/generated-doc-handoff-fixture.js": {
+    "model": 1
+  },
+  "test/generated-doc-review-default-fixture.js": {
+    "model": 1
+  },
+  "test/generated-docs-fixture.js": {
+    "tempdir": 2
+  },
+  "test/git-adapter.test.js": {
+    "tempdir": 2,
+    "repo-read": 3
+  },
+  "test/git-calls.test.js": {
+    "tempdir": 2
+  },
+  "test/git-sync-lock.test.js": {
+    "tempdir": 1
+  },
+  "test/git-sync-self-repair.test.js": {
+    "model": 1,
+    "tempdir": 2
+  },
+  "test/guard-revert-port.test.js": {
+    "tempdir": 1
+  },
+  "test/guarded-docs-refresh.test.js": {
+    "tempdir": 3,
+    "repo-read": 1
+  },
+  "test/gui-runner-stage.test.js": {
+    "tempdir": 2
+  },
+  "test/handoff-cap-runner-slots.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-dispatcher-capacity.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-dispatcher-session.test.js": {
+    "model": 1
+  },
+  "test/handoff-dispatcher-slot-reuse.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-drops-orphan.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/handoff-folder-prune.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/handoff-missing-tools.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-tools-shared-snapshot.test.js": {
+    "tempdir": 2
+  },
+  "test/handoff-urgent-first.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-worker-cap-runners-only.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-worker-cap.test.js": {
+    "tempdir": 1
+  },
+  "test/handoff-workers-shrink.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/handoff.test.js": {
+    "tempdir": 2
+  },
+  "test/handover-membership-case.js": {
+    "tempdir": 1
+  },
+  "test/health-sentinel.test.js": {
+    "tempdir": 2
+  },
+  "test/health.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/held-claim-selection.test.js": {
+    "repo-read": 1
+  },
+  "test/help-examples.test.js": {
+    "model": 1
+  },
+  "test/hooks.test.js": {
+    "tempdir": 2
+  },
+  "test/hosted-shapes.test.js": {
+    "repo-read": 3
+  },
+  "test/http-fixture.test.js": {
+    "tempdir": 2
+  },
+  "test/import-style-helpers.js": {
+    "tempdir": 1
+  },
+  "test/init-ignore.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/init-permissions.test.js": {
+    "tempdir": 3
+  },
+  "test/init-relay-offer.test.js": {
+    "model": 1
+  },
+  "test/init.test.js": {
+    "model": 1
+  },
+  "test/inspection-clause-evidence.test.js": {
+    "model": 1
+  },
+  "test/inspection-submit-ticks.test.js": {
+    "model": 2
+  },
+  "test/intake-fixture.js": {
+    "model": 1
+  },
+  "test/item-folder-seat-once.test.js": {
+    "tempdir": 3
+  },
+  "test/item-patch-compose.test.js": {
+    "tempdir": 1
+  },
+  "test/item-session-port.test.js": {
+    "tempdir": 1
+  },
+  "test/item-slice-create.test.js": {
+    "model": 1
+  },
+  "test/join-fast.test.js": {
+    "tempdir": 4,
+    "model": 1
+  },
+  "test/join-idempotent.test.js": {
+    "model": 7
+  },
+  "test/journeys.test.js": {
+    "tempdir": 3,
+    "raw-cli": 4
+  },
+  "test/known-main-affected.fixture.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "test/known-main-companions.test.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "test/known-main-frozen.test.js": {
+    "tempdir": 2,
+    "model": 3
+  },
+  "test/known-main-red-match.test.js": {
+    "tempdir": 2,
+    "repo-read": 2
+  },
+  "test/known-main-signature-normalize.test.js": {
+    "tempdir": 2,
+    "repo-read": 1
+  },
+  "test/land-engine-numbers.test.js": {
+    "tempdir": 1
+  },
+  "test/land-no-remote-fixture.js": {
+    "model": 1
+  },
+  "test/landing-adopts-interrupted.test.js": {
+    "model": 1
+  },
+  "test/landing-amend-hook.test.js": {
+    "model": 1
+  },
+  "test/landing-any-accept.test.js": {
+    "model": 1
+  },
+  "test/landing-base-split-cached.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-batch-runner-source.test.js": {
+    "model": 1
+  },
+  "test/landing-blocked-retry.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-cli-smoke.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-controller-placement.test.js": {
+    "tempdir": 1,
+    "repo-read": 2
+  },
+  "test/landing-history-plan.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-hung-file.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-known-main-runner.test.js": {
+    "model": 1,
+    "repo-read": 1
+  },
+  "test/landing-known-main.test.js": {
+    "model": 1
+  },
+  "test/landing-lease.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-local-lease.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-main-red-keeps-verdicts.test.js": {
+    "model": 1
+  },
+  "test/landing-merge-attribution.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-move-closure.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-new-test-file-bisects.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-parallel-known-main.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-parser-failure.test.js": {
+    "model": 2
+  },
+  "test/landing-policy-keeps-gates.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-refresh-detached.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-regenerates-docs.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-reopen-own-red.test.js": {
+    "repo-read": 2
+  },
+  "test/landing-reschedules-itself.test.js": {
+    "repo-read": 2
+  },
+  "test/landing-reuses-green-tree.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-runner-source-hold.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-selection-complete.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-shards-name-filter.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-shards.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-split-red.test.js": {
+    "model": 1
+  },
+  "test/landing-stale-reopen.test.js": {
+    "model": 1
+  },
+  "test/landing-stalled-batch.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-trunk-moved-rebuild.test.js": {
+    "model": 1
+  },
+  "test/landing-wake-log.test.js": {
+    "tempdir": 1
+  },
+  "test/landing-withdrawn-dependency.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-worker-capacity.test.js": {
+    "tempdir": 2
+  },
+  "test/landing-worker-stderr.test.js": {
+    "tempdir": 1
+  },
+  "test/lane-add.test.js": {
+    "tempdir": 2
+  },
+  "test/lane-generated-tier-row.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/lane-lead.test.js": {
+    "tempdir": 1
+  },
+  "test/legacy-watchdog.test.js": {
+    "tempdir": 1
+  },
+  "test/line-capacity.test.js": {
+    "tempdir": 2
+  },
+  "test/line-settings.test.js": {
+    "tempdir": 1
+  },
+  "test/liveness-slots.test.js": {
+    "tempdir": 2
+  },
+  "test/lock-hold-budget-command.fixture.js": {
+    "model": 1
+  },
+  "test/machine-generator.test.js": {
+    "repo-read": 1
+  },
+  "test/machine-lifecycle.test.js": {
+    "repo-read": 1
+  },
+  "test/machine-reservation-fixture.js": {
+    "tempdir": 1
+  },
+  "test/machine.test.js": {
+    "repo-read": 2,
+    "tempdir": 4
+  },
+  "test/main-audit-attribution.test.js": {
+    "tempdir": 2
+  },
+  "test/main-audit-nudge-merged.test.js": {
+    "model": 1
+  },
+  "test/main-audit-plain-commit.test.js": {
+    "tempdir": 2
+  },
+  "test/main-audit-project.js": {
+    "tempdir": 1
+  },
+  "test/main-compare-any-runner.test.js": {
+    "tempdir": 2
+  },
+  "test/main-compare-knows-main.test.js": {
+    "tempdir": 2
+  },
+  "test/main-moved-fixture.js": {
+    "tempdir": 2
+  },
+  "test/main-red-auto-close.test.js": {
+    "tempdir": 1
+  },
+  "test/main-red-cache-lock.test.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "test/main-red-refresh-unnamed.test.js": {
+    "tempdir": 4
+  },
+  "test/maintenance-timer-quiet.test.js": {
+    "tempdir": 1
+  },
+  "test/mcp.test.js": {
+    "tempdir": 2,
+    "model": 5,
+    "repo-read": 1
+  },
+  "test/mechanical-merge.test.js": {
+    "tempdir": 1
+  },
+  "test/merge-move-closure.test.js": {
+    "repo-read": 2,
+    "hex64": 1
+  },
+  "test/merge-only-verdict.test.js": {
+    "tempdir": 2
+  },
+  "test/merged-plan-check.test.js": {
+    "tempdir": 6
+  },
+  "test/mixed-mode-drill-fixture.js": {
+    "model": 1
+  },
+  "test/model-tier-route.test.js": {
+    "model": 4
+  },
+  "test/module-import-cache.test.js": {
+    "tempdir": 1
+  },
+  "test/move-registry-merge-cases.js": {
+    "tempdir": 2
+  },
+  "test/move-registry.test.js": {
+    "repo-read": 1,
+    "tempdir": 3
+  },
+  "test/moves-move-closure.test.js": {
+    "tempdir": 2
+  },
+  "test/native-flakes.test.js": {
+    "tempdir": 2
+  },
+  "test/needs.test.js": {
+    "repo-read": 2
+  },
+  "test/newcomer.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/next-diagnose-offer.test.js": {
+    "model": 2
+  },
+  "test/next-item-folders.test.js": {
+    "model": 1
+  },
+  "test/next-order.test.js": {
+    "model": 6
+  },
+  "test/next-take-fixture.js": {
+    "tempdir": 2
+  },
+  "test/next-verify.test.js": {
+    "tempdir": 2
+  },
+  "test/no-eligible-reviewer.test.js": {
+    "model": 4
+  },
+  "test/no-policy-rebinds.test.js": {
+    "tempdir": 5
+  },
+  "test/no-wait-defaults.test.js": {
+    "repo-read": 2,
+    "model": 2
+  },
+  "test/no-wait-refusals.test.js": {
+    "model": 1
+  },
+  "test/node-version.test.js": {
+    "tempdir": 3
+  },
+  "test/output-budget.test.js": {
+    "model": 1,
+    "repo-read": 1
+  },
+  "test/package-files-copies.test.js": {
+    "tempdir": 1
+  },
+  "test/package-shim-graph.test.js": {
+    "tempdir": 1
+  },
+  "test/pairing.test.js": {
+    "tempdir": 1
+  },
+  "test/parent-session.test.js": {
+    "tempdir": 4
+  },
+  "test/pending-refreeze.test.js": {
+    "tempdir": 2
+  },
+  "test/per-file-timeout-report.test.js": {
+    "tempdir": 1
+  },
+  "test/perf-budgets.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/person-enrollment.test.js": {
+    "repo-read": 1,
+    "tempdir": 2
+  },
+  "test/person-first-pin-fixture.js": {
+    "tempdir": 1
+  },
+  "test/person-request-receipts.test.js": {
+    "tempdir": 1
+  },
+  "test/pinned-claim-lapse.test.js": {
+    "tempdir": 2
+  },
+  "test/pinned-tool-build.test.js": {
+    "repo-read": 1
+  },
+  "test/pinned-tool-policy-once.test.js": {
+    "tempdir": 1
+  },
+  "test/plan-drift-gate.test.js": {
+    "model": 2
+  },
+  "test/practice.test.js": {
+    "tempdir": 5
+  },
+  "test/precommit-fixes-import-bindings.test.js": {
+    "tempdir": 2
+  },
+  "test/precommit-lane-merged-main.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/presence.test.js": {
+    "tempdir": 5,
+    "model": 1
+  },
+  "test/privacy-scan-guard.test.js": {
+    "repo-read": 1
+  },
+  "test/private-board-move-fixture.js": {
+    "tempdir": 1,
+    "model": 3
+  },
+  "test/private-rehome-grants.test.js": {
+    "model": 1
+  },
+  "test/products.test.js": {
+    "tempdir": 2
+  },
+  "test/project-git-timeout-fixture.js": {
+    "model": 1
+  },
+  "test/project-meta.test.js": {
+    "tempdir": 2
+  },
+  "test/projects.test.js": {
+    "tempdir": 7,
+    "model": 1
+  },
+  "test/proof-provenance.test.js": {
+    "tempdir": 6
+  },
+  "test/prove-once.test.js": {
+    "tempdir": 2
+  },
+  "test/query-plans.test.js": {
+    "tempdir": 3,
+    "model": 1
+  },
+  "test/queue-order.test.js": {
+    "tempdir": 2
+  },
+  "test/queue-settings-port.test.js": {
+    "tempdir": 1
+  },
+  "test/queued-item-lease-busy.test.js": {
+    "tempdir": 2
+  },
+  "test/ratchet-against-main.test.js": {
+    "tempdir": 3
+  },
+  "test/ratchet-rename.test.js": {
+    "tempdir": 2
+  },
+  "test/read-command-no-background.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/readme.test.js": {
+    "repo-read": 17
+  },
+  "test/reclaim-live-seat.test.js": {
+    "tempdir": 2
+  },
+  "test/red-return-idle-lapse.test.js": {
+    "tempdir": 2
+  },
+  "test/refreeze.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/refusal-next-steps.test.js": {
+    "model": 5
+  },
+  "test/refusal-report-only.test.js": {
+    "tempdir": 1
+  },
+  "test/reject-reopens-to-any.test.js": {
+    "model": 1
+  },
+  "test/relay-boundary.test.js": {
+    "repo-read": 2
+  },
+  "test/relay-browser-assets.test.js": {
+    "tempdir": 2
+  },
+  "test/relay-browser-client.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-browser.test.js": {
+    "tempdir": 3
+  },
+  "test/relay-cached-access.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-canary-needs.test.js": {
+    "tempdir": 2
+  },
+  "test/relay-canary-notice-delivery.test.js": {
+    "model": 1
+  },
+  "test/relay-canary-watch.test.js": {
+    "model": 1
+  },
+  "test/relay-canary.test.js": {
+    "model": 3
+  },
+  "test/relay-client-fixture.js": {
+    "tempdir": 3
+  },
+  "test/relay-client.test.js": {
+    "tempdir": 5,
+    "model": 1
+  },
+  "test/relay-composed-styles.test.js": {
+    "repo-read": 1
+  },
+  "test/relay-deploy.test.js": {
+    "tempdir": 5,
+    "repo-read": 1
+  },
+  "test/relay-device-http.test.js": {
+    "tempdir": 2
+  },
+  "test/relay-http.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-journal.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-local-first-verdict.test.js": {
+    "model": 1
+  },
+  "test/relay-local-first.test.js": {
+    "model": 4,
+    "tempdir": 1
+  },
+  "test/relay-machine-auth.test.js": {
+    "tempdir": 2
+  },
+  "test/relay-machine-journal.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-machine-receipts.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-mint.test.js": {
+    "model": 5,
+    "tempdir": 2
+  },
+  "test/relay-outbox.test.js": {
+    "model": 2
+  },
+  "test/relay-page-client.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-page-store.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-pages-http.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-parity-extra-seeds.js": {
+    "model": 1
+  },
+  "test/relay-parity-fixture.js": {
+    "tempdir": 1
+  },
+  "test/relay-parity-item-patches.js": {
+    "tempdir": 1
+  },
+  "test/relay-parity-submit-handoff.js": {
+    "tempdir": 1
+  },
+  "test/relay-person-recovery.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-phone-grants.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-retention.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-sealed.test.js": {
+    "tempdir": 9,
+    "repo-read": 1
+  },
+  "test/relay-sender-heartbeat.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-setup.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/relay-storage-quota.test.js": {
+    "tempdir": 1
+  },
+  "test/relay-team-access.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/relay-version.test.js": {
+    "tempdir": 1
+  },
+  "test/relay.test.js": {
+    "tempdir": 1
+  },
+  "test/release-archive.test.js": {
+    "tempdir": 1
+  },
+  "test/release-clears-claim.test.js": {
+    "model": 1
+  },
+  "test/release-producer-cases.js": {
+    "tempdir": 2
+  },
+  "test/release-receipt-cases.js": {
+    "tempdir": 1
+  },
+  "test/release-transport-cases.js": {
+    "tempdir": 1
+  },
+  "test/release-twice-hold.test.js": {
+    "tempdir": 4
+  },
+  "test/release.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/released-twice-ignores-board-releases.test.js": {
+    "tempdir": 2,
+    "model": 3
+  },
+  "test/remote-gate-trunk-pack.test.js": {
+    "tempdir": 2
+  },
+  "test/reopen-conflict.test.js": {
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/requeue-restriction-valid.test.js": {
+    "tempdir": 2
+  },
+  "test/required-review-family-fixture.js": {
+    "model": 1
+  },
+  "test/reserve-next-review-lock.test.js": {
+    "model": 3
+  },
+  "test/resident-board-orphans.test.js": {
+    "tempdir": 3
+  },
+  "test/resident-board.test.js": {
+    "tempdir": 3,
+    "model": 1
+  },
+  "test/resource-recovery-ports.test.js": {
+    "tempdir": 1
+  },
+  "test/resources-runner-only-fixture.js": {
+    "tempdir": 1
+  },
+  "test/resources-verify-fixture.js": {
+    "model": 1
+  },
+  "test/resume-flow.test.js": {
+    "tempdir": 4,
+    "repo-read": 1,
+    "model": 4
+  },
+  "test/review-capacity-wake.test.js": {
+    "model": 1
+  },
+  "test/review-eligibility.test.js": {
+    "model": 29
+  },
+  "test/review-family-relax.test.js": {
+    "model": 4
+  },
+  "test/review-packet.test.js": {
+    "model": 3
+  },
+  "test/review-queue-cli.test.js": {
+    "tempdir": 2
+  },
+  "test/review-queue.test.js": {
+    "tempdir": 1
+  },
+  "test/review-reservation.test.js": {
+    "tempdir": 2
+  },
+  "test/review-tier-default.test.js": {
+    "model": 1
+  },
+  "test/review-tier.test.js": {
+    "model": 1,
+    "repo-read": 2
+  },
+  "test/rigor-auto.test.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "test/rigor-broadcasts.test.js": {
+    "tempdir": 1,
+    "model": 1
+  },
+  "test/rigor-checks.test.js": {
+    "tempdir": 1,
+    "model": 2,
+    "repo-read": 1
+  },
+  "test/rigor-counters.test.js": {
+    "tempdir": 1
+  },
+  "test/rigor-quality.test.js": {
+    "tempdir": 1
+  },
+  "test/rigor.test.js": {
+    "tempdir": 3,
+    "model": 7
+  },
+  "test/roadmap.test.js": {
+    "tempdir": 4,
+    "model": 2
+  },
+  "test/route-calibration.test.js": {
+    "model": 1
+  },
+  "test/route-capacity.test.js": {
+    "tempdir": 2
+  },
+  "test/routing-rules.test.js": {
+    "model": 4
+  },
+  "test/row-decisions-replay.test.js": {
+    "tempdir": 1
+  },
+  "test/run-tests-cleanup-enotempty.test.js": {
+    "tempdir": 2
+  },
+  "test/run-tests-empty-selection.test.js": {
+    "model": 1
+  },
+  "test/run-tests-fixture.js": {
+    "tempdir": 1
+  },
+  "test/run-tests-options.test.js": {
+    "tempdir": 3
+  },
+  "test/run-tests-reporter.test.js": {
+    "tempdir": 3
+  },
+  "test/run-tests-timeout.test.js": {
+    "tempdir": 3
+  },
+  "test/run-tests-worker-identity.test.js": {
+    "tempdir": 1
+  },
+  "test/run-tests.test.js": {
+    "tempdir": 9
+  },
+  "test/runner-background-cleanup.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-browser-free-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-cache-prune.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-cancel-on-red.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-capacity-fixture.js": {
+    "tempdir": 2
+  },
+  "test/runner-capacity-read.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-capsule-stdin.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-cleanup-foreign-process.test.js": {
+    "tempdir": 3
+  },
+  "test/runner-cleanup-recovery.test.js": {
+    "model": 1
+  },
+  "test/runner-controller-machine-fixture.js": {
+    "repo-read": 1
+  },
+  "test/runner-controller.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-cpu-classification-fixture.js": {
+    "tempdir": 2
+  },
+  "test/runner-custody.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-disk-floor.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-disk-sweep.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-drain-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-fetches-trunk.test.js": {
+    "tempdir": 3
+  },
+  "test/runner-fixture-state.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-history-bound.test.js": {
+    "tempdir": 4
+  },
+  "test/runner-history-incremental.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-idle-dead-holder.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-invalid-spec.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-job-lost.fixture.js": {
+    "model": 1
+  },
+  "test/runner-leak-heal-busy.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-leak-scan.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-orphan-fixture.js": {
+    "tempdir": 2
+  },
+  "test/runner-paired-rerun-fixture.js": {
+    "tempdir": 2
+  },
+  "test/runner-parent-death-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-pid.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-policy.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-quarantine-recovers.test.js": {
+    "tempdir": 3
+  },
+  "test/runner-registration-gui-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-request.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-requeue-unpins.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-self-heal.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-slot-quarantine.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/runner-source-refusal-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-source-setup-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-stage.test.js": {
+    "tempdir": 4
+  },
+  "test/runner-tooling-fixture.js": {
+    "tempdir": 1
+  },
+  "test/runner-unavailable-redispatch.fixture.js": {
+    "model": 1
+  },
+  "test/runner-warm-pool.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-warm-source.test.js": {
+    "tempdir": 2
+  },
+  "test/runner-worker-capacity-sync.test.js": {
+    "tempdir": 1
+  },
+  "test/runner-worker-state.test.js": {
+    "tempdir": 1,
+    "repo-read": 1
+  },
+  "test/runners-cache-compatibility.test.js": {
+    "tempdir": 2
+  },
+  "test/runners-capsule.test.js": {
+    "tempdir": 1
+  },
+  "test/runners-check-failover.test.js": {
+    "tempdir": 4
+  },
+  "test/runners-isolation.test.js": {
+    "tempdir": 1
+  },
+  "test/runners-only-no-local.test.js": {
+    "tempdir": 1
+  },
+  "test/runners-round-trip.test.js": {
+    "tempdir": 2
+  },
+  "test/runners-setup-refusals.test.js": {
+    "tempdir": 2
+  },
+  "test/runners-transport-cleanup.test.js": {
+    "tempdir": 2
+  },
+  "test/seal-selection.test.js": {
+    "tempdir": 2
+  },
+  "test/seals.test.js": {
+    "tempdir": 3
+  },
+  "test/seat-address.test.js": {
+    "model": 1
+  },
+  "test/seat-gone-worktree-activity.test.js": {
+    "tempdir": 2
+  },
+  "test/seat-test-slot-cap.test.js": {
+    "tempdir": 2
+  },
+  "test/seat-timing.test.js": {
+    "tempdir": 6
+  },
+  "test/selection-cache.test.js": {
+    "tempdir": 6
+  },
+  "test/selection-fallbacks.test.js": {
+    "tempdir": 2
+  },
+  "test/sentinel-cpu.test.js": {
+    "tempdir": 2
+  },
+  "test/sentinel-stuck-count.test.js": {
+    "tempdir": 2
+  },
+  "test/sentinels.test.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/session-tokens.test.js": {
+    "model": 5,
+    "tempdir": 1
+  },
+  "test/settings-api-fixture.js": {
+    "tempdir": 3
+  },
+  "test/shadow-batch.test.js": {
+    "tempdir": 2
+  },
+  "test/shared-version.test.js": {
+    "tempdir": 2
+  },
+  "test/shared-wait-guard.test.js": {
+    "tempdir": 4,
+    "repo-read": 1
+  },
+  "test/show-check.test.js": {
+    "tempdir": 1
+  },
+  "test/show.test.js": {
+    "tempdir": 2
+  },
+  "test/skills.test.js": {
+    "tempdir": 2,
+    "repo-read": 5,
+    "hex64": 4
+  },
+  "test/spec-apply-busy-board.test.js": {
+    "model": 1
+  },
+  "test/spec-approval.test.js": {
+    "model": 2,
+    "tempdir": 1
+  },
+  "test/spec.test.js": {
+    "tempdir": 6,
+    "model": 1
+  },
+  "test/split-repoints-checks.test.js": {
+    "tempdir": 1
+  },
+  "test/stale-cli-reclaim.test.js": {
+    "tempdir": 1
+  },
+  "test/stale-state.test.js": {
+    "model": 2
+  },
+  "test/stale-waiter-priority.test.js": {
+    "tempdir": 2
+  },
+  "test/static-style.test.js": {
+    "tempdir": 1
+  },
+  "test/stats-cli.test.js": {
+    "tempdir": 2
+  },
+  "test/stats-cold.test.js": {
+    "tempdir": 3
+  },
+  "test/stats-counts.test.js": {
+    "tempdir": 1
+  },
+  "test/stats-moves.test.js": {
+    "tempdir": 2
+  },
+  "test/stats-pipeline.test.js": {
+    "tempdir": 2
+  },
+  "test/stranded-dependency.test.js": {
+    "tempdir": 2
+  },
+  "test/strict-review-all-families.test.js": {
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/submit-auto-merge.test.js": {
+    "tempdir": 2
+  },
+  "test/submit-cells-incremental.test.js": {
+    "tempdir": 2
+  },
+  "test/submit-cells-receipt-line.test.js": {
+    "repo-read": 1
+  },
+  "test/submit-cells-remote.test.js": {
+    "tempdir": 6
+  },
+  "test/submit-compare.test.js": {
+    "tempdir": 2,
+    "model": 2
+  },
+  "test/submit-derived-family.test.js": {
+    "model": 11
+  },
+  "test/submit-foreground-main-move.test.js": {
+    "model": 1
+  },
+  "test/submit-gate-fixture.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/submit-gate.test.js": {
+    "repo-read": 1
+  },
+  "test/submit-handoff-main-move.test.js": {
+    "model": 1
+  },
+  "test/submit-handoff-worker-exit.test.js": {
+    "tempdir": 1
+  },
+  "test/submit-main-moved-unrelated.test.js": {
+    "tempdir": 2
+  },
+  "test/submit-main-red-fixture.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/submit-outcome-files.test.js": {
+    "repo-read": 1
+  },
+  "test/submit-outcome-fixture.js": {
+    "tempdir": 2,
+    "model": 1
+  },
+  "test/submit-proof-reuse.test.js": {
+    "model": 2,
+    "tempdir": 1
+  },
+  "test/submit-red-loop.test.js": {
+    "model": 1
+  },
+  "test/submit-remote-gate.test.js": {
+    "tempdir": 2
+  },
+  "test/submit-runner-plan.test.js": {
+    "tempdir": 2
+  },
+  "test/submit-spec-row-proof.test.js": {
+    "model": 1
+  },
+  "test/submit-tooling-retry.test.js": {
+    "repo-read": 1
+  },
+  "test/submit-wrong-branch.test.js": {
+    "tempdir": 2
+  },
+  "test/sync.test.js": {
+    "model": 1
+  },
+  "test/team-device-link.test.js": {
+    "model": 1
+  },
+  "test/team-private-board.test.js": {
+    "model": 2
+  },
+  "test/team-session-access.test.js": {
+    "model": 1
+  },
+  "test/test-action-cache.test.js": {
+    "tempdir": 2
+  },
+  "test/test-cache-receipts.test.js": {
+    "tempdir": 2
+  },
+  "test/test-file-budget.test.js": {
+    "tempdir": 2
+  },
+  "test/test-isolation.test.js": {
+    "tempdir": 2
+  },
+  "test/test-lint-sleeps.test.js": {
+    "repo-read": 1
+  },
+  "test/test-output-summary.test.js": {
+    "model": 1
+  },
+  "test/test-resources.test.js": {
+    "tempdir": 3,
+    "repo-read": 3
+  },
+  "test/test-result-fleet-fixture.js": {
+    "tempdir": 2
+  },
+  "test/test-runner.test.js": {
+    "tempdir": 8
+  },
+  "test/test-sandbox-cleanup.test.js": {
+    "tempdir": 2
+  },
+  "test/test-tiers.test.js": {
+    "tempdir": 2
+  },
+  "test/test-value.test.js": {
+    "tempdir": 2
+  },
+  "test/testkit-fixture.test.js": {
+    "repo-read": 2
+  },
+  "test/thread.test.js": {
+    "tempdir": 2
+  },
+  "test/train-mechanical-merge.test.js": {
+    "model": 1,
+    "tempdir": 1
+  },
+  "test/train-post-land-suite.test.js": {
+    "tempdir": 1
+  },
+  "test/two-tier-diagnosis.test.js": {
+    "model": 2
+  },
+  "test/typed-requests.test.js": {
+    "tempdir": 1
+  },
+  "test/ui-sizes.test.js": {
+    "tempdir": 1,
+    "repo-read": 2
+  },
+  "test/usage-cache-split.test.js": {
+    "model": 3
+  },
+  "test/usage-checkpoint-offpath.test.js": {
+    "model": 2
+  },
+  "test/verdict-already-on-main.test.js": {
+    "model": 1
+  },
+  "test/verdict-assurance.test.js": {
+    "tempdir": 2
+  },
+  "test/verdict-composes-unchanged.test.js": {
+    "tempdir": 2
+  },
+  "test/verdict-trunk-off-main.test.js": {
+    "tempdir": 4
+  },
+  "test/verdict-withdraw-engine.test.js": {
+    "tempdir": 1
+  },
+  "test/verify-compare.test.js": {
+    "model": 2
+  },
+  "test/verify-known-main.test.js": {
+    "tempdir": 2
+  },
+  "test/verify-move-closure.test.js": {
+    "repo-read": 1
+  },
+  "test/verify-trunk-moved.test.js": {
+    "model": 1
+  },
+  "test/view-port.test.js": {
+    "tempdir": 6
+  },
+  "test/view-pure-moved-coverage.test.js": {
+    "tempdir": 1
+  },
+  "test/view-services.test.js": {
+    "tempdir": 1
+  },
+  "test/view-state-size.test.js": {
+    "model": 1
+  },
+  "test/view-test-policy.test.js": {
+    "tempdir": 1
+  },
+  "test/view.test.js": {
+    "tempdir": 1,
+    "model": 4
+  },
+  "test/wall-clock-budgets.test.js": {
+    "tempdir": 7
+  },
+  "test/wall-limit-load-scaled.test.js": {
+    "tempdir": 1
+  },
+  "test/webkit-fixture.js": {
+    "tempdir": 1
+  },
+  "test/withdraw-note.test.js": {
+    "model": 1
+  },
+  "test/worker-git-witness.fixture.js": {
+    "repo-read": 1
+  },
+  "test/worker-scale-launch.test.js": {
+    "model": 2
+  },
+  "test/worker-scale-no-overlaunch.test.js": {
+    "model": 2
+  },
+  "test/worker-scale.test.js": {
+    "tempdir": 1
+  },
+  "test/workflows.test.js": {
+    "repo-read": 2,
+    "tempdir": 1
+  },
+  "test/worktree-runs-current-cli.test.js": {
+    "tempdir": 2
+  },
+  "test/worktree-seat-family.test.js": {
+    "model": 7
+  },
+  "test/worktree-start.test.js": {
+    "model": 8
+  }
+}

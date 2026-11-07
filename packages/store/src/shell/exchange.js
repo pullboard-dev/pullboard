@@ -4,6 +4,8 @@ import { suspendStoreGuards } from "./board-store-guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
+import { FAMILY_RECORD_PREFIX } from "../../../items/index.js";
+import { warmFamilyProjection } from "../../../items/index.js";
 import { exportedMeta } from "../core/board-person-authority-schema.js";
 import { rebuildProofCounters } from "../../../verify/index.js";
 import { importSeatObservations } from "./seat-presence.js";
@@ -59,9 +61,37 @@ function columnsOf(db, table) {
 
 /** Read native rows without fetching large local proof projections into an export or digest. */
 function nativeRows(db, table) {
-  if (table === 'board_meta') return db.prepare('SELECT * FROM board_meta WHERE (meta_key < ? OR meta_key >= ?) AND meta_key NOT GLOB ? ORDER BY rowid')
-    .all(PROOF_COUNTER_PREFIX, 'local:proof-stats;', LANDING_LOCAL_PREFIX + '*');
+  if (table === 'board_meta') return db.prepare('SELECT * FROM board_meta WHERE (meta_key < ? OR meta_key >= ?) AND meta_key NOT GLOB ? AND meta_key NOT GLOB ? ORDER BY rowid')
+    .all(PROOF_COUNTER_PREFIX, 'local:proof-stats;', LANDING_LOCAL_PREFIX + '*', FAMILY_RECORD_PREFIX + '*');
   return db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all();
+}
+
+/**
+ * Board tables an export may leave out; a missing one imports as empty [C7].
+ *
+ * Why: job and job_step are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
+ * exports made before or without them never list them. Every other table still has to match exactly.
+ */
+const ADDITIVE_TABLES = new Set(['job', 'job_step']);
+
+/**
+ * Read every exported table's rows, leaving out an additive table that holds no rows, and its counter [C7].
+ *
+ * Why: an older release's importer refuses tables it does not know, so an ordinary board with no jobs exports
+ * without them and still imports there; a board that holds job rows keeps them. Export and the relay
+ * checkpoint digest both read through here, so the two always see the same document.
+ * @param {any} db
+ * @param {string[]} names
+ * @returns {Record<string, any[]>}
+ */
+function exportedTables(db, names) {
+  const tables = Object.fromEntries(names.map((table) => [table, nativeRows(db, table)]));
+  const omitted = new Set([...ADDITIVE_TABLES].filter((table) => Array.isArray(tables[table]) && tables[table].length === 0));
+  for (const table of omitted) delete tables[table];
+  if (omitted.size && Array.isArray(tables.sqlite_sequence)) {
+    tables.sqlite_sequence = tables.sqlite_sequence.filter(({ name }) => !omitted.has(name));
+  }
+  return tables;
 }
 
 /** Require the real phase provider at the native or raw-database composition root. */
@@ -85,10 +115,7 @@ export function exportBoard(board, ports) {
     const db = board.db;
     db.exec('BEGIN DEFERRED');
     try {
-      const tables = Object.fromEntries(tableNames(db).map((table) => [
-        table,
-        nativeRows(db, table),
-      ]));
+      const tables = exportedTables(db, tableNames(db));
       db.exec('COMMIT');
       // The pinned relay key stays with this board file; an export never carries it to another [E22].
       tables.board_meta = ports.exportedMeta(tables.board_meta ?? []);
@@ -108,7 +135,7 @@ export function semanticBoardDigest(document) {
     ...document,
     tables: {
       ...tables,
-      ...(Array.isArray(tables.board_meta) ? { board_meta: tables.board_meta.filter(row => !row.meta_key.startsWith(PROOF_COUNTER_PREFIX) && !row.meta_key.startsWith(LANDING_LOCAL_PREFIX)) } : {}),
+      ...(Array.isArray(tables.board_meta) ? { board_meta: tables.board_meta.filter(row => !row.meta_key.startsWith(PROOF_COUNTER_PREFIX) && !row.meta_key.startsWith(LANDING_LOCAL_PREFIX) && !row.meta_key.startsWith(FAMILY_RECORD_PREFIX)) } : {}),
       agent: tables.agent.map(({ agent_last_shout_id, ...row }) => row),
     },
   };
@@ -118,6 +145,17 @@ export function semanticBoardDigest(document) {
 /** Recognize only nonnegative SQLite-safe inbox cursors for monotonic checkpoint preservation. */
 function validReadCursor(value) {
   return Number.isSafeInteger(value) && value >= 0;
+}
+
+/**
+ * The rows a document supplies for a board table, or none for an additive table the export left out.
+ * @param {any} document
+ * @param {string} table
+ * @returns {any}
+ */
+function suppliedRows(document, table) {
+  if (ADDITIVE_TABLES.has(table) && !Object.hasOwn(document.tables, table)) return [];
+  return document.tables[table];
 }
 
 /**
@@ -134,13 +172,13 @@ function validateDocument(db, document, names) {
     throw new Refused('IMPORT_FORMAT', 'the export needs a tables object; use pullboard export to make one');
   }
   const supplied = Object.keys(document.tables).sort();
-  const expected = [...names].sort();
+  const expected = names.filter((table) => !ADDITIVE_TABLES.has(table) || Object.hasOwn(document.tables, table)).sort();
   if (JSON.stringify(supplied) !== JSON.stringify(expected)) {
     throw new Refused('IMPORT_SCHEMA', `the export tables do not match this board; export and import with the same pullboard version`);
   }
   for (const table of names) {
     const columns = columnsOf(db, table);
-    const rows = document.tables[table];
+    const rows = suppliedRows(document, table);
     if (!Array.isArray(rows)) throw new Refused('IMPORT_FORMAT', `table ${table} must contain an array of rows; export it again`);
     for (const row of rows) {
       if (!row || typeof row !== 'object' || Array.isArray(row) || JSON.stringify(Object.keys(row).sort()) !== JSON.stringify([...columns].sort())) {
@@ -267,10 +305,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     const localLanding = db.prepare('SELECT * FROM board_meta WHERE meta_key GLOB ?').all(LANDING_LOCAL_PREFIX + '*');
     let localAgentCursors = null;
     if (expectedNativeDigest !== null) {
-      const current = { version: VERSION, tables: Object.fromEntries(names.map((table) => [
-        table,
-        nativeRows(db, table),
-      ])) };
+      const current = { version: VERSION, tables: exportedTables(db, names) };
       current.tables.board_meta = board.nativePorts.exportedMeta(current.tables.board_meta);
       const actual = semanticBoardDigest(current);
       if (actual !== expectedNativeDigest) throw new Refused('RELAY_LOCAL_CHANGED', 'the local board changed before checkpoint restore; its changes were preserved, export them and retry recovery');
@@ -295,8 +330,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
       const columns = columnsOf(db, table);
       const sql = `INSERT INTO ${identifier(table)} (${columns.map(identifier).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
       const insert = db.prepare(sql);
-      for (const row of document.tables[table]) {
-        if (table === 'board_meta' && (row.meta_key.startsWith(PROOF_COUNTER_PREFIX) || row.meta_key.startsWith(LANDING_LOCAL_PREFIX))) continue;
+      for (const row of suppliedRows(document, table)) {
+        if (table === 'board_meta' && (row.meta_key.startsWith(PROOF_COUNTER_PREFIX) || row.meta_key.startsWith(LANDING_LOCAL_PREFIX) || row.meta_key.startsWith(FAMILY_RECORD_PREFIX))) continue;
         let restored = row;
         if (replace && expectedNativeDigest !== null && table === 'agent' && localAgentCursors.has(row.agent_id)) {
           const localCursor = localAgentCursors.get(row.agent_id);
@@ -316,6 +351,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     const restoreLocal = db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)');
     for (const row of localLanding) restoreLocal.run(row.meta_key, row.meta_value);
     rebuildProofCounters(board, { refresh: false });
+    warmFamilyProjection(board);
     restoreGuards();
     db.exec('COMMIT');
     released = true;

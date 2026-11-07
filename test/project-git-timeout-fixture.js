@@ -4,6 +4,8 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require native setup success before reading its versioned result. */
 function json(result) {
@@ -24,7 +26,7 @@ export function projectGitTimeoutFixture(t, { review = false } = {}) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   let reviewer = null, item = null;
   if (review) {
-    item = json(box.run(box.repo, 'add', 'web', 'Build the ready file', '--criterion', 'The ready file exists.',
+    item = json(fixtureAdd(box.run, box.repo, 'web', 'Build the ready file', '--criterion', 'The ready file exists.',
       '--check', 'test -f web/ready.txt', '--wait', '--json')).item.item_id;
     json(box.run(box.web, 'claim', String(item), '--json'));
     mkdirSync(join(box.web, 'web'), { recursive: true });
@@ -34,7 +36,7 @@ export function projectGitTimeoutFixture(t, { review = false } = {}) {
     json(box.run(box.web, 'submit', String(item), '--no-next', '--json'));
     reviewer = join(box.dir, 'api-reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD').trim());
-    json(box.run(reviewer, 'join', 'api', '--model', 'Fixture reviewer', '--family', 'fixture-review-vendor', '--json'));
+    json(fixtureJoin(box.run, reviewer, 'api', '--model', 'Fixture reviewer', '--family', 'fixture-review-vendor', '--json'));
   }
   const bad = join(box.dir, 'unreachable-repository');
   mkdirSync(bad);

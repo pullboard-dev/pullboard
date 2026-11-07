@@ -1,12 +1,10 @@
-import { releaseSource } from '../../../gate/index.js';
-import { runReleaseGate } from '../../../gate/index.js';
-import { runnerExecutionServices } from '../../../runners/index.js';
+import { runnerExecutionServices } from '../../../runners/src/shell/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
-import { fileTimesPath } from '../../../gate/index.js';
-import { readFileTimes } from '../../../gate/index.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/src/shell/gate-run-receipt.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/src/shell/gate-run-receipt.js';
+import { fileTimesPath } from '../../../gate/src/shell/test-value-timing.js';
+import { readFileTimes } from '../../../gate/src/shell/test-value-timing.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -42,14 +40,14 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../../src/git.js';
-import { testsNeedGui } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/src/shell/gui-admission.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
-import { localRunnerDescriptor } from '../../../runners/index.js';
-import { guiSession } from '../../../gate/index.js';
+import { localRunnerDescriptor } from '../../../runners/src/shell/runner-load.js';
+import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { headTree } from '../../../../src/git.js';
-import { cpuRunnerRequired } from '../../../gate/index.js';
-import { shardSelectionMatched } from '../../../gate/index.js';
+import { cpuRunnerRequired } from '../../../gate/src/shell/cpu-load-admission.js';
+import { shardSelectionMatched } from '../../../gate/src/shell/test-selection.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -64,7 +62,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../gate/index.js';
+} from '../../../gate/src/shell/gate-run-receipt.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -185,6 +183,24 @@ export function planLandingShards(files, count, times = {}, root = null) {
   }
   for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
   return shards.filter(shard => shard.files.length);
+}
+
+/**
+ * Split a build, submit or review run's test files across the runner slots that are free right now: at most one shard per
+ * free slot and per distinct file, balanced by recorded file times through the landing planner. One free slot, or none,
+ * gives one shard holding every file, so such a run executes as it does today (#3228).
+ *
+ * @param {string[]} files
+ * @param {number} freeSlots - Runner slots the caller found free; fractions and negatives count as none.
+ * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
+ * @returns {{ shards: { files: string[], weight: number }[], balance: 'history'|'history and average'|'file count', slots: number }}
+ */
+export function planFreeSlotShards(files, freeSlots, times = {}, root = null) {
+  const distinct = new Set(files.map(file => fileKey(file, root))).size;
+  const slots = Math.max(1, Math.min(Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 1, distinct));
+  const shards = planLandingShards(files, slots, times, root);
+  return { shards, balance: landingBalance(files.map(file => fileKey(file, root)), times), slots: shards.length };
 }
 
 /**
@@ -717,5 +733,5 @@ export function printShardFileTimes(path, write = text => process.stdout.write(t
 
 /** Supply landing policy and release orchestration ports without adding higher imports to their consumers. */
 export function landingExecutionServices() {
-  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors, releaseSource, runReleaseGate });
+  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors });
 }

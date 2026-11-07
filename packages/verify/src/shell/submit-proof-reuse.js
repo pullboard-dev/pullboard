@@ -29,6 +29,7 @@ export function reusableSubmitProof(events, { item, commit, tree, main, check, a
   const planDigest = submitReusePlanDigest({ check, files: proof.files, full: proof.full, deferred: proof.deferred, proofCommand });
   const phases = [['criterion', check], ['proof', proofCommand]].filter(([, command]) => command);
   const ids = [];
+  let environment = null;
   for (const [phase, command] of phases) {
     const matches = runs.filter(run => run.submitPhase === phase && run.command === digest(command));
     if (matches.length !== 1) return { reason: `${phase} receipt missing or ambiguous` };
@@ -37,7 +38,8 @@ export function reusableSubmitProof(events, { item, commit, tree, main, check, a
       || run.commit !== commit || run.tree !== tree || run.main !== main || run.frozenDigest !== item.item_frozen_digest
       || run.submitReusePlan !== planDigest || run.sourceClean !== true || run.green !== true || run.exitCode !== 0 || run.blockingVerdict) return { reason: `${phase} receipt does not match` };
     ids.push(run.id);
+    environment ??= run.environment ?? null;
   }
   if (!ids.length) return { reason: 'no executed submit proof' };
-  return { ids };
+  return { ids, environment };
 }

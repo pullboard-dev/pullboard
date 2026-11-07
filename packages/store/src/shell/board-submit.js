@@ -1,8 +1,14 @@
 import { boardWriteSnapshot } from './board-write-preparation.js';
+import { builderFamilyProblem } from './builder-family-required.js';
+import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../src/builder-family-required-engine.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { git } from '../../../git/index.js';
 import { gateJudgmentPath } from '../../../verify/index.js';
 import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
+import { acceptMachineSubmission } from '../../../verify/index.js';
+import { machineVerificationEligible } from '../../../verify/index.js';
+import { receiptFields } from '../../../verify/index.js';
+import { MACHINE_VERDICT_ENGINE } from '../../../../src/machine-verdict-engine.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
 import { clauseInspectionProblem } from '../../../state/index.js';
 import { itemThread } from './board-query.js';
@@ -15,6 +21,7 @@ import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../src/known-main-runni
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
 import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
+import { startItemPatchObjectionWindow } from "../../../items/index.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { submissionItemValues } from "./submission-record.js";
@@ -105,6 +112,9 @@ export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
+  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
   let inspect = inspectClauses === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -132,7 +142,11 @@ export function submit(board, id, options) {
       if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
     }
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE && options.machineReceipts !== undefined
+      && (!Array.isArray(options.machineReceipts) || options.machineReceipts.some(receipt => !receiptFields(receipt)))) throw new Refused('MACHINE_PROOF', 'machine evidence must contain valid native receipts');
     reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    const familyProblem = builderFamilyProblem(board, getItem(board, id), agentId, familyPolicy);
+    if (familyProblem) throw familyProblem;
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
     if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
@@ -153,7 +167,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit) }) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))) }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -207,6 +221,12 @@ export function submit(board, id, options) {
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+    startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
+      && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
+      if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');
+      acceptMachineSubmission(board, getItem(board, id), options, { getItem, moveItem, logEvent });
+    }
   });
   if (autoMainReds) return { mainRedRepairs };
 }

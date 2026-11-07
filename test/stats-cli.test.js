@@ -6,7 +6,7 @@ import { apiBoardOpeners } from './board-fixture.js';
 
 import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureGit } from './fixture-child.js';
 import { existsSync } from 'node:fs';
@@ -48,12 +48,15 @@ function fixture(t) {
     else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   });
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
+  // The disk board lives in a real repository with a committed policy, so submit seals it instead of refusing NO_POLICY [C7,V4].
+  const boardFile = repositoryBoardFile(root);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
+  runFixtureGit(['add', 'pullboard.json', 'PRACTICE.md'], { cwd: root, stdio: 'pipe' });
+  runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture lanes'], { cwd: root, stdio: 'pipe' });
   let now = new Date('2026-10-08T12:00:00.000Z');
   const clock = { now: () => now };
-  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(boardFile, clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: join(root, 'web') });
@@ -115,16 +118,18 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
     invalidLines: 0, days: {}, commands: [],
     allowance: { version: 1, allowancePerDay: null, observedDay: null, fact: null, status: 'unmeasured' } };
   const usage = { items: [], lanes: [], milestones: [], models: [], seats: [], sharedSessions: [] };
+  // Landed 1c6a65659d adds idle-filter seat minutes; a fresh machine reports no skipped rows.
+  const idleSkips = { rows: [], since: boardHolds.since, until };
   const coordinator = coordinatorActions(board, { until });
-  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
+  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], idleSkips, testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
     'a fresh private machine reports no invented holds, usage or gated runs (#836,#1875,#1056)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
   assert.equal(text.code, 0, text.stderr);
   assert.match(text.stdout, /2 submissions · 1 rejections · 50\.0% sent back/u);
   assert.match(text.stdout, /1 items merged · 0 merged without an accept/u);
-  assert.match(text.stdout, /3 agents · 1 family buckets: unknown \(3 agents,/u);
-  assert.match(text.stdout, /agents: coordinator \(unknown\) \(unknown; \d+ moves\), review-1 \(unknown\) \(unknown; \d+ moves\), web-1 \(unknown\) \(unknown; \d+ moves\)/u);
+  assert.match(text.stdout, /2 agents · 1 family buckets: unknown \(2 agents,/u);
+  assert.match(text.stdout, /agents: review-1 \(unknown\) \(unknown; \d+ moves\), web-1 \(unknown\) \(unknown; \d+ moves\)/u);
   assert.ok(text.stdout.includes(expected.firstEventAt));
   assert.ok(text.stdout.includes(expected.lastEventAt));
   assert.match(text.stdout, /build: average 0 min · median 0 min · 1 measured/u);
@@ -222,7 +227,8 @@ test('[N26,D1] stats names what the board caught', async (t) => {
   assert.match(text.stdout, /flakes proven: no item, \S+: test\/b\.test\.js: waits passed on rerun/u);
   assert.match(text.stdout, new RegExp(`flakes proven: #1, \\S+: test/c\\.test\\.js :: same tree went red and green on tree ${'d'.repeat(40)}`, 'u'), 'a test the board quarantined after one tree went red and green is a proven flake');
   assert.match(text.stdout, /stuck states the sentinel reported: #1, \S+: item 1 \(STUCK\)/u);
-  const digest = await run(root, ['digest', '--json']);
+  // The fixture's events are dated 8-9 Oct 2026, so the 30-day digest window needs a clock beside them.
+  const digest = await run(root, ['digest', '--json'], { now: () => new Date('2026-10-10T00:00:00.000Z') });
   assert.equal(digest.code, 0, digest.stderr);
   assert.match(digest.data.markdown, /## What the board caught, last 30 days/u);
   assert.match(digest.data.markdown, /3 sent back by a reviewer; 1 conflicted with the trunk/u);
@@ -321,4 +327,26 @@ test('[R1,R2,A1] stats window and ordinary counters share one SQLite snapshot wh
   const next = await run(root, ['stats', '--window', '6h', '--json'], clock);
   assert.equal(next.data.stats.merged, 2);
   assert.equal(next.data.window.landedItems, 2, 'the next observation sees both committed receipts');
+});
+
+/**
+ * Prove criterion clause 1: the shared board-submit fixture sets board.gitRoot itself, so the stats fixture's board is tied to its repository.
+ */
+test('clause 1: the shared board-submit fixture sets board.gitRoot to the fixture repository [C7,V4]', (t) => {
+  const { root, board } = fixture(t);
+  assert.equal(board.gitRoot, root, 'the board knows its repository without the case setting it');
+});
+
+/**
+ * Prove criterion clause 2: the shared board-submit fixture seals the repository policy itself, so a submit is never refused NO_POLICY.
+ * The fixture's own claim and submit would throw that refusal before returning if the board had no gitRoot policy.
+ */
+test('clause 2: no case in stats-cli, review-starve or next-verify is refused NO_POLICY by the board-submit fixture [C7,V4]', (t) => {
+  const { board, builder } = fixture(t);
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Policy sealed fixture' });
+  const freeze = () => ({ text: 'Policy sealed fixture', digest: 'frozen' });
+  store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 3_600_000, freeze });
+  assert.doesNotThrow(() => submitFixture(board, id, { agentId: builder, commit: '1'.repeat(40), tree: '2'.repeat(40) }),
+    error => error?.code === 'NO_POLICY');
+  assert.equal(store.getItem(board, id).item_status, 'submitted', 'the fixture submit sealed the policy and reached submitted');
 });

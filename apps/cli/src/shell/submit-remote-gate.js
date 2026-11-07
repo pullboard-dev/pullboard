@@ -1,3 +1,4 @@
+import { submitCellsInventory } from './submit-cells-remote.js';
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
 import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
@@ -62,12 +63,13 @@ process.exitCode = status;
 
 /**
  * The analysis entry, written into main's archive: every step imports main's modules, the candidate is the checked tree.
- * Why namespace imports: an accepted main that predates an optional export still links, and the step says what it lacks.
+ * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
 const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
 import * as cells from './bin/cells-submit-checks.js';
+import * as cellsCache from './bin/cells-inventory-cache.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -99,17 +101,19 @@ try {
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
   if (selected('preflight') && input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
+  const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+  const artifact = artifacts?.get(input.main);
   if (selected('cells')) result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
-    withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
+    withMainCheckout: landing.withMainCheckout, acceptedArtifact: artifact, acceptedArtifacts: artifacts, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
     withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS), collectMachinery: input.collectMachinery === true,
     readCutItems: () => input.cutRows,
-    onInventory: mode => result.notes.push('submit cells inventory: ' + mode),
+    onInventory: (mode, cause) => result.notes.push('submit cells inventory: ' + mode + (cause ? ': ' + cause : '')),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) }));
   if (selected('selection')) result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
   if (selected('selection') && typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
-  if (error?.retryable === true && error.code === 'GIT_READ_INFRASTRUCTURE') result.infra = { code: error.code, message: String(error.message) };
+  if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
   else if (error?.name !== 'Refused') throw error;
   else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
@@ -134,7 +138,7 @@ export function trustedStepCommand({ main, entry, data, node = 'node' }) {
  * Run one trusted step on the admitted runner and accept only a complete result bound to its source and policy.
  * The private-check receipt hashes the exact request and output; any mismatch refuses rather than trusting bytes.
  */
-export async function trustedRunnerStep(root, { main, source, stage, entry, data, timeoutMs = 30 * 60 * 1000 }, lease, artifactDirectory) {
+export async function trustedRunnerStep(root, { main, source, stage, entry, data, analysisArtifact, timeoutMs = 30 * 60 * 1000 }, lease, artifactDirectory) {
   if (!lease?.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') {
     throw new Refused('RUNNER_SOURCE', `the remote ${stage} step needs its admitted runner; register a runner or submit in the foreground`);
   }
@@ -151,6 +155,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const directory = mkdtempSync(join(parent, 'remote-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
     runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
+    ...(analysisArtifact ? { analysisArtifact: { file: analysisArtifact.file, bytes: analysisArtifact.bytes.length, sha256: analysisArtifact.digest, context: policy.sha256 } } : {}),
     metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
@@ -188,17 +193,19 @@ const ANALYSIS_INFRA_ATTEMPTS = 3;
  */
 export async function remoteSubmitAnalysis(root, request, lease, artifactDirectory) {
   const { main, source, readCutItems } = request;
+  const inventory = !request.parts || request.parts.includes('cells') ? await submitCellsInventory(root, main, source) : null;
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
+    inventory: inventory?.descriptor ?? null, browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
-    step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data }, lease, artifactDirectory);
-    if (!step.value.infra) break;
+    step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data, analysisArtifact: inventory }, lease, artifactDirectory);
+    if (!step.value.infra || step.value.infra.code.startsWith('CELLS_INVENTORY_')) break;
   }
-  if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true });
+  if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
+    ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   const { value, directory, sha256 } = step;
   if (value.refused) throw new Refused(value.refused.code, value.refused.message, value.refused.next);
   if (JSON.stringify(readCutItems()) !== JSON.stringify(cutRows)) {
@@ -246,6 +253,11 @@ export function acceptRunnerPlan(analysis, { main, source, crossRunTests = [] })
  */
 export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate) {
   return runGate(remoteMode ? acceptRunnerPlan(await selection, pinned) : {});
+}
+
+/** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
+export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
+  return runSubmitGate(root, config, { ...options, ...runnerPlan });
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
