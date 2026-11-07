@@ -262,7 +262,7 @@ export async function scaleWorkers(io, values, deps) {
       const args = { lane, managed: [...running.keys()], inactive: parked.map(seat => seat.id), route, now: now() };
       const observed = deps.observe ? deps.observe(board, args) : observeWorkers(board, args);
       const used = ledger.record(budget.window, now(), observed.workers.map(worker => worker.id));
-      return { ...observed, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
+      return { ...observed, model, budget, usedHours: used.usedHours, spent: used.spent, cycleHours, hoursLeft: workerWindowHours(budget.window, now()) };
     }),
     isIdle: id => deps.withBoard(ctx, board => !seatHoldsWork(board, id)),
     stop: id => {
