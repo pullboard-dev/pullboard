@@ -162,7 +162,8 @@ before(() => {
   }
   const worktree = join(dir, 'core-1');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/one', worktree], { cwd: repo, env });
-  const joined = runIn(worktree, ['join', 'core', '--model', 'test-model']);
+  // A known strong model, so the seat's route covers the strong items the fixture claims; an unknown label joins on mid and claim is refused ROUTE.
+  const joined = runIn(worktree, ['join', 'core', '--model', 'claude-opus-5-5']);
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   seedBoardScale(join(repo, '.git', 'pullboard', 'board.sqlite'));
   fx = { dir, code, repo, worktree, env, runIn, residentPid, alive, awaitResident,
@@ -268,11 +269,21 @@ function stopResidents(socket) {
   for (let round = 0; round < 400; round++) {
     const live = holders();
     quiet = live.length ? 0 : quiet + 1;
-    if (quiet >= 40) return;
+    if (quiet >= 10) return;
     for (const pid of live) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
   }
   assert.fail(`processes still hold ${socket}: ${holders().join(', ')}`);
+}
+
+/**
+ * Reject with a named error when a promise has not settled in time. Why: an await that never settles on a loaded
+ * runner otherwise runs to the file timeout, which kills the whole file and hides which step stalled.
+ */
+function within(promise, ms, what) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} did not settle within ${ms} ms`)), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 
 /** Ask a resident process to run its idle check now, and return its answer. */
@@ -288,7 +299,7 @@ function tick(socket) {
   });
 }
 
-test('an idle resident process closes its board connections and exits [H24]', async () => {
+test('clause 1: an idle resident process closes its board connections and exits [H24]', async () => {
   // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
   const bin = join(fx.code, 'bin', 'pullboard.js');
   const place = residentSocket(fx.repo, bin);
@@ -305,18 +316,18 @@ test('an idle resident process closes its board connections and exits [H24]', as
   let stderr = '';
   daemon.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
   const exited = new Promise(resolve => daemon.once('exit', code => resolve(code)));
-  await new Promise((resolve, reject) => {
+  await within(new Promise((resolve, reject) => {
     let stdout = '';
     daemon.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; if (stdout.includes('listening\n')) resolve(); });
     daemon.once('exit', code => reject(new Error(`the resident process exited ${code} before listening: ${stderr}`)));
-  });
+  }), 10_000, `the resident process listening (stderr: ${stderr})`);
   const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });
   assert.equal(served.status, 0, served.stderr);
   assert.ok(served.loaded.length < 20, 'the read ran in the resident process, on a connection it holds');
-  assert.equal(await tick(place.socket), 'busy', 'within the idle limit it keeps serving');
+  assert.equal(await within(tick(place.socket), 5_000, 'the first idle check'), 'busy', 'within the idle limit it keeps serving');
   writeFileSync(clockFile, String(start + 60_001));
-  assert.equal(await tick(place.socket), 'retired', 'past the idle limit it retires');
-  assert.equal(await exited, 0, stderr);
+  assert.equal(await within(tick(place.socket), 5_000, 'the second idle check'), 'retired', 'past the idle limit it retires');
+  assert.equal(await within(exited, 10_000, `the retired resident process exiting (stderr: ${stderr})`), 0, stderr);
   const own = traceLines().filter(line => line.pid === daemon.pid);
   assert.ok(own.some(line => line.event === 'retire:idle'), JSON.stringify(own));
   assert.ok(own.some(line => line.event === 'close' && line.file.endsWith(join('.git', 'pullboard', 'board.sqlite'))), 'it closed the board connection it held');
