@@ -1,15 +1,16 @@
+/** @pullboard-world-pin copies the real detach entry point from bin/ so the dispatcher under test is the shipped file. */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
+import { temporaryDirectory } from './board-fixture.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
 /** Prove the machine dispatcher survives a command ending and receives no agent session environment [C7]. */
 test('a handoff dispatcher is re-parented and survives its launcher process tree [C7]', async t => {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-handoff-dispatcher-'));
+  const root = temporaryDirectory('pullboard-handoff-dispatcher-');
   const machine = join(root, 'machine');
   const tools = join(root, 'tools');
   const entryDir = join(tools, 'bin');
