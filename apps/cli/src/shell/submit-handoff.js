@@ -323,7 +323,7 @@ export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHand
     try { await recover(ctx, itemId, job.agentId, job); }
     catch (error) {
       const skipped = error?.code === 'AGENT_REPLACED';
-      ctx.io.err(`[HANDOFF_SWEEP] #${itemId} ${skipped ? 'skipped' : 'not recovered'}: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`);
+      ctx.io.err(`[HANDOFF_SWEEP] #${itemId} ${skipped ? 'skipped' : 'not recovered'}: ${error?.message ?? error}`);
       if (!skipped) failure ??= error;
     }
   }
