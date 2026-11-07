@@ -12,6 +12,8 @@ import { repoInfo } from '../packages/git/index.js';
 import { minimumMoveEngine } from '../packages/moves/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { createHash } from 'node:crypto';
+import { passingMainReds } from '../packages/landing/index.js';
+import { turnedGreenAt } from '../packages/landing/index.js';
 
 const head = 'a'.repeat(40);
 const proof = {
@@ -197,4 +199,21 @@ test('the existing native policy witness rolls back a main move after audit with
   })), writer), error => error.code === 'POLICY_SNAPSHOT_STALE');
   assert.equal(store.getItem(db, id).item_status, 'open');
   assert.equal(store.events(db, { itemId: id }).some(event => ['withdraw', 'fact'].includes(event.event_kind)), false);
+});
+
+test('clause 1: a Main red item whose file turned green names the landing that turned it green [C7]', () => {
+  const [a, b, c] = ['a', 'b', 'c'].map(ch => ch.repeat(40));
+  const file = 'test/x.test.js';
+  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } }, [b]: { [file]: { result: 'green' } }, [c]: { [file]: { result: 'green', receiptId: 'run-9' } } };
+  const rows = passingMainReds([{ item_id: 7, item_status: 'open', item_title: `Main red: ${file}` }], c, entries);
+  assert.deepEqual(rows.map(row => [row.item, row.main, row.turnedGreen]), [[7, c, b]]);
+  assert.equal(turnedGreenAt(entries, c, file), b);
+});
+
+test('clause 2: a Main red item whose file is still red on main stays open [C7]', () => {
+  const a = 'a'.repeat(40);
+  const file = 'test/x.test.js';
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}` };
+  assert.deepEqual(passingMainReds([item], a, { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } } }), []);
+  assert.deepEqual(passingMainReds([item], a, {}), []);
 });

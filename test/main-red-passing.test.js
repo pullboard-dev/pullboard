@@ -15,7 +15,7 @@ const item = (id, extra = {}) => ({ item_id: id, item_status: 'open', item_title
 
 test('clause 1: an open Main red item whose file is green on current main is closed with the recorded run [C7,H24]', () => {
   const found = passingMainReds([item(1)], main, { [main]: { [file]: { result: 'green', receiptId: 'run-1' } } });
-  assert.deepEqual(found, [{ item: 1, file, receiptId: 'run-1', main }]);
+  assert.deepEqual(found, [{ item: 1, file, receiptId: 'run-1', main, turnedGreen: main }]);
 });
 
 test('clause 2: an item whose named case still fails on current main is offered as today [C7,H24]', () => {
