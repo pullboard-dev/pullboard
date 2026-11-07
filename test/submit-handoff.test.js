@@ -488,7 +488,10 @@ async function enforceCellTrial(box, kind, code) {
   const probe = join(box.dir, `trial-probe-${kind}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
   document(box.run(probe, 'join', 'web', '--model', 'Fixture', '--json'));
-  document(box.run(probe, 'claim', String(box.second), '--json'));
+  // Cell checks apply only to an item titled as a Cells move, so the probe files its own.
+  const probeId = document(box.run(box.repo, 'add', 'web', '--route', 'strong', `Cells move 1/1: trial probe ${kind}`, '--specs', 'G1',
+    '--criterion', 'The probe source reaches the cell checks.', '--check', 'true', '--wait', '--json')).item.item_id;
+  document(box.run(probe, 'claim', String(probeId), '--json'));
   mkdirSync(join(probe, 'src'), { recursive: true });
   assert.equal(box.helpers.commitFile(box, probe, 'src/unplaced.js', 'export const unsafe = true;\n', 'feat(web): trial probe source [G1]').status, 0);
   if (kind === 'ownership') {
@@ -498,7 +501,7 @@ async function enforceCellTrial(box, kind, code) {
     box.git(probe, 'add', 'bin/cells-plan.json');
     box.git(probe, 'commit', '-qm', 'feat(web): trial probe ownership control [G1]');
   }
-  assert.equal(document(box.run(probe, 'submit', String(box.second), '--no-next', '--json')).queued, true);
+  assert.equal(document(box.run(probe, 'submit', String(probeId), '--no-next', '--json')).queued, true);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const recorded = () => { try { return JSON.parse(readFileSync(file, 'utf8')).codes[code]; } catch { return undefined; } };
   await box.helpers.waitFor(() => recorded() !== undefined, `the probe's ${code} trial`, 120000); // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
