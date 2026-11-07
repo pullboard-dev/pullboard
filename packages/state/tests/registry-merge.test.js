@@ -4,7 +4,6 @@
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
-  readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
@@ -43,16 +42,12 @@ function registryRepo(t, files, complete) {
   return { root, env, git };
 }
 
-/**
- * Commit two independent additions on two branches, then ask Git to merge them. `register` gives each addition a line in
- * a shared list when the repository still keeps one; a discovered registry needs no such line.
- */
-function mergeTwo(t, { files, additions, register, complete = false }) {
+/** Commit two independent additions on two branches, then ask Git to merge them; registries are discovered, so no shared list is edited. */
+function mergeTwo(t, { files, additions, complete = false }) {
   const repo = registryRepo(t, files, complete);
   for (const [index, addition] of additions.entries()) {
     repo.git('checkout', '-q', '-b', `item-${index}`, 'main');
     for (const [file, text] of Object.entries(addition.files)) writeFileSync(join(repo.root, 'src', file), text);
-    register?.(repo.root, addition);
     repo.git('add', 'src');
     repo.git('commit', '-q', '-m', `feat: independent addition ${index}`);
   }
@@ -65,31 +60,20 @@ function mergeTwo(t, { files, additions, register, complete = false }) {
   return repo;
 }
 
-/** Put a line before the first line that starts with the anchor, when the file still holds a hand-kept list there. */
-function listed(file, anchor, line) {
-  return (root) => {
-    const path = join(root, 'src', file);
-    const text = readFileSync(path, 'utf8');
-    if (text.split('\n').filter((candidate) => candidate.startsWith(anchor)).length === 1) {
-      writeFileSync(path, text.replace(anchor, `${line}\n${anchor}`));
-    }
-  };
-}
-
-test('two commands added at the same sorted spot merge without conflict [C7,V4]', (t) => {
+test('clause 1: two commands added at the same sorted spot merge without conflict [C7,V4]', (t) => {
   const commandFiles = readdirSync(new URL('commands/', SOURCE)).filter((file) => file.endsWith('.js')).map((file) => `commands/${file}`);
   const command = (name) => ({ name, files: { [`commands/${name}.js`]: '/** An independent private command. */\nexport function run() { return 0; }\n' } });
-  const register = (root, addition) => listed('commands/index.js', "  answer: () => import('./answer.js'),", `  ${addition.name}: () => import('./${addition.name}.js'),`)(root);
-  const repo = mergeTwo(t, { files: commandFiles, additions: [command('alpha'), command('alpine')], register });
+  // Commands are discovered from src/commands, so the registry keeps no hand-edited index.js to conflict on (#1552).
+  assert.ok(!commandFiles.includes('commands/index.js'), 'the command registry is discovered, not a hand-kept list');
+  const repo = mergeTwo(t, { files: commandFiles, additions: [command('alpha'), command('alpine')] });
   const merged = readdirSync(join(repo.root, 'src/commands'));
   assert.ok(merged.includes('alpha.js') && merged.includes('alpine.js'), 'both new commands are in the merged tree');
 });
 
-test('two engines added at the same sorted spot merge without conflict [C7,V4]', async (t) => {
+test('clause 1: two engines added at the same sorted spot merge without conflict [C7,V4]', async (t) => {
   const engineFiles = ['machine.js', 'engine-metadata.js', 'discovery.js', 'engine-numbers.js', ...readdirSync(SOURCE).filter((file) => /-engine\.js$|^machine-(?:move-.+|shared)\.js$/u.test(file))];
   const engine = (name, number) => ({ name, files: { [`${name}-engine.js`]: `/** An independent private engine. */\nexport const ${name.toUpperCase().replace(/-/gu, '_')}_ENGINE = ${number};\n` } });
-  const register = (root, addition) => listed('machine.js', "  'engine-52': 52,", `  '${addition.name}': ${addition.name.endsWith('alpha') ? 63 : 64},`)(root);
-  const repo = mergeTwo(t, { files: engineFiles, complete: true, additions: [engine('check-alpha', 63), engine('check-beta', 64)], register });
+  const repo = mergeTwo(t, { files: engineFiles, complete: true, additions: [engine('check-alpha', 63), engine('check-beta', 64)] });
   const { discoverEngines } = await import(pathToFileURL(join(repo.root, 'src/machine.js')).href);
   assert.equal(typeof discoverEngines, 'function', 'src/machine.js discovers its engines');
   const found = discoverEngines(pathToFileURL(join(repo.root, 'src/')));
