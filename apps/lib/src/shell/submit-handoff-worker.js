@@ -39,6 +39,7 @@ import { submitUntilSettled } from './submit-infra-requeue.js';
 import { createJob } from '../../../../packages/jobs/index.js';
 import { jobView } from '../../../../packages/jobs/index.js';
 import { shellWord } from '../../../../packages/transport/index.js';
+import { runGateStages } from '../../../../packages/gate/index.js';
 import { spawnDriveWorker } from '../../../../bin/drive-worker.js';
 
 /** How many times a drive worker that died mid-job is started again before the job ends as SUBMIT_HANDOFF_EXIT. */
@@ -149,6 +150,62 @@ async function inventoryFromJob(nativeBoard, ctx, root, commit, job) {
   finally { store.closeBoard(board); }
 }
 
+/**
+ * The result the hand-off worker records for a gate that went green: the submitted commit, plus how long it waited
+ * on busy locks and the owner it waits on, when either applies.
+ *
+ * @param {any} ctx - The worker's context, holding the submission result.
+ * @param {{ count: number }} lockWaits
+ */
+export function handoffGreenResult(ctx, lockWaits) {
+  return { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}),
+    ...(ctx.submissionResult.value?.waitingOwner ? { ownershipWait: ctx.submissionResult.value.waitingOwner.key } : {}) };
+}
+
+/**
+ * The result the hand-off worker records for a refused gate. Lock waits ride on the refusal too, so the job shows how
+ * long the gate waited on a busy lock (#3087).
+ *
+ * @param {any} error - The gate's refusal.
+ */
+export function handoffRefusedResult(error) {
+  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) };
+}
+
+/**
+ * The hand-off worker's gate: canonical Submit from the captured source, rerun on an infrastructure failure, with its
+ * green result. Its stages (preflight, cells, doctrine, static, tests) are Submit's own; a refusal throws.
+ * Why: an infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
+ *
+ * @param {any} ctx - The worker's context, bound to the native job.
+ * @param {{ item: number, infra?: string }} request
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ */
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere }) {
+  ctx.submissionResult = {};
+  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory });
+  return handoffGreenResult(ctx, lockWaits);
+}
+
+/**
+ * The hand-off worker's gate as a drive-cell gate: driveOnce's `{ gate }` option. It runs the same handoffGate, with
+ * Submit's stages passed through the driver's observer, and returns the result the worker would record, green or
+ * refused, so a gate driven by driveOnce runs the worker's sections in its order and records the same result [C7].
+ *
+ * @param {any} ctx - The worker's context, bound to the native job.
+ * @param {{ item: number, infra?: string }} request
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ * @returns {(observe: (stages: object[]) => object[]) => Promise<object>}
+ */
+export function drivenHandoffGate(ctx, request, options) {
+  return async observe => {
+    ctx.runGateStages = (stages, settings) => runGateStages(observe(stages), settings);
+    try { return await handoffGate(ctx, request, options); }
+    catch (error) { return handoffRefusedResult(error); }
+    finally { delete ctx.runGateStages; }
+  };
+}
+
 /** A private request can only continue the exact native job; it supplies no actor or proof authority. */
 export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepared = false }) {
   const { request, directory, root } = workerRequest(requestFile);
@@ -166,14 +223,10 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     if (!started.started) return;
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
-    ctx.submissionResult = {};
-    // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}), ...(ctx.submissionResult.value?.waitingOwner ? { ownershipWait: ctx.submissionResult.value.waitingOwner.key } : {}) } }]));
+    const result = await handoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
+    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
   } catch (error) {
-    // Lock waits ride on the refusal too, so the job shows how long the gate waited on a busy lock (#3087).
-    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) });
+    await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout and its child has closed; generated files must not strand it.
