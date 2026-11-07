@@ -346,6 +346,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   }
   const shellReviewer = join(box.dir, 'shell-timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', shellReviewer, shellCommit);
+  box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
   assert.match(fixtureJoin(box.run, shellReviewer, 'api').stdout, /joined as api/);
   const shellAccepted = box.run(shellReviewer, 'verify', '2', 'accept', '--note', 'reuse the authentic submit profile');
   assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
