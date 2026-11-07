@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { clauseInspectionProblem, clauseInspectionSummary } from '../packages/state/index.js';
+import { selectedGateFiles } from '../apps/cli/src/shell/cli/submit.js';
 
 const HOUR = 3_600_000;
 
@@ -39,4 +40,12 @@ test('clause 2: a [test] clause naming no test the gate runs is still refused CL
   assert.match(refused.message, /tick each with: pullboard fact/u);
   const command = fixture(t, '1. test/page.test.js prints 3 [command]');
   assert.equal(problem(command, { gateFiles: new Set(['test/page.test.js']) }).code, 'CLAUSE_UNTICKED', 'only a [test] clause is ticked by the gate');
+});
+
+test('clause 2: a [test] clause naming a journey test the gate defers to landing is still refused CLAUSE_UNTICKED [C7]', t => {
+  const f = fixture(t, '1. test/journey.test.js passes [test]');
+  const ran = selectedGateFiles(['test/page.test.js', 'test/journey.test.js', 'src/a.js'], ['test/page.test.js']);
+  assert.deepEqual([...ran], ['test/page.test.js'], 'only a test file in the tier plan counts as run');
+  assert.equal(problem(f, { gateFiles: ran }).code, 'CLAUSE_UNTICKED');
+  assert.deepEqual([...selectedGateFiles(['test/a.test.js', 'x.js'], null)], ['test/a.test.js'], 'without a tier plan every test file counts');
 });
