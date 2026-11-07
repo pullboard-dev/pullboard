@@ -27,6 +27,8 @@ import * as store from '../src/board.js';
 
 import { runCliInProcess } from './cli-in-process-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -131,7 +133,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);
-  assert.equal(fresh.run(repo, 'add', 'coordinator', 'Tidy the readme').code, 0);
+  assert.equal(fixtureAdd(fresh.run, repo, 'coordinator', 'Tidy the readme').code, 0);
   assert.equal(fresh.run(repo, 'claim', '1').code, 0);
   assert.equal(JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup.step, 2, 'a working board with an item and no spec rows treats the spec as optional (#866)');
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [draft, must] It works. | gate: test\n');
@@ -150,7 +152,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const firstItem = JSON.parse(box.run(box.repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstItem?.step, 4, 'setup asks for the first small piece before planning the remaining rows');
   assert.equal(next(box, box.repo), firstItem.command);
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match(next(box, box.repo), /^start a builder for each lane with open items \(web\): pullboard worktree <lane>/);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(commitFile(box, box.web, 'web/index.html', '<h1>hi</h1>', 'feat(web): page [G1]').status, 0);
@@ -182,7 +184,7 @@ test('spec check lints both files; spec view writes one page into the git dir [S
 
 test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', () => {
   const box = project();
-  const added = box.run(box.repo, 'add', 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1');
   assert.equal(added.code, 0, added.err);
   assert.match(box.run(box.repo, 'show', '1').out, /\[doctrine:PB1\]/u);
 
@@ -214,7 +216,7 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
 
 test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
   const box = project();
-  const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
   assert.equal(added[0], '#1');
   assert.match(added.at(-1), /^next: pullboard next$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
@@ -224,16 +226,16 @@ test('clause 1: the board lives in the git common dir; every worktree sees it; n
   assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
+  assert.match(fixtureJoin(box.run, second, 'web', '--model', 'Fixture').out, /joined as web-2/);
   assert.match(box.run(second, 'whoami').out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
   assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
-  assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
+  assert.match(fixtureJoin(box.run, box.repo, 'web').err, /MAIN_IS_COORDINATOR/);
 });
 
 test('items cite spec ids that exist [B6]', () => {
   const box = project();
-  const refused = box.run(box.repo, 'add', 'web', 'Ghost', '--specs', 'G9');
+  const refused = fixtureAdd(box.run, box.repo, 'web', 'Ghost', '--specs', 'G9');
   assert.equal(refused.code, 1);
   assert.match(refused.err, /UNKNOWN_SPEC\] G9 is not in SPEC.md/);
 });
@@ -259,7 +261,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.equal(commitFile(box, box.repo, 'api/b.js', 'b', 'feat(api): an api file [G2]').status, 0);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
+  assert.match(fixtureJoin(box.run, second, 'web', '--model', 'Fixture').out, /joined as web-2/);
   mkdirSync(join(second, 'web'), { recursive: true });
   box.git(second, 'mv', 'api/b.js', 'web/b.js');
   const taken = box.tryGit(second, 'commit', '-q', '-m', 'refactor(web): take the api file');
@@ -298,7 +300,7 @@ test("a lane merges main's foreign changes but still refuses its own and non-mai
 
 test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match(box.run(box.web, 'claim', '1').out, /claimed #1/);
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   writeFileSync(join(box.web, 'web', 'a.html'), 'edited');
@@ -321,7 +323,7 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
   assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
-  projectBox.run(projectBox.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(projectBox.run, projectBox.repo, 'web', 'Page', '--specs', 'G1');
   assert.match(projectBox.run(projectBox.web, 'claim', '1').out, /claimed #1/);
   assert.equal(commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]').status, 0);
   writeFileSync(gate.mode, 'armed');
