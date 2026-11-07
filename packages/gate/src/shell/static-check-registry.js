@@ -10,6 +10,7 @@ import { testInputProblems } from '../../../../bin/checks/test-inputs.js';
 import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
+import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
 import { loadBearingFailures } from '../core/load-bearing.js';
@@ -64,6 +65,9 @@ function loadBearingCheck({ root, files, staged, text, previous }) {
 export const STATIC_CHECKS = Object.freeze([
   { name: 'relay-boundary', run: ({ files, sources, read }) => relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file)).map(read)])
     .map(row => `${row.file}:${row.line}: ${row.text}`) },
+  // A new cross-cell import or deep import past a cell's index needs a plan declaration (bin/checks/cells-edges.js).
+  { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
   { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))

@@ -1,4 +1,5 @@
 /** A queued gate whose launch ticket is lost ends on one health sweep, so its claim stops holding the item [C7,#3153]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -6,6 +7,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
@@ -41,10 +43,10 @@ async function inMachineHome(box, work) {
 /** Set the job's queue time `ms` in the past, keeping every other recorded field. */
 function ageJob(box, id, ms) {
   onBoard(box, board => {
-    const key = `submit_handoff:${id}`;
-    const job = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+    const job = handoffRecord(board.db, id);
     job.at = new Date(Date.now() - ms).toISOString();
-    board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify(job), key);
+    // The gate job holds the record submitHandoff() reads (#3474, #3476).
+    recordSubmitHandoff(board.db, id, job);
   });
 }
 
@@ -115,7 +117,7 @@ test('a launch that publishes its worker while the sweep checks its ticket is ne
   const job = { id: 'race-job', state: 'queued', at: new Date(Date.now() - 3 * 60_000).toISOString() };
   const live = { version: 1, job: job.id, pid: process.pid, started: 'fixture-start', relaunches: 0 };
   let worker = null;
-  // The dispatcher's order: write worker.json, then remove the ticket; here both happen inside the ticket check.
+  // The dispatcher's order: admit the driver on the board, then remove the ticket; here both happen inside the ticket check.
   const waiting = () => { worker = live; return false; };
   assert.deepEqual(queuedWorkerRecord(job, { readWorker: () => worker, waiting }), live, 'the second read finds the live worker');
   const lost = queuedWorkerRecord(job, { readWorker: () => null, waiting: () => false });

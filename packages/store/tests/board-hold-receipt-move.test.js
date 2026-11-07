@@ -41,6 +41,26 @@ test('clause 1: a hold row carries the move and the slowest named step with its 
   }
 });
 
+test('clause 1: a write with no named move body still carries a move on every hold row [C7,P4]', () => {
+  const box = helpers.project('true');
+  box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'unnamed-observations');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const source = `
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
+    const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-bare', seat: 'web-1', item: 7 } });
+    try { atomic(board, () => {}); } finally { closeBoard(board); }
+  `;
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  for (const log of ['board-writes.jsonl']) {
+    const rows = readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, log), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+      .filter(row => row.command === 'fixture-bare');
+    assert.equal(rows.length, 1, `${log} holds one row`);
+    assert.equal(rows[0].move, 'fixture-bare', `${log} names a move, never null`);
+  }
+});
+
 test('clause 2: status lists the five longest holds of the last hour with at, move, step and heldMs [C7,P4]', () => {
   const box = helpers.project('true');
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'status-observations');

@@ -34,8 +34,8 @@ export function recordBoardHold({ command, seat, item, durationMs, outcome, acqu
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs) } : {}), outcome: label(outcome, 'released'),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
-      // The move body's name and its slowest named step, so a long native-move hold is readable to its cause [#3336].
-      move: label(move, null), step: phase === 'native-move' ? label(step, null) : null,
+      // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
+      move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
       stepMs: phase === 'native-move' && Number.isFinite(stepMs) && stepMs >= 0 ? Math.round(stepMs) : null };
     writeSync(fd, JSON.stringify(row) + '\n');
   } catch {
