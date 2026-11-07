@@ -20,11 +20,13 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertToolTreeRoom } from '../../../items/index.js';
 
 /** Snapshot tools before the builder can change branches; the request supplies no verdict authority. */
 export async function launchComparisonWorker({ origin, commonDir, toolRoot, entry, item, source, digest }) {
   const job = randomUUID();
   const directory = join(commonDir, 'pullboard', 'review-comparisons', job);
+  assertToolTreeRoom();
   const tools = mkdtempSync(join(tmpdir(), 'pullboard-compare-tools-'));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   cpSync(toolRoot, tools, { recursive: true, mode: constants.COPYFILE_FICLONE,
