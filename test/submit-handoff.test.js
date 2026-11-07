@@ -467,10 +467,15 @@ test('clause 1: the real hand-off worker is a drive worker child; killing it mid
   assert.equal(state(box, box.id).job.state, 'running', 'the killed worker ended nothing');
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
-  // @pullboard-board-file journey: read the drive job's persisted steps after both workers.
-  const board = openBoard(box.boardFile);
-  let steps;
-  try { steps = jobView(board.db, drive.job).steps; } finally { board.db.close(); }
+  /** The drive job's persisted steps, read from the real board file. */
+  const driveSteps = () => {
+    // @pullboard-board-file journey: read the drive job's persisted steps after both workers.
+    const board = openBoard(box.boardFile);
+    try { return jobView(board.db, drive.job).steps; } finally { board.db.close(); }
+  };
+  // The gate's own board moves land first; the drive worker writes collected and verdict on its next poll.
+  await box.helpers.waitFor(() => driveSteps().some(step => step.name === 'verdict'), 'drive job verdict', 120000); // budget: observed drive poll ceiling, not a timing assertion.
+  const steps = driveSteps();
   const named = name => steps.filter(step => step.name === name).length;
   assert.deepEqual([named('captured'), named('running'), named('collected'), named('verdict')], [1, 1, 1, 1], 'the next driver continued the same job to its verdict');
   assert.equal(readFileSync(box.started, 'utf8').trim().split('\n').length, 1, 'the gate ran once: the death lost nothing and the resume reran nothing');
