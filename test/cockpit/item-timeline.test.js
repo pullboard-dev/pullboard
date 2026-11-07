@@ -81,7 +81,7 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
           factEvents: rows.filter(row => row.classList.contains('tl-fact')).map(row => [row.dataset.eventId, row.dataset.timelineKind]),
           kindTints: ['note', 'measurement', 'fact', 'proof'].map(kind => getComputedStyle(document.querySelector('#detail .tl-kind-' + kind)).color),
           rail: getComputedStyle(rows[0], '::after').backgroundColor,
-          pair: rows.some(row => row.textContent.includes('ran the proof twice') && row.dataset.eventIds.split(' ').length === 2),
+          proofRows: rows.filter(row => row.textContent.includes('ran the proof')).map(row => row.dataset.eventIds.split(' ')),
           refs: [...note.querySelectorAll('[data-code]')].map(row => row.dataset.code),
           hashes: [...note.querySelectorAll('code.sha')].map(row => ({ text: row.textContent, title: row.title })),
           unsafe: note.querySelector('img,script') !== null,
@@ -96,7 +96,8 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
         fixtureFactEvents.toReversed().map(fact => [String(fact.eventId), timelineKind(fact.kind)]), `${width}: the three fixture facts retain their own identities and visible categories`);
       assert.deepEqual({ distinctKinds: new Set(result.kindTints).size, railVisible: !['transparent', 'rgba(0, 0, 0, 0)'].includes(result.rail) },
         { distinctKinds: 4, railVisible: true }, width + ': each kind has its own tint and the timeline rail is visible');
-      assert.ok(result.pair, JSON.stringify(result) + ': actual consecutive checks merge, retaining both event identities');
+      // Each native check now records its own measurement between proof runs, so the runs are not consecutive and stay separate rows (grouping of consecutive runs is covered in view-pure.test.js).
+      assert.ok(result.proofRows.length >= 2 && result.proofRows.every(ids => ids.length >= 1 && ids.every(id => /^\d+$/.test(id))), JSON.stringify(result) + ': each actual native check keeps its own proof row and event identity');
       for (const sentence of ['web-1 claimed it', 'web-1 recorded a measurement', 'Sentinels found this item failing', 'Sentinels found this item passing again', reviewer.agent + ' started reviewing', reviewer.agent + ' passed it', reviewer.agent + ' sent it back']) assert.ok(result.sentences.includes(sentence), `${width}: ${sentence}`);
       assert.ok(result.models.some(row => row.text === 'web-1' && row.title === 'Test Model'));
       assert.ok(result.models.every(row => !row.text.includes('(')));
