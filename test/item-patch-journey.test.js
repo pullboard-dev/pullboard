@@ -7,6 +7,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require actual successful native CLI execution before inspecting its document. */
 function document(result) {
@@ -85,7 +86,7 @@ test('a native companion patch is independently checked and lands the exact acce
     "}",
     "process.exitCode = pass ? 0 : 1;",
   ].join('\n'));
-  const added = document(box.run(box.repo, 'add', 'web', 'A feature requiring a native companion',
+  const added = document(fixtureAdd(box.run, box.repo, 'web', 'A feature requiring a native companion',
     '--criterion', 'The companion contains exactly the required bytes.', '--specs', 'G1',
     '--check', `node ${JSON.stringify(script)}`, '--json'));
   const id = added.item.item_id;
