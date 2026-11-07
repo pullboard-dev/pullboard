@@ -27,8 +27,8 @@ test('clause 1: show, list and the board read name building, in the gate, back w
   handoff(board, running, { state: 'running' });
   handoff(board, red, { state: 'red' });
   handoff(board, review, { state: 'green' });
-  asMove(board, "UPDATE item SET item_status='submitted' WHERE item_id=?", review);
-  asMove(board, "UPDATE item SET item_status='verified' WHERE item_id IN (?,?)", accepted, landed);
+  asMove(board, "UPDATE item SET item_status='submitted', item_built_by='web-5', item_commit=?, item_frozen_digest='stage-fixture' WHERE item_id=?", 'a'.repeat(40), review);
+  asMove(board, "UPDATE item SET item_status='verified', item_verified_by='web-6', item_commit=? WHERE item_id IN (?,?)", 'a'.repeat(40), accepted, landed);
   board.db.prepare("INSERT INTO event(item_id,event_kind,event_by,event_at,event_detail) VALUES (?,?,?,?,?)")
     .run(landed, 'merged', 'coordinator', new Date().toISOString(), '{}');
   const want = { [building]: 'building', [gated]: 'in the gate', [running]: 'in the gate', [red]: 'back with builder',
