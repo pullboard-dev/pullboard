@@ -1,5 +1,6 @@
 /** Derive current material authority solely from replicated native source records [V4,H16]. */
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
 import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
 import { itemPatchAuthors } from '../../../items/src/shell/item-patch-state.js';
 import { itemPatches } from '../../../items/src/shell/item-patch-state.js';
@@ -55,8 +56,12 @@ export function compositionOwner(board, item) {
   return owners.length === 1 ? owners[0][0] : builder;
 }
 
-/** Relax only vendor-family comparisons when material contributors span all joined declared families. */
+/**
+ * Relax only vendor-family comparisons when material contributors span all joined declared families.
+ * From the head-builder-family engine on there is nothing to relax: only the submitted head builder's family is judged.
+ */
 export function compositionFamilyFallback(board, item) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_HEAD_BUILDER_FAMILY_ENGINE) return null;
   if (!compositionReviews(board) || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
   const aliases = familyAliasesOf(board);
   const canonical = id => familyName(id === item.item_built_by ? item.item_builder_family ?? seatFamily(board, id) : seatFamily(board, id), aliases);
