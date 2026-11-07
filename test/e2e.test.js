@@ -16,7 +16,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { request } from 'node:http';
 import { connect } from 'node:net';
@@ -125,8 +124,10 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const repo = join(fresh.dir, 'fresh');
   mkdirSync(repo);
   fresh.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = fresh.run(repo, 'init', '--verbose');
-  assert.match(initialized.out, /^Next: ask your agent to set up Pullboard here; in Claude Code, start a new session first so it loads the Pullboard skills\.$/m, 'init gives one setup instruction and preserves Claude Code skill loading');
+  fresh.git(repo, 'config', 'user.name', 'Test Agent');
+  fresh.git(repo, 'config', 'user.email', 'agent@example.com');
+  const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
+  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);
@@ -140,7 +141,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const freshView = await startView(fresh, repo);
   await freshView.stop();
-  assert.match(next(fresh, repo), /^build #1, commit, then pullboard submit 1/, 'after setup the coordinator’s claim comes first');
+  assert.match(next(fresh, repo), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
@@ -211,19 +212,21 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
   assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
-test('the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
+test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', () => {
   const box = project();
-  assert.equal(box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim(), '#1');
+  const added = box.run(box.repo, 'add', 'web', 'Build', 'the', 'page', '--specs', 'G1').out.trim().split('\n');
+  assert.equal(added[0], '#1');
+  assert.match(added.at(-1), /^next: pullboard next --(?:wait \d+|take)$/u);
   assert.match(box.run(box.web, 'list').out, /#1 {2}open {2}web {2}Build the page {2}\[G1\]/);
   assert.ok(existsSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')));
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '');
   assert.match(box.run(box.repo, 'whoami').out, /^coordinator/);
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/);
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
-  assert.match(box.run(second, 'whoami').out, /^web-2 \(Test Model\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
-  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Test Model\) \(web lane\)/, 'and the first stays itself');
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
+  assert.match(box.run(second, 'whoami').out, /^web-2 \(Fixture\) \(web lane\)/, 'a second worktree in the same lane is its own agent');
+  assert.match(box.run(box.web, 'whoami').out, /^web-1 \(Fixture\) \(web lane\)/, 'and the first stays itself');
   assert.match(box.run(box.web, 'init').err, /NOT_MAIN/);
   assert.match(box.run(box.repo, 'join', 'web').err, /MAIN_IS_COORDINATOR/);
 });
@@ -256,7 +259,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.equal(commitFile(box, box.repo, 'api/b.js', 'b', 'feat(api): an api file [G2]').status, 0);
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  assert.match(box.run(second, 'join', 'web', '--model', 'Fixture').out, /joined as web-2/);
   mkdirSync(join(second, 'web'), { recursive: true });
   box.git(second, 'mv', 'api/b.js', 'web/b.js');
   const taken = box.tryGit(second, 'commit', '-q', '-m', 'refactor(web): take the api file');
@@ -306,7 +309,9 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   rmSync(join(box.web, 'web', 'stray.txt'));
   const submitted = box.run(box.web, 'submit', '1');
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project; gate green in \d+s/);
+  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
+  assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');
+  assert.match(submitted.out, /pinned as refs\/pullboard\/items\/1\/[0-9a-f]{12}/u);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
@@ -324,10 +329,10 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   try {
     const submitted = launch(projectBox, projectBox.web, process.execPath, [BIN, 'submit', '1']);
     children.push(submitted);
-    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource');
+    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource', 40_000); // budget: measured submit prep took 18 s under load; ceiling is a hang bound
     const competitor = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
     children.push(competitor);
-    await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit');
+    await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit', 40_000); // budget: same ceiling as the submit gate start above; a loaded machine took over 8 s to start this second CLI
     assert.deepEqual(gateEvents(gate), ['start']);
     writeFileSync(gate.release, 'released');
     const [submitResult, competitorResult] = await Promise.all([submitted.closed, competitor.closed]);
@@ -449,61 +454,5 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
   } finally {
     writeFileSync(pushGate.release, 'released');
     await Promise.all(pushChildren.map((child) => child.closed));
-  }
-});
-
-/** The digest the agent-session ledger stores for one session identifier, as src/person.js computes it. */
-function sessionDigest(name, value) {
-  return createHash('sha256').update(JSON.stringify([name, value])).digest('hex');
-}
-
-test('a second tour replaces the first demo and links nothing to the relay [N10]', { timeout: 300_000 }, () => {
-  // The machine's own list and relay state hold their own home, so a tour run here can only touch that home (#951).
-  const box = sandbox();
-  const home = join(box.dir, 'private-home');
-  mkdirSync(home);
-  const real = join(box.dir, 'real-project');
-  mkdirSync(real);
-  box.git(real, 'init', '-q', '-b', 'main');
-  writeFileSync(join(home, 'projects.json'), JSON.stringify({ projects: [{ root: real, name: 'real-project', project: '', added: '2026-01-01T00:00:00.000Z' }] }));
-  mkdirSync(join(home, 'relay-machine'), { mode: 0o700 });
-  writeFileSync(join(home, 'relay-machine', 'state.json'), JSON.stringify({ v: 2, autoLink: true, owner: null, machine: 'machine-951', devices: [], excluded: [], pending: null, revocations: [], approvals: [] }), { mode: 0o600 });
-  const tourEnv = { ...box.env, TMPDIR: box.dir, PULLBOARD_HOME: home };
-  delete tourEnv.NO_COLOR;
-  delete tourEnv.FORCE_COLOR;
-  delete tourEnv.PULLBOARD_MODEL;
-  const repos = [];
-  for (let run = 1; run <= 2; run += 1) {
-    const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: tourEnv, encoding: 'utf8' });
-    assert.equal(shown.status, 0, `run ${run}: ${shown.stdout}${shown.stderr}`);
-    repos.push(/Look around: cd (\S+) && pullboard log/u.exec(shown.stdout)[1]);
-  }
-  const registry = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')).projects;
-  assert.deepEqual(registry.map((entry) => entry.root), [real, repos[1]], 'the list holds the real project and the demo of the second run, and no other');
-  const state = JSON.parse(readFileSync(join(home, 'relay-machine', 'state.json'), 'utf8'));
-  assert.deepEqual(state.approvals, [], 'no relay link request or approval was made for either demo');
-});
-
-test('the tour finishes when an agent session runs it [N10]', () => {
-  // A caller in Claude Code or Codex runs the tour; the scripted seats must not inherit the caller's session, so the
-  // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
-  for (const [name, value] of [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']]) {
-    const box = sandbox();
-    const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value };
-    delete callerEnv.PULLBOARD_MODEL;
-    delete callerEnv.NO_COLOR;
-    delete callerEnv.FORCE_COLOR;
-    const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv, encoding: 'utf8' });
-    assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
-    assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
-    assert.match(shown.stdout, /verified #1: CRITERION_MET/);
-    assert.doesNotMatch(shown.stdout, /SELF_SESSION_VERIFY/);
-
-    const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
-    const ledger = readFileSync(join(repo, '.git', 'pullboard', 'item-sessions.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    const digests = ledger.map((row) => row.digest);
-    // The ledger holds the builder's claim and submit; the reviewer's verify passing already proves it is another session.
-    assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
-    assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
   }
 });

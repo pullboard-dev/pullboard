@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 export function makeLandProjectFixtures({ sandbox, project, commitFile }) {
   const FILES = [1, 2, 3, 4].map(n => `web/land-${n}.test.js`);
@@ -21,6 +22,7 @@ function gateFixture(box) {
     "const alone = args.includes('--alone'); const web = path.join(root, 'web'); const files = alone ? args.filter(a => a !== '--alone') : (fs.existsSync(web) ? fs.readdirSync(web).filter(n => /^land-\\d+\\.test\\.js$/.test(n)).map(n => 'web/' + n) : []);",
     "fs.appendFileSync(trace, JSON.stringify({ alone, files }) + '\\n'); const fullRuns = fs.readFileSync(trace, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => !row.alone).length;",
     "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
+    "if (process.env.LAND_UNNAMED_RED === '1' && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
     "console.log('TAP version 13'); let failed = 0;",
     "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = process.env.LAND_SUPPRESS_RED !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
     "const cancelled = process.env.LAND_CANCEL === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
@@ -38,6 +40,8 @@ function landProject({ withWorktree = true } = {}) {
   const path = join(fixture.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   config.affectedTests = commands.affected;
+  // These suites prove the bisect; a suite that proves the split sets landing.splitRed itself.
+  config.landing = { ...(config.landing ?? {}), splitRed: false };
   writeFileSync(path, JSON.stringify(config, null, 2));
   fixture.git(fixture.repo, 'add', 'pullboard.json');
   fixture.git(fixture.repo, 'commit', '-q', '-m', 'chore: configure landing');
@@ -51,14 +55,13 @@ function landProject({ withWorktree = true } = {}) {
 }
 
 /** Give one private item a distinct canonical lane identity and an independent main base. */
-function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
+function itemWorktree(box, number, file = FILES[number - 1], afterIds = [], check = `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web', '--model', 'Fixture Model').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
-    '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
-  assert.equal(added.code, 0, added.err);
-  const item = JSON.parse(added.out).item.item_id;
+  assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
+  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
+    criterion: `land fixture ${number} remains valid`, check,
+    args: ['--specs', 'G1', ...(afterIds.length ? ['--after', afterIds.join(',')] : [])] }).item_id;
   assert.equal(box.run(path, 'claim', String(item)).code, 0);
   return { path, item, file };
 }

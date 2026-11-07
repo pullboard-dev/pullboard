@@ -14,11 +14,11 @@ export function shellQuote(value) {
  * Make a local ssh stand-in that executes the actual worker command in a second private machine.
  * It appends "dispatched" and "returned" to <requests>.phases so a round trip can be timed by phase,
  * and `hold` ('dispatch', 'run' or 'return') keeps it alive at that phase, as a stuck runner would.
- * `workerHealthDown` also fails every pinned-worker recovery probe, as an unreachable host does; `healthDown` alone fails only non-worker commands.
+ * `workerHealthDown` also fails every pinned-worker recovery probe, restart included, as an unreachable host does; `healthDown` alone fails only non-worker commands, and `registrationDown` fails the registration and measurement probes.
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -76,21 +76,33 @@ if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`
 }
 // Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
 const workerCommand = remoteCommand.includes(' --input-type=module -e ');
+if (${JSON.stringify(registrationDown)} && registrationGuiProbe) {
+  record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
+}
 if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }
 if (workerHealthProbe && (${JSON.stringify(workerHealthDown)} || call <= ${JSON.stringify(healthFailures)})) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
+// An unreachable host fails the worker restart a lost transport now tries too [C7,#3128].
+if (remoteCommand.includes(' --restart ') && ${JSON.stringify(workerHealthDown)}) { record({ healthProbeFailed: true, stdinBytes }); process.exit(255); }
 if (!registrationGuiProbe && !workerHealthProbe && ${JSON.stringify(deferFirstWorker)} && call === 1) {
   writeFileSync(${JSON.stringify(deferFirstWorker)}, remoteCommand);
   await new Promise(resolve => {
-    let frame = Buffer.alloc(0);
+    // stdin carries the tooling capsule record, then the work frame record; keep each for an exact replay.
+    let frame = Buffer.alloc(0), capsule = null;
     process.stdin.on('data', part => {
       frame = Buffer.concat([frame, part]);
-      const newline = frame.indexOf(10);
-      if (newline < 0) return;
-      const size = Number(frame.subarray(0,newline).toString('ascii'));
-      if (!Number.isSafeInteger(size) || size < 1 || size > 1048576) process.exit(255);
-      if (frame.length >= newline+1+size) { writeFileSync(${JSON.stringify(deferredFrame)},frame.subarray(0,newline+1+size)); resolve(); }
+      for (;;) {
+        const newline = frame.indexOf(10);
+        if (newline < 0) return;
+        const size = Number(frame.subarray(0,newline).toString('ascii'));
+        if (!Number.isSafeInteger(size) || size < 1 || size > (capsule ? 1048576 : 4194304)) process.exit(255);
+        if (frame.length < newline+1+size) return;
+        const record = frame.subarray(0,newline+1+size);
+        frame = frame.subarray(newline+1+size);
+        if (!capsule) { capsule = record; writeFileSync(${JSON.stringify(deferFirstWorker)} + '.capsule', capsule); continue; }
+        writeFileSync(${JSON.stringify(deferredFrame)},record); resolve(); return;
+      }
     });
     process.stdin.resume();
   });
@@ -131,9 +143,21 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
     }
   });
 ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
-    child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    // Forward the tooling capsule record unchanged, then replace the work frame with an invalid one.
+    let buffered = Buffer.alloc(0), forwarded = false;
+    process.stdin.on('data', part => {
+      if (forwarded) return;
+      buffered = Buffer.concat([buffered, part]);
+      const newline = buffered.indexOf(10);
+      if (newline < 0) return;
+      const size = Number(buffered.subarray(0, newline).toString('ascii'));
+      if (buffered.length < newline + 1 + size) return;
+      forwarded = true;
+      child.stdin.write(buffered.subarray(0, newline + 1 + size));
+      child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
+    });
     process.stdin.resume();
-  } else child.stdin.end();` : '  process.stdin.pipe(child.stdin);'}
+  } else process.stdin.pipe(child.stdin); // Health and registration probes carry their capsule on stdin too.` : '  process.stdin.pipe(child.stdin);'}
   let droppedAfterSetup = false;
   if (dropAfterMarker) {
     const waiting = waitForMarker(dropAfterMarker);

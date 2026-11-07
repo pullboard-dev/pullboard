@@ -159,7 +159,6 @@ function render() {
   if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
     $('cost').innerHTML = costPaneHtml(history, p);
-    document.title = $('proj-name').textContent + ' · Cost · Pullboard';
   }
   if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
@@ -168,8 +167,6 @@ function render() {
   roadmapAhead.clear();
   roadmapDetails.clear();
   const roadmap = roadmapCards(p, titles), roadmapHtml = roadmap.html;
-  document.title = (roadmap.remaining === null ? '' : '(' + roadmap.remaining + ' remaining) ')
-    + $('proj-name').textContent + ' · Roadmap · Pullboard';
   const roadmapBoard = p.board ?? data.projects.find(project => project.root === view.root)?.id ?? null;
   if (drawnRoadmap?.root !== view.root || drawnRoadmap.board !== roadmapBoard || drawnRoadmap.html !== roadmapHtml) {
     $('roadmap').innerHTML = roadmapHtml;

@@ -4,7 +4,7 @@
  * R2). The git-facing rules (V3, V4, V7) run against real repos in e2e.test.js.
  */
 import * as clauseFixture from './reject-clause-fixture.js';
-import { submitFixture } from './board-submit-fixture.js';
+import { repositoryBoardFile, submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureGit } from './fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,6 +23,8 @@ import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
+import { ROUTE_CALIBRATION_ENGINE } from '../src/route-calibration-engine.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';
@@ -131,7 +133,7 @@ test('[B14] notes in parentheses are not paths, and a foreign path still refuses
   assert.deepEqual(briefFiles(unclosed), ['src/a.js', 'api/x.js']);
 });
 
-test('agents are numbered per lane; one coordinator; a worktree joins once', () => {
+test('agents are numbered per lane; one coordinator; a worktree joins once [B3]', () => {
   assert.deepEqual(store.listAgents(board).map((agent) => agent.agent_id), ['coordinator', 'web-1', 'web-2', 'api-1']);
   assert.equal(store.register(board, { lane: 'web', path: '/repo-web-1' }), 'web-1');
   assert.throws(() => store.register(board, { lane: 'api', path: '/repo-web-1' }), /ALREADY_JOINED/);
@@ -160,7 +162,7 @@ test('[O8] model labels follow stable agent ids into moves and configured displa
   assert.equal(JSON.parse(legacyClaim.event_detail).model, 'unknown', 'moves by older agents record their missing model explicitly');
 });
 
-test('the coordinator follows the main checkout when the repo moves', () => {
+test('the coordinator follows the main checkout when the repo moves [B3,B34]', () => {
   assert.equal(store.ensureCoordinator(board, '/moved/repo'), 'coordinator');
   assert.equal(store.agentAt(board, '/moved/repo').agent_id, 'coordinator');
 });
@@ -265,7 +267,7 @@ test('the first claim freezes the criterion; later claims keep it [V2]', () => {
   assert.equal(store.getItem(board, id).item_frozen_digest, 'digest:Page');
 });
 
-test('submit needs your claim and finished children', () => {
+test('submit needs your claim and finished children [V4]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: id });
   assert.throws(() => submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' }), /NOT_YOURS/);
@@ -314,7 +316,7 @@ test('the builder never verifies its own work [V1]', () => {
 /** A verifier can release its live review reservation for another verifier [V15]. */
 test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
-  const durable = openBoard(join(directory, 'board.sqlite'), clock);
+  const durable = openBoard(repositoryBoardFile(directory), clock);
   try {
     store.register(durable, { lane: 'coordinator', path: '/repo' });
     const builder = store.register(durable, { lane: 'web', path: '/repo-web-1', family: 'Fixture Builder' });
@@ -345,7 +347,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
   }
 });
 
-test('under verify: coordinator, lane work is the coordinator\'s to verify', () => {
+test('under verify: coordinator, lane work is the coordinator\'s to verify [V9]', () => {
   const id = submitted();
   assert.throws(
     () => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', policy: 'coordinator' }),
@@ -399,7 +401,8 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   execFileSync('git', ['config', 'user.name', 'Pullboard Test'], { cwd: repo, stdio: 'pipe' });
   execFileSync('git', ['config', 'user.email', 'pullboard-test@example.com'], { cwd: repo, stdio: 'pipe' });
   writeFileSync(join(repo, 'page.html'), '<h1>Page</h1>\n');
-  execFileSync('git', ['add', 'page.html'], { cwd: repo, stdio: 'pipe' });
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ lanes: {} }));
+  execFileSync('git', ['add', 'page.html', 'pullboard.json'], { cwd: repo, stdio: 'pipe' });
   execFileSync('git', ['commit', '-q', '-m', 'feat(web): render a page [G1]'], { cwd: repo, stdio: 'pipe' });
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
   const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, encoding: 'utf8' }).trim();
@@ -525,7 +528,7 @@ test('every verdict binds the submitted commit and the frozen digest [V8]', () =
   assert.throws(() => verdict(id, { agentId: 'api-1', decision: 'ACCEPT' }), /NOT_SUBMITTED/);
 });
 
-test('merged and withdraw are the coordinator\'s, and only for the right states', () => {
+test('merged and withdraw are the coordinator\'s, and only for the right states [R3]', () => {
   const id = submitted();
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: SHA_B }), /NOT_VERIFIED/);
   verdict(id, { agentId: 'web-2', decision: 'ACCEPT' });
@@ -648,6 +651,8 @@ test('a shout can carry typed evidence: attempt or receipt, outcome, item and co
 });
 
 test('every move lands in the event log; stats count items and verdicts [R1, R2]', () => {
+  // Before milestone placement (2a3a0f7555) and automatic escalation (d2a669b629) the log holds only the moves themselves.
+  board.executionEngineVersion = Math.min(MILESTONE_PLACEMENT_ENGINE, AUTO_ESCALATE_ENGINE) - 1;
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE', note: 'red' });
   const kinds = store.events(board, { itemId: id }).map((event) => `${event.event_by}:${event.event_kind}`);
@@ -754,8 +759,16 @@ const BRIEF = 'Files:\n- web/a.js\nChange:\n- rename x to y\nTest:\n- test/a.tes
 /**
  * Add a web item routed below strong, complete unless a field is overridden.
  */
-const routed = (title, route, extra = {}) =>
-  store.addItem(board, { by: 'coordinator', lane: 'web', title, route, brief: BRIEF, criterion: 'y is exported', check: 'node --test', ...extra });
+const DIAGNOSIS = 'Files: web/a.js Change: rename x to y Test case: test/a.test.js asserts y is exported';
+/**
+ * Add a web item at a route; light work is added mid, then diagnosed by the coordinator, as the
+ * diagnosis rule of 7a964958ab and the mid default of e552095cfa require [B13,C7].
+ */
+const routed = (title, route, extra = {}) => {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title, route: route === 'light' ? 'mid' : route, brief: BRIEF, criterion: 'y is exported', check: 'node --test', ...extra });
+  if (route === 'light') store.appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: DIAGNOSIS });
+  return id;
+};
 
 test('routes are tiers: an agent claims and verifies its tier and below, its own first [B13]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
@@ -764,7 +777,7 @@ test('routes are tiers: an agent claims and verifies its tier and below, its own
   assert.throws(() => store.register(board, { lane: 'web', path: '/repo-web-9', route: 'cheap' }), /BAD_ROUTE/);
   const light = routed('Rename', 'light');
   const mid = routed('Small feature', 'mid');
-  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache', route: 'strong' });
   assert.throws(() => claimAs(strong, 'web-3', 'web'), /ROUTE.*needs a strong model; you joined on the light route/);
   assert.throws(() => claimAs(mid, 'web-3', 'web'), /ROUTE.*needs a mid model/);
   assert.equal(store.nextFor(board, { agentId: 'web-3', lane: 'web' }).item.item_id, light);
@@ -786,7 +799,7 @@ test('below strong, an item is buildable cold: files, a test, a criterion and a 
   assert.throws(() => routed('No files', 'light', { brief: 'Change: x' }), /NO_BRIEF.*Files: section.*Test: section/);
   assert.throws(() => routed('No check', 'mid', { check: '' }), /NO_BRIEF.*--check, the command that proves it/);
   assert.throws(() => routed('No criterion', 'light', { criterion: ' ' }), /NO_BRIEF.*--criterion/);
-  const id = routed('Rename', 'light');
+  const id = routed('Rename', 'mid');
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', brief: '' }), /NO_BRIEF/);
   assert.equal(store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Loose', route: 'strong' }) > id, true);
 });
@@ -809,10 +822,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
     { title: 'Route', change: { route: 'mid' } },
   ];
   for (const { title, change } of edits) {
-    const id = store.addItem(board, {
-      by: 'coordinator', lane: 'web', title, route: 'light', brief: BRIEF,
-      criterion: 'the old criterion', check: 'true',
-    });
+    const id = routed(title, change.route ? 'light' : 'mid', { criterion: 'the old criterion', check: 'true' });
     claimAs(id, 'web-1', 'web');
     clock.advance(2 * HOUR + 1);
     assert.doesNotThrow(
@@ -828,10 +838,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
     assert.equal(JSON.parse(event.event_detail).unfrozen, `digest:${title}`);
   }
 
-  const live = store.addItem(board, {
-    by: 'coordinator', lane: 'web', title: 'Live', route: 'light', brief: BRIEF,
-    criterion: 'the old criterion', check: 'true',
-  });
+  const live = routed('Live', 'light', { criterion: 'the old criterion', check: 'true' });
   claimAs(live, 'web-1', 'web');
   const digest = store.itemById(board, live).item_frozen_digest;
   assert.throws(() => store.editItem(board, live, { agentId: 'coordinator', route: 'mid' }), /HELD/);
@@ -924,6 +931,7 @@ test('a coordinator route edit starts a new rejection count [B15,B13]', () => {
 });
 
 test('two send-backs at the strongest route record no escalation [B15,B13,H16]', () => {
+  board.executionEngineVersion = ROUTE_CALIBRATION_ENGINE - 1; // 45922a6670 escalates a same-route TEST_FAILURE at once from this engine
   const id = routed('Strong rework notice', 'strong');
   rejectRevision(id, SHA_A, 'first strong send-back: missing output');
   rejectRevision(id, SHA_B, 'second strong send-back: output still wrong');
@@ -1180,7 +1188,7 @@ test('peeking shows the newest unread shouts and leaves them unread [N19]', () =
 
 test('with only work above its tier open in its lane, next names it and the reroute [B16]', () => {
   const light = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
-  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache' });
+  const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache', route: 'strong' });
   assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
     'no open light items in the web lane',
     `#${strong} (strong) is open in the web lane, above your light route: a strong agent takes it, or, if light can build it, the coordinator reroutes it: pullboard edit ${strong} --route light`,

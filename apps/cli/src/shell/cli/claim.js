@@ -22,6 +22,17 @@ import { barCoverageCommand } from '../../../../../packages/verify/index.js';
 import { barCoverageForPolicy } from '../../../../../packages/verify/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';
+
+/**
+ * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
+ * accepted warns and writes local-only, so a refused push cannot freeze the board.
+ */
+async function gitSyncOn(ctx, board) {
+  if (!gitSyncLinked(ctx.info.root)) return false;
+  if ((await import('../../../../../packages/sync/index.js')).gitSyncAcknowledged(ctx.info.root, board)) return true;
+  (await import('../cli-sync.js')).warnGitSyncLocalOnly(ctx.io);
+  return false;
+}
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import * as itemSessions from '../../../../../packages/items/index.js';
@@ -62,6 +73,8 @@ import { isReturnedRework } from '../../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
+import { contains } from '../../../../../packages/git/index.js';
+import { isDeepStrictEqual } from 'node:util';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
@@ -108,7 +121,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   } finally { LAPSE_MAINTENANCE.delete(board); }
 }
 
-export async function ordered(ctx, board, operation, args) {
+export async function ordered(ctx, board, operation, args, { prepareInWriter } = {}) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
@@ -132,7 +145,7 @@ export async function ordered(ctx, board, operation, args) {
         ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
       return ctx.privateBoard
         ? store.recordSpecApprovalBaseline(board, ...values)
-        : gitSyncLinked(ctx.info.root)
+        : await gitSyncOn(ctx, board)
         ? (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
         ? relayOperation(ctx.info.root, 'recordSpecApprovalBaseline', values, baselineIo, undefined,
@@ -144,8 +157,9 @@ export async function ordered(ctx, board, operation, args) {
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
       await (await import('../../../../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
-    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
-    const write = () => writeBoardCommand(board, operation, args, actor);
+    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.board_ensureCoordinator });
+    const write = (localWriter = true) => writeBoardCommand(board, operation, args, actor,
+      localWriter && prepareInWriter ? { prepareInWriter } : undefined);
     if (initialBaseline && actor) await recordBaseline(actor);
     await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
@@ -158,23 +172,40 @@ export async function ordered(ctx, board, operation, args) {
       heartbeat(ctx.io, { ctx, board });
     };
     /** Called only for this requested operation, after its store transaction commits, never for bootstrap. */
-    const applyRequested = () => {
+    const applyRequested = ({ localWriter = true } = {}) => {
       const before = board.lastEvent;
       const firstEvent = board.emittedEvents?.length ?? 0;
-      const result = write();
+      const result = write(localWriter);
       if (requested && board.lastEvent !== before) observeRequested();
       ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
     // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
-    const gitLinked = !ctx.privateBoard && gitSyncLinked(ctx.info.root);
+    const gitLinked = !ctx.privateBoard && await gitSyncOn(ctx, board);
+    const relayLinkedHere = !ctx.privateBoard && (relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io));
+    const throughLinkedTransport = async () => {
+      for (let attempt = 0; ; attempt++) {
+        let candidate;
+        try {
+          if (prepareInWriter) {
+            candidate = prepareInWriter(board);
+            args.splice(0, args.length, ...candidate.args);
+          }
+          return gitLinked
+            ? await (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
+            : await relayOperation(ctx.info.root, operation, args, ctx.io, command, () => applyRequested({ localWriter: false }),
+              requested ? observeRequested : undefined);
+        } catch (error) {
+          candidate?.rollback?.();
+          if (!prepareInWriter || error?.code !== 'STALE_ROW_DECISION' || attempt >= 2) throw error;
+        }
+      }
+    };
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
-      : gitLinked
-        ? (await import('../../../../../packages/sync/index.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
-        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
-          ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
-            requested ? observeRequested : undefined) : applyRequested());
+      : gitLinked || relayLinkedHere
+        ? throughLinkedTransport()
+        : applyRequested());
     if (requested && gitLinked) ctx.io.recordedMove = true;
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
@@ -191,9 +222,59 @@ export async function ordered(ctx, board, operation, args) {
   finally { lease.release(); }
 }
 
+/**
+ * Decide whether a new claim can refresh policy metadata without changing this item's lane or gate [C7].
+ *
+ * Unrelated accepted settings can move the policy pin; lane ownership and gate inputs remain the item's bar.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {number|string} id
+ * @param {string} agentId
+ * @returns {Promise<any | null>} changed policy digest witness when a safe refresh is needed
+ */
+async function refreshesLanePolicy(ctx, board, id, agentId) {
+  const item = store.getItem(board, id);
+  let frozen = null;
+  try { frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null; } catch { return null; }
+  const pinned = frozen?.policy?.commit;
+  if (!item.item_frozen_digest || !/^[0-9a-f]{40,64}$/u.test(pinned ?? '')) return null;
+  let current;
+  let old;
+  try { current = mainPolicy(ctx.info.root); old = policyAt(ctx.info.root, pinned); } catch { return null; }
+  if (current.commit === pinned) return null;
+  if (!contains(ctx.info.root, pinned, current.commit)) throw new Refused('NO_POLICY', 'accepted main no longer contains the frozen policy commit; refresh the item before claiming it');
+  if (item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item)) return false;
+  const changed = [...new Set([...Object.keys(old.config), ...Object.keys(current.config)])].sort()
+    .flatMap(key => changedPolicyLeaves(old.config[key], current.config[key], key));
+  if (!changed.length) return null;
+  const lanePrefix = `lanes.${item.item_lane}`;
+  const gateKeys = ['verify', 'gate', 'affectedTests', 'staticChecks', 'submitGate', 'submitInvariants', 'landingShards', 'submitDeferAbove', 'check', 'checks'];
+  const affecting = changed.filter(key => key === lanePrefix || key.startsWith(`${lanePrefix}.`)
+    || gateKeys.some(name => key === name || key.startsWith(`${name}.`)));
+  if (affecting.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${affecting.join(', ')}; refresh the item against the changed lane or gate policy`);
+  // A moved criterion keeps its own refusal at submit; a lane refresh must not hide it.
+  try { if (freezer(ctx, { board })(item).digest !== item.item_frozen_digest) return null; } catch { return null; }
+  const digest = config => createHash('sha256').update(JSON.stringify(config, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value)).digest('hex');
+  return { before: digest(old.config), after: digest(current.config), changed };
+}
+
+/** Return changed policy leaves in stable order without treating object key order as a policy change. */
+function changedPolicyLeaves(before, after, prefix) {
+  if (isDeepStrictEqual(before, after)) return [];
+  if (before && after && typeof before === 'object' && typeof after === 'object' && !Array.isArray(before) && !Array.isArray(after)) {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
+      .flatMap(key => changedPolicyLeaves(before[key], after[key], `${prefix}.${key}`));
+  }
+  return [prefix];
+}
+
 /** Order a claim on every route (claim, next, run) only after a check green on main is not held [V4]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
+  const policyRefreeze = await refreshesLanePolicy(ctx, board, args[0], args[1].agentId);
+  const refreshPolicy = Boolean(policyRefreeze);
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
   const returnedRework = store.lineSettings(board).reworkSameFamily === true && isReturnedRework(board, args[0]);
   const routingWindows = returnedRework ? currentReworkRoutingPolicy(ctx, board) : null;
@@ -201,10 +282,18 @@ export async function claimOrdered(ctx, board, args) {
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
   const exitRules = accepted.exitRules;
-  const estimate = store.getItem(board, args[0]).item_expected_build_minutes;
+  const held = store.getItem(board, args[0]);
+  if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const refusal = (await import('../exit-rules-runtime.js')).contextCeilingRefusal(exitRules);
+    if (refusal) throw refusal;
+  }
+  const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
+    ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: item => ({
+      ...freezer(ctx, { captureVerifyPolicy: true, board })(item), policyRefreeze,
+    }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);

@@ -110,7 +110,15 @@ export function activityModel(project, { words } = {}) {
   }
   if (pending.length) run(null);
   // A release may precede its matching claim; remove the earlier standalone row after pairing.
-  const result = rows.filter(row => !consumed.has(row.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const ordered = rows.filter(row => !consumed.has(row.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  // Consecutive "continued building" rows by one seat for one item read as one row: the latest time, and how many updates.
+  const result = [];
+  for (const row of ordered) {
+    const last = result.at(-1);
+    if (row.kind === 'renew' && last?.kind === 'renew' && last.by === row.by && last.item?.id === row.item?.id) {
+      last.updates += 1; last.verb = 'continued building · ' + last.updates + ' updates';
+    } else result.push(row.kind === 'renew' ? { ...row, updates: 1 } : row);
+  }
   return { rows: result, counts: { all: result.length, work: result.filter(row => row.category === 'work').length,
     sentinels: result.filter(row => row.category === 'sentinels').length, shouts: result.filter(row => row.category === 'shouts').length } };
 }

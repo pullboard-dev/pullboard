@@ -16,35 +16,35 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/verify/index.js';
+import { installFileWatchdog } from '../packages/verify/src/shell/file-watchdog.js';
 import {
   DEFAULT_TEST_FILE_TIMEOUT_MS,
   testFileTimeoutMs,
   activeHandleSummary,
   installTestChildDrain,
-} from '../packages/gate/index.js';
+} from '../packages/gate/src/shell/test-child-drain.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
   isGitWorkTree,
   trackedDefaultTestFiles,
   shardArguments,
-  testSelectionPatterns,
-} from '../packages/gate/index.js';
+  testSelectionPatterns, narrowsSelection,
+} from '../packages/gate/src/shell/test-selection.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
-import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/index.js';
-import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/index.js';
-import { optionTakesValue } from '../packages/gate/index.js';
-import { knownNodeOption } from '../packages/gate/index.js';
-import { COLLECTION_ID_ENV } from '../packages/gate/index.js';
-import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
-import { hasTestFiles as selectedFilesPresent } from '../packages/gate/index.js';
-import { explicitTestFiles as selectedFiles } from '../packages/gate/index.js';
-import { formatTestOutcomes } from '../packages/gate/index.js';
+import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
+import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
+import { optionTakesValue } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { knownNodeOption } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { COLLECTION_ID_ENV } from '../packages/gate/src/core/collection-env.js';
+import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/src/shell/run-timing.js';
+import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell/test-selection.js';
+import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
+import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
@@ -72,12 +72,14 @@ const watchdogSource = `
 const { parentPort } = require('node:worker_threads');
 const { writeSync } = require('node:fs');
 const timers = new Map();
+const finished = [];
 parentPort.on('message', (message) => {
   if (message.type === 'stop') {
     const active = timers.get(message.id);
     if (active) {
       clearTimeout(active.timer);
       if (active.probe) clearTimeout(active.probe);
+      if (active.name !== undefined) finished.push({ name: active.name, ms: Date.now() - active.startedAt });
     }
     timers.delete(message.id);
     return;
@@ -115,10 +117,10 @@ parentPort.on('message', (message) => {
     const elapsedMs = Date.now() - startedAt;
     writeSync(2, 'run-tests: test "' + message.name + '" in ' + message.file +
       ' failed: it ran ' + (elapsedMs / 1000).toFixed(1) + 's, past the ' +
-      message.timeoutMs + 'ms per-test timeout\\n');
+      message.timeoutMs + 'ms per-test timeout; finished cases ' + JSON.stringify(finished) + '\\n');
     try { process.kill(message.pid, 'SIGKILL'); } catch { /* The timed-out test process already exited. */ }
   }, message.timeoutMs);
-  timers.set(message.id, { timer });
+  timers.set(message.id, { timer, name: message.name, startedAt });
 });
 `;
 
@@ -168,7 +170,7 @@ function installTestWatchdog() {
     }
     const id = `${process.pid}:${++nextTestId}`;
     const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
-    reportFileTest(id, name);
+    reportFileTest(id, name, timeoutMs);
     activeTests.set(context, id);
     runningTests.add(id);
     watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });
@@ -991,9 +993,9 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
       setup(tests) {
-        // A HUNG file stays red, but its watchdog must not cancel the remaining named files.
+        // A HUNG or wall-TIMEOUT file stays red, but its watchdog must not cancel the remaining named files (#3167).
         tests.on('test:stderr', data => {
-          if (data.file && data.message?.includes('run-tests: HUNG file ')) hungFiles.add(data.file);
+          if (data.file && /run-tests: (?:HUNG|TIMEOUT) file /u.test(data.message ?? '')) hungFiles.add(data.file);
         });
         tests.on('test:complete', data => {
           const { file, name, details } = data;
@@ -1251,7 +1253,7 @@ async function main(args) {
   }
   const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
   process.env[COLLECTION_ID_ENV] ||= timing.id;
-  const sharding = shardArguments(args);
+  const sharding = shardArguments(args, optionTakesValue);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
     process.exitCode = 1;
@@ -1284,7 +1286,7 @@ async function main(args) {
   const runnerAdmission = (await import('../packages/config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
-    fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
+    fullSuite && !narrowsSelection(args, optionTakesValue));
   timing.phase('selectionMs', selectionAt);
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
@@ -1322,26 +1324,27 @@ async function main(args) {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
-    // Shard payloads carry files only; filtered discovery keeps the existing admitted run and its name filter.
-    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787).
-    const filteredByName = testSelectionPatterns(actions.args, optionTakesValue).length > 0;
-    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel && !filteredByName) {
-      const { landingShardCount } = await import('../packages/gate/index.js');
+    // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
+    // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
+    if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
+      const { landingShardCount, landingShardOptions, landingFanOutFiles, nativeFileArguments } = await import('../packages/gate/index.js');
       const count = landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
       if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
-        const files = actions.files ?? (fullSuite
+        const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
           ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
-          : explicitTestFiles(args));
+          : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
-        const { testsNeedBrowser } = await import('../packages/gate/index.js');
-        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
+        const { browserBoundFiles } = await import('../packages/gate/index.js');
+        // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
+        const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
+        const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
-          needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
+          needsBrowser: async shardFiles => { const bound = await browserBound; return shardFiles.some(file => bound.has(file)); }, timing });
         timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;
         return;
@@ -1362,6 +1365,8 @@ async function main(args) {
         import('../packages/gate/index.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
+      const { timingSeat } = await import('../src/seat-timing.js');
+      const seat = timingSeat(process.cwd());
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
       const canShipRunner = runnerPath && runnerPath !== '..' && !runnerPath.startsWith(`..${sep}`);
@@ -1378,7 +1383,12 @@ async function main(args) {
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
       }, {
-        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
+        executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui,
+        kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
+        // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
+        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
+        shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
           recordRunnerWait(state);

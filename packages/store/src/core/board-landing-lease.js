@@ -14,7 +14,7 @@ import {
 } from "./board-landing-local-lease.js";
 
 const KEY = 'landing_lease';
-export const LANDING_LEASE_MS = 30_000;
+export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Read the durable queue without treating a corrupt record as an unoccupied trunk. */
 function sharedLandingLeaseState(board) {
@@ -81,7 +81,7 @@ export function assertLandingLease(board, fence, { shared = false } = {}) {
 /** Pending local intents are not authority to merge, push or move the trunk (#1013 integration boundary). */
 export function requireConfirmedLanding(board) {
   if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key GLOB 'relay_local_intent_*' LIMIT 1").get()) {
-    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; wait for their ordered receipts before landing');
+    throw new Refused('RELAY_CONFIRMATION_PENDING', 'this board has local moves awaiting relay confirmation; land after their ordered receipts arrive');
   }
 }
 

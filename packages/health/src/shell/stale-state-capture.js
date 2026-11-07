@@ -1,3 +1,8 @@
+import { dependencyCustodyQuiet } from './stranded-dependency.js';
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
+import { strandedDependency } from './stranded-dependency.js';
+import { observeDependencyWork } from './stranded-dependency.js';
+import { dependencyWaiters } from '../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
@@ -13,6 +18,7 @@ import { CLAIM_RECENT_COMMIT_MS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
+import { claimFolderActive } from './claim-folder-activity.js';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
@@ -35,19 +41,20 @@ const HANDOFF_FILES = 200;
  * Pin the holder's last commit to a board ref and list the files its claim changed, so a released claim keeps its
  * work. A worktree that cannot be read still releases (#1225 row 7): the handoff then says why nothing was pinned.
  */
-export function pinClaimHandoff(board, row, item) {
+export function pinClaimHandoff(board, row, item, workRoot = null) {
   const unpinned = why => ({ head: null, pin: null, changedFiles: [], changedCount: 0, unpinned: why });
   const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor);
   if (!seat?.agent_path) return unpinned('the seat has no registered worktree');
+  const root = workRoot ?? seat.agent_path;
   const env = cleanGitEnvironment();
-  const head = tryGit(seat.agent_path, ['rev-parse', '--verify', 'HEAD^{commit}'], { env });
+  const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}'], { env });
   if (head.status !== 0) return unpinned('the seat worktree has no readable commit');
   const commit = head.stdout.trim();
   const pin = `refs/pullboard/handoffs/${row.id}/${commit.slice(0, 12)}`;
-  if (tryGit(seat.agent_path, ['update-ref', pin, commit], { env }).status !== 0) return unpinned(`the board ref for ${commit.slice(0, 12)} could not be written`);
+  if (tryGit(root, ['update-ref', pin, commit], { env }).status !== 0) return unpinned(`the board ref for ${commit.slice(0, 12)} could not be written`);
   const base = /^[0-9a-f]{40,64}$/u.test(item.item_claim_head ?? '') ? item.item_claim_head : null;
-  const committed = base ? tryGit(seat.agent_path, ['diff', '--name-only', '--no-renames', base, commit], { env }) : { status: 0, stdout: '' };
-  const dirty = tryGit(seat.agent_path, ['status', '--porcelain', '--untracked-files=all'], { env });
+  const committed = base ? tryGit(root, ['diff', '--name-only', '--no-renames', base, commit], { env }) : { status: 0, stdout: '' };
+  const dirty = tryGit(root, ['status', '--porcelain', '--untracked-files=all'], { env });
   const all = committed.status === 0 && dirty.status === 0
     ? [...new Set([...committed.stdout.split('\n'), ...dirty.stdout.split('\n').map(line => line.slice(3))].filter(Boolean))].sort() : [];
   return { head: commit, pin, changedFiles: all.slice(0, HANDOFF_FILES), changedCount: all.length,
@@ -55,12 +62,11 @@ export function pinClaimHandoff(board, row, item) {
 }
 
 /**
- * Every live claim one write observes (#1225): all of them, every pass, so no claim can wait on its place in a scan.
- * Each costs one row and one worktree read; only a measured pass over 1 s would justify a cursor that advances
- * every pass, never a time-based window.
+ * Claims with an unexpired or unknown lease are considered on every background pass (#1225). Expired leases stay in
+ * the bounded cursor scan so an item beyond its current page cannot bypass the cursor.
  */
-function liveClaims(board, actor) {
-  return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? ORDER BY item_id").all(actor);
+function liveClaims(board, actor, cutoff) {
+  return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND (item_lease_until IS NULL OR item_lease_until>?) ORDER BY item_id").all(actor, cutoff);
 }
 
 /** Whether the holder committed within the last 30 minutes, which the progress rule never overrides (#2251). */
@@ -76,6 +82,20 @@ function recentCommit(row, now) {
  * `lapsedOnly` is the write path's share (#2427): only claims whose lease has already lapsed, which read board rows and
  * seat presence and never run Git. Live claims, and returns that pin a handoff, wait for background maintenance.
  */
+/** The latest event this seat wrote, or null; the board's own record that the seat is still running commands. */
+function seatActivityAt(board, seat) {
+  try { return board.db.prepare('SELECT max(event_at) AS at FROM event WHERE event_by=?').get(seat)?.at ?? null; }
+  catch { return null; }
+}
+
+/** The later of two ISO instants, either of which may be missing. */
+function latestInstant(first, second) {
+  const a = Date.parse(first ?? ''), b = Date.parse(second ?? '');
+  if (!Number.isFinite(b)) return first;
+  if (!Number.isFinite(a)) return second;
+  return b > a ? second : first;
+}
+
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const seatQuietLimit = 2 * 60_000;
@@ -86,7 +106,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  const otherClaims = liveClaims(board, actor).filter(item => !lapsed.has(item.item_id));
+  const otherClaims = liveClaims(board, actor, cutoff).filter(item => !lapsed.has(item.item_id));
   items.push(...otherClaims);
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
@@ -100,24 +120,42 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
     if (submitGateInFlight(board, byId.get(row.id))) return [];
+    const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && dependencyWaiters(board, row.id).length;
+    if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
     const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
     const worktreeMissing = !path || !existsSync(path);
-    const lastHeartbeat = row.heartbeatAt ?? row.claimAt;
+    // Any event the seat itself wrote is a sign of life: a seat without hooks runs reads, tests and other board
+    // commands between heartbeats, and a busy presence file can miss a beat. On 4 Nov 412 of 415 seat-gone
+    // releases took claims from seats that had written an event within the previous two minutes.
+    const lastHeartbeat = latestInstant(row.heartbeatAt ?? row.claimAt, seatActivityAt(board, row.actor));
     const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
-    if (worktreeMissing || heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: row.heartbeatAt ?? null,
+    // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
+    if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
+    // An expired lease follows the lease-lapse path only after a quiet heartbeat; a live seat still vetoes expiry.
+    if (lapsed.has(row.id)) {
+      if (!heartbeatLost) return [];
+      return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
+        && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
+    }
+    if (heartbeatLost) return [{ ...row, idle: 'seat-gone', deadSeat: { heartbeatAt: lastHeartbeat ?? row.heartbeatAt ?? null,
       worktreeMissing, observedAt: at.toISOString(), quietMs: seatQuietLimit } }];
+    if (!lapsedOnly && dependencyCandidate) {
+      const item = byId.get(row.id);
+      const work = observeDependencyWork(board, item);
+      if (!work) return [];
+      const dependency = strandedDependency(board, item, row, at.getTime(), snapshot.limits.dependency, work);
+      if (dependency) return [{ ...dependency, handoff: pinClaimHandoff(board, dependency, item, dependency.workRoot) }];
+      // A measured dependency has its own configured interval; generic forty-minute idle expiry cannot shorten it.
+      return [];
+    }
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {
       if (lapsedOnly) return [];
       return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
-    }
-    if (lapsed.has(row.id)) {
-      return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
-        && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
     }
     if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];

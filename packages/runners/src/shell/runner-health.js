@@ -6,7 +6,7 @@ import { ownedTransportCompletion } from './runner-dispatch.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import { carriedRunnerTrunk } from './runner-policy.js';
-import { remoteWorkerCommand } from './runner-remote-tooling.js';
+import { remoteWorkerLaunch } from './runner-remote-tooling.js';
 import { shellWord } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
@@ -19,6 +19,15 @@ import { stopLeakedRunnerJobs } from './runner-leak-stop.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
+/** How long a health probe may take: an SSH round trip plus, on first contact after a landing, one runtime install. */
+export const HEALTH_PROBE_MS = 20_000;
+
+/** Write the tooling capsule as the probe's whole stdin; a closed pipe is the transport's failure to report, not a throw. */
+function sendCapsule(child, capsule) {
+  child.stdin.on('error', () => {});
+  child.stdin.end(capsule);
+}
+
 /** Ask only the pinned worker whether this exact startup owner still exists; no reply certifies cleanup. */
 export async function probeRunnerJob(runner, identity, { signal } = {}) {
   if (!/^[A-Za-z0-9_-]{1,100}$/u.test(identity?.job ?? '') || !recoveryIdentity(identity?.recovery)
@@ -26,10 +35,11 @@ export async function probeRunnerJob(runner, identity, { signal } = {}) {
   runner = validateRunner(runner);
   const { worker, tooling, runtime } = trustedTooling(), nonce = randomUUID();
   const request = { nonce, job: identity.job, recovery: identity.recovery, ...(runner.root ? { root: runner.root } : {}) };
-  const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
+  const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime,
     ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const child = spawn('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
-    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote], { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
+    '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote], { env: sshEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
+  sendCapsule(child, capsule);
   const transport = ownedTransportCompletion(child, { termMs: 500, drainMs: 500 });
   let output = '', invalid = false;
   const abort = () => { invalid = true; transport.stop(); };
@@ -55,21 +65,23 @@ export async function probeRunnerJob(runner, identity, { signal } = {}) {
 }
 
 /** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
-export async function probeRunnerHealth(runner, previous, { idle = false, restart = false, stopLeaked = false } = {}) {
+export async function probeRunnerHealth(runner, previous, { idle = false, restart = false, stopLeaked = false, liveJobs = [] } = {}) {
   runner = validateRunner(runner);
-  if (stopLeaked) return stopLeakedRunnerJobs(runner);
+  if (stopLeaked) return stopLeakedRunnerJobs(runner, { liveJobs });
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
   const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
-  const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
+  const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime,
     (restart ? ' --restart ' : ' --health ') + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
-  const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
+  sendCapsule(child, capsule);
   let output = '', stderr = '', stderrBytes = 0, timedOut = false, error = null, failure = null, kill;
   /** Bound the health connection and fully observe its close before releasing recovery ownership. */
   const stop = () => { child.kill('SIGTERM'); kill ??= setTimeout(() => child.kill('SIGKILL'), 500); };
-  const timer = setTimeout(() => { timedOut = true; stop(); }, 5_000);
+  // A first contact after a landing installs the new runtime before it answers; 5 s left the largest runner out for a day [C7].
+  const timer = setTimeout(() => { timedOut = true; stop(); }, HEALTH_PROBE_MS);
   child.stdout.on('data', bytes => { output = (output + bytes).slice(0, 4097); if (output.length > 4096) stop(); });
   child.stderr.on('data', bytes => { stderrBytes += bytes.length; stderr = (stderr + bytes).slice(-8192); });
   child.once('error', problem => { error = problem.code ?? problem.name; failure = { code: error, message: transportText(problem.message) }; });

@@ -2,10 +2,14 @@ import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { pendingSubmitHandoff } from './submit-handoff-read.js';
+import { ineligibleReleaseIds } from './next-release-cooldown.js';
 /** Plan main-red build offers without taking another seat's work or releasing a claim [C7,N2]. */
 import * as store from "./board.js";
 
-/** Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands. */
+/**
+ * Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands.
+ * workingFiles is a Map, or a function returning one that runs only when a repair needs routing.
+ */
 export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes, workingFiles = new Map() } = {}) {
   const items = store.listItems(board);
   const reviewing = new Set(items.filter(item => item.item_status === 'submitted').map(item => store.reviewHolder(board, item)).filter(Boolean));
@@ -15,6 +19,8 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
   const urgent = enabled ? board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length))) : [];
   const repairs = new Set([...priority, ...urgent].filter(id => items.some(item => item.item_id === id && item.item_status === 'open')));
   if (!repairs.size) return null;
+  // Observing every claim's worktree costs a Git status each; only a board with a repair to route reads them (#2511).
+  if (typeof workingFiles === 'function') workingFiles = workingFiles();
   const lanes = new Set(items.filter(item => repairs.has(item.item_id)).map(item => item.item_lane));
   const agents = store.listAgents(board).filter(seat => seat.agent_id !== 'coordinator'
     && lanes.has(seat.agent_lane) && ['live', 'idle'].includes(seat.presence));
@@ -36,7 +42,7 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
     }
     const omitIds = items.filter(item => !repairs.has(item.item_id) && item.item_id !== claim?.item_id).map(item => item.item_id);
     const selected = store.nextFor(board, { agentId: seat.agent_id, lane: seat.agent_lane,
-      priority: [...repairs], omitIds, runnable, workingFiles, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
+      priority: [...repairs], omitIds: [...omitIds, ...ineligibleReleaseIds(board, seat.agent_id)], runnable, workingFiles, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
     if (!selected.item || !repairs.has(selected.item.item_id) || selected.item.item_lane !== seat.agent_lane) continue;
     // Renewals are separate events, so renewing a half-built item never makes it the newest build.
     const started = claim ? board.db.prepare("SELECT event_id FROM event WHERE event_kind='claim' AND item_id=? AND event_by=? ORDER BY event_id DESC LIMIT 1")

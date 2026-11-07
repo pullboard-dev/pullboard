@@ -1,7 +1,20 @@
+import { serialize } from 'node:v8';
+import {
+  writeFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
+import { dirname } from 'node:path';
+import { needsFullCensus } from '../../../../packages/codemap/index.js';
+import {
+  readAcceptedCells,
+  nudgeAcceptedCells,
+} from '../../../../packages/gate/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   statSync,
@@ -20,9 +33,10 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') {
     throw new Refused('RUNNER_SOURCE', 'cell analysis needs its admitted remote runner');
   }
+  const inventory = await submitCellsInventory(root, main, source);
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion;
   const cutRows = readCutItems();
-  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, node: lease.runner.node ?? 'node', collectMachinery });
+  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, inventory: inventory?.descriptor ?? null, node: lease.runner.node ?? 'node', collectMachinery });
   const tree = git(root, ['rev-parse', `${source}^{tree}`]).trim();
   const checkedSource = { commit: source, tree };
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell,
@@ -33,7 +47,8 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, {
     runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline,
     browser: lease.browser, checkedSource, privateCheck: policy,
-    metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'),
+    ...(inventory ? { analysisArtifact: { file: inventory.file, bytes: inventory.bytes.length, sha256: inventory.digest, context: policy.sha256 } } : {}),
+    metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal,
   });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
@@ -61,12 +76,12 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
 }
 
 /** Construct a data-only request to run the accepted-main checker in a private runner checkout. */
-export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, node = 'node', collectMachinery = false }) {
+export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, inventory = null, node = 'node', collectMachinery = false }) {
   if (![main, source].every(value => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value))
     || main.length !== source.length || typeof criterion !== 'string' || !Array.isArray(cutRows) || typeof node !== 'string' || !node) {
     throw new TypeError('cell analysis needs pinned commits, criterion and cut rows');
   }
-  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, collectMachinery })).toString('base64');
+  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, collectMachinery })).toString('base64');
   const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => { console.error(error?.stack ?? String(error)); process.exitCode = 1; });`;
   return `${shellWord(node)} --input-type=module -e ${shellWord(script)}`;
 }
@@ -81,9 +96,14 @@ async function remoteCells(encoded) {
   const root = process.cwd();
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  const run = (command, args, options = {}) => {
+  /** Run a pinned command and retain its actionable refusal line for gate diagnostics. */
+  const run = (command, args, options = {}, step = `command ${command}`) => {
     const result = spawnSync(command, args, { cwd: root, env, maxBuffer: 128 * 1024 ** 2, ...options });
-    if (result.error || result.status !== 0) throw new Error(`trusted cell archive failed: ${command}`);
+    if (result.error || result.status !== 0) {
+      const lines = result.stderr?.toString('utf8').split(/\r?\n/u).map(line => line.trim()).filter(Boolean) ?? [];
+      const diagnostic = lines.findLast(line => /^(?:[A-Za-z]*Error|Refused):/u.test(line)) ?? lines[0];
+      throw new Error(`${step} failed: ${diagnostic ?? result.error?.message ?? `exit ${result.status}`}`);
+    }
     return result.stdout;
   };
   const git = (...args) => run('git', ['--no-replace-objects', ...args]);
@@ -106,16 +126,61 @@ async function remoteCells(encoded) {
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
     const entry = join(directory, 'trusted-cells-entry.mjs');
     writeFileSync(entry, `import { requireSubmitCells } from './bin/cells-submit-checks.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from './packages/gate/index.js';
+import {
+  importsIn,
+  commonJsIn,
+  withImportParseCache,
+  foreignNodeOptions,
+} from './packages/gate/index.js';
 import { withMainCheckout } from './packages/landing/index.js';
+import * as cellsCache from './bin/cells-inventory-cache.js';
+import { readFileSync } from 'node:fs';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
+const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+const artifact = artifacts?.get(input.main);
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
   { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
-    withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    withMainCheckout, acceptedArtifact: artifact, acceptedArtifacts: artifacts, parsers: { importsIn, commonJsIn }, withImportParseCache,
     cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => input.cutRows, collectMachinery: input.collectMachinery === true,
   });
 process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n');
 `, { flag: 'wx', mode: 0o600 });
-    process.stdout.write(run(process.execPath, [entry, encoded, root]));
+    process.stdout.write(run(process.execPath, [entry, encoded, root], {}, 'cells checker'));
   } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+/** A submit reads completed authority only; a cold tree wakes the independent producer and defers as infrastructure. */
+export async function submitCellsInventory(root, main, source) {
+  if (!git(root, ['ls-tree', '--name-only', main, '--', 'bin/cells-plan.json']).trim()) return null;
+  const commits = [main];
+  if (source) {
+    const base = git(root, ['merge-base', main, source]).trim();
+    const changed = base !== main ? git(root, ['diff', '--no-renames', '--name-only', '-z', main, base]).split('\0').filter(Boolean) : [];
+    if (needsFullCensus(changed)) commits.push(base);
+  }
+  const sources = [], artifacts = [];
+  let directory;
+  for (const commit of commits) {
+    const artifact = readAcceptedCells(root, commit);
+    if (!artifact.available) {
+      let nudgeFailure;
+      try { await nudgeAcceptedCells(root, new URL('../../../../bin/main-audit.js', import.meta.url), commit); }
+      catch (error) { nudgeFailure = String(error.message); }
+      throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}${nudgeFailure ? `; ${nudgeFailure}` : ''}); requeue after the independent producer finishes`),
+        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true });
+    }
+    directory ??= dirname(artifact.file);
+    sources.push({ commit, descriptor: artifact.descriptor });
+    artifacts.push({ commit, bytes: artifact.bytes });
+  }
+  const bytes = serialize({ version: 1, artifacts });
+  if (bytes.length > 64 * 1024 ** 2) throw Object.assign(new Error('accepted inventory bundle exceeds its bounded runner stream'),
+    { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_OVERSIZE', retryable: true });
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const file = join(directory, `${digest}.bundle`), temporary = join(directory, `.${digest}.${process.pid}.tmp`);
+  if (!existsSync(file)) {
+    try { writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 }); renameSync(temporary, file); }
+    finally { rmSync(temporary, { force: true }); }
+  }
+  return { file, bytes, digest, descriptor: { version: 1, digest, sources } };
 }
