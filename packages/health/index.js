@@ -10,3 +10,5 @@ export { staleStateSnapshot } from './src/shell/stale-state-snapshot.js';
 export { captureLapsedClaims, pinClaimHandoff } from './src/shell/stale-state-capture.js';
 export { sweepClaims } from './src/shell/claim-sweep.js';
 export { landingFailureFindings, landingFailureObservation } from './src/shell/landing-failure.js';
+
+export { claimHealthProjection, claimHealthSnapshot } from './src/shell/claim-health-projection.js';
