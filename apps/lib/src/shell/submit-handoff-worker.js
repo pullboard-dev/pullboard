@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { spawn } from 'node:child_process';
+import { constants as osConstants } from 'node:os';
 import { refusalDocument } from '../../../../src/next-step-words.js';
 /** A detached continuation runs canonical Submit from its captured private source, never the builder checkout. */
 import {
@@ -34,7 +34,22 @@ import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
+import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
+import { createJob } from '../../../../packages/jobs/index.js';
+import { jobView } from '../../../../packages/jobs/index.js';
+import { shellWord } from '../../../../packages/transport/index.js';
+import { runGateStages } from '../../../../packages/gate/index.js';
+import { spawnDriveWorker } from '../../../../bin/drive-worker.js';
+
+/** How many times a drive worker that died mid-job is started again before the job ends as SUBMIT_HANDOFF_EXIT. */
+const DRIVE_RESPAWNS = 3;
+
+/**
+ * How long the hand-off's drive worker rests between polls of its local gate. Why shorter than the drive cell's 5 s:
+ * the shard is a local process, so a poll is one file read, and the verdict should follow the gate's exit at once.
+ */
+const HANDOFF_POLL_MS = 1000;
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {
@@ -119,6 +134,78 @@ export function cleanupToolSnapshot(request, tools = dirname(dirname(dirname(dir
   }
 }
 
+/**
+ * Wait for a commit's accepted cells inventory through its cells-inventory job on the board, on a board handle of
+ * its own so a minutes-long production never holds a command's board open.
+ *
+ * @param {any} nativeBoard - The native board module, which opens the board file.
+ * @param {any} ctx - The worker's context; its file is the board.
+ * @param {string} root - The disposable source checkout.
+ * @param {string} commit - The pinned main commit the gate needs the inventory of.
+ * @param {string} job - The submit hand-off job, named in the inventory job's lease owner.
+ */
+async function inventoryFromJob(nativeBoard, ctx, root, commit, job) {
+  const board = nativeBoard.openBoard(ctx.file);
+  try { return await acceptedCellsFromJob(board.db, root, commit, { owner: `gate:${job}:${process.pid}`, beat: line => process.stderr.write(line + '\n') }); }
+  finally { store.closeBoard(board); }
+}
+
+/**
+ * The result the hand-off worker records for a gate that went green: the submitted commit, plus how long it waited
+ * on busy locks and the owner it waits on, when either applies.
+ *
+ * @param {any} ctx - The worker's context, holding the submission result.
+ * @param {{ count: number }} lockWaits
+ */
+export function handoffGreenResult(ctx, lockWaits) {
+  return { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}),
+    ...(ctx.submissionResult.value?.waitingOwner ? { ownershipWait: ctx.submissionResult.value.waitingOwner.key } : {}) };
+}
+
+/**
+ * The result the hand-off worker records for a refused gate. Lock waits ride on the refusal too, so the job shows how
+ * long the gate waited on a busy lock (#3087).
+ *
+ * @param {any} error - The gate's refusal.
+ */
+export function handoffRefusedResult(error) {
+  return { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) };
+}
+
+/**
+ * The hand-off worker's gate: canonical Submit from the captured source, rerun on an infrastructure failure, with its
+ * green result. Its stages (preflight, cells, doctrine, static, tests) are Submit's own; a refusal throws.
+ * Why: an infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
+ *
+ * @param {any} ctx - The worker's context, bound to the native job.
+ * @param {{ item: number, infra?: string }} request
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ */
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere }) {
+  ctx.submissionResult = {};
+  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory });
+  return handoffGreenResult(ctx, lockWaits);
+}
+
+/**
+ * The hand-off worker's gate as a drive-cell gate: driveOnce's `{ gate }` option. It runs the same handoffGate, with
+ * Submit's stages passed through the driver's observer, and returns the result the worker would record, green or
+ * refused, so a gate driven by driveOnce runs the worker's sections in its order and records the same result [C7].
+ *
+ * @param {any} ctx - The worker's context, bound to the native job.
+ * @param {{ item: number, infra?: string }} request
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ * @returns {(observe: (stages: object[]) => object[]) => Promise<object>}
+ */
+export function drivenHandoffGate(ctx, request, options) {
+  return async observe => {
+    ctx.runGateStages = (stages, settings) => runGateStages(observe(stages), settings);
+    try { return await handoffGate(ctx, request, options); }
+    catch (error) { return handoffRefusedResult(error); }
+    finally { delete ctx.runGateStages; }
+  };
+}
+
 /** A private request can only continue the exact native job; it supplies no actor or proof authority. */
 export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepared = false }) {
   const { request, directory, root } = workerRequest(requestFile);
@@ -136,14 +223,10 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     if (!started.started) return;
     ctx.submitHandoffOutput = join(directory, 'output');
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
-    ctx.submissionResult = {};
-    // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n') });
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-      { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
+    const result = await handoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
+    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
   } catch (error) {
-    // Lock waits ride on the refusal too, so the job shows how long the gate waited on a busy lock (#3087).
-    await recordWorkerFailure(ctx, request, directory, { code: 1, ...refusalDocument(error, { caller: 'seat' }), ...(error?.lockWaits ? { lockWaits: error.lockWaits } : {}) });
+    await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout and its child has closed; generated files must not strand it.
@@ -154,22 +237,92 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
   }
 }
 
-/** Forward cancellation to the owned child and await its exit before removing its source. */
-async function workerExit(child) {
-  /** Preserve interrupted status while allowing the supervisor to retain the native refusal and cleanup. */
-  const interrupt = () => { process.exitCode = 130; child.kill('SIGINT'); };
-  /** Keep termination finite to this child, never a machine-wide process search. */
-  const terminate = () => { process.exitCode = 143; child.kill('SIGTERM'); };
+/** Whether a process with this pid still exists. */
+function alive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/** The pid the gate's `--execute` process wrote for itself, or null before it started. */
+function executePid(drive) {
+  try { const pid = Number(readFileSync(join(drive.runner.root, 'execute.pid'), 'utf8')); return Number.isSafeInteger(pid) && pid > 1 ? pid : null; }
+  catch { return null; }
+}
+
+/**
+ * The drive job for one hand-off: its id and the options its drive worker child runs with. Its one shard is the
+ * captured `--execute` run, started on this machine through the transport's result-file protocol, writing to the
+ * same worker.log and recording its own pid so a cancellation reaches exactly it.
+ *
+ * @param {object} ctx
+ * @param {{ job: string, item: number, commit: string }} request
+ * @param {string} requestFile
+ * @param {string} directory
+ * @param {string} root
+ */
+function handoffDrive(ctx, request, requestFile, directory, root) {
+  const runner = { host: 'local', root: join(directory, 'drive') };
+  mkdirSync(runner.root, { recursive: true, mode: 0o700 });
+  const command = [`cd ${shellWord(root)}`, `printf '%s' "$$" > ${shellWord(join(runner.root, 'execute.pid'))}`,
+    `exec ${shellWord(process.execPath)} ${shellWord(realpathSync(fileURLToPath(import.meta.url)))} ${shellWord(requestFile)} --execute >> ${shellWord(join(directory, 'worker.log'))} 2>&1`].join(' && ');
+  return { file: ctx.file, job: `handoff-drive-${request.job}`, owner: `handoff-${request.job}`, repo: root, runner, local: true,
+    intervalMs: HANDOFF_POLL_MS, plan: [{ shard: 'submit', command }] };
+}
+
+/**
+ * Run the hand-off's drive worker child until its drive job reaches the verdict step. A worker that dies before then
+ * is started again with the same owner, which renews the lease and continues from the last written step: the gate
+ * shard keeps running and is read, never rerun. A SIGINT or SIGTERM to this supervisor reaches the drive worker and
+ * the exact `--execute` process, and is awaited until both have closed.
+ *
+ * @param {object} ctx
+ * @param {{ job: string, item: number, commit: string }} request
+ * @param {ReturnType<typeof handoffDrive>} drive
+ * @param {string} directory
+ * @returns {Promise<[number | null, string | null]>} The gate's exit code and signal, as the old child's close gave them.
+ */
+async function driveExit(ctx, request, drive, directory) {
+  withBoard(ctx, board => createJob(board.db, { id: drive.job, kind: 'gate', item: request.item, candidate: request.commit }));
+  let child = null;
+  let stopped = null;
+  /** Stop the drive worker and the gate process, keeping the interrupted status for the native refusal. */
+  const stop = (signal, code) => () => {
+    stopped = signal; process.exitCode = code;
+    child?.kill(signal);
+    const pid = executePid(drive);
+    if (pid) try { process.kill(pid, signal); } catch { /* the gate process already ended */ }
+  };
+  const interrupt = stop('SIGINT', 130);
+  const terminate = stop('SIGTERM', 143);
   process.once('SIGINT', interrupt);
   process.once('SIGTERM', terminate);
-  try { return await once(child, 'close'); }
-  finally {
+  try {
+    let last = [null, null];
+    for (let start = 0; start <= DRIVE_RESPAWNS && !stopped; start += 1) {
+      child = spawnDriveWorker(drive, { stdio: ['ignore', 'ignore', 'inherit'] });
+      writeFileSync(join(directory, 'drive.json'), JSON.stringify({ version: 1, job: drive.job, pid: child.pid, start }) + '\n', { mode: 0o600 });
+      last = await once(child, 'close');
+      const collected = withBoard(ctx, board => jobView(board.db, drive.job))?.steps.find(step => step.name === 'collected');
+      if (collected) {
+        const status = collected.payload.shards.submit.status;
+        const signal = status > 128 ? Object.keys(osConstants.signals).find(name => osConstants.signals[name] === status - 128) : undefined;
+        return signal ? [null, signal] : [status, null];
+      }
+    }
+    const pid = stopped ? executePid(drive) : null;
+    // The cancelled gate process ends before its source is removed, as the old owned child did.
+    for (let wait = 0; pid && wait < 600 && alive(pid); wait += 1) await new Promise(done => setTimeout(done, 50));
+    return last;
+  } finally {
     process.removeListener('SIGINT', interrupt);
     process.removeListener('SIGTERM', terminate);
   }
 }
 
-/** Supervise a real child while retaining only finite refusal authority for its captured native job. */
+/**
+ * Supervise the hand-off's drive worker child while retaining only finite refusal authority for its captured native job.
+ * Why the drive worker: the gate's state lives in its job row, so this supervisor's child can die mid-gate and the
+ * next driver continues it (design item 15); the gate itself still runs canonical Submit from the captured source.
+ */
 export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard }) {
   const { request, directory, root } = workerRequest(requestFile);
   let ctx;
@@ -178,9 +331,9 @@ export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard })
     jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
     attached = true;
     ctx = workerContext(request, directory, root, nativeBoard).ctx;
-    const child = spawn(process.execPath, [realpathSync(fileURLToPath(import.meta.url)), requestFile, '--execute'],
-      { cwd: root, stdio: 'inherit', env: { ...process.env } });
-    const [code, signal] = await workerExit(child);
+    // The hand-off worker is the drive worker child: it calls driveOnce until the gate job's verdict step [C7].
+    const drive = handoffDrive(ctx, request, requestFile, directory, root);
+    const [code, signal] = await driveExit(ctx, request, drive, directory);
     const job = withBoard(ctx, board => submitHandoff(board, request.item));
     if (job?.id !== request.job || !['queued', 'running'].includes(job.state)) return;
     const refused = join(directory, 'refusal.json');
