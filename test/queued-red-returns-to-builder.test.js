@@ -10,6 +10,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { maintainStaleState } from '../packages/store/index.js';
 import { staleStateLimits } from '../packages/store/index.js';
 import { claim, firstRefusal, getItem, queuedRedLines, register, submitHandoff } from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Require authentic command success before reading its JSON document. */
 function document(result) {
@@ -48,7 +49,7 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queued submit with a cells plan [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const add = title => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+  const add = title => document(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
     '--criterion', `${title} passes its gate.`, '--check', 'true', '--wait', '--json')).item.item_id;
   const ids = [add('Refused queued build'), add('Green queued build'), add('Later build')];
   t.after(async () => {
