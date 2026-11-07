@@ -104,7 +104,7 @@ for (const kind of ['transport', 'cleanup']) {
   });
 }
 
-test('a runner that keeps hitting its wait deadline stops GATE_INFRA_EXHAUSTED for the coordinator, never a red to the builder [C7]', t => {
+test('clause 1: a runner that keeps hitting its wait deadline stops GATE_INFRA_EXHAUSTED for the coordinator, never a red to the builder [C7]', t => {
   const box = fixture(t, { second: true });
   const result = scenario(box, [], undefined, { brokenFirstHost: 'deadline' });
   assert.equal(result.refused, 'GATE_INFRA_EXHAUSTED', `a wait deadline is infrastructure and the bounded retries end as such: ${JSON.stringify(result)}`);
@@ -124,7 +124,7 @@ test('a test failure goes red on its first attempt and is never requeued [C7]', 
   assert.deepEqual(red.attempts, []);
 });
 
-test('infrastructure failures are named by code, a dropped runner, an invalid runner result (#3303) or a locked board; real failures are not [C7]', async () => {
+test('clause 1: infrastructure failures are named by code, a dropped runner, an invalid runner result (#3303) or a locked board; real failures are not [C7]', async () => {
   for (const code of ['RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'BOARD_BUSY', 'SLOT_DB_LOCKED', 'MERGE_CHECK_FAILED', 'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST']) {
     assert.equal(infrastructureFailure(new Refused(code, 'fixture')), code);
   }
