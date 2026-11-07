@@ -24,8 +24,8 @@ test('clause 1: a running shadow gate job whose hand-off worker is alive reads r
     createJob(db, { id: 'orphan', kind: 'gate', item: 2, now: 0 });
     writeStep(db, 'orphan', 'running', {}, { now: 0 });
     createJob(db, { id: 'leased', kind: 'gate', item: 3, now: 0 });
-    takeJob(db, 'leased', 'driver', { now: 0 });
-    writeStep(db, 'leased', 'running', {}, { now: 0 });
+    takeJob(db, 'leased', 'driver', { now: 1000 });
+    writeStep(db, 'leased', 'running', {}, { now: 1000 });
     const workerAlive = (view) => view.id !== 'orphan';
     assert.equal(gatePanel(db, 'alive', { now, workerAlive }).text, 'running');
     assert.equal(gatePanel(db, 'orphan', { now, workerAlive }).stalled, true);
