@@ -44,6 +44,8 @@ test('the view shows one sentinel draft with its proof, never as an approved sen
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    // Pages open on the Dashboard since #2289 and draw Needs you on Items only, so open Items as a person would.
+    await page.click({ tab: 'items' });
     await page.run(`data.project.sentinelDrafts = ${JSON.stringify([draft({ name: 'rigor-row-g1', check: 'test -f up.txt' })])}; render();`);
     const html = page.show('needs');
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
