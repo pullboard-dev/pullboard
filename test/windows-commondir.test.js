@@ -2,10 +2,10 @@
 /** GitHub #16: Windows paths that differ only by \ versus / resolve to one commonDir [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from './fixture-child.js';
 import { laneSeatContext } from '../packages/seats/index.js';
 import { canonicalCommonDir, repoInfo, sameCommonDir } from '../packages/git/index.js';
 
@@ -28,7 +28,7 @@ test('clause 1: repoInfo returns the canonical commonDir', () => {
 });
 
 test('clause 2: laneSeatContext reuses the invoking seat when both commonDir spellings name one repo', async t => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pb-wincommon-')));
+  const dir = privateFixtureFiles('pb-wincommon-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const run = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
   run(dir, 'init', '-q', '-b', 'main');
