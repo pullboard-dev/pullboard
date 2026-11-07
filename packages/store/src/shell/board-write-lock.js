@@ -116,13 +116,30 @@ export function beginBoardWrite(db, context = {}, marker = null) {
   return record;
 }
 
-/** Account a named synchronous part of the active writer without performing diagnostic I/O. */
-export function measureBoardWritePhase(db, name, work) {
+/**
+ * Account a named synchronous part of the active writer without performing diagnostic I/O.
+ * A call that passes `move` is the move body: the record names the move, and the slowest phase measured
+ * inside it becomes the record's step, so a long hold can be read to its cause (#3336).
+ *
+ * @param {object} db - The board connection whose active write is measured.
+ * @param {string} name - The phase name.
+ * @param {() => *} work - The synchronous work to time.
+ * @param {string} [move] - The move name when this phase is the move body.
+ * @returns {*} The work's result.
+ */
+export function measureBoardWritePhase(db, name, work, move) {
   const started = performance.now();
+  if (move) for (const record of pending.get(db) ?? []) {
+    if (record.complete) continue;
+    record.move = move;
+    record.moveDepth = (record.moveDepth ?? 0) + 1;
+  }
   try { return work(); } finally {
     const elapsed = performance.now() - started;
     for (const record of pending.get(db) ?? []) {
       if (record.complete) continue;
+      if (move) record.moveDepth = Math.max(0, (record.moveDepth ?? 1) - 1);
+      else if (record.moveDepth > 0 && elapsed > (record.stepMs ?? 0)) { record.step = name; record.stepMs = elapsed; }
       record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
       if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
     }
