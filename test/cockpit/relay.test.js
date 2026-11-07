@@ -78,6 +78,9 @@ test('a paired relay reference explains that committed source is available only 
   await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
   await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+  // Shouts list conversations first; a person opens the one carrying the reference to read its messages in full.
+  await chrome.waitFor(`!!document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])') || !!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
+  if (await chrome.stable(`!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`)) await chrome.click(`document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])')`);
   await chrome.waitFor(`document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
   const beforeOpen = box.calls.length;
   for (const width of [375, 1280]) {
