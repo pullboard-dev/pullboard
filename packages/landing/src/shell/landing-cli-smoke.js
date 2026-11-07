@@ -52,7 +52,10 @@ export function runLandingCliSmoke(candidate) {
     const pullboard = (cwd, label, ...args) => {
       const result = spawnSync(process.execPath, [entry, ...args], { cwd, env, encoding: 'utf8', timeout: COMMAND_MS });
       if (result.status !== 0) {
-        const why = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => !/ExperimentalWarning|trace-warnings/u.test(line)).slice(0, 3).join(' ');
+        const lines = (result.error?.message ?? result.stderr ?? '').trim().split('\n').filter(line => line.trim() && !/ExperimentalWarning|trace-warnings/u.test(line));
+        // Node prints the throwing source line and a caret first; lead with the line naming the error, such as the missing module's path.
+        const named = lines.findIndex(line => /^\w*Error\b/u.test(line.trim()));
+        const why = (named > 0 ? [lines[named], ...lines.slice(0, named)] : lines).slice(0, 3).join(' ');
         throw new Refused('LAND_CLI_SMOKE', `the candidate's \`pullboard ${label}\` exits ${result.status ?? result.signal ?? 'with an error'} on a scratch board: ${why}; fix it before landing`);
       }
       ran.push(label);
