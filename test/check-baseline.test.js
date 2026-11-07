@@ -20,6 +20,7 @@ import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../packages/verif
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fixtureAddArgv } from './testkit-fixture.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -119,7 +120,7 @@ function project({ gate = 'true', content = 'green', commit = true, worktrees = 
 function addWorktree(box, lane, branch) {
   const path = join(box.dir, lane);
   box.git(box.repo, 'worktree', 'add', '-q', path, '-b', branch);
-  const joined = box.run(path, ['join', lane, '--model', 'claude-opus-5-5']);
+  const joined = box.run(path, ['join', lane, '--model', FIXTURE_MODEL]);
   assert.equal(joined.status, 0, joined.stderr);
   return path;
 }
