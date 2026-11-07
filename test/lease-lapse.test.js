@@ -75,7 +75,9 @@ test('a live holder heartbeat vetoes expiry, and a gone checkout with no activit
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write retains active holder.']);
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(itemById(box.board, id).item_status, 'claimed');
-  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims.length, 0);
+  // The live heartbeat vetoes lease-lapse expiry; the idle release for a holder with no work for 40 minutes is #3446's.
+  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims
+    .filter(row => row.idle === undefined).length, 0);
   box.advance(62 * MINUTE);
   const missing = store.register(box.board, { lane: 'web', path: box.root + '-missing-worktree', family: 'Fixture unknown work' });
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');
