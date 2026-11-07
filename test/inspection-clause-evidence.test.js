@@ -9,6 +9,7 @@ import { CLAUSE_EVIDENCE_ENGINE } from '../packages/state/index.js';
 import { requireCriterionEvidence } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Use native SQLite storage and native item writers, without a replacement board implementation. */
 function fixture(t, engine = CLAUSE_EVIDENCE_ENGINE) {
@@ -100,12 +101,12 @@ test('real CLI refuses add/edit before starting the check and exposes reasoning 
   const box = e2e.project('true', isolated);
   const marker = join(box.repo, 'should-not-execute');
   const check = `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)},"ran")'`;
-  const bad = box.run(box.repo, 'add', 'web', 'Invalid evidence', '--criterion', '1. returns zero', '--check', check,
+  const bad = fixtureAdd(box.run, box.repo, 'web', 'Invalid evidence', '--criterion', '1. returns zero', '--check', check,
     '--route', 'mid', '--brief', 'Files: web/page.html\nTest: refusal before check');
   assert.notEqual(bad.code, 0);
   assert.match(bad.err, /CLAUSE_EVIDENCE_REQUIRED/u);
   assert.equal(existsSync(marker), false);
-  const added = box.run(box.repo, 'add', 'web', 'Design evidence', '--criterion', '1. explain design [reasoning]', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Design evidence', '--criterion', '1. explain design [reasoning]', '--check', 'true',
     '--route', 'mid', '--brief', 'Files: web/page.html\nTest: native evidence warning', '--json');
   assert.equal(added.code, 0, added.err);
   const result = JSON.parse(added.out);

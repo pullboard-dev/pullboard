@@ -1254,6 +1254,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/machine-verdict-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1563,6 +1567,11 @@
       "owner": "state"
     },
     {
+      "path": "src/ownership-wait-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/move-history/228.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1678,6 +1687,26 @@
     },
     {
       "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/242.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/243.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/shadow-tier1-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-slot-services.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/244.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

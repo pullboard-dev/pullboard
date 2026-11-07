@@ -9,6 +9,9 @@ import { runFixtureChild } from './fixture-child.js';
 import { configProblems, defaults } from '../packages/config/index.js';
 import { machineNameProblems, machineNames } from '../packages/commits/index.js';
 import { installStep } from '../packages/git/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -20,7 +23,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Coordinator Session Model';
-  const coordinator = box.run(repo, 'join', 'coordinator', '--model', 'Coordinator Session Model');
+  const coordinator = fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Session Model');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
 
   box.env.PULLBOARD_MODEL = 'Session Worktree Model';
@@ -55,7 +58,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   box.env.PULLBOARD_MODEL = 'Session Join Model';
   const envJoin = join(box.dir, 'env-join');
   box.git(repo, 'worktree', 'add', '-q', '--detach', envJoin, 'HEAD');
-  const joined = box.run(envJoin, 'join', 'api');
+  const joined = fixtureJoin(box.run, envJoin, 'api');
   assert.equal(joined.code, 0, joined.err || joined.out);
   assert.match(joined.out, /joined as api-1 \(Session Join Model\)/,
     'join takes the model from PULLBOARD_MODEL');
@@ -63,13 +66,13 @@ test("the README's worktree command works in a fresh repo [I1,I2]", () => {
   delete box.env.PULLBOARD_MODEL;
   const missingJoin = join(box.dir, 'join-without-model');
   box.git(repo, 'worktree', 'add', '-q', '--detach', missingJoin, 'HEAD');
-  const missingJoinModel = runFixtureChild(process.execPath, [BIN, 'join', 'api'],
+  const missingJoinModel = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'api'],
     { cwd: missingJoin, env: box.env, encoding: 'utf8' });
   assert.equal(missingJoinModel.status, 1);
   assert.equal(missingJoinModel.stderr,
     'pullboard: [MODEL_REQUIRED] this session has not declared its model\nnext: run pullboard join api --model "<model name>"\n');
   assert.doesNotMatch(missingJoinModel.stderr, /pullboard help/u, 'no generic help footer follows the --model next step');
-  const missingJoinJson = box.run(missingJoin, 'join', 'api', '--json');
+  const missingJoinJson = fixtureJoin(box.run, missingJoin, 'api', '--json');
   assert.equal(missingJoinJson.code, 1);
   assert.equal(JSON.parse(missingJoinJson.out).error.next,
     'run pullboard join api --model "<model name>"');
@@ -204,7 +207,7 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', () =>
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Install Step Model';
-  const coordinator = box.run(repo, 'join', 'coordinator');
+  const coordinator = fixtureJoin(box.run, repo, 'coordinator');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
   /** Commit files on main as the coordinator, then make a web worktree and return its output. */
   const worktreeAfter = (files) => {
@@ -312,7 +315,7 @@ function submitNamingThisMachine(box, noHostName) {
   box.git(repo, 'add', 'pullboard.json');
   box.git(repo, 'commit', '-q', '-m', `chore: set the host-name guard to ${noHostName}`);
   box.git(web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading').code, 0);
+  assert.equal(fixtureAdd(box.run, repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading').code, 0);
   assert.equal(box.run(web, 'claim', '1').code, 0);
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', 'a.html'), '<h1>Hi</h1>\n');

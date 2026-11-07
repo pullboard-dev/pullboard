@@ -42,6 +42,10 @@ import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { commonJsIn } from '../../../../../packages/gate/index.js';
 import { requireSubmitCells } from '../../../../../bin/cells-submit-checks.js';
+import { machineVerificationEligible } from '../../../../../packages/verify/index.js';
+import { checkNeedsBrowser } from '../../../../../packages/gate/index.js';
+import { checkNeedsGui } from '../../../../../packages/gate/index.js';
+import { landAfterAcceptance } from './land.js';
 import { landedCutItemRows } from '../../../../../bin/cells-submit-checks.js';
 import {
   readFileSync,
@@ -148,6 +152,7 @@ import {
 } from '../../../../../packages/landing/index.js';
 import {
   observer as flakeObserver,
+  verify as flakeVerify,
   recordMainComparison,
 } from '../../../../../packages/flakes/index.js';
 import {
@@ -190,6 +195,7 @@ import {
   queuedItemLease,
   refuseUnsubmittableStack,
   reportSubmission,
+  refuseUnverifiedStack,
   resourceAgent,
   whoAmI,
   claimOrdered,
@@ -415,8 +421,14 @@ export async function submitHere(ctx, id, infra) {
   withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
   const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
   let mechanicalPaths = [];
-  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
-    onMechanicalPaths: paths => { mechanicalPaths = paths; } });
+  let ownershipRefusal = null;
+  try {
+    submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
+      onMechanicalPaths: paths => { mechanicalPaths = paths; } });
+  } catch (error) {
+    if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
+    ownershipRefusal = error;
+  }
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -447,7 +459,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -814,6 +826,49 @@ export async function submitHere(ctx, id, infra) {
   if (requireComposition) await runMachineryGuard(root,
     () => requireSubmitComposition(root, submitted, currentTrunk, trunkMove ? trunkMove.to : acceptedMain.commit),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
+  if (ownershipRefusal) {
+    // Routing cannot turn a known red, waiver, companion or advanced source into green evidence.
+    if (!gate.isGreen || waived || criterionMatched || proofMatched || knownMainFailures || unowned.length
+      || companion || submitted !== commit) throw ownershipRefusal;
+    const waiting = await withBoard(ctx, async board => {
+      refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
+      requireKernelApproval(board, { root, base: currentTrunk.commit, commit: submitted, item: id });
+      submitPreflight(board, id, { agentId: me.id, commit: submitted, tree: headTree(root),
+        ...(size ? { submissionSize: size } : {}), inspectClauses },
+      { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit },
+      { refuse: (observed, item) => refuseUnreviewable(observed, item,
+        { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) });
+      return ordered(ctx, board, 'deferOwnership', [id, { agentId: me.id, root, commit: submitted,
+        tree: headTree(root), main: acceptedMain.commit, receiptIds: [...new Set(submissionReceiptIds)] }]);
+    });
+    const result = { id, item: id, commit: waiting.commit, tree: waiting.tree,
+      waitingOwner: { key: waiting.key, owners: waiting.owners, paths: waiting.paths,
+        diff: waiting.diff, sourceRef: waiting.sourceRef } };
+    if (ctx.submissionResult) ctx.submissionResult.value = result;
+    ctx.io.result?.(result);
+    ctx.io.say(`#${id} waits on ${waiting.owners.join(', ')} for ${waiting.paths.join(', ')}; your claim is released`);
+    return 0;
+  }
+  const machineAuthorization = await withBoardRead(ctx, board => machineVerificationEligible(board, held, filesSince(root, id, claimHead, submitted)));
+  let machineReceiptIds;
+  if (machineAuthorization) {
+    if (companion || !gate.isGreen || waived || criterionMatched || knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine verification requires entirely green composed proof; this item needs its failures resolved first');
+    if (currentTrunk.commit !== acceptedMain.commit) throw new Refused('NO_POLICY', 'main moved before machine verification; merge current main and resubmit');
+    machineReceiptIds = [];
+    const commands = [{ clause: 0, command: frozenCheck(held) }, ...machineAuthorization.commands];
+    for (const entry of commands) {
+      const checkedItem = { ...held, item_commit: submitted, item_frozen: JSON.stringify({ ...JSON.parse(held.item_frozen), check: entry.command }) };
+      const browser = await checkNeedsBrowser(root, entry.command, { commit: submitted });
+      const gui = await checkNeedsGui(root, entry.command, { commit: submitted });
+      const result = await withGateSlot(root, flakeVerify(ctx, checkedItem, entry.command, { main: currentTrunk.commit, commit: submitted },
+        { ordered, withBoard, resourceAgent, checkAtCommit }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+        ...runnerAdmission, browser, gui, agent: me.id, item: String(id), kind: 'review', itemCheck: true,
+        onWait: queuedItemLease(ctx, held, me.id, 'build') });
+      if (result.state !== 'pass' || !result.proofReceiptId) throw new Refused('MACHINE_CLAUSE_RED', `machine ${entry.clause ? `clause ${entry.clause}` : 'frozen check'} failed: ${entry.command}; ${result.report}`);
+      machineReceiptIds.push(result.proofReceiptId);
+    }
+    if (requireTrunkMerge(root, submitted).commit !== currentTrunk.commit) throw new Refused('NO_POLICY', 'main moved during machine verification; merge main and rerun the composed proof');
+  }
   const waivedLines = waived ? waived.map(waiverLine) : [];
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
@@ -836,6 +891,7 @@ export async function submitHere(ctx, id, infra) {
     requireKernelApproval(board, { root, base: currentTrunk.commit, commit: companion?.commit ?? submitted, item: id });
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       ...(inspectClauses ? { inspectClauses: true } : {}),
+      ...(machineReceiptIds ? { machineReceiptIds } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
       ...(autoMainReds ? { autoMainReds } : {}),
       ...(quarantineProofIds.length ? { quarantineProofIds } : {}),
@@ -861,7 +917,11 @@ export async function submitHere(ctx, id, infra) {
     }
     return submittedMove;
   });
-  if (gate.isGreen && !waived && !criterionMatched) {
+  if (machineReceiptIds) {
+    ctx.io.say(`machine-verified #${id}: frozen check and ${machineAuthorization.commands.length} clauses passed`);
+    try { await landAfterAcceptance(ctx); }
+    catch (error) { ctx.io.err(`automatic landing retained machine-verified work: ${error.code ?? error.name}: ${error.message}`); }
+  } else if (gate.isGreen && !waived && !criterionMatched) {
     try { if (submissionReceiptIds.length) for (const line of countTrialGate(root, { id: JSON.stringify([...submissionReceiptIds].sort()) })) ctx.io.say(line); }
     catch { ctx.io.err('could not record this gate in the refusal-trial ledger'); }
     try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
@@ -884,7 +944,7 @@ export async function submitHere(ctx, id, infra) {
     ...(gate.testTiers ? { testTiers: gate.testTiers, phasePlan: gate.phasePlan, proofReceiptIds: gate.proofReceiptIds } : {}),
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
-    ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
+    ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })), mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : {}),
     ...(ambiguous.length ? { knownMainAmbiguous: ambiguous } : {}),
     ...(unowned.length && !autoMainReds ? { knownMainUnowned: unowned.flatMap(red => red.names.map(name => ({ file: red.file, name }))) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
@@ -931,6 +991,6 @@ export async function run(io, { first, values }) {
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait || !submissionResult.queued) return code;
   return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
-    { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem });
+    { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/src/core/submission-size.js';

@@ -13,6 +13,8 @@ import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -20,7 +22,7 @@ after(e2e.cleanup);
 /** Establish a real seat claim, with its criterion and row frozen by the public CLI. */
 function claimed() {
   const box = e2e.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Generated metadata', '--criterion', 'the hook checks board state', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Generated metadata', '--criterion', 'the hook checks board state', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const claim = box.run(box.web, 'claim', String(id));
@@ -130,7 +132,7 @@ function twoClaims() {
       note: 'Synthetic rejected-item state for commit association only.', head, digest, policy: 'any', familyPolicy: 'off' });
   } finally { store.closeBoard(board); }
   assert.equal(box.run(box.web, 'claim', String(box.id)).code, 0, 'the builder reclaims its rejected item');
-  const added = box.run(box.repo, 'add', 'web', 'Ordinary parallel claim', '--criterion', 'the second claim is real', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Ordinary parallel claim', '--criterion', 'the second claim is real', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const other = JSON.parse(added.out).item.item_id;
   const claim = box.run(box.web, 'claim', String(other));
@@ -161,9 +163,9 @@ test('the hook binds its claim to the current checkout rather than another sessi
   const box = claimed();
   const otherRoot = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', otherRoot, '-b', 'web/two');
-  const joined = box.run(otherRoot, 'join', 'web');
+  const joined = fixtureJoin(box.run, otherRoot, 'web');
   assert.equal(joined.code, 0, joined.err);
-  const added = box.run(box.repo, 'add', 'web', 'Other checkout claim', '--criterion', 'the checkout owns its metadata', '--specs', 'G1', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Other checkout claim', '--criterion', 'the checkout owns its metadata', '--specs', 'G1', '--json');
   assert.equal(added.code, 0, added.err);
   const other = JSON.parse(added.out).item.item_id;
   const claim = box.run(otherRoot, 'claim', String(other));
