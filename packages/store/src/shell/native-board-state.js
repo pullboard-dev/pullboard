@@ -95,6 +95,9 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     state.board = boardId;
     state.observedAt = new Date(observedAt).toISOString();
     state.decisionQueue = store.openDecisions(board, COORDINATOR);
+    // The browser's state carries each lane hold and each item's own hold with its reason; the native projection says the same so their hashes match (#1256).
+    state.holds = store.laneHolds(board);
+    state.itemHolds = currentItems.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at }));
     const projectData = {
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
