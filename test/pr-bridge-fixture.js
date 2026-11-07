@@ -9,7 +9,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 /** Run the actual CLI without blocking the loopback provider's event loop. */
 export async function runBridgeCLI(box, ...args) {
@@ -90,7 +90,7 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
     const path = index === 0 ? box.web : join(box.dir, 'web-two');
     if (index) {
       box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', path, 'main');
-      assert.equal(fixtureJoin(box.run, path, 'web', '--model', 'fixture-model').code, 0);
+      assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
     }
     if (independent) {
       const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -219,7 +219,7 @@ export async function bridgeProvider(t, box) {
 export function landBridgeRepair(box, id, file, { independent = false } = {}) {
   const path = join(box.dir, `repair-${id}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/repair-${id}`, path, 'main');
-  assert.equal(fixtureJoin(box.run, path, 'web', '--model', 'fixture-model').code, 0);
+  assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
   if (independent) {
     const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
     try { store.register(board, { lane: 'web', path, parent: 'fixture-pr-repair-builder' }); }
