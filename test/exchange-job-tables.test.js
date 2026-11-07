@@ -61,3 +61,14 @@ test('clause 2: an export from a board with job tables round-trips [C7]', (t) =>
   importBoard(target, document);
   assert.deepEqual(jobRows(target), jobRows(source), 'job and job_step rows survive export and import');
 });
+
+test('clause 1: an empty-job export lists no job tables [C7]', (t) => {
+  const source = fixtureBoard(t);
+  const document = exportBoard(source);
+  assert.equal(Object.hasOwn(document.tables, 'job'), false, 'an empty job table is left out');
+  assert.equal(Object.hasOwn(document.tables, 'job_step'), false, 'an empty job_step table is left out');
+  assert.equal((document.tables.sqlite_sequence ?? []).some(({ name }) => name === 'job' || name === 'job_step'), false, 'no counter for a left-out table');
+  const target = fixtureBoard(t);
+  importBoard(target, document);
+  assert.deepEqual(jobRows(target), { job: [], job_step: [] }, 'the export still imports into a board that has the job tables');
+});
