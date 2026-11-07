@@ -101,13 +101,13 @@ test('a first lost transport requeues the run onto the same runner without a qua
     assert.equal(idle.runner, undefined, 'an idle compatible local slot is not hidden by registered non-GUI runners');
     idle.release();
     held = await takeResource({ name: 'gate', scope: 'machine', root: box.repo, capacity: 1, agent: 'real-local-holder' });
-    const marker = join(box.dir, 'ran-locally');
-    const command = 'node -e ' + shellQuote(`require('node:fs').writeFileSync(${JSON.stringify(marker)},'actual local command'); console.log('DEADLINE_LOCAL_EXECUTION')`);
+    const command = 'node -e ' + shellQuote("console.log('DEADLINE_LOCAL_EXECUTION')");
     pending = runThroughGate(box.repo, box.env, command, { item: 'deadline-case', requests: box.requests });
     await observe(() => existsSync(box.requests) && readFileSync(box.requests, 'utf8').includes('"dropped":true'), 'the actual SSH transport drop');
     const result = await pending; pending = null;
     assert.equal(result.status, 0, fixtureResultContext(result));
-    assert.equal(existsSync(marker), false, 'the requeued run is dispatched again and never bypasses the live local holder');
+    assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u, 'the command ran through the runner stand-in, which shares this machine\'s filesystem');
+    assert.ok(gateResult(result.stdout).runner, 'the requeued run executed on the registered runner, not in the held local slot');
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.equal(calls.filter(call => call.dropped).length, 1, 'only the first transport is dropped');
     assert.ok(calls.filter(call => !call.healthProbeFailed && !call.dropped).length >= 1, 'a single lost transport does not quarantine the runner: the run is dispatched to it again');
