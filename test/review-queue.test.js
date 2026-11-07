@@ -30,7 +30,7 @@ import {
   importBoard,
 } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoin, joinFixtureSeat } from './testkit-fixture.js';
 
 const HOUR = 60 * 60 * 1000;
 const REVIEW_LEASE = 1_000;
@@ -219,12 +219,12 @@ test('a submitted head that no longer merges is returned to its builder [C7,V4]'
   json(box.run(box.web, 'claim', String(conflicted), '--json'));
 });
 
-test('next --verify skips a head that does not merge [C7,V4]', (t) => {
+test('clause 1: next --verify skips a head that does not merge [C7,V4]', (t) => {
   const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
-  json(fixtureJoin(box.run, second, 'web', '--json'));
+  json(joinFixtureSeat(box, second, 'web'));
   const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   const next = json(box.run(reviewer, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
@@ -420,7 +420,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   assert.equal(store.getItem(recordedCopies[0], conflicted).item_status, 'open');
   const second = join(box.dir, 'clean-computed-return');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/clean-return', 'main');
-  json(fixtureJoin(box.run, second, 'web', '--json'));
+  json(joinFixtureSeat(box, second, 'web'));
   const clean = build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   assert.throws(() => prepareEngineMove(source, 'reopen', [clean, { agentId: actor, automaticConflict: true }]),
     error => error.code === 'NOT_CONFLICTING', 'a clean submitted head cannot acquire computed conflict evidence');
