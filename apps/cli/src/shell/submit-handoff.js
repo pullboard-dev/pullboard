@@ -13,7 +13,9 @@ import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
@@ -25,6 +27,9 @@ import {
   existsSync,
   constants,
   writeFileSync,
+  readdirSync,
+  statSync,
+  utimesSync,
 } from 'node:fs';
 import {
   dirname,
@@ -49,12 +54,83 @@ function copyTools(toolRoot, target) {
     filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
 }
 
+/** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
+const TOOLING_PATHS = ['bin', 'apps', 'packages', 'src', 'package.json'];
+/** A shared snapshot untouched this long, and named by no running worker, is removed by the next submit. */
+const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** The most temp entries one sweep looks at, so a crowded temp dir cannot slow a submit. */
+const SNAPSHOT_SWEEP_LIMIT = 500;
+
 /**
- * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per commit under the OS temp
- * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
- * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
+ * A digest of the git ids of what a worker runs (bin, apps, packages, src and package.json at HEAD), or null when git
+ * cannot name them. Why: two commits with the same tooling trees need one snapshot, and a merge of main that changed
+ * only tests or docs must copy nothing [C7].
  */
-function toolsSnapshot(toolRoot, job) {
+function toolingDigest(toolRoot) {
+  const ids = TOOLING_PATHS.map(path => {
+    const id = tryGit(toolRoot, ['rev-parse', `HEAD:${path}`]);
+    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout) ? `${path}=${id.stdout}` : `${path}=absent`;
+  });
+  return createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
+}
+
+/** The text of every running process command line, or '' when the process list cannot be read. */
+function runningCommands() {
+  const listed = spawnSync('ps', ['-axww', '-o', 'command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return listed.status === 0 ? listed.stdout : '';
+}
+
+/** The tools folders named by a hand-off job here that is queued or whose recorded worker is alive. */
+function handoffToolsInUse(commonDir) {
+  const used = new Set();
+  const root = join(commonDir, 'pullboard', 'submit-handoffs');
+  let jobs = [];
+  try { jobs = readdirSync(root); } catch { return used; }
+  for (const job of jobs.slice(0, SNAPSHOT_SWEEP_LIMIT)) {
+    try {
+      const request = JSON.parse(readFileSync(join(root, job, 'request.json'), 'utf8'));
+      let alive = false;
+      try {
+        const worker = JSON.parse(readFileSync(join(root, job, 'worker.json'), 'utf8'));
+        if (Number.isSafeInteger(worker.pid) && worker.pid > 0) process.kill(worker.pid, 0), alive = true;
+      } catch (error) {
+        // A queued job has no worker record yet; a live pid we may not signal still lives.
+        alive = error?.code === 'EPERM' || error?.code === 'ENOENT' && Date.now() - statSync(join(root, job, 'request.json')).mtimeMs < SNAPSHOT_MAX_AGE_MS;
+      }
+      if (alive && typeof request.tools === 'string') used.add(request.tools);
+    } catch { /* An unreadable job record names nothing. */ }
+  }
+  return used;
+}
+
+/**
+ * Remove shared tools snapshots untouched for 24 h that no running worker uses: one bounded pass over the temp dir.
+ * Why: a snapshot is 55 MB; without a sweep the temp dir keeps every tooling tree ever submitted [C7].
+ */
+export function sweepToolSnapshots(commonDir, { now = Date.now(), directory = tmpdir() } = {}) {
+  let names = [];
+  try { names = readdirSync(directory).filter(name => /^pullboard-handoff-tools-[0-9a-f]{40}$/u.test(name)).slice(0, SNAPSHOT_SWEEP_LIMIT); } catch { return []; }
+  const stale = names.filter(name => { try { return now - statSync(join(directory, name)).mtimeMs > SNAPSHOT_MAX_AGE_MS; } catch { return false; } });
+  if (stale.length === 0) return [];
+  const used = commonDir ? handoffToolsInUse(commonDir) : new Set();
+  const commands = runningCommands();
+  const removed = [];
+  for (const name of stale) {
+    const path = join(directory, name);
+    if (used.has(path) || commands.includes(path)) continue;
+    rmSync(path, { recursive: true, force: true });
+    removed.push(name);
+  }
+  return removed;
+}
+
+/**
+ * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per tooling tree under the OS
+ * temp dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else
+ * gets a private per-job copy. Why: every submit copied 3,762 files, and keying by commit still copied one per submit
+ * because each submit merges main first; the tooling trees change only a few times a day [C7].
+ */
+export function toolsSnapshot(toolRoot, job, commonDir) {
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
@@ -65,15 +141,19 @@ function toolsSnapshot(toolRoot, job) {
     copyTools(toolRoot, tools);
     return tools;
   }
-  const shared = join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
-  if (existsSync(shared)) return shared;
+  const shared = join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`);
+  try { sweepToolSnapshots(commonDir); } catch { /* A failed sweep never blocks a submit. */ }
+  if (existsSync(shared)) {
+    try { const now = new Date(); utimesSync(shared, now, now); } catch { /* Age is advisory. */ }
+    return shared;
+  }
   const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
     copyTools(toolRoot, staging);
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
-    // A concurrent submit won the rename; its finished snapshot is the same commit's tools.
+    // A concurrent submit won the rename; its finished snapshot is the same tooling.
     if (!existsSync(shared)) throw error;
   }
   return shared;
@@ -96,7 +176,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
-    const tools = toolsSnapshot(toolRoot, result.job.id);
+    const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
