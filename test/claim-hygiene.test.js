@@ -21,10 +21,11 @@ import { counterProofStats } from '../packages/verify/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
@@ -81,7 +82,11 @@ function fixture(t) {
   const health = id => staleStateSnapshot(board, {}, { now: new Date(at), items: [store.getItem(board, id)], claimsOnly: true,
     workObservation: () => ({ available: true, at: null }) }).claims[0]?.health;
   return { board, git, repo, base, worktrees, first, second, helper, seat, add, claim, maintain, touch, health,
-    now: () => at, advance: minutes => { at += minutes * 60_000; } };
+    now: () => at, advance: minutes => {
+      at += minutes * 60_000;
+      // A live seat keeps heartbeating while the clock moves; silence would read as a gone seat and release at once.
+      for (const id of Object.keys(worktrees)) heartbeatSeat(board, id);
+    } };
 }
 
 /** Events of one kind on one item. */
@@ -216,7 +221,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   assert.equal(released.item_status, 'open');
   const next = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', next, 'main');
-  ok(fixtureJoin(box.run, next, 'web', '--json'));
+  ok(joinFixtureSeat(box, next, 'web', { model: 'fixture-model' }));
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');
@@ -300,7 +305,8 @@ test('three rejected submits return the claim to another seat, including after a
     if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
   }
   f.claim(id, f.first);
-  f.advance(31);
+  // A red gate return holds the claim for its idle limit of 40 minutes from the reject.
+  f.advance(41);
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /three failed submits/u);
@@ -375,7 +381,8 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs work.' });
   f.claim(id, f.first);
   for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
-  f.advance(31);
+  // The reject above is a red return, which holds the claim for 40 minutes.
+  f.advance(41);
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.throws(() => f.claim(id, f.second), { code: 'REOPEN_HELD_FOR_BUILDER' }, 'the reviewer is refused');
