@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Test fixtures come from the kit: raw setup in tests is a ceiling that only falls [C7]. */
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   readFileSync,
@@ -110,10 +111,46 @@ export function fixtureGrowth(problems, ceilings) {
   });
 }
 
-/** The check: growth past the ceilings file as `path:line: text` rows. */
-export function fixtureProblems(root, ceilingsPath = CEILINGS_URL) {
-  const ceilings = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
-  return fixtureGrowth(fixtureReport(root), ceilings).map(({ path, line, kind, text }) => ({ path, line, text: `${kind}: ${text}` }));
+/**
+ * The trunk commit this tree was composed on: the second parent of a merge HEAD (the gate merges main into the builder's
+ * source), else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7].
+ */
+export function compositionBase(root) {
+  const result = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}'], { cwd: root, encoding: 'utf8' });
+  return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+}
+
+/** One file's text at the base commit, or null when the base does not have it. */
+function baseText(root, base, path) {
+  const result = spawnSync('git', ['show', `${base}:${path}`], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  return result.status === 0 ? result.stdout : null;
+}
+
+/**
+ * The check: growth past the ceilings file as `path:line: text` rows. With a base commit, a file's allowance is the
+ * greater of its committed ceiling and the count its own text has at the base, per kind, so only rows the submission
+ * adds count; a file the base lacks has only its committed ceiling. The ceilings file is read, never changed.
+ *
+ * @param {string} root
+ * @param {string | URL} [ceilingsPath]
+ * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null }} [options]
+ */
+export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText } = {}) {
+  const committed = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
+  const problems = fixtureReport(root);
+  let ceilings = committed;
+  if (base && fixtureGrowth(problems, committed).length) {
+    ceilings = { ...committed };
+    for (const path of new Set(fixtureGrowth(problems, committed).map(row => row.path))) {
+      const text = read(root, base, path);
+      if (text === null) continue;
+      const inherited = fixtureCounts(fixtureSites(text, path))[path] ?? {};
+      const merged = { ...(committed[path] ?? {}) };
+      for (const [kind, count] of Object.entries(inherited)) merged[kind] = Math.max(merged[kind] ?? 0, count);
+      ceilings[path] = merged;
+    }
+  }
+  return fixtureGrowth(problems, ceilings).map(({ path, line, kind, text }) => ({ path, line, text: `${kind}: ${text}` }));
 }
 
 /** Write today's counts as the ceilings, or lower them; growth over an existing file is returned and nothing is written. */
