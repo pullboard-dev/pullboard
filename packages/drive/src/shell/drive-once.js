@@ -1,6 +1,7 @@
 /** driveOnce: continue one gate job from its last written step by exactly one transition [C7]. */
 import { Refused } from '../../../kernel/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
@@ -16,6 +17,7 @@ import { owedShards } from '../core/drive-phase.js';
 import { phaseOf } from '../core/drive-phase.js';
 import { shardSections } from '../core/drive-phase.js';
 import { stepPayload } from '../core/drive-phase.js';
+import { queueFlakeDiagnoses } from './flake-diagnose.js';
 
 /**
  * Hold the job's lease for this driver: renew it when the driver already holds it, else take it if it lapsed.
@@ -119,22 +121,35 @@ async function collect(db, view, { transport, owner, now }) {
 }
 
 /**
- * collected → verdict: judge with the receipt cell and write the verdict step with the receipt id.
+ * collected → verdict: judge with the receipt cell, write the verdict step with the receipt id and free the lease.
+ * Only then, as bookkeeping, a red verdict queues one flake-diagnose job per failing case for any driver to run later.
+ *
+ * Why: diagnostics never hold the gate's worker or delay its verdict; they are their own jobs, off the critical path.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {ReturnType<typeof jobView>} view
- * @param {{ sections: (collected: object) => object, now: number }} options
+ * @param {{ sections: (collected: object) => object, failures?: (collected: object) => { file: string, case: string }[], owner: string, now: number }} options
  */
-function decide(db, view, { sections, now }) {
+function decide(db, view, { sections, failures, owner, now }) {
   const captured = stepPayload(view, 'captured');
+  const collected = stepPayload(view, 'collected');
   const receipt = receiptKey(captured.tree, captured.base ?? captured.tree);
-  settle(sections(stepPayload(view, 'collected')), receipt, { record: step => writeStep(db, view.id, step.name, step.payload, { now }) });
+  settle(sections(collected), receipt, {
+    record: step => {
+      writeStep(db, view.id, step.name, step.payload, { now });
+      releaseLease(db, view.id, owner, { now });
+    },
+    bookkeeping: step => {
+      if (step.payload.verdict === 'red' && failures) queueFlakeDiagnoses(db, view, captured.tree, failures(collected), { now });
+    },
+  });
 }
 
 /**
  * Drive one gate job by one transition from its last written step, writing that step before returning:
  * queued → captured → running → collected → verdict. A resumed job reads and starts only shards with no done step.
- * A job at its verdict is terminal; a job whose live lease another driver holds is left alone.
+ * A job at its verdict is terminal; a job whose live lease another driver holds is left alone. The verdict frees the
+ * lease; a red verdict then queues flake-diagnose jobs for the cases `failures(collected)` names (none by default).
  *
  * Why: the job row, not this process, holds the state, so any driver can call this after any other died, and a
  * repeat of a step it already wrote is a no-op in the job store.
@@ -143,10 +158,11 @@ function decide(db, view, { sections, now }) {
  * @param {string} job - The job id.
  * @param {{ owner: string, repo?: string, runner?: { host: string, root?: string },
  *   plan?: { shard: string, command: string }[] | ((captured: object) => { shard: string, command: string }[]),
- *   transport?: { connect: Function }, sections?: (collected: object) => object, now?: () => number }} options
+ *   transport?: { connect: Function }, sections?: (collected: object) => object,
+ *   failures?: (collected: object) => { file: string, case: string }[], now?: () => number }} options
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, transport, sections = shardSections, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, transport, sections = shardSections, failures, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
   const view = jobView(db, job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
@@ -159,7 +175,7 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, transport,
   if (before === 'queued') capture(db, view, repo, at);
   else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at });
   else if (before === 'running') owed = await collect(db, view, { transport: channels, owner, now: at });
-  else decide(db, view, { sections, now: at });
+  else decide(db, view, { sections, failures, owner, now: at });
   const after = jobView(db, job);
   const phase = phaseOf(after);
   const result = { transition: phase === before ? null : phase, phase, job: after };
