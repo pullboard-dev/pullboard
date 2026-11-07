@@ -38,7 +38,7 @@ test('the view state carries a pending sentinel draft [A6,D1,N26]', async () => 
   }
 });
 
-test('the view shows one sentinel draft with its proof, never as an approved sentinel [A6,D1,N26]', async () => {
+test('clause 1: the view shows one sentinel draft with its proof, never as an approved sentinel [A6,D1,N26]', async () => {
   const box = machine();
   project(box, 'draft board', SPEC);
   const view = await startView(box);
