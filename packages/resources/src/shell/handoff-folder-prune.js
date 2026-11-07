@@ -7,7 +7,7 @@ import {
   rmSync,
   statSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
+import { DatabaseSync } from 'node:sqlite';
 import {
   dirname,
   join,
@@ -83,7 +83,7 @@ export function redLogKept(root, directory) {
   try { statSync(file); } catch { return false; }
   let db;
   try {
-    db = new (createRequire(import.meta.url)('node:sqlite').DatabaseSync)(file, { readOnly: true });
+    db = new DatabaseSync(file, { readOnly: true });
     db.exec('PRAGMA busy_timeout = 2000');
     const row = db.prepare('SELECT item_status, item_merged_commit FROM item WHERE item_id = ?').get(item);
     return Boolean(row) && !row.item_merged_commit && row.item_status !== 'withdrawn';
