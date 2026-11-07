@@ -284,7 +284,8 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  document(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  // The captured item is filed on the strong route, so its reviewer joins on that route (a mid seat is refused ROUTE).
+  document(fixtureJoin(box.run, reviewer, 'api', '--route', 'strong', '--json'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
