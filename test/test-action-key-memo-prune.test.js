@@ -2,9 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, existsSync, readdirSync, renameSync, utimesSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, existsSync, readdirSync, renameSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { temporaryDirectory } from './board-fixture.js';
 import { memoizedActionKeys } from '../packages/gate/src/shell/test-action-key-memo.js';
 
 const MODULE = new URL('../packages/gate/src/shell/test-action-key-memo.js', import.meta.url).href;
@@ -14,14 +14,14 @@ const HOURS = 3_600_000;
 
 /** Point the machine-wide marker at a fresh folder for this test. */
 function isolate() {
-  const home = mkdtempSync(join(tmpdir(), 'memo-machine-'));
+  const home = temporaryDirectory('memo-machine-');
   process.env.PULLBOARD_MACHINE_HOME = home;
   return join(home, 'key-memo-prune');
 }
 
 /** Make a store holding one memo folder aged three hours. */
 function storeWithOldMemo() {
-  const store = mkdtempSync(join(tmpdir(), 'memo-prune-'));
+  const store = temporaryDirectory('memo-prune-');
   mkdirSync(join(store, 'keys', 'old-tree'), { recursive: true });
   const old = new Date(Date.now() - 3 * HOURS);
   utimesSync(join(store, 'keys', 'old-tree'), old, old);
@@ -48,7 +48,7 @@ function pruneInProcess(store, home) {
 
 test('clause 3: an old memo folder is pruned, a fresh one kept, and the old tree still gets correct keys [C7]', async () => {
   const marker = isolate();
-  const store = mkdtempSync(join(tmpdir(), 'memo-prune-'));
+  const store = temporaryDirectory('memo-prune-');
   await memoizedActionKeys(store, 'old-tree', ['t.test.js'], build);
   await memoizedActionKeys(store, 'fresh-tree', ['t.test.js'], build);
   const old = new Date(Date.now() - 3 * HOURS);
