@@ -252,6 +252,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     timing,
     infrastructureRetry: retryInfrastructure,
     allowIdleCapacityUpdate: true,
+    allowCapacityGrowth: true,
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
