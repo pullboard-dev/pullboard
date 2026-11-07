@@ -158,3 +158,8 @@ export async function waitJob(box, expected) {
   }, `native ${expected} result`, 120000); }
   catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
 }
+
+/** Make a real later builder commit without replacing the queued source. */
+export function helpersCommit(box, path, body) {
+  return box.helpers.commitFile(box, box.web, path, body, 'feat(web): independent later work [G1]');
+}
