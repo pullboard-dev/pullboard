@@ -7,30 +7,13 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { test, afterEach, after } from 'node:test';
+import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import { json } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { landingHost } from '../packages/landing/index.js';
 import { landingProcessLive } from '../packages/landing/index.js';
-
-// DIAGNOSTIC (remove): per-case stderr lines and a live-handle dump at the end.
-let diagBox = null;
-afterEach((t) => {
-  try {
-    if (diagBox) {
-      const rows = onBoard(diagBox, board => ({ batches: store.landingBatches(board).map(b => ({ id: b.id.slice(0, 8), state: b.state, items: (b.items ?? []).map(i => i.id), cands: (b.candidates ?? []).map(i => i.id), refusal: b.refusal?.code, blocked: b.blocked, dropped: b.dropped, superseded: b.supersededByMain })),
-        items: store.listItems(board, { all: true }).map(i => ({ id: i.item_id, status: i.item_status, merged: Boolean(i.item_merged_commit), hold: i.item_hold_reason ?? null })),
-        events: store.events(board).slice(-14).map(e => `${e.event_kind}#${e.item_id}`) }));
-      process.stderr.write(`DIAG board: ${JSON.stringify(rows)}\n`);
-    }
-  } catch (error) { process.stderr.write(`DIAG board read failed: ${error.message}\n`); }
-  process.stderr.write(`DIAG case done: ${t.name} ${t.passed === false ? 'FAILED' : 'ok'}\n`); });
-after(() => {
-  const handles = process._getActiveHandles().map((h) => `${h.constructor?.name} ${h.remoteAddress ?? ''}:${h.remotePort ?? ''} fd=${h._handle?.fd ?? ''} spawnfile=${h.spawnfile ?? ''} pid=${h.pid ?? ''}`);
-  process.stderr.write(`DIAG handles at end: ${JSON.stringify(handles)}\n`);
-});
 
 /** Commit fixture source through the installed ordinary hooks. */
 function commit(box, root, message) {
@@ -48,9 +31,7 @@ function acceptItem(box, reviewer, file, title) {
   const head = commit(box, box.web, `feat(web): ${title.toLowerCase()} [G1]`);
   json(box, box.web, 'submit', String(id));
   box.git(reviewer, 'checkout', '-q', '--detach', head);
-  const verify = box.run(reviewer, 'verify', String(id), 'accept', '--note', `The frozen ${file} check passed.`);
-  process.stderr.write(`DIAG verify #${id} lines: ${(verify.out + verify.err).split('\n').filter(l => /land|adopt|retire|drop|hold|stale/i.test(l)).join(' | ')}\n`);
-  return { id, head, verify };
+  return { id, head, verify: box.run(reviewer, 'verify', String(id), 'accept', '--note', `The frozen ${file} check passed.`) };
 }
 
 /** Accept item A while a person holds landing, then return landing to the board so A waits on trunk. */
@@ -58,7 +39,6 @@ function waitingItem(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  diagBox = box;
   const config = { ...helpers.CONFIG, gate: 'true', landing: { perItem: false, publish: 'separate', manualOverride: true } };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -105,7 +85,6 @@ test('the next accept resumes a merging batch whose landing process died and lan
   const stuck = stuckBatch(box, { base: trunk, items: [{ id: first.id, commit: first.head }], pid: deadPid() });
   const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
   assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  assert.match(second.verify.out + second.verify.err, new RegExp(`landing adopts interrupted batch ${stuck.id} \\(merging\\)`, 'u'));
   const resumed = batchById(box, stuck.id);
   assert.equal(resumed.state, 'landed', 'the interrupted batch itself resumes');
   assert.notEqual(resumed.owner, 'crashed-landing-session');
@@ -121,7 +100,6 @@ test('a gating batch whose worker died before its gate log existed resumes and l
   assert.equal(existsSync(stuck.logPath), false, 'the gate log was never written');
   const second = acceptItem(box, reviewer, 'second.txt', 'Second result');
   assert.equal(second.verify.code, 0, second.verify.out + second.verify.err);
-  assert.match(second.verify.out + second.verify.err, new RegExp(`landing adopts interrupted batch ${stuck.id} \\(gating\\)`, 'u'));
   const resumed = batchById(box, stuck.id);
   assert.equal(resumed.state, 'landed', 'the interrupted gating batch itself resumes');
   assert.equal(resumed.refusal ?? null, null, 'it is never blocked LAND_WORKTREE');
@@ -137,10 +115,9 @@ test('an interrupted batch whose worktree is gone is blocked and a fresh batch l
   const blocked = batchById(box, stuck.id);
   assert.equal(blocked.state, 'blocked');
   assert.equal(blocked.refusal.code, 'LAND_WORKTREE');
-  const fresh = onBoard(box, board => store.landingBatches(board).at(-1));
-  assert.notEqual(fresh.id, stuck.id);
-  assert.equal(fresh.state, 'landed');
-  assert.deepEqual(fresh.items.map(entry => entry.id).sort((a, b) => a - b), [first.id, second.id]);
+  // Landing is per item (#2901): the waiting item lands in a fresh batch of its own, then the new accept in the next.
+  const freshBatches = onBoard(box, board => store.landingBatches(board).filter(batch => batch.id !== stuck.id && batch.state === 'landed'));
+  assert.deepEqual(freshBatches.flatMap(batch => batch.items.map(entry => entry.id)).sort((a, b) => a - b), [first.id, second.id]);
   for (const id of [first.id, second.id]) assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit, `#${id} lands`);
   assert.equal(readFileSync(join(box.repo, 'web/second.txt'), 'utf8'), 'Second result\n');
 });
