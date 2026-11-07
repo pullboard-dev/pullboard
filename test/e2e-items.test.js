@@ -28,6 +28,8 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -38,7 +40,7 @@ const {
 
 test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--kind', 'question', '--decision');
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
@@ -249,7 +251,7 @@ test('a red gate refuses submit [V4]', () => {
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
-  box.run(box.repo, 'add', 'coordinator', 'Coordinator work');
+  fixtureAdd(box.run, box.repo, 'coordinator', 'Coordinator work');
   box.run(box.repo, 'claim', '1');
   const refused = box.run(box.repo, 'submit', '1');
   assert.equal(refused.code, 1);
@@ -258,7 +260,7 @@ test('a red gate refuses submit [V4]', () => {
 
 test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   assert.equal(box.run(box.web, 'submit', '1').code, 0);
@@ -291,7 +293,7 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
   const marker = '<!-- pullboard-grammar 2 -->\n';
   const setup = () => {
     const box = project();
-    assert.equal(box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders').code, 0);
+    assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders').code, 0);
     return box;
   };
   const claimBox = setup();
@@ -437,9 +439,9 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
   const box = project();
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
-  assert.match(box.run(second, 'join', 'web').out, /joined as web-2/);
+  assert.match(fixtureJoin(box.run, second, 'web').out, /joined as web-2/);
   for (let round = 1; round <= 6; round += 1) {
-    box.run(box.repo, 'add', 'web', `Item ${round}`);
+    fixtureAdd(box.run, box.repo, 'web', `Item ${round}`);
     const results = await race(box, box.web, second, round);
     const winners = results.filter((result) => result.code === 0);
     const losers = results.filter((result) => result.code !== 0);
@@ -451,8 +453,8 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
 
 test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
-  box.run(box.repo, 'add', 'web', 'Second page', '--specs', 'G1', '--after', '1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Second page', '--specs', 'G1', '--after', '1');
   const first = box.run(box.web, 'next');
   assert.equal(first.code, 0, first.err);
   assert.match(first.out, /claimed #1: Page/);
@@ -479,7 +481,7 @@ test('next --verify can reserve a named submitted review and default to the lowe
   const reviewers = ['api-1', 'api-2'].map((name) => {
     const path = join(box.dir, name);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path);
-    const joined = box.run(path, 'join', 'api');
+    const joined = fixtureJoin(box.run, path, 'api');
     assert.equal(joined.code, 0, joined.err);
     return path;
   });
@@ -547,7 +549,7 @@ test('a deleted spec row is refused at commit; spec check finds any id gone from
   box.git(box.repo, 'commit', '-q', '--no-verify', '-m', 'docs(spec): drop the api row');
   box.git(box.repo, 'commit', '-q', '--no-verify', '--allow-empty', '-m', 'feat(web): ghost [G7]');
   writeFileSync(spec, `${SPEC.replace(/- G2 .*\n/, '')}- G3 [draft, must] Not committed yet.\n`);
-  assert.equal(box.run(box.repo, 'add', 'web', 'Uses G3', '--specs', 'G3').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Uses G3', '--specs', 'G3').code, 0);
   writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));
   const check = box.run(box.repo, 'spec', 'check');
   assert.equal(check.code, 1);
