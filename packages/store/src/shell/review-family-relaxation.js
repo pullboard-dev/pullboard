@@ -27,7 +27,7 @@ function freeActiveSeats(board, now) {
 }
 
 /** Whether no free seat may review the item: each is cooling down on it or refused by a reviewer check [V1,H16]. */
-function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseCooldown }) {
+function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseCooldown, reviewHeartbeats = null }) {
   return !seats.some(id => {
     if (reviewReleaseCooldown(board, item.item_id, id)) return false;
     const checks = reviewerChecks(board, { agentId: id, policy, familyPolicy: 'require', reviewHeartbeats });
