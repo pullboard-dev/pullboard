@@ -128,7 +128,7 @@ test('clause 1: the submit gate\'s flake observer runs as flake-diagnose jobs ke
     assert.equal(observed, 1, 'one observer run diagnoses every case of the red run');
     const attached = flakeDiagnosesFor(db, 90).map(d => [d.job, d.file, d.case, d.result.classification]).sort();
     assert.deepEqual(attached, [[flakeDiagnoseKey(tree, 'test/a.test.js', 'adds'), 'test/a.test.js', 'adds', 'flake'],
-      [flakeDiagnoseKey(tree, 'test/b.test.js', 'parses'), 'test/b.test.js', 'parses', 'unclassified']]);
+      [flakeDiagnoseKey(tree, 'test/b.test.js', 'parses'), 'test/b.test.js', 'parses', 'unclassified']].sort());
     assert.ok(jobsOf(db, { kind: FLAKE_DIAGNOSE_KIND, item: 90 }).every(job => job.leaseOwner === null), 'finished diagnostics hold no lease');
 
     await wrapped({ isGreen: false, output: '' }, { root: repo });
