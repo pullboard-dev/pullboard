@@ -6,6 +6,8 @@ import { after, test } from 'node:test';
 import { privateFixtureFiles } from './fixture-child.js';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
 import { reserveReview, renewReview, reclaimLapsedReviews, reviewOffer, jobView, LEASE_MS } from '../packages/jobs/index.js';
+import * as store from '../packages/store/index.js';
+import { cli, fixture } from './next-take-fixture.js';
 
 const files = privateFixtureFiles('pullboard-durable-review-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -48,4 +50,37 @@ test('clause 1: a reviewer that keeps renewing keeps the reservation and nothing
     assert.equal(reviewOffer(db, 8, { now: 10 * 60_000 + 1 }).holder, 'rev-a');
     assert.deepEqual(reviewOffer(db, 9, { now: 0 }), { offered: true, holder: null, lapses: [] });
   });
+});
+
+/** Register a review seat with its own worktree and parent, and record its first heartbeat. */
+function reviewSeat(box, name) {
+  const path = join(box.root, '..', `durable-review-${name}`);
+  box.git(box.root, 'worktree', 'add', '-q', '--detach', path, 'HEAD');
+  const id = store.register(box.board, { lane: 'review', path, parent: `durable-review-${name}`, family: 'Family Beta', route: 'strong' });
+  store.heartbeatSeat(box.board, id);
+  return { id, path };
+}
+
+test('clause 1: next --verify holds the review as a jobs-cell lease and reclaims a silent reviewer after 2 minutes with the lapse recorded [C7]', async t => {
+  const box = await fixture(t);
+  const id = box.add('Review whose reviewer goes silent');
+  box.submit(id);
+  const silent = reviewSeat(box, 'silent');
+  const successor = reviewSeat(box, 'successor');
+  const reserved = await cli(box, silent.path, ['next', '--verify', String(id)]);
+  assert.equal(reserved.code, 0, reserved.out + reserved.err);
+  const lease = jobView(box.board.db, `review:${id}`);
+  assert.equal(lease.kind, 'review');
+  assert.equal(lease.leaseOwner, silent.id, 'the reservation is a lease in the jobs cell');
+
+  box.advance(LEASE_MS + 1);
+  const reclaimed = await cli(box, successor.path, ['next', '--verify']);
+  assert.equal(reclaimed.code, 0, reclaimed.out + reclaimed.err);
+  assert.equal(reclaimed.document.item.item_id, id, 'the item is offered again');
+  assert.equal(store.getItem(box.board, id).item_review_by, successor.id);
+  const steps = jobView(box.board.db, `review:${id}`).steps;
+  assert.deepEqual(steps.map(step => step.name), ['reserved', 'lapsed', 'reserved']);
+  assert.equal(steps[1].payload.reviewer, silent.id, 'the lapse names the silent reviewer');
+  const release = box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='release' ORDER BY event_id DESC LIMIT 1").get(id);
+  assert.equal(JSON.parse(release.event_detail).lapsed.reviewer, silent.id, 'the board records the lapse as a review release');
 });

@@ -55,14 +55,23 @@ export function renewReview(db, item, reviewer, { now = Date.now(), leaseMs = LE
  * Reclaim every review reservation whose lease lapsed: record a `lapsed` step naming the silent reviewer and clear the
  * holder, so the item is offered again. A reservation renewed in the meantime is left alone.
  *
+ * Why `seen`: a reviewer's heartbeat lives off the board, so the board reads it here. A reviewer seen within the lease
+ * window is not silent: its lease is extended to that sighting plus the window instead of being reclaimed.
+ *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{now?: number}} [options]
+ * @param {{now?: number, leaseMs?: number, seen?: (reviewer: string) => number|null}} [options] - seen: the reviewer's
+ *   last heartbeat in epoch milliseconds, or null when unknown.
  * @returns {{item: number, reviewer: string, lapsedMs: number}[]} The reservations reclaimed by this pass.
  */
-export function reclaimLapsedReviews(db, { now = Date.now() } = {}) {
+export function reclaimLapsedReviews(db, { now = Date.now(), leaseMs = LEASE_MS, seen = () => null } = {}) {
   const rows = db.prepare("SELECT job_id, job_item, job_attempt, job_lease_owner, job_lease_until FROM job WHERE job_kind = 'review' AND job_lease_owner IS NOT NULL AND job_lease_until < ? ORDER BY job_lease_until").all(now);
   const reclaimed = [];
   for (const row of rows) {
+    const sighting = seen(row.job_lease_owner);
+    if (Number.isFinite(sighting) && sighting <= now && sighting + leaseMs >= now) {
+      db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ?').run(sighting + leaseMs, row.job_id, row.job_lease_owner);
+      continue;
+    }
     const cleared = db.prepare('UPDATE job SET job_lease_owner = NULL, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_owner = ? AND job_lease_until < ?')
       .run(now, row.job_id, row.job_lease_owner, now);
     if (cleared.changes !== 1) continue;
@@ -71,6 +80,23 @@ export function reclaimLapsedReviews(db, { now = Date.now() } = {}) {
     reclaimed.push(lapse);
   }
   return reclaimed;
+}
+
+/**
+ * End an item's review lease whoever holds it, recording a `released` step: the review ended by a verdict, a release
+ * or a hand-over the board already allowed. A review with no live holder records nothing.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} item
+ * @param {{now?: number}} [options]
+ * @returns {string|null} The reviewer whose lease ended, or null.
+ */
+export function releaseReview(db, item, { now = Date.now() } = {}) {
+  const job = jobView(db, reviewJobId(item));
+  if (!job?.leaseOwner) return null;
+  db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ?').run(now, job.id);
+  writeStep(db, job.id, 'released', { reviewer: job.leaseOwner }, { seq: job.attempt, now });
+  return job.leaseOwner;
 }
 
 /**
