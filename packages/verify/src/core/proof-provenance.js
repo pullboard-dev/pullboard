@@ -182,6 +182,9 @@ export function proofFields(value) {
   if (hasTestRuntimes && value.testRuntimes !== null && testRuntimes === null) return null;
   // Captured test workers outrank the executor; a run with none (testRuntimes null) keeps the observed executor [C7,#2662].
   const actualEnvironment = testRuntimes ? testRuntimeEnvironment(testRuntimes) : environment;
+  const hasShards = Object.hasOwn(value, 'shards');
+  const shards = hasShards ? shardRows(value.shards) : null;
+  if (hasShards && !shards) return null;
   const names = ['passed', 'failed', 'skipped'];
   if (!value.counts || !names.every(name => value.counts[name] === null
     || Number.isSafeInteger(value.counts[name]) && value.counts[name] >= 0)) return null;
@@ -189,7 +192,29 @@ export function proofFields(value) {
     environment: actualEnvironment === null ? null : { node: actualEnvironment.node, platform: actualEnvironment.platform, arch: actualEnvironment.arch },
     seat: value.seat, runner: value.runner, exitCode: value.exitCode,
     counts: Object.fromEntries(names.map(name => [name, value.counts[name]])), durationMs: value.durationMs, sourceClean: value.sourceClean,
-    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}), ...(hasReuse ? { submitReuse: true, submitReusePlan: value.submitReusePlan } : {}) };
+    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}), ...(hasReuse ? { submitReuse: true, submitReusePlan: value.submitReusePlan } : {}),
+    ...(hasShards ? { shards } : {}) };
+}
+
+/**
+ * Validate a sharded proof's per-shard results: two or more shards, each naming its repository-relative files, exit,
+ * runner and duration. Why: one receipt covers the whole proof command (RFC 0007 keys reuse on the candidate, base and
+ * tooling trees), and these rows say which slot ran which files.
+ *
+ * @param {unknown} value
+ * @returns {{ files: string[], exitCode: number|null, runner: string|null, durationMs: number }[] | null}
+ */
+function shardRows(value) {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 256) return null;
+  const rows = [];
+  for (const row of value) {
+    if (!Array.isArray(row?.files) || !row.files.length || row.files.length > 4096
+      || row.files.some(file => !line(file, 4096) || file.startsWith('/') || file.includes('\\'))
+      || row.exitCode !== null && !Number.isSafeInteger(row.exitCode) || row.runner !== null && !identity(row.runner)
+      || !Number.isSafeInteger(row.durationMs) || row.durationMs < 0) return null;
+    rows.push({ files: [...row.files], exitCode: row.exitCode, runner: row.runner, durationMs: row.durationMs });
+  }
+  return rows;
 }
 
 /** Read explicit TAP or Node reporter totals; absent counters stay unknown rather than becoming zero. */
