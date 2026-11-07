@@ -39,7 +39,7 @@ export default Object.freeze({ operation: "reserveNextReview", order: 17, engine
   "REVIEW_COOLDOWN": "take another review: pullboard next --verify",
   "REVIEW_HELD": "take another review: pullboard next --verify",
   "ROUTE": "take an item your route covers: pullboard next",
-  "SELF_SESSION_VERIFY": "ask another agent session to verify it: pullboard next --verify from that session's own worktree",
+  "SELF_SESSION_VERIFY": "start the review in a separate process or session: run pullboard next --verify from a different agent session's own worktree",
   "SELF_VERIFY": "ask a different agent to verify it; from main create its worktree with pullboard worktree <lane> --model \"<model name>\"",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "VERIFIER_STANDING": "ask the coordinator to make an independent verifier from the main checkout: pullboard worktree <lane> --model \"<model name>\""

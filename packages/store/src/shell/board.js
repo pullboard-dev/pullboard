@@ -110,6 +110,7 @@ import { applyRehomeItem } from "./board-apply-rehome-item.js";
 import { approveOutside } from "./board-approve-outside.js";
 import { setLaneLead } from "./board-set-lane-lead.js";
 import { activityDeliveryState } from "./board-activity-delivery.js";
+import { activityInterruptWasDelivered } from "./board-activity-delivery.js";
 import { recordActivityDelivery } from "./board-activity-delivery.js";
 import { actOnActivity } from "./board-act-on-activity.js";
 import { openHandoff } from "./board-open-handoff.js";
@@ -307,7 +308,7 @@ export { reviewQueue } from "./board-query.js";
  * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor }) {
+export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
   const family = reviewRouting.seatFamily(board, agentId);
   return {
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -322,7 +323,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
-      const holder = reviewHolder(board, found);
+      const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
@@ -461,6 +462,7 @@ export {
   approveOutside,
   setLaneLead,
   activityDeliveryState,
+  activityInterruptWasDelivered,
   recordActivityDelivery,
   actOnActivity,
   openHandoff,

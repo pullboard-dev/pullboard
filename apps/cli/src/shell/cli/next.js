@@ -82,6 +82,10 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!(values.verify && values.verifyId !== undefined)) {
+    const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+    values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
+  }
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
@@ -89,8 +93,9 @@ export async function nextOnce(ctx, values) {
     return nextReview(ctx, board, whoAmI(ctx, board), values, {
       ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
-      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
-      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+      nextFor: reviewPreview,
+      idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
+      mainRedReviewItems, agentSessionDigest,
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values));
@@ -105,7 +110,8 @@ export async function nextOnce(ctx, values) {
   if (!looked.claim) return looked;
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
   // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
-  const { me: holder, item, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  const { me: holder, held, shared, reasons, reviewSkipped, lightReserved } = looked;
+  let item = looked.item;
   if (Number(values.wait) > 0 && !looked.held) {
     const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
     if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
@@ -113,23 +119,35 @@ export async function nextOnce(ctx, values) {
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
+    if (held) {
+      const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+      return { item, held, shared, reviewSkipped, reasons,
+        ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
+    }
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
-      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
+      const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
+      item = { ...item, renewed: claim.renewed };
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
-    const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+    const itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: item.renewed });
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
 }
 
+/** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
+function reviewPreview(board, selection) {
+  const reviewHeartbeats = new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
+  return store.nextFor(board, { ...selection, reviewHeartbeats });
+}
+
 /** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
-function openNextFolder(ctx, board, me, id) {
-  return openItemFolder(ctx, me, id, { board,
+function openNextFolder(ctx, board, me, id, options = {}) {
+  return openItemFolder(ctx, me, id, { board, ...options,
     onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
       text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
       ref: null }]) });
@@ -164,24 +182,35 @@ function nextPick(ctx, board, values) {
   const items = store.listItems(board), agents = store.listAgents(board);
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
-  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  if (!values.defaultLoop) for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
-  const findOffer = () => nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+  const findOffer = () => values.defaultLoop
+    ? (() => {
+      const item = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+        policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable,
+        routes: values.routes, observeIdle: values.observeIdle,
+        skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
+        priority: mainRedReviewItems(ctx.info.root, board) }).item;
+      return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
+    })()
+    : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item));
-  if (found?.mandatory && !ownClaim) return { autoReview: found.item, item: found.item, reasons: [] };
+  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+    && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
+  if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
   // never this seat's to resume or be pointed at (#958).
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
+    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+    && !(values.wait > 0 && store.submitHandoffFailure(board, item))
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
@@ -194,7 +223,7 @@ function nextPick(ctx, board, values) {
   const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' ? null : found;
+  const offer = held && found?.urgent !== 'age' && !values.defaultLoop ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
@@ -209,13 +238,14 @@ function nextPick(ctx, board, values) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
     return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
-      ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
+      ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown', skips: [...(!values.build ? offer?.skips ?? [] : []), ...(own.skips ?? []), ...(picked.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3) } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
+  if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
 
