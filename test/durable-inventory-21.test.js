@@ -1,11 +1,12 @@
 /** Durable gate 21: the cells inventory is a content-keyed job result, not a producer process [C7]. */
+/** @pullboard-world-pin: clause 1 reads the shipped production callers to prove none nudges or waits on a producer process. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { cleanupFixtureChildren, privateFixtureFiles, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
-import { openBoard, closeBoard } from '../apps/lib/index.js';
+import { acceptedCellsFromJob, closeBoard, openBoard, submitUntilSettled } from '../apps/lib/index.js';
 import { LEASE_MS, createJob, jobView, takeJob, writeStep } from '../packages/jobs/index.js';
 import { CELLS_INVENTORY_KIND, cellsInventoryJob, keyedJobId, keyedResult } from '../packages/drive/index.js';
 import { treeOf } from '../packages/pin/index.js';
@@ -105,6 +106,40 @@ test('clause 1: the cells inventory is a cells-inventory job keyed by the tree i
     assert.equal(pending.state, 'pending', 'a bounded wait on a live lease returns pending, it never fails the gate');
     assert.equal(pending.holder, 'driver-x');
     assert.equal(port.calls.produced, 1);
+  });
+});
+
+test('clause 1: a queued gate whose cells inventory is cold gets it through the tree\'s cells-inventory job and runs the same candidate again; no production caller nudges or waits on a producer process [C7]', async () => {
+  await withBoard('clause-1-gate', async (db) => {
+    const published = new Set();
+    const produced = [];
+    const read = (root, commit) => published.has(treeOf(root, commit)) ? { available: true, descriptor: { digest: treeOf(root, commit) }, bytes: 1 } : { available: false, cause: 'missing-artifact' };
+    const produce = async (root, commit) => { produced.push(commit); published.add(treeOf(root, commit)); };
+    const ran = [];
+    const gate = () => submitUntilSettled(async () => {
+      ran.push(1);
+      const found = read(fixture.root, fixture.other);
+      if (!found.available) throw Object.assign(new Error('accepted cells inventory is warming'), { code: 'CELLS_INVENTORY_PENDING', retryable: true, commit: fixture.other });
+      return 'green';
+    }, { waitInventory: commit => acceptedCellsFromJob(db, fixture.root, commit, { owner: 'gate-q', read, produce }), healthy: async () => assert.fail('an inventory wait spends no infrastructure retry') });
+    const settled = await gate();
+    assert.equal(settled.result, 'green', 'the same candidate runs again once the job made the inventory readable');
+    assert.equal(ran.length, 2);
+    assert.deepEqual(settled.attempts, [], 'the inventory wait is not an infrastructure attempt');
+    assert.deepEqual(produced, [fixture.other], 'the job produced the inventory once, in this driver, under its lease');
+    const job = jobView(db, keyedJobId(CELLS_INVENTORY_KIND, treeOf(fixture.root, fixture.other)));
+    assert.equal(job.kind, 'cells-inventory');
+    assert.equal(job.steps.find(step => step.name === 'result')?.payload.owner, 'gate-q', 'the result is a step on the keyed job row');
+
+    published.clear();
+    const rebuilt = await acceptedCellsFromJob(db, fixture.root, fixture.other, { owner: 'gate-r', read, produce });
+    assert.equal(rebuilt.available, true, 'a stored result whose artifact is missing here is rebuilt, never a stall');
+    assert.equal(rebuilt.state, 'rebuilt');
+
+    for (const source of ['../apps/lib/src/shell/submit-handoff-worker.js', '../apps/cli/src/shell/submit-cells-remote.js', '../packages/gate/src/shell/main-audit-nudge.js']) {
+      const code = readFileSync(new URL(source, import.meta.url), 'utf8');
+      assert.doesNotMatch(code, /\b(?:nudgeAcceptedCells|waitForAcceptedCells)\b/u, `${source} no longer starts or waits on a background producer`);
+    }
   });
 });
 
