@@ -15,7 +15,7 @@ const item = (id, extra = {}) => ({ item_id: id, item_status: 'open', item_title
 
 test('clause 1: an open Main red item whose file is green on current main is closed with the recorded run [C7,H24]', () => {
   const found = passingMainReds([item(1)], main, { [main]: { [file]: { result: 'green', receiptId: 'run-1' } } });
-  assert.deepEqual(found, [{ item: 1, file, receiptId: 'run-1', main }]);
+  assert.deepEqual(found, [{ item: 1, file, receiptId: 'run-1', main, turnedGreen: main }]);
 });
 
 test('clause 2: an item whose named case still fails on current main is offered as today [C7,H24]', () => {
@@ -23,7 +23,8 @@ test('clause 2: an item whose named case still fails on current main is offered 
   const named = { item_check_baseline: { testEvidence: { failedCases: [{ file, name: 'x case' }] } } };
   assert.deepEqual(passingMainReds([item(1, named), item(2)], main, entries), []);
   const fixed = { [main]: { [file]: { result: 'red', failures: [{ name: 'other case' }] } } };
-  assert.deepEqual(passingMainReds([item(1, named)], main, fixed).map(row => row.item), [1]);
+  // Stale since the item closes only on a green file: a red file stays open on different cases (#3382).
+  assert.deepEqual(passingMainReds([item(1, named)], main, fixed), []);
 });
 
 test('clause 3: the check reads only recorded runs for the current main and adds none of its own [C7,H24]', () => {
