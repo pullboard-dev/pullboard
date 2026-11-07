@@ -110,6 +110,20 @@ export function cellRoot(cell) {
   return cell.startsWith('app:') ? `apps/${cell.slice(4)}` : `packages/${cell}`;
 }
 
+/** The reason every feature engine leaf carries in the plan [C7]. */
+export const ENGINE_LEAF_REASON = 'canonical feature engine identity; landing assigns its next number and freezes move history';
+
+/**
+ * The stays row the rule gives a src/<name>-engine.js leaf, or null for any other path. Why a rule: a leaf is added by the
+ * item that needs an engine and takes its number at landing, so no plan row could name it in advance [C7].
+ *
+ * @param {string} file
+ * @returns {{ path: string, reason: string } | null}
+ */
+export function engineLeafPlacement(file) {
+  return /^src\/[a-z0-9]+(?:-[a-z0-9]+)*-engine\.js$/u.test(file) ? { path: file, reason: ENGINE_LEAF_REASON } : null;
+}
+
 /** Match the dry run's name rules for one path, or null; bin/ stays in place as the report found. */
 export function ruleCell(file) {
   if (file.startsWith('relay/')) return 'app:relay';
