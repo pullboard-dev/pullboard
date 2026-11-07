@@ -2,6 +2,7 @@
 /** @pullboard-test-loads packages/runners/src/shell/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js */
 /** The runner module parser keeps a process-lifetime cache [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createRunnerModuleParser, runnerModuleParserCompileCount } from '../packages/runners/src/shell/runner-module-parser.js';
@@ -57,4 +58,11 @@ test('clause 1 and clause 2: the production importsIn call sites pass real paths
   const afterSnapshot = runnerModuleParserCompileCount();
   captureRunnerTooling(root);
   assert.equal(runnerModuleParserCompileCount(), afterSnapshot, 'runner-tooling-snapshot.js importsIn: a second pass parses nothing');
+  const entry = resolve(root, 'bin/runner-controller.js');
+  const probe = createRunnerModuleParser();
+  const bytes = readFileSync(entry, 'utf8');
+  const beforeProbe = runnerModuleParserCompileCount();
+  probe.parse([bytes], [entry]);
+  probe.close();
+  assert.equal(runnerModuleParserCompileCount(), beforeProbe, 'the controller entry is cached under its real file path, not a synthetic one');
 });

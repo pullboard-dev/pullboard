@@ -29,7 +29,7 @@ function controllerProviderReader(root, source) {
   const parser = createRunnerModuleParser();
   let entries;
   try {
-    entries = [...new Set(importsIn([source], parseWithPaths(parser.parse, [join(resolve(root), 'controller-entry')]))[0]
+    entries = [...new Set(importsIn([source], parseWithPaths(parser.parse, [join(resolve(root), 'bin/runner-controller.js')]))[0]
       .filter(specifier => specifier.startsWith('../packages/'))
       .map(specifier => specifier.slice(3)))].sort();
   } finally { parser.close(); }
