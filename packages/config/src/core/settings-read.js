@@ -17,6 +17,25 @@ export function declaredMachineSlots() {
   return { gate: value?.gateSlots !== undefined, browser: value?.browserSlots !== undefined };
 }
 
+/**
+ * The optional spend ceiling: an object holding only dailyUsd and/or totalUsd, each a positive dollar amount. Off
+ * when unset, so a machine with no budget spends without a ceiling [N2].
+ *
+ * @param {unknown} budget the budget value from the machine settings file
+ * @param {string} file the settings file named in any refusal
+ */
+function validateBudget(budget, file) {
+  if (budget === undefined) return;
+  if (!budget || typeof budget !== 'object' || Array.isArray(budget) || Object.keys(budget).some(key => key !== 'dailyUsd' && key !== 'totalUsd')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `budget in ${file} must be an object with dailyUsd and/or totalUsd; remove it to turn the spend ceiling off`);
+  }
+  for (const key of ['dailyUsd', 'totalUsd']) {
+    if (budget[key] !== undefined && (typeof budget[key] !== 'number' || !Number.isFinite(budget[key]) || budget[key] <= 0)) {
+      throw new Refused('BAD_MACHINE_SETTINGS', `budget.${key} in ${file} must be a positive dollar amount; remove it to turn that ceiling off`);
+    }
+  }
+}
+
 /** Read and validate machine settings, preserving any unrelated settings. */
 export function loadMachineSettings() {
   const file = machineSettingsFile();
@@ -63,6 +82,7 @@ export function loadMachineSettings() {
   }
   validateGateQueue(value, file);
   validateCostPrices(value.costPrices);
+  validateBudget(value.budget, file);
   if (value.view !== undefined && (!value.view || typeof value.view !== 'object' || Array.isArray(value.view)
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `view in ${file} must be an object whose background is true or false; fix it before running Pullboard`);

@@ -22,7 +22,8 @@ import { replayHistory } from '../packages/stats/index.js';
 import { projectAgentActivity } from '../src/board-activity-feed.js';
 import { activityInterests } from '../src/board-activity-feed.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { assertUsagePresentation } from './cockpit/usage-history-control.js';
 import { fixtureJoin } from './testkit-fixture.js';
 
@@ -452,4 +453,21 @@ test('usage totals use existing stats and show surfaces without a separate cost 
   for (const values of Object.values(document.usage)) assert.deepEqual(values, [], 'a fresh board invents no usage');
   const separate = box.run(box.repo, 'cost', '--json');
   assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
+});
+
+test('clause 1: a budget setting is optional, off by default and validated [N2]', () => {
+  const fixture = privateFixtureFiles('pullboard-budget-setting-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = fixture.root;
+  try {
+    assert.equal(loadMachineSettings().budget, undefined, 'no budget unless one is set');
+    fixture.write('settings.json', JSON.stringify({ budget: { dailyUsd: 5, totalUsd: 50 } }));
+    assert.deepEqual(loadMachineSettings().budget, { dailyUsd: 5, totalUsd: 50 });
+    for (const [budget, field] of [[{ dailyUsd: 0 }, 'budget.dailyUsd'], [{ totalUsd: -1 }, 'budget.totalUsd'], [{ dailyUsd: '5' }, 'budget.dailyUsd'], [{ weekUsd: 5 }, 'budget']]) {
+      fixture.write('settings.json', JSON.stringify({ budget }));
+      assert.throws(() => loadMachineSettings(), error => error.code === 'BAD_MACHINE_SETTINGS' && error.message.includes(field), `refuses ${JSON.stringify(budget)} naming ${field}`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+  }
 });
