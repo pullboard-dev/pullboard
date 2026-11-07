@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, existsSync, readdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { packTestResults } from '../packages/gate/src/shell/test-result-store.js';
 import { temporaryDirectory } from './board-fixture.js';
 import { firstChangedInput, recordInputParts } from '../packages/gate/src/shell/test-cache-account.js';
 import { maintainPartsStore, prunePartsStore } from '../packages/gate/src/shell/test-action-parts-prune.js';
@@ -84,4 +85,14 @@ test('clause 2: a list no remaining part names is removed once the parts are gon
   assert.equal(existsSync(join(store, 'lists', `${hash('b')}.json`)), false);
   assert.equal(existsSync(join(store, 'lists', `${hash('a')}.json`)), true);
   assert.equal(maintainPartsStore(store, { PULLBOARD_TEST_PARTS_CAP_BYTES: '1' }), null, 'a second call inside the interval does nothing');
+});
+
+test('clause 2: a part named only by a retained runner completion survives the prune [C7]', () => {
+  const store = populated();
+  const packet = packTestResults([{ inputKey: hash('c'), status: 'pass', key: hash('7') }]);
+  assert.ok(packet, 'the completion packet packs');
+  put(store, 'completions', 'completion-1.json', { id: 'completion-1', code: 0, testResults: packet });
+  const result = prunePartsStore(store, { capBytes: 0 });
+  assert.deepEqual(left(store), ['1', '2', 'c', 'f'], 'the completion keeps part c; the other unnamed old parts went');
+  assert.equal(result.removedParts, 2);
 });

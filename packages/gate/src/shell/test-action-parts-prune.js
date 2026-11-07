@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 export const PARTS_CAP_BYTES = 10 * 1024 ** 3;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -26,9 +27,20 @@ function names(directory) {
   try { return readdirSync(directory); } catch { return []; }
 }
 
+/** The result rows a retained completion carries: a packed packet (base64 gzip of rows), or the rows themselves. */
+function completionRows(packet) {
+  try {
+    const rows = typeof packet === 'string'
+      ? JSON.parse(gunzipSync(Buffer.from(packet, 'base64'), { maxOutputLength: 8 * 1024 * 1024 }).toString('utf8'))
+      : packet;
+    return Array.isArray(rows) ? rows : [];
+  } catch { return []; }
+}
+
 /**
- * Every input key a current record names: key memos (their per-file values), green and red result records, and each
- * file's latest-key record. A part named by none of them can no longer explain a miss or back a reuse.
+ * Every input key a current record names: key memos (their per-file values), green and red result records, each
+ * file's latest-key record, and the result rows of every retained runner completion (a completion whose import failed
+ * is the only reference left to its parts). A part named by none of them can no longer explain a miss or back a reuse.
  *
  * @param {string} store the test-action store
  * @returns {Set<string>}
@@ -45,6 +57,9 @@ export function namedInputKeys(store) {
   }
   for (const folder of ['green', 'red', 'last']) {
     for (const file of names(join(store, folder))) add(load(join(store, folder, file)));
+  }
+  for (const file of names(join(store, 'completions'))) {
+    for (const row of completionRows(load(join(store, 'completions', file))?.testResults)) add(row);
   }
   return named;
 }
