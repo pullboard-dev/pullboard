@@ -13,7 +13,6 @@ import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -291,7 +290,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
-  assert.match(fixtureJoin(box.run, review, 'api').stdout, /joined as api/);
+  const reviewJoin = joinFixtureSeat(box, review, 'api');
+  assert.equal(reviewJoin.code, 0, reviewJoin.err || reviewJoin.out);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
   assert.match(accepted.stdout, /submit proof not reused:/u, 'main advancement creates a new accepted composition and executes its check');
@@ -347,7 +347,8 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const shellReviewer = join(box.dir, 'shell-timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', shellReviewer, shellCommit);
   box.env.CODEX_THREAD_ID = 'profile-reviewer-session';
-  assert.match(fixtureJoin(box.run, shellReviewer, 'api').stdout, /joined as api/);
+  const reviewerJoin = joinFixtureSeat(box, shellReviewer, 'api');
+  assert.equal(reviewerJoin.code, 0, reviewerJoin.err || reviewerJoin.out);
   const shellAccepted = box.run(shellReviewer, 'verify', '2', 'accept', '--note', 'reuse the authentic submit profile');
   assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
   assert.match(shellAccepted.stdout, /reused submit proof/u);
