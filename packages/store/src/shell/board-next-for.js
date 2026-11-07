@@ -81,6 +81,21 @@ function recentLightActivity(board) {
 }
 
 /**
+ * A capable seat's pick that is light work with no current diagnosis, while a light seat is active, is offered as
+ * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
+ *
+ * @param {any} board
+ * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {string} seatRoute
+ * @returns {boolean}
+ */
+export function diagnoseWanted(board, item, seatRoute) {
+  if (seatRoute === 'light' || item?.item_status !== 'open') return false;
+  const stored = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(item.item_id);
+  return Boolean(stored && lightDiagnosisProblem(board, stored) && recentLightActivity(board));
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -93,15 +108,17 @@ function recentLightActivity(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
 export function nextFor(board, options) {
   const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
-    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [],
+    runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
     routeCeiling = null, skipLightReserve = false } = options;
+  // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
+  const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
@@ -150,7 +167,9 @@ export function nextFor(board, options) {
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
+    // One selection shares its queue reads; authoritative reservations derive their witness afresh.
+    const relaxationCache = new Map();
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -211,8 +230,12 @@ export function nextFor(board, options) {
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
       .map(({ entry, cooldown }) => `you released the review of #${entry.item_id}; try again after ${cooldown}, or let another reviewer take it`);
+    // Every submission left out only because this seat's session built it: name it so the coordinator adds a seat from another session.
+    const sameSession = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId
+      && (sessionIds.includes(entry.item_id) || failures.get(entry)?.problem?.code === 'SELF_SESSION_VERIFY'))
+      .map((entry) => `REVIEWER_SAME_SESSION: #${entry.item_id} was built under this seat's parent session, so it is never offered here; the coordinator adds a reviewer seat from another session`);
     return reviewResult(empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
-      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] }));
+      ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling, ...sameSession] }));
   }
   const held = heldClaim(board, agentId, { items });
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
