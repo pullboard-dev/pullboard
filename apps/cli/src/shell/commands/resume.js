@@ -145,7 +145,7 @@ function keylessBookkeeping(send) {
 export async function resumeHere(io, view, diagnostics = false, { json = false } = {}) {
   const ctx = context(io);
   const ordered = keylessBookkeeping(sendOrdered);
-  const initialBaseline = withBoardRead(ctx, board => {
+  const initialBaseline = await withBoardRead(ctx, board => {
     whoAmI(ctx, board);
     requireBoardWriteAccess(ctx.file);
     return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
@@ -264,7 +264,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (view.state !== 'running' && backgroundViewLine(view)) say(backgroundViewLine(view));
   if (diagnostics) {
     say(`New agent worktrees: ${card.newWorktreeLocation}`);
-    card.setup = withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
+    card.setup = await withBoardRead(ctx, board => withStarterWork(boardSetup(ctx, card, setupScope, { decisions: setupDecisions }), { board, me, main: isMain, config: ctx.config, root, seat: ctx.io.callerRole() === 'seat', nextFor: store.nextFor, proposeLanes }));
   } else say('Setup, hook and stale-work diagnostics: pullboard resume --diagnostics.');
   if (!loadSpec(root, ctx.config).rows.length && card.all.length) say('Spec rows are optional; add a requirement later: pullboard spec draft "<text>".');
   if (card.setup) {
