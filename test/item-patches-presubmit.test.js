@@ -25,6 +25,7 @@ import { importBoard } from '../packages/store/index.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../src/item-patch-submit-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require the real CLI document, retaining exact diagnostics for every fixture setup refusal. */
 function document(result) {
@@ -39,7 +40,7 @@ function seat(box, name, lane) {
   const previous = box.env.CODEX_THREAD_ID;
   box.env.CODEX_THREAD_ID = name;
   let id;
-  try { id = document(box.run(root, 'join', lane, '--json')).agent; }
+  try { id = document(fixtureJoin(box.run, root, lane, '--json')).agent; }
   finally { if (previous === undefined) delete box.env.CODEX_THREAD_ID; else box.env.CODEX_THREAD_ID = previous; }
   return { root, id, session: name };
 }

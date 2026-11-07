@@ -28,6 +28,8 @@ import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { assertStarterChecks } from '../../../test/blueprint-starter-fixture.js';
 import { writeLegacyWebQuestions } from '../../../test/blueprint-question.fixture.js';
 import { assertArchitectureBlueprintCoverage } from '../../../test/blueprint-architecture-coverage.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/shell/blueprints/web-app.json'), 'utf8'));
@@ -266,7 +268,7 @@ test('blueprint add files a blueprint as drafts only from the coordinator, who s
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const worktree = join(box.dir, 'web');
   box.git('worktree', 'add', '-q', worktree, '-b', 'web/starter');
-  const joined = box.runIn(worktree, 'join', 'web', '--model', 'fixture-model');
+  const joined = fixtureJoin(box.runIn, worktree, 'web', '--model', 'fixture-model');
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   const refused = box.runIn(worktree, 'blueprint', 'add', 'web-app', '--json');
   assert.equal(refused.status, 1, refused.stdout + refused.stderr);
@@ -1199,7 +1201,7 @@ test('a saved board adds back as the same rows [S1]', () => {
   writeFileSync(join(box.repo, 'SPEC.md'), `${readFileSync(join(box.repo, 'SPEC.md'), 'utf8')}\n## K · Kept\n\n<!-- pullboard-blueprint kept 1 -->\n<!-- pullboard-blueprint kept 2 adding K1=K1 K3=K3 -->\n${[...kept, ...planted].join('\n')}\n`);
   box.git(box.repo, 'add', 'SPEC.md', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: plant private rows');
-  const item = box.run(box.repo, 'add', 'web', 'Private item title zebra', '--specs', 'G1', '--criterion', 'secret criterion walrus');
+  const item = fixtureAdd(box.run, box.repo, 'web', 'Private item title zebra', '--specs', 'G1', '--criterion', 'secret criterion walrus');
   assert.equal(item.code, 0, item.err);
   assert.equal(box.run(box.web, 'shout', 'all', 'private shout narwhal').code, 0);
 
