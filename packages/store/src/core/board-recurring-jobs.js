@@ -10,7 +10,7 @@ import {
 } from "../shell/board.js";
 import { hasAgent } from '../shell/board-query.js';
 import { RECURRING_JOB_ENGINE } from "../../../../src/job-engine.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/core.js";
 
 export { RECURRING_JOB_ENGINE } from "../../../../src/job-engine.js";
