@@ -106,12 +106,7 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
     const first = queue().line.find(row => row.item === 'deadline-case');
-    // Observe the real queue row carrying the overdue facts instead of assuming one fixed sleep outruns a loaded machine's requeue and poll; the real local holder stays held throughout.
-    const deadlineUntil = Date.now() + STAND_IN_BOOT_BUDGET_MS + 20_000; // budget: the declared private deadline plus a loaded machine's requeue and poll latency.
-    while (!queue()?.line.some(row => row.item === 'deadline-case' && row.runnerDeadline)) {
-      if (Date.now() >= deadlineUntil) throw new Error('fixture did not reach the overdue queue row naming its runner deadline');
-      await new Promise(resolve => setTimeout(resolve, 50)); // budget: polling interval for the real queue row.
-    }
+    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
