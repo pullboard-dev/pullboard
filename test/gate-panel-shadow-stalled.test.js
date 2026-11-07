@@ -55,6 +55,13 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
+/** The text `pullboard show` prints for the item. */
+function showText(box, id) {
+  const result = box.run(box.repo, 'show', String(id));
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  return result.out;
+}
+
 test('clause 1: show and status read a lease-free running shadow gate as running while its hand-off worker is alive, stalled once it is gone [C7]', async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
@@ -87,11 +94,11 @@ test('clause 1: show and status read a lease-free running shadow gate as running
   const record = pid => writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: job.id, pid, started: null, relaunches: 0 }) + '\n');
 
   record(process.pid);
-  assert.equal(document(box.run(box.repo, 'show', String(id), '--json')).gateText, 'running', 'show: a live worker keeps the lease-free gate running');
+  assert.match(showText(box, id), /queued gate: running at /u, 'show: a live worker keeps the lease-free gate running');
   assert.deepEqual(document(box.run(box.repo, 'status', '--json')).stalledGates.filter(row => row.id === job.id), [], 'status: not listed stalled');
 
   const gone = spawnSync(process.execPath, ['-e', '']);
   record(gone.pid);
-  assert.match(document(box.run(box.repo, 'show', String(id), '--json')).gateText, /^stalled \(reclaimable\)/u, 'show: a dead worker reads stalled');
+  assert.match(showText(box, id), /queued gate: stalled \(reclaimable\)/u, 'show: a dead worker reads stalled');
   assert.equal(document(box.run(box.repo, 'status', '--json')).stalledGates.filter(row => row.id === job.id).length, 1, 'status: listed stalled');
 });
