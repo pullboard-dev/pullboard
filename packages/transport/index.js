@@ -7,3 +7,4 @@ export { pullServer, pullRunner } from './src/shell/pull-http.js';
 export { mintJobToken, readJobToken } from './src/core/pull-token.js';
 export { shellWord, channelKey } from './src/core/frames.js';
 export { resultDigest, parseResult } from './src/core/result-file.js';
+export { probeStanding, QUARANTINE_GAP_MS } from './src/core/quarantine.js';
