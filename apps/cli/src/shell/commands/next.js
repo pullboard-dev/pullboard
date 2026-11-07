@@ -126,7 +126,13 @@ async function nextWithProgress(io, values, progress) {
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
-  withBoard(ctx, board => {
+  // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  const hasQueuedReds = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return store.queuedReds(board, me.id).some(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  });
+  if (hasQueuedReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
     const reds = store.queuedReds(board, me.id).filter(red =>
       !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
