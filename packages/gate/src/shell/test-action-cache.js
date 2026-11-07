@@ -11,6 +11,7 @@
  * results once it exits, and for a landing only when the landing itself was green, since a landing can fail a file
  * whose process exited cleanly.
  */
+import { maintainPartsStore } from './test-action-parts-prune.js';
 import {
   createHash,
   randomUUID,
@@ -256,6 +257,7 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   shared.policy = digest(analyzer);
   const identity = digest({ ...shared, context, tree: git(root, ['rev-parse', `${commit}^{tree}`], gitEnv).trim(), analyzer });
   const store = testResultStore(root, gitEnv);
+  maintainPartsStore(store, env);
   return memoizedActionKeys(store, identity, files, async () => {
   const { testClosures } = await import('./affected-tests.js');
   const { closures, modules, blobs, reach } = testClosures(root, commit);

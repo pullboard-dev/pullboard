@@ -57,6 +57,15 @@ The tool build every seat runs is pinned, so a landing never changes the tool un
 
 Approved sentinels never run inside an agent's session. A timer (cron on a server, or a scheduled CI job) runs `pullboard sentinel run`, which runs the due sentinels in a trunk checkout it prepares and records each result; `pullboard resume` only says when sentinels are due and where they run.
 
+## The lean loop
+
+Give every builder these rules with its opening lines. They cut the time a builder spends waiting inside tools. They match the Speed section of AGENTS.md.
+
+1. Claim, then build in your own worktree. Never build or run commands in the main checkout; it is the coordinator's.
+2. Commit and `pullboard submit <id>` at once. The gate is the proof, so run no test first and never run whole suites.
+3. Submit queues the gate and returns. Never run a sleep loop around the board: run `pullboard next --wait 30` and act on what it returns. The board wakes you on a shout, a red gate or a new item.
+4. Read `pullboard inbox` once at the start and once after each submit, and `pullboard show <id>` once per item.
+
 ## Route by roadmap order
 
 `pullboard digest --out briefing.md` writes a short Markdown briefing of this board for a person or a chat assistant; hand it over when someone needs the board's state at a glance.

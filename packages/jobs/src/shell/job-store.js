@@ -77,3 +77,18 @@ export function jobView(db, job) {
   if (!row) return null;
   return viewOf(row, db.prepare('SELECT * FROM job_step WHERE job_step_job = ? ORDER BY job_step_id').all(job));
 }
+
+/**
+ * Every job of one kind, optionally for one item, oldest first, each as its job view.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{kind: string, item?: number|null}} filter
+ * @returns {ReturnType<typeof viewOf>[]}
+ */
+export function jobsOf(db, { kind, item = null }) {
+  if (!kind) throw new Refused('JOB_FIELDS', 'Listing jobs needs a kind: pass { kind }.');
+  const rows = item === null
+    ? db.prepare('SELECT job_id FROM job WHERE job_kind = ? ORDER BY job_created, job_id').all(kind)
+    : db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_item = ? ORDER BY job_created, job_id').all(kind, item);
+  return rows.map(row => jobView(db, row.job_id));
+}
