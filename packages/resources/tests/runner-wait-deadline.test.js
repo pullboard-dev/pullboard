@@ -380,7 +380,8 @@ test('an overdue runner-only request refuses busy capacity with its next step in
   await withPrivateDeadlineMachine(box, async settings => {
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
-    const held = await takeResource(options);
+    // The holder takes the free runner on its first poll with a budget no loaded machine can outrun; at the fixture's 60ms a late first poll would count as an overdue late dispatch and its startup budget could expire, hiding the runner behind a non-busy reason.
+    const held = await takeResource({ ...options, runnerWaitMs: 60_000 });
     try {
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60 }), error => error.code === 'RUNNER_WAIT_DEADLINE'
         && /busy/u.test(error.message) && /then retry/u.test(error.message));
