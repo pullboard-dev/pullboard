@@ -365,15 +365,20 @@ function statSyncMode(file) { return lstatSync(file).mode & 0o777; }
 
 /** Simulate a long holder and polling waiter on an in-memory board with its injected clock. */
 
-/** Send one sealed person request with its passkey presence, returning the relay's answer. */
+/** Send one sealed person request with its passkey presence, retrying only a sequence collision because another client may append between reading and posting. */
 async function passkeyRequest(box, session, document, presence) {
   const link = JSON.parse(box.readLink());
-  const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
-  const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
-  const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
   const key = decodeBoardKey(box.readKey().trim());
-  const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
-  return relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
+  let response;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const head = await relayCall(box, session, 'GET', '/api/v2/boards/' + link.board + '/state');
+    const events = await relayCall(box, session, 'GET', `/api/v1/boards/${link.board}/events?after=${head.document.state.sequence}`);
+    const sequence = Math.max(head.document.state.sequence, ...(events.document.events ?? []).map((event) => event.event_id)) + 1;
+    const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(document)), { boardId: link.board, kind: 'request', sequence })).toString('base64url');
+    response = await relayCall(box, session, 'POST', `/api/v1/boards/${link.board}/requests`, { sequence, sealed, ...(presence ? { presence } : {}) });
+    if (!['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(response.document?.error?.code)) return response;
+  }
+  return response;
 }
 
 /** True when no regular file under a directory holds a person session or a person grant. */

@@ -26,6 +26,7 @@ export const SPEC_RULES = new Set([
   'runner transport was lost',
   'invalid work specification frame',
   'invalid recovery identity',
+  'invalid runner signing key identity',
   'invalid trusted private-check source',
   'ambiguous runner policy context',
   'invalid landing timeout',
