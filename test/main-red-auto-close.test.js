@@ -203,11 +203,16 @@ test('the existing native policy witness rolls back a main move after audit with
 
 test('clause 1: a Main red item whose file turned green names the landing that turned it green [C7]', () => {
   const [a, b, c] = ['a', 'b', 'c'].map(ch => ch.repeat(40));
+  const content = 'd'.repeat(40);
   const file = 'test/x.test.js';
-  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } }, [b]: { [file]: { result: 'green' } }, [c]: { [file]: { result: 'green', receiptId: 'run-9' } } };
-  const rows = passingMainReds([{ item_id: 7, item_status: 'open', item_title: `Main red: ${file}` }], c, entries);
+  // The cache also stores each result under a content key; it is no commit and must never be named as the landing.
+  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } }, [content]: { [file]: { result: 'green' } },
+    [b]: { [file]: { result: 'green' } }, [c]: { [file]: { result: 'green', receiptId: 'run-9' } } };
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}` };
+  const rows = passingMainReds([item], c, entries, [c, b, a]);
   assert.deepEqual(rows.map(row => [row.item, row.main, row.turnedGreen]), [[7, c, b]]);
-  assert.equal(turnedGreenAt(entries, c, file), b);
+  assert.equal(turnedGreenAt(entries, c, file, [c, b, a]), b);
+  assert.equal(turnedGreenAt(entries, c, file, [c]), c, 'a lineage without older commits names main itself');
 });
 
 test('clause 2: a Main red item whose file is still red on main stays open [C7]', () => {

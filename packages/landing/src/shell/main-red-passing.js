@@ -15,9 +15,10 @@ const TITLE = /^Main red: (\S+\.(?:js|mjs|cjs))$/u;
  * @param {object[]} items
  * @param {string} main - The current main commit.
  * @param {Record<string, Record<string, {result: string, receiptId?: string, failures?: {name: string}[]}>>} entries
+ * @param {string[]} [lineage] - Main's first-parent commits, newest first, ending at `main`.
  * @returns {{ item: number, file: string, receiptId: string, main: string, turnedGreen: string }[]}
  */
-export function passingMainReds(items, main, entries) {
+export function passingMainReds(items, main, entries, lineage = []) {
   const current = entries?.[main];
   if (!current) return [];
   const found = [];
@@ -29,29 +30,39 @@ export function passingMainReds(items, main, entries) {
     const stillFailing = outcome.result === 'red' && (!Array.isArray(outcome.failures) || !named.length
       || outcome.failures.some(row => named.includes(row.name)));
     if (outcome.result === 'green' || !stillFailing) found.push({ item: item.item_id, file, receiptId: outcome.receiptId ?? 'recorded main run', main,
-      turnedGreen: turnedGreenAt(entries, main, file) });
+      turnedGreen: turnedGreenAt(entries, main, file, lineage) });
   }
   return found;
 }
 
 /**
- * The first recorded main commit of the unbroken run of passing generations that ends at `main` for one file: the landing
- * that turned it green. Why: the closing fact must name that landing, not only the newest main. A file never recorded red
- * before `main` names `main` itself.
+ * The first commit of the unbroken run of passing generations that ends at `main` for one file: the landing that turned
+ * it green. Why: the cache also holds content-key entries for the same results, so only commits on main's first-parent
+ * lineage count, walked newest to oldest. Commits with no recorded result for the file are skipped. A file never recorded
+ * red on the lineage, or no lineage, names `main` itself.
  *
- * @param {Record<string, Record<string, {result: string, failures?: unknown}>>} entries - Insertion order is landing order.
+ * @param {Record<string, Record<string, {result: string, failures?: unknown}>>} entries
  * @param {string} main
  * @param {string} file
+ * @param {string[]} [lineage] - Main's first-parent commits, newest first, ending at `main`.
  * @returns {string}
  */
-export function turnedGreenAt(entries, main, file) {
+export function turnedGreenAt(entries, main, file, lineage = []) {
   const passes = outcome => outcome && (outcome.result === 'green' || (outcome.result === 'red' && Array.isArray(outcome.failures) && outcome.failures.length === 0));
   let since = main;
-  for (const commit of Object.keys(entries ?? {}).reverse().filter(key => key !== main && entries[key]?.[file])) {
+  for (const commit of lineage.filter(key => key !== main && entries?.[key]?.[file])) {
     if (!passes(entries[commit][file])) break;
     since = commit;
   }
   return since;
+}
+
+/** Main's first-parent commits, newest first (bounded), or an empty list when Git cannot say. */
+function mainLineage(root, commit) {
+  try {
+    const out = gitSpawnSync(['rev-list', '--first-parent', '-n', '400', commit], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.status === 0 ? String(out.stdout).split('\n').filter(Boolean) : [];
+  } catch { return []; }
 }
 
 /** The one-line subject of a commit, or an empty string when it cannot be read. */
@@ -66,7 +77,7 @@ function subjectOf(root, commit) {
 export function passingMainRedItems(root, items) {
   try {
     const main = mainCheckout(root);
-    return main?.commit ? passingMainReds(items, main.commit, readCache(cacheFile(root)).entries)
+    return main?.commit ? passingMainReds(items, main.commit, readCache(cacheFile(root)).entries, mainLineage(root, main.commit))
       .map(row => ({ ...row, landing: subjectOf(root, row.turnedGreen) })) : [];
   } catch { return []; }
 }
