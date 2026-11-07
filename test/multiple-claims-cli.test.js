@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 test('one seat claims and renews two separate items through the CLI [B5,H16]', () => {
   const box = helpers.project();
   const add = title => {
-    const result = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the fixture works', '--json');
+    const result = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the fixture works', '--json');
     assert.equal(result.code, 0, result.err); return JSON.parse(result.out).item.item_id;
   };
   const one = add('First fixture'), two = add('Second fixture');

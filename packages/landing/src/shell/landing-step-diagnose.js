@@ -28,6 +28,9 @@ import { compareMainFailures } from './main-red.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { carriedMainOutcome } from './main-red.js';
 import { changedFiles } from './landing-known-main.js';
+import { repeatedBlockedCause } from '../core/runner-source-hold.js';
+import { REPEATED_LANDING_HOLD } from '../core/runner-source-hold.js';
+import { repeatedLandingNotice } from '../core/runner-source-hold.js';
 
 /** Require a green base for every failing file before attributing a red to an item. */
 export async function landingBaseGreen(state, failures, compare = compareMainFailures) {
@@ -237,7 +240,24 @@ async function recordCulprit(state, item, failures) {
   if (!state.culprits.some((entry) => entry.id === item.id)) state.culprits.push({ id: item.id, commit: item.commit, ...(item.reviewedCommit ? { reviewedCommit: item.reviewedCommit } : {}), mergeCommit, tests: failures });
   await save(state, { culprits: state.culprits });
   await returnCulprits(state);
+  await parkRepeatedItem(state, item);
   state.say(`culprit #${item.id}: ${failures.map((failure) => failure.name).join(', ')}`);
+}
+
+/** Hold an item after two blocked batches repeat its exact failing case, then notify the line once. */
+export async function parkRepeatedItem(state, item) {
+  const current = store.getItem(state.board, item.id);
+  if (!current || current.item_hold_at || current.item_merged_commit) return false;
+  const batches = store.landingBatches(state.board).map(batch => batch.id === state.batch.id ? { ...batch, state: 'blocked' } : batch);
+  const cause = repeatedBlockedCause(batches, { item_id: item.id, item_commit: item.commit });
+  if (!cause) return false;
+  const reason = `${REPEATED_LANDING_HOLD}${JSON.stringify({ kind: cause.kind, key: cause.key, base: cause.base, commit: cause.commit,
+    ...(cause.kind === 'refusal' && state.batch.root ? { root: state.batch.root } : {}) })} ${cause.detail}`;
+  await state.write('holdItem', [item.id, { agentId: 'coordinator', reason }]);
+  const text = repeatedLandingNotice(item.id, cause);
+  await state.write('shout', [{ from: 'coordinator', to: 'all', text, lanes: [] }]);
+  state.say(text);
+  return true;
 }
 
 /** The failures a red gate names, or one line naming its exit and log when the project's runner names none [C7,#2901]. */
