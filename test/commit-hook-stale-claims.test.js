@@ -7,6 +7,7 @@ import { openBoard, closeBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Use real CLI claims and installed hooks, with synthetic submission state only in this private board. */
 function fixture(t) {
@@ -20,7 +21,7 @@ function fixture(t) {
     return JSON.parse(result.out);
   };
   /** Keep fixture route explicit rather than relying on diagnosis-sensitive defaults. */
-  const add = title => json(box.run(box.repo, 'add', 'web', title, '--criterion', 'The fixture preserves commit custody.',
+  const add = title => json(fixtureAdd(box.run, box.repo, 'web', title, '--criterion', 'The fixture preserves commit custody.',
     '--specs', 'G1', '--route', 'strong', '--json')).item.item_id;
   /** Open the native item folder under this seat's existing identity. */
   const claim = id => json(box.run(box.web, 'claim', String(id), '--json'));

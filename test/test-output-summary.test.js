@@ -7,11 +7,13 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', () => {
+test('clause 1: an agent sees 200 passes and both failures in under 40 lines while the full output remains in its log [C7,V10]', () => {
   const box = e2e.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -65,14 +67,15 @@ function itemProject() {
   const flag = join(box.dir, 'fail-tests');
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
-  writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')),
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { ...config.submit, handoff: false },
     gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test', 'output.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { existsSync } from 'node:fs';",
     "import { test } from 'node:test';",
-    `const red = existsSync(${JSON.stringify(flag)});`,
+    `const red = existsSync(${JSON.stringify(flag)}) && existsSync(new URL('../web/output-summary-candidate.js', import.meta.url));`,
     "for (let n = 0; n < 200; n++) test(`passing case ${n}`, () => {});",
     "test('first failing case', () => assert.ok(!red, 'first failure detail'));",
     "test('second failing case', () => assert.ok(!red, 'second failure detail'));",
@@ -81,19 +84,37 @@ function itemProject() {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: record native item-check inputs');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Output fixture', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Output fixture', '--specs', 'G1',
     '--criterion', 'the recorded test file runs', '--check', command);
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  return { box, flag };
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'output-summary-candidate.js'), 'export const candidate = true;\n');
+  box.git(box.web, 'add', 'web/output-summary-candidate.js');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): add output summary candidate [G1]');
+  const submittedHead = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  return { box, flag, submittedHead };
 }
 
 /** Keep the real refusal and both diagnostics while reading its full native output artifact. */
 function assertFailureSummary(result, code) {
   assert.equal(result.code, 1);
   const text = [result.out, result.err].join('\n');
-  assert.ok(text.trim().split('\n').length < 40, `${code} output is bounded`);
+  if (code === 'CHECK_RED') {
+    const marker = 'last output lines (up to 40):';
+    const start = text.indexOf(marker);
+    const end = text.indexOf('\nfull output file:', start);
+    assert.ok(start >= 0 && end > start, 'CHECK_RED includes its bounded output tail and full-log pointer');
+    const tail = text.slice(start + marker.length, end).trim();
+    const tailLines = tail ? tail.split('\n').length : 0;
+    assert.ok(tailLines <= 40, `CHECK_RED tail is bounded to 40 lines, got ${tailLines}`);
+    const remaining = text.slice(0, start) + text.slice(end + 1);
+    assert.ok(remaining.trim().split('\n').length < 40, 'CHECK_RED digest and wrapper are bounded apart from its tail');
+  } else {
+    const lineCount = text.trim().split('\n').length;
+    assert.ok(lineCount < 40, `${code} output is bounded (${lineCount} lines)`);
+  }
   assert.match(text, new RegExp(code));
   for (const value of ['first failing case', 'second failing case', 'first failure detail', 'second failure detail']) {
     assert.ok(text.includes(value), `${code} retains ${value}`);
@@ -112,7 +133,7 @@ test('a red native submit keeps its authority refusal and prints both cases inst
 });
 
 test('native submit JSON and a red frozen verification expose bounded cases and complete logs [C7,V4,V10]', () => {
-  const { box, flag } = itemProject();
+  const { box, flag, submittedHead } = itemProject();
   const submitted = box.run(box.web, 'submit', '1', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err);
   const document = JSON.parse(submitted.out);
@@ -121,8 +142,12 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   assert.equal(document.gate.profile.tests, undefined, 'case-level records stay in the full timing profile');
   assert.match(readFileSync(document.gate.logPath, 'utf8'), /passing case 199/u);
   const review = join(box.dir, 'review-output');
-  box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output');
-  const joined = box.run(review, 'join', 'api', '--model', 'Test Model');
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs', 'main-move.txt'), 'advance the fixture trunk after submit\n');
+  box.git(box.repo, 'add', 'docs/main-move.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance fixture trunk');
+  box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output', submittedHead);
+  const joined = fixtureJoin(box.run, review, 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
   writeFileSync(flag, 'red');
   const refused = box.run(review, 'verify', '1', 'accept', '--note', 'run the frozen assertions', '--no-next');

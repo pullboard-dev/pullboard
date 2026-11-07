@@ -130,6 +130,7 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } =
   const branch = `web/${name.replace(/[^a-z]/g, '')}`;
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
+  // The seat joins on the strong route so it can claim the strong fixture items.
   joinFixtureSeat(box, web, 'web');
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
