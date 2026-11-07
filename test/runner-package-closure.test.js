@@ -9,14 +9,14 @@ import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const prune = 'packages/resources/src/shell/handoff-folder-prune.js';
 
-test('handoff-folder-prune.js opens the database through a static node:sqlite import, not createRequire [C7]', () => {
+test('clause 1: handoff-folder-prune.js opens the database through a static node:sqlite import, not createRequire [C7]', () => {
   const source = readFileSync(resolve(root, prune), 'utf8');
   assert.match(source, /import \{ DatabaseSync \} from 'node:sqlite';/u);
   assert.doesNotMatch(source, /createRequire/u);
   assert.match(source, /new DatabaseSync\(file, \{ readOnly: true \}\)/u);
 });
 
-test('the runner package closure for handoff-folder-prune.js resolves with no unavailable file [C7]', () => {
+test('clause 2: the runner package closure for handoff-folder-prune.js resolves with no unavailable file [C7]', () => {
   const { files } = runnerPackage(root, prune);
   assert.ok(Object.hasOwn(files, prune));
 });
