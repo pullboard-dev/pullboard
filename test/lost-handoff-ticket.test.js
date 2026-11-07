@@ -46,7 +46,7 @@ function ageJob(box, id, ms) {
   });
 }
 
-test('a queued gate with no worker and no ticket ends on one sweep only past its grace, and its lapsed claim opens [C7,#3153]', async t => {
+test('clause 1: a queued gate with no worker and no ticket ends on one sweep only past its grace, and its lapsed claim opens [C7,#3153]', async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
