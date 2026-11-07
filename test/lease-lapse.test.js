@@ -167,7 +167,9 @@ test('automatic claim expiry records current reason codes while prior lease-laps
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
   assert.equal(snapshot.claims[0].id, id);
   const before = exportBoard(box.board);
-  const args = [{ agentId: box.seats.actor.id, snapshot, health: box.config.health ?? {}, claimsOnly: true }];
+  // A current capture carries the stranded-dependency limit, which raises the floor; a genuine lease-lapse envelope predates it.
+  const { dependency: _dependency, ...legacyLimits } = snapshot.limits;
+  const args = [{ agentId: box.seats.actor.id, snapshot: { ...snapshot, limits: legacyLimits }, health: box.config.health ?? {}, claimsOnly: true }];
   const move = prepareEngineMove(box.board, 'maintainStaleState', args);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
   assert.ok(RELEASE_REASONS_ENGINE > LEASE_LAPSE_ENGINE);
@@ -212,7 +214,7 @@ test('clause 1: explicit stale CLI releases require a code before observation an
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|INFRA\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);
