@@ -39,8 +39,8 @@ import {
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
 export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
-  if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
-  const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary } = ports;
+  if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.claimHealthSnapshot !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
+  const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
   board = Object.assign(Object.create(board), { clock: { ...board.clock, now: () => new Date(observedAt) } });
   board.db.exec('BEGIN');
@@ -87,7 +87,9 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       return previous.items.get(item.item_id);
     } });
     const progressById = workProgress(board);
-    state.items = state.items.map(item => ({ ...item, progress: progressById.get(item.id) }));
+    const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
+    state.items = state.items.map(item => ({ ...item, progress: progressById.get(item.id),
+      claimHealth: healthById.get(item.id) ?? null }));
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
