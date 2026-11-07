@@ -9,6 +9,8 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Read the fixture item's durable status and submitted commit. */
 function item(box) {
@@ -44,7 +46,11 @@ function fixture(t, mode, handoff = false) {
   sandbox.env.TMPDIR = sandbox.dir;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete sandbox.env[key];
   const box = helpers.project('true', sandbox);
-  t.after(() => helpers.cleanup());
+  t.after(async () => {
+    // A queued gate's driver and dispatcher still write for a moment after its job ends; remove the tree once they are done.
+    try { if (handoff && box.id) await gateSettled(helpers, box, state(box).job?.id); }
+    finally { await removeSandboxes(helpers); }
+  });
   for (const folder of ['bin', 'test', 'web']) mkdirSync(join(box.repo, folder), { recursive: true });
   const marker = join(box.dir, 'main-moved');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
