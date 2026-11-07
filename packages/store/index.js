@@ -113,4 +113,5 @@ export {
 export { boardWriteLog } from './src/shell/board-write-lock.js';
 export { objectItemPatch } from './src/shell/board.js';
 
+export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";
