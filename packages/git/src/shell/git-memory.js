@@ -103,7 +103,7 @@ function commandArgs(args, options) {
   while (words[0]?.startsWith('-')) {
     if (['--no-replace-objects', '--no-optional-locks'].includes(words[0])) words.shift();
     else if (words[0] === '-C') { words.shift(); cwd = resolve(cwd ?? '.', words.shift()); }
-    else if (words[0] === '-c' && words[1] === 'core.quotepath=false') words.splice(0, 2);
+    else if (words[0] === '-c' && ['core.quotepath=false', 'gc.auto=0'].includes(words[1])) words.splice(0, 2); // gc.auto=0 is in the shared GIT_FLAGS; it has no effect on an in-memory repo
     else unsupported(`global option ${words[0]}`);
   }
   return { words, cwd: resolve(cwd ?? '.') };
