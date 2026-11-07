@@ -87,6 +87,7 @@ export {
 } from './src/shell/test-child-drain.js';
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
 export { changedStaticFailures, stagedHookFailures } from './src/shell/changed-static.js';
+export { STATIC_CHECKS, runStaticRegistry } from './src/shell/static-check-registry.js';
 export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
