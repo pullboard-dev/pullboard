@@ -38,6 +38,8 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
   'RUNNER_BUSY', 'RUNNER_BROWSER_SLOT_REQUIRED', 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
   'MERGE_CHECK_FAILED',
+  // The remote analysis step returned nothing, or the resource lease vanished under the gate: machinery, not source (#3303).
+  'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST',
   // Accepted policy changed or became unavailable; the captured source has no test failure.
   'NO_POLICY',
 ]));
