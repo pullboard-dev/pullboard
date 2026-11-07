@@ -140,7 +140,11 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
     `next: ${red.job.error.next}`,
   ];
   // next, inbox and claim from that seat print the red first, before any other work.
-  assert.deepEqual(lines(box.run(box.web, 'next')).slice(0, 2), expected);
+  // The default loop prints the bounded form: one line per red and a pointer to the full refusal (#2777 once-notice, N41).
+  assert.deepEqual(lines(box.run(box.web, 'next')).slice(0, 2), [
+    `red queued gate on #${refused}: CELLS_PLAN_UNPLACED; pullboard show ${refused} for the full refusal`,
+    `#${refused} stays claimed by you until ${red.item.item_lease_until}; fix it, commit, then pullboard submit ${refused}`,
+  ]);
   assert.deepEqual(lines(box.run(box.web, 'inbox')).slice(0, 2), expected);
   const shown = lines(box.run(box.web, 'show', String(refused))).join('\n');
   assert.match(shown, new RegExp(`queued gate: red at ${red.job.executionCommit}\\nCELLS_PLAN_UNPLACED: ${red.job.error.message.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\nnext: `, 'u'));

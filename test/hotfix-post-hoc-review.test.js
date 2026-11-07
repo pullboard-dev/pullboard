@@ -2,12 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('a one-file hotfix already on main submits for review and is not refused EMPTY_SUBMIT [C7,V4]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'hotfix review', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'hotfix review', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', 'test -f web/feature.txt', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

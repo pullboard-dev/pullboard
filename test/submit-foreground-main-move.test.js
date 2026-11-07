@@ -6,6 +6,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Read the fixture item's durable status and submitted commit. */
 function item(box) {
@@ -65,7 +67,7 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Foreground main move', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Foreground main move', '--specs', 'G1',
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
@@ -114,7 +116,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
   // A second fixture seat reviews the submitted commit; its accept is the landing-ready verdict.
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, completed.item.item_commit);
-  assert.equal(box.run(reviewer, 'join', 'api').code, 0);
+  assert.equal(fixtureJoin(box.run, reviewer, 'api').code, 0);
   const accepted = box.run(reviewer, 'verify', String(box.id), 'accept', '--note', 'Ran the frozen check at the queued submission.', '--no-next');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const landed = state(box).item;
