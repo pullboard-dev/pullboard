@@ -1,6 +1,7 @@
 /** The board names each item's pipeline stage from its status and latest hand-off, one helper for every reader [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
@@ -14,8 +15,7 @@ function asMove(board, sql, ...args) {
 
 /** Write the item's latest submit hand-off record the way the submit queue does. */
 function handoff(board, id, job) {
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(`submit_handoff:${id}`, JSON.stringify({ commit: 'a'.repeat(40), agentId: board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id)?.item_owner, digest: 'stage-fixture', ...job }));
+  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: 'a'.repeat(40), agentId: board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id)?.item_owner, digest: 'stage-fixture', ...job });
 }
 
 test('clause 1: show, list and the board read name building, in the gate, back with builder, in review, accepted and landed [C7]', t => {

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /** Keep machine handoff admission separate from the gate's exact process-identity provider [C7]. */
 import { exactStart } from '../packages/gate/index.js';
-import { drainHandoffQueue, handoffDispatcherLog, handoffWorkerCapacityDetail, recordHandoffCap } from '../packages/resources/index.js';
+import { HANDOFF_DISPATCHER_OWNER_ENV, drainHandoffQueue, handoffDispatcherLog, handoffTicketsWaiting, handoffWorkerCapacityDetail, recordHandoffCap } from '../packages/resources/index.js';
+import { createGateAdmission, gateDispatcherRow } from '../packages/drive/index.js';
+import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { effectiveRunners } from '../packages/runners/index.js';
 import { appendFileSync } from 'node:fs';
@@ -69,13 +71,56 @@ export function reportDispatcherFailure(error, capacity = currentCapacity) {
   catch { /* an unwritable log still leaves stderr and the non-zero exit */ }
 }
 
+/**
+ * The drive cell's admission for the dispatcher, on this tree's board opener: each gate is admitted to a driver id on
+ * its board before its driver starts, the started process is recorded on the gate's drive job, and a driver that
+ * cannot start is recorded there as unstarted. Nothing is written beside the hand-off [C7].
+ */
+export const gateAdmission = createGateAdmission({ openBoard, closeBoard, entry: fileURLToPath(new URL('./gate-drive-worker.js', import.meta.url)) });
+
+/**
+ * The dispatcher's job row on the board that launched it: renewed at most every 5 seconds, freed on exit.
+ *
+ * @param {string} commonDir - The launching repository's common directory, the dispatcher's working directory.
+ * @param {string | undefined} owner - The lease owner the launching submit took the row for.
+ * @returns {{ renew: () => void, release: () => void }}
+ */
+export function dispatcherRow(commonDir, owner) {
+  return gateDispatcherRow({ openBoard, closeBoard }, commonDir, owner);
+}
+
+/**
+ * Whether a ticket arrived after the drain's last look and this dispatcher took its freed row back to drain it.
+ * Why: a submit that queued while this row was still held launched no dispatcher, so without one more look its gate
+ * sat queued with nobody to start it (#3495). A submit that saw the row free took it and launched its own, and then
+ * the retake fails; a deferred drain leaves the queue to the dispatcher holding the machine, which looks again itself.
+ *
+ * @param {{ deferred?: true }} drained - What the finished drain returned.
+ * @param {{ retake: () => boolean }} row - This dispatcher's job row, already freed.
+ * @returns {boolean}
+ */
+export function lateTicketRetaken(drained, row) {
+  if (drained.deferred) return false;
+  try { return handoffTicketsWaiting() && row.retake(); }
+  catch { return false; /* an unreadable queue or board is left to the next submit's launch */ }
+}
+
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
 // Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try { await drainHandoffQueue({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild }); }
-  catch (error) {
-    // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
-    reportDispatcherFailure(error);
-    process.exit(1);
-  }
+  const row = dispatcherRow(process.cwd(), process.env[HANDOFF_DISPATCHER_OWNER_ENV]);
+  let again;
+  do {
+    let drained;
+    try { drained = await drainHandoffQueue({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission: gateAdmission, onPass: row.renew }); }
+    catch (error) {
+      // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
+      reportDispatcherFailure(error);
+      try { row.release(); } catch { /* a board that cannot be written lets the row lapse in 2 minutes */ }
+      process.exit(1);
+    }
+    // The queue is empty: free the row so the next submit launches a dispatcher at once.
+    try { row.release(); } catch { /* a board that cannot be written lets the row lapse in 2 minutes */ }
+    again = lateTicketRetaken(drained, row);
+  } while (again);
 }
