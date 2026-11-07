@@ -4,7 +4,7 @@
     {
       "order": 7,
       "actor": "builder, or coordinator",
-      "detail": "`from`, `to`, `note`, `attempt`"
+      "detail": "`from`, `to`, `note`, `attempt`, `rejections`"
     }
   ]
 }
