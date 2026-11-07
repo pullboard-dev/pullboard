@@ -38,3 +38,10 @@ test('clause 1: a named plan retire entry for a file that still runs as a proces
   put(ENTRY, SOURCE);
   assert.deepEqual(ownership(root, `plan retire entry ${ENTRY}.`), [`accepted process entry ownership changed: ${ENTRY}`]);
 });
+
+test('clause 1: a named plan retire entry whose path cannot be inspected as a file still refuses [C7]', t => {
+  const { root, put } = fixture(t);
+  put(`${ENTRY}/inner.js`, 'export const inner = 1;\n');
+  assert.deepEqual(ownership(root, `plan retire entry ${ENTRY}.`), [`accepted process entry ownership changed: ${ENTRY}`],
+    'a directory where the entry file was is an inspection failure, never a retirement');
+});

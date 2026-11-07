@@ -126,15 +126,18 @@ function approvedStay(after, row, candidateRoot, criterion) {
 
 /**
  * An accepted process entry may leave the plan's entries only when the item's frozen criterion, written by the coordinator,
- * names it exactly as `plan retire entry <path>` and its file is gone or no longer runs as a process (#3519).
+ * names it exactly as `plan retire entry <path>` and its file is absent (ENOENT) or readable and no longer runs as a process (#3519).
  * The candidate's own plan never authorizes itself; a file that still runs as a process keeps its ownership.
  */
 function approvedEntryRetirement(entry, candidateRoot, criterion, map) {
   const named = new RegExp(`(?:^|[^\\w./-])plan retire entry ${entry.path.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
   if (!named.test(criterion)) return false;
   const file = join(candidateRoot, mappedPath(map, entry.path));
-  if (!existsSync(file)) return true;
-  try { return !lstatSync(file).isFile() || !processEntry(entry.path, readFileSync(file, 'utf8')); } catch { return true; }
+  // Only a path that is genuinely absent (ENOENT) or readable source that no longer runs as a process retires; any other failure refuses.
+  try {
+    if (!lstatSync(file).isFile()) return false;
+    return !processEntry(entry.path, readFileSync(file, 'utf8'));
+  } catch (error) { return error?.code === 'ENOENT'; }
 }
 
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
