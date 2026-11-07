@@ -249,7 +249,7 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
   const now = Date.parse('2026-11-06T12:00:00Z'), line = (i, at, extra = {}) => JSON.stringify({ at: new Date(at).toISOString(), code: 'B1', id: `b${i}`, command: 'x'.repeat(180), ...extra });
   const old = [];
   for (let i = 0; i < 90_000; i++) old.push(line(i, now - 3 * 86_400_000 + i));
-  const recent = [line('r1', now - 3_600_000), line('r2', now - 1_800_000), JSON.stringify({ kind: 'clear', ids: ['r1'] }), line('r3', now - 60_000)];
+  const recent = [line('r1', now - 3_600_000), line('r2', now - 1_800_000), JSON.stringify({ kind: 'clear', ids: ['br1'] }), line('r3', now - 60_000)];
   const file = join(commonDir, 'pullboard', 'blocks.jsonl');
   fs.writeFileSync(file, [...old, ...recent].join('\n') + '\n');
   assert.ok(fs.statSync(file).size > 20_000_000, 'the ledger is 20 MB');
@@ -263,7 +263,7 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
       best = Math.min(best, Number(process.hrtime.bigint() - begun) / 1e6);
     }
   } finally { JSON.parse = parse; }
-  assert.deepEqual(blocks.map(block => block.id), ['r2', 'r3'], 'recent blocks survive and the cleared one is gone');
+  assert.deepEqual(blocks.map(block => block.id), ['br2', 'br3'], 'recent blocks survive and the cleared one is gone');
   assert.ok(parsed < 5_000, `only the tail was parsed, not ${parsed} lines`);
   assert.ok(best < 20, `a 20 MB ledger read in ${best.toFixed(1)} ms`);
   assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');
