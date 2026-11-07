@@ -52,7 +52,7 @@ test('clause 1: an AGENT_REPLACED seat does not stop the sweep: one pass skips t
     if (actor === 'core-1291') throw new Refused('AGENT_REPLACED', 'core-1291 was taken over by core-1324 at 2026-11-06T07:24:59.429Z; only pullboard shout --item 2953 "<answer for the incoming agent>" remains available');
     recovered.push({ itemId, actor, job: job.id });
   };
-  const looked = await sweepDeadSubmitHandoffs(ctx, { list: () => jobs, recover, recoverInfrastructure: async () => { infrastructure++; } });
+  const looked = await sweepDeadSubmitHandoffs(ctx, { list: () => jobs, recover, recoverInfrastructure: async () => { infrastructure++; }, returnNoVerdict: async () => 0 });
   assert.equal(looked, 2, 'clause 1: the pass looked at both unfinished hand-offs');
   assert.deepEqual(recovered, [{ itemId: 3439, actor: 'core-1300', job: 'gone-job' }], 'clause 1: the other dead hand-off is recovered in the same pass');
   assert.equal(infrastructure, 1, 'clause 1: the pass still reaches infrastructure recovery');
@@ -69,7 +69,7 @@ test('clause 1: any other failure is recorded, the rest of the pass still runs, 
   ];
   const recovered = [];
   const recover = async (_ctx, itemId) => { if (itemId === 1) throw new Refused('SLOT_DB_LOCKED', 'locked'); recovered.push(itemId); };
-  await assert.rejects(sweepDeadSubmitHandoffs(ctx, { list: () => jobs, recover, recoverInfrastructure: async () => {} }), { code: 'SLOT_DB_LOCKED' });
+  await assert.rejects(sweepDeadSubmitHandoffs(ctx, { list: () => jobs, recover, recoverInfrastructure: async () => {}, returnNoVerdict: async () => 0 }), { code: 'SLOT_DB_LOCKED' });
   assert.deepEqual(recovered, [2], 'the second hand-off is recovered before the failure is raised');
   assert.match(errors[0], /^\[HANDOFF_SWEEP\] #1 not recovered: \[SLOT_DB_LOCKED\] locked/u);
 });
