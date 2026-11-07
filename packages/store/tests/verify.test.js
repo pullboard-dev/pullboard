@@ -125,6 +125,8 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, before.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
+  // An untracked file in the reviewer checkout makes the submit proof unreusable, so verify runs the frozen check itself.
+  writeFileSync(join(reviewer, 'review-scratch.txt'), 'scratch\n');
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
   const after = document(box.run(box.repo, 'show', '1', '--json'));
@@ -200,6 +202,8 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
+  // An untracked file in the reviewer checkout makes the submit proof unreusable, so verify runs the frozen check itself.
+  writeFileSync(join(reviewer, 'review-scratch.txt'), 'scratch\n');
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
   return { box, result };
