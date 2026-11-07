@@ -17,7 +17,6 @@ import {
   cellsEdgeReport,
   ceilingsOf,
 } from '../bin/checks/cells-edges.js';
-import { changedStaticFailures } from '../bin/checks/changed-static.js';
 
 const REPO = join(import.meta.dirname, '..');
 const made = [];
@@ -72,7 +71,9 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x']]) {
     assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
   }
-  const failures = changedStaticFailures(root, ['packages/b/deep.js']);
-  assert.ok(failures.some(row => row.startsWith('packages/b/deep.js:1: deep import into a')), failures.join('\n'));
+  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
+    join(REPO, 'bin/checks/changed-static.js'), 'packages/b/deep.js'], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 1, run.stderr);
+  assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
   assert.match(readFileSync(join(REPO, 'bin/static-style-checks.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
 });
