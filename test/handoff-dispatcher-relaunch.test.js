@@ -39,7 +39,7 @@ async function fixture(t, state) {
   });
   const box = helpers.project('true');
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Dispatcher recovery fixture',
-    criterion: 'The fixture remains held.', args: ['--specs', 'G1'] }).item_id;
+    criterion: 'The fixture remains held.', check: null, args: ['--specs', 'G1'] }).item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   const tools = join(box.dir, 'captured-tools');
   marker = join(box.dir, 'dispatcher-starts');

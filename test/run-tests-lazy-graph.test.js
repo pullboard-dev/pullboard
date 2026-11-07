@@ -98,6 +98,7 @@ function importParents(entry) {
     if (parent.has(file)) continue;
     parent.set(file, from);
     let source;
+    /** @pullboard-world-pin the lazy graph walks the repository's own modules */
     try { source = readFileSync(new URL('../' + file, import.meta.url), 'utf8'); } catch { continue; }
     for (const to of staticEdges(file, source)) if (to.startsWith('.') || to.includes('/')) queue.push([to, file]);
   }
