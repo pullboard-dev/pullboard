@@ -1,7 +1,8 @@
 /** The handoff dispatcher's lock proves its loop is alive, and an error out of the loop frees it [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,8 @@ import { ensureHandoffDispatcher, handoffQueueDirectory, listResources, takeReso
 
 /** Run with a private machine home, restoring the environment afterwards. */
 async function withHome(action) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-dispatcher-live-')));
+  const dir = join(realpathSync(tmpdir()), `pullboard-dispatcher-live-${randomUUID()}`);
+  mkdirSync(dir, { recursive: true });
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'home');
   try { return await action(dir); }
