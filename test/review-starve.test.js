@@ -35,7 +35,7 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   assert.equal(builder.document.item.item_id, build, 'canonical self-review exclusion is preserved');
 });
 
-test('a free seat takes the oldest eligible review after two minutes regardless of the build ratio (clause 1) [C7,#3077]', async t => {
+test('clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
   const box = await fixture(t);
   const oldest = box.add('Oldest review waiting two minutes');
   box.submit(oldest);

@@ -39,7 +39,7 @@ test('next --take gives a seat with a running handoff a different item and no --
   assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
 });
 
-test('a pending handoff counts as free for the two-minute oldest-review offer (clause 2) [C7,#3077]', async t => {
+test('clause 2: a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
   const box = await fixture(t);
   submitting(box, 'Submit handoff frees the seat for review');
   const waiting = box.add('Review waiting two minutes');
