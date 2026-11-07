@@ -34,7 +34,7 @@ import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import * as store from '../../../../packages/store/index.js';
-import { waitForAcceptedCells } from '../../../../packages/gate/index.js';
+import { acceptedCellsFromJob } from './main-audit-produce.js';
 import { submitUntilSettled } from './submit-infra-requeue.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
@@ -120,6 +120,22 @@ export function cleanupToolSnapshot(request, tools = dirname(dirname(dirname(dir
   }
 }
 
+/**
+ * Wait for a commit's accepted cells inventory through its cells-inventory job on the board, on a board handle of
+ * its own so a minutes-long production never holds a command's board open.
+ *
+ * @param {any} nativeBoard - The native board module, which opens the board file.
+ * @param {any} ctx - The worker's context; its file is the board.
+ * @param {string} root - The disposable source checkout.
+ * @param {string} commit - The pinned main commit the gate needs the inventory of.
+ * @param {string} job - The submit hand-off job, named in the inventory job's lease owner.
+ */
+async function inventoryFromJob(nativeBoard, ctx, root, commit, job) {
+  const board = nativeBoard.openBoard(ctx.file);
+  try { return await acceptedCellsFromJob(board.db, root, commit, { owner: `gate:${job}:${process.pid}`, beat: line => process.stderr.write(line + '\n') }); }
+  finally { store.closeBoard(board); }
+}
+
 /** A private request can only continue the exact native job; it supplies no actor or proof authority. */
 export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepared = false }) {
   const { request, directory, root } = workerRequest(requestFile);
@@ -139,7 +155,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard, prepare
     mkdirSync(ctx.submitHandoffOutput, { recursive: true, mode: 0o700 });
     ctx.submissionResult = {};
     // An infrastructure failure reruns the same candidate; only a test or check failure is a red for the builder (#2516).
-    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => waitForAcceptedCells(root, commit, { beat: line => process.stderr.write(line + '\n') }) });
+    const { lockWaits } = await submitUntilSettled(() => submitHere(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job) });
     await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
       { agentId: job.agentId, job: job.id, result: { code: 0, commit: ctx.submissionResult.value?.commit, ...(lockWaits.count ? { lockWaits } : {}) } }]));
   } catch (error) {
