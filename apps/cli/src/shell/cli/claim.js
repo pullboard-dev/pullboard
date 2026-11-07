@@ -19,6 +19,7 @@ import { requestedCommandMove } from '../../../../../packages/state/index.js';
 import { barReadinessRequired } from '../../../../../packages/verify/index.js';
 import { barReadiness } from '../../../../../packages/verify/index.js';
 import { barCoverageCommand } from '../../../../../packages/verify/index.js';
+import { machineVerification } from '../../../../../packages/verify/index.js';
 import { barCoverageForPolicy } from '../../../../../packages/verify/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';
@@ -282,7 +283,12 @@ export async function claimOrdered(ctx, board, args) {
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
   const exitRules = accepted.exitRules;
-  const estimate = store.getItem(board, args[0]).item_expected_build_minutes;
+  const held = store.getItem(board, args[0]);
+  if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const refusal = (await import('../exit-rules-runtime.js')).contextCeilingRefusal(exitRules);
+    if (refusal) throw refusal;
+  }
+  const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
@@ -349,7 +355,8 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
     const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
+    const machine = board ? machineVerification(board, item) : null;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }

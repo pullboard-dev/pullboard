@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board-schema-source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `239` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `242` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -349,6 +349,23 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
+| `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
+| `job` | `job_kind` | `TEXT` | `NOT NULL` |
+| `job` | `job_item` | `INTEGER` | `nullable` |
+| `job` | `job_candidate` | `TEXT` | `nullable` |
+| `job` | `job_base` | `TEXT` | `nullable` |
+| `job` | `job_step` | `TEXT` | `NOT NULL`; `DEFAULT 'queued'` |
+| `job` | `job_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_lease_owner` | `TEXT` | `nullable` |
+| `job` | `job_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_created` | `INTEGER` | `NOT NULL` |
+| `job` | `job_updated` | `INTEGER` | `NOT NULL` |
+| `job_step` | `job_step_id` | `INTEGER` | `PRIMARY KEY` |
+| `job_step` | `job_step_job` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_name` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
+| `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -393,6 +410,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
+| `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
 
@@ -454,7 +472,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
-| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
+| `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion), optional `machineVerification` (coordinator-only reversible authorization, exact bar digest and numbered commands) |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
 | `attempt` | reporting agent | `n`, `seconds`, `result` |
 | `relay_exclusion` | person | `action` (exclude, the durable opt-out intent), `path` (relayOff), `reason`, `channel`; event time and actor identify the request before machine settings persist it |
@@ -467,7 +485,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `release` | builder | `reasonCode`, optional `reason` |
 | `submit` | builder | `commit`, `tree`, `policyCommit`, engine-9 `criterionDigest`, engine-38 `submissionProof`, optional `submissionSize` |
 | `reserve` | reviewer | `until` |
-| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note` |
+| `accept` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-33 `review`, engine-68 `note`, optional `machine` (native machine verdict with each frozen command and authenticated receipt) |
 | `reject` | reviewer | `reason`, `commit`, engine-20 `implies`, engine-30 `cause`, engine-33 `review`, automatic-Rigor `causeDerivation`, clause-bound rejection `clause`, `clauseText`, `barKey`, typed-pipeline `pipelineCause` (fixed category; other retains explanation) |
 | `bar-sharpen` | coordinator | `clause`, `clauseText`, `barKey`, `to`, `digest` |
 | `strong-rejection-notice` | coordinator | `engine`, `route`, `builder`, `rejections` |

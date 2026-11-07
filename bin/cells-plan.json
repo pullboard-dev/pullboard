@@ -1254,6 +1254,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/machine-verdict-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1377,6 +1381,10 @@
     },
     {
       "path": "bin/checks/test-waits.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/test-fixtures.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1654,6 +1662,30 @@
     },
     {
       "path": "src/tier-row-change.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/builder-family-required-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/240.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/review-head-builder-family-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/241.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/handoff-worker-detach.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/242.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

@@ -7,6 +7,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { refuseRestatedReport } from '../apps/cli/src/core/coordinator-shout-purpose.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
@@ -25,7 +26,7 @@ function shouts(box) {
 
 test('[C7] a report shout right after the same agent verdict is refused naming the event; questions and old reports are delivered', () => {
   const box = fixtures.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Reported item', '--specs', 'G1', '--criterion', 'works', '--check', 'true').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Reported item', '--specs', 'G1', '--criterion', 'works', '--check', 'true').code, 0);
 
   const quiet = box.run(box.web, 'shout', 'coordinator', 'Item #1 is done', '--kind', 'idea', '--json');
   assert.equal(quiet.code, 0, 'a report with no recent event is delivered');
@@ -77,7 +78,7 @@ test('[C7] the refusal covers only the sender, only the last ten minutes and onl
 
 test('[C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', () => {
   const box = fixtures.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Integration item', '--specs', 'G1', '--criterion', 'works').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Integration item', '--specs', 'G1', '--criterion', 'works').code, 0);
   record(box, 'submit', new Date());
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   /** Drive the real evidence parser, guard and persisted item message with a genuine Git object. */
