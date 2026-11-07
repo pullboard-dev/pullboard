@@ -33,6 +33,12 @@ function selected(ctx, board, values, services) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
+  /** Advice applies to new builds and main-red routing, never held work or independent reviews. */
+  const withCover = found => {
+    if (!found.item || found.review || found.held) return found;
+    const pause = services.reviewFamilyBuildPause?.(ctx.info, board, ctx.config, me);
+    return pause ? { item: null, review: false, held: false, idleReason: 'review-family', reasons: [...(found.reasons ?? []), pause] } : found;
+  };
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
   const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id);
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
@@ -42,16 +48,16 @@ function selected(ctx, board, values, services) {
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
     workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   if (routing) {
-    if (routing.buildOffer?.seat === me.id) return { item: routing.item, reasons: routing.reasons, review: false, held: false };
+    if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
     return { ...routing, review: false, held: false };
   }
-  return dispatchWork(board, store.agentById(board, me.id), {
+  return withCover(dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
     workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
-  });
+  }));
 }
 
 /** Preview whether ordinary next needs the main-red build routing path; no move or worktree is written. */
