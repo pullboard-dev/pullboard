@@ -22,7 +22,8 @@ test('clause 1: a green check run ticks its clauses', () => {
   assert.equal(notes.length, 2, 'only the two [test] clauses are ticked');
   assert.match(notes[0], /^clause 1 \[test\]: green pullboard test run of test\/example\.test\.js at abc123$/u);
   assert.match(notes[1], /^clause 3 \[test\]:/u);
-  const problem = clauseInspectionProblem({ ...item, item_criterion: '1) The heading is present [test]\n2) The count appears [test]' }, thread(notes));
+  const testOnly = { ...item, item_criterion: '1) The heading is present [test]\n2) The count appears [test]' };
+  const problem = clauseInspectionProblem(testOnly, thread(testRunTickNotes(testOnly, [FILE], 'abc123')));
   assert.equal(problem, null, 'submit does not refuse CLAUSE_UNTICKED after the run notes');
   const other = clauseInspectionProblem(item, thread(notes));
   assert.match(other.message, /clause 2/u, 'a non-test clause still needs its own evidence');
