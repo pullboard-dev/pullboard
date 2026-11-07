@@ -52,14 +52,15 @@ function withinBudget(drive, budgetMs) {
  * whenever anyone runs `next` or `status`, without any command waiting on a job (DJ15).
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle, opened for writing.
- * @param {{ owner: string, now?: () => number, budgetMs?: number, drive?: typeof driveOnce } & Record<string, any>} options
- *   owner is this command's driver id; the rest (repo, runner, plan, transport, sections) passes to driveOnce.
+ * @param {{ owner: string, now?: () => number, budgetMs?: number, drive?: typeof driveOnce, lapsed?: ReturnType<typeof lapsedGateJobs> } & Record<string, any>} options
+ *   owner is this command's driver id; lapsed is a list the caller already read with lapsedGateJobs, so the pass
+ *   does not read it again; the rest (repo, runner, plan, transport, sections) passes to driveOnce.
  * @returns {Promise<{ lapsed: number, driven: string | null, transition?: string | null, phase?: string,
  *   pending?: boolean, code?: string }>}
  */
-export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, ...options } = /** @type {any} */ ({})) {
+export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, ...options } = /** @type {any} */ ({})) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'reclaimPass needs a driver id to hold the lease: pass { owner }.');
-  const lapsed = lapsedGateJobs(db, { now: now() });
+  const lapsed = known ?? lapsedGateJobs(db, { now: now() });
   if (!lapsed.length) return { lapsed: 0, driven: null };
   const job = lapsed[0].id;
   try {

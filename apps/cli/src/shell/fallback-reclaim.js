@@ -19,9 +19,10 @@ import { writeFallback } from './cli-board-read.js';
 export async function fallbackReclaim(ctx, command) {
   const now = () => ctx.clock.now().getTime();
   try {
-    const lapsed = await withBoardRead(ctx, board => lapsedGateJobs(board.db, { now: now() }).length);
-    if (!lapsed) return null;
-    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now }));
+    const lapsed = await withBoardRead(ctx, board => lapsedGateJobs(board.db, { now: now() }));
+    if (!lapsed.length) return null;
+    // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
+    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed }));
   } catch {
     return null;
   }

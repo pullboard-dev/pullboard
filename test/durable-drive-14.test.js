@@ -1,6 +1,6 @@
 /** Durable gate 14/20: `next` and `status` run one fallback reclaim pass and drive at most one lapsed job [C7]. */
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
@@ -79,7 +79,23 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
     lapsedJob(seed.db, 'g-new', head, takenAt + 1);
   } finally { closeBoard(seed); }
 
+  // A preload counts every reclaimLapsed query (the only SQL on job_lease_until) in each command's process.
+  const countFile = join(files.root, 'reclaim-count.log');
+  files.write('count-reclaim.mjs', [
+    "import { DatabaseSync } from 'node:sqlite';",
+    "import { appendFileSync } from 'node:fs';",
+    'const prepare = DatabaseSync.prototype.prepare;',
+    'DatabaseSync.prototype.prepare = function (sql, ...rest) {',
+    "  if (/job_lease_until < \\?/.test(String(sql))) appendFileSync(process.env.RECLAIM_COUNT_FILE, 'x');",
+    '  return prepare.call(this, sql, ...rest);',
+    '};', ''].join('\n'));
+  const preload = join(files.root, 'count-reclaim.mjs');
+  box.env.RECLAIM_COUNT_FILE = countFile;
+  box.env.NODE_OPTIONS = `--import ${preload}`;
+  const reclaimQueries = () => { try { return readFileSync(countFile, 'utf8').length; } catch { return 0; } };
+
   const status = box.run(box.repo, 'status', '--json');
+  assert.equal(reclaimQueries(), 1, 'status ran reclaimLapsed exactly once');
   assert.equal(status.code, 0, status.err);
   assert.deepEqual(JSON.parse(status.out).reclaim, { lapsed: 2, driven: 'g-old', transition: 'captured', phase: 'captured' },
     'status drove the oldest lapsed job one step before answering');
@@ -91,7 +107,9 @@ test('clause 1: `status` and `next` each run the reclaim pass and drive at most 
   assert.match(read('g-old').leaseOwner, /^fallback:status:/);
   assert.deepEqual(read('g-new').steps, [], 'status drove at most one job');
 
+  rmSync(countFile, { force: true });
   box.run(box.web, 'next');
+  assert.equal(reclaimQueries(), 1, 'next ran reclaimLapsed exactly once');
   const driven = read('g-new');
   assert.equal(driven.steps.at(-1)?.name, 'captured', 'next drove the other lapsed job one step');
   assert.match(driven.leaseOwner, /^fallback:next:/);
