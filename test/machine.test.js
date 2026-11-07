@@ -902,7 +902,7 @@ function holdByHand(db, id, owner) {
     .run(owner, new Date(Date.now() + 3_600_000).toISOString(), id);
 }
 
-test('claim refuses in the declared order, one failure peeled at a time, on a real board [M1, M2]', () => {
+test('clause 1: claim refuses in the declared order, one failure peeled at a time, on a real board [M1, M2]', () => {
   const lab = boardOnDisk();
   try {
     const { board } = lab;
