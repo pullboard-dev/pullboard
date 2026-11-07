@@ -112,7 +112,7 @@ function failingFiles(root, profile, output) {
 }
 
 /** The common Git directory holds local machine evidence shared by this repo's worktrees. */
-function cacheFile(root) {
+export function cacheFile(root) {
   // One command locates the common directory once, however many main-red reads it makes.
   const common = commandFact(JSON.stringify(['main-red-common-dir', root]), () => checkoutCommonDir(root, { env: cleanGitEnvironment() }));
   if (common === null) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
@@ -120,7 +120,7 @@ function cacheFile(root) {
 }
 
 /** Read only well-formed, machine-local cached outcomes; malformed data is treated as a miss. */
-function readCache(file) {
+export function readCache(file) {
   try {
     const stat = lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: CACHE_VERSION, entries: {} };
