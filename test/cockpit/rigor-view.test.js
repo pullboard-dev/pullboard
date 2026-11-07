@@ -38,12 +38,14 @@ test('the view state carries a pending sentinel draft [A6,D1,N26]', async () => 
   }
 });
 
-test('the view shows one sentinel draft with its proof, never as an approved sentinel [A6,D1,N26]', async () => {
+test('clause 1: the view shows one sentinel draft with its proof, never as an approved sentinel [A6,D1,N26]', async () => {
   const box = machine();
   project(box, 'draft board', SPEC);
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    // Pages open on the Dashboard since #2289 and draw Needs you on Items only, so open Items as a person would.
+    await page.click({ tab: 'items' });
     await page.run(`data.project.sentinelDrafts = ${JSON.stringify([draft({ name: 'rigor-row-g1', check: 'test -f up.txt' })])}; render();`);
     const html = page.show('needs');
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -70,6 +72,8 @@ test('a Rigor proposal reaches Needs you only after coordinator materialization 
   const view = await startView(box);
   try {
     const page = await openPage(view);
+    // Pages open on the Dashboard since #2289 and draw Needs you on Items only, so open Items as a person would.
+    await page.click({ tab: 'items' });
     await page.run(`data.project.rigorDrafts = [{kind:'rigor-draft',id:'doctrine:RG1',ref:'doctrine:RG1',target:'doctrine:RG1',
       text:'Rigor draft (unproved): Review the repeated cause.',unproved:true,materialized:false,
       what:'Coordinator: materialize with pullboard spec apply; then the person approves or declines'}]; render();`);
