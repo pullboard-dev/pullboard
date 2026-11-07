@@ -1,15 +1,13 @@
 /** A gate waiting for a warming cells inventory waits for the producer instead of spending its infrastructure retries [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import {
   mkdirSync,
-  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import {
   acceptedCellsIdentity,
   waitForAcceptedCells,
@@ -46,19 +44,19 @@ test('clause 1: a pending inventory that turns ready after two polls is waited f
 });
 
 test('clause 2: a producer that died without publishing is nudged exactly once more before the wait gives up [C7]', async () => {
-  const base = mkdtempSync(join(tmpdir(), 'wait-inventory-'));
+  const base = privateFixtureFiles('wait-inventory-').root;
   const home = join(base, 'home'), repo = join(base, 'repo');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   try {
     mkdirSync(repo, { recursive: true });
     const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
-    const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8' }).trim();
-    git('init', '--quiet');
+    const inRepo = (...args) => runFixtureGit(args, { cwd: repo, env });
+    inRepo('init', '--quiet');
     writeFileSync(join(repo, 'a.txt'), 'x\n');
-    git('add', '.');
-    git('commit', '--quiet', '-m', 'fixture');
-    const commit = git('rev-parse', 'HEAD');
+    inRepo('add', '.');
+    inRepo('commit', '--quiet', '-m', 'fixture');
+    const commit = inRepo('rev-parse', 'HEAD');
     const identity = acceptedCellsIdentity(repo, commit);
     mkdirSync(identity.directory, { recursive: true });
     writeFileSync(join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`),
