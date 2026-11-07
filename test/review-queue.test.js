@@ -233,6 +233,22 @@ test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   assert.equal(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by !== null, true, 'the clean head is reserved for review');
 });
 
+/** Clause 1 of #2745: the review queue skips a submitted head that no longer merges and hands the reviewer the clean one. */
+test('clause 1: next --verify skips a head that does not merge and returns it unreviewed [C7,V4]', (t) => {
+  const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
+  const second = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
+  json(joinFixtureSeat(box, second, 'web'));
+  const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
+  const next = json(box.run(reviewer, 'next', '--verify', '--json'));
+  assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
+  const returned = json(box.run(box.repo, 'show', String(conflicted), '--json'));
+  assert.equal(returned.item_status, 'open', 'the head that does not merge goes back to its builder');
+  assert.equal(returned.item_review_by, null, 'no reviewer holds the head that does not merge');
+  assert.equal(returned.item_verdict, null, 'returning it is not a reject');
+  assert.notEqual(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by, null, 'the clean head is reserved for review');
+});
+
 /** Drive nextReview over a board with one submitted head that conflicts, recording each ordered operation. */
 async function refusedReturn(t, reopen) {
   const { board, agents } = fixture(t);
