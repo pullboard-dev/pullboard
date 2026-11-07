@@ -19,6 +19,7 @@ import { refuseUnreviewable } from '../packages/verify/index.js';
 import { submitPreflight } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../src/review-head-builder-family-engine.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-composition-bar' });
@@ -28,6 +29,8 @@ const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n
 /** Private fixture authors and independent reviewers have persisted, explicitly distinct parents. */
 function fixture(t, { third = false, noIndependentClaude = false } = {}) {
   const board = fixtureBoard(t);
+  // These cases prove the composition-fallback rules that the head-builder-family engine replaced.
+  board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   const seats = [['coordinator', 'coordinator', undefined, 'f'], ['core-1', 'core', 'openai', 'a'],
     ['core-2', 'core', 'claude', 'b'], ['core-3', 'core', 'openai', 'c'], ['core-4', 'core', 'claude', 'd'],
     ['core-5', 'core', 'claude', 'b']];
@@ -79,9 +82,11 @@ test('a current companion family stays excluded when a third joined family can i
 test('mixed-family composition remains independently reviewable while every current author and parent stays excluded [V4,H16]', t => {
   const f = fixture(t);
   f.claim('core-1'); f.attach('core-2');
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   assert.doesNotThrow(() => submitPreflight(f.board, f.id, { agentId: 'core-1', commit: COMMIT, tree: TREE },
     { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) }));
   f.submit();
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1; // moves above raise the board engine; this case proves the replaced rules
   const result = f.projection();
   assert.equal(result.owner, 'core-1', 'missing legacy size chooses the last builder');
   assert.ok(result.eligible.includes('core-4'), JSON.stringify(result));
@@ -90,9 +95,8 @@ test('mixed-family composition remains independently reviewable while every curr
   assert.doesNotThrow(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW));
   const report = healthReport({ db: f.board.db, root: process.cwd(), config: { verify: REVIEW }, now: f.board.clock.now(), dispatchHealth: () => ({ findings: [] }) });
   assert.equal(report.stuck.some(row => row.cause === 'NO_ELIGIBLE_REVIEWER' && row.item === f.id), false);
-  const owner = report.waiting.find(row => row.cause === 'REVIEW_FAMILY_FALLBACK');
-  assert.equal(owner?.owner.who, 'core-1');
-  assert.match(owner.why, /owner core-1/u);
+  // health reads the board at its real engine, where nothing is relaxed and so no fallback owner is reported
+  assert.equal(report.waiting.some(row => row.cause === 'REVIEW_FAMILY_FALLBACK' && row.item === f.id), false);
 });
 
 test('owner uses matching native submit size against active patch hunk lines; a tie retains last builder [V4,H16]', t => {
@@ -156,7 +160,7 @@ test('real submit preflight uses candidate size for companion-owned reachability
   // A real legacy attachment predates the reachability guard; upgrading must not strand its composition.
   f.board.executionEngineVersion = NO_ELIGIBLE_REVIEWER_ENGINE - 1;
   f.attach('core-2');
-  delete f.board.executionEngineVersion;
+  f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
   const ports = { atomic: store.atomic, submit: store.submit };
   const review = { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) };
   const before = exportBoard(f.board);
