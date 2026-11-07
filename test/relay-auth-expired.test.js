@@ -10,6 +10,7 @@ import { relayOutboxSetting } from '../apps/cli/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { prepareKeylessInbox, readKeylessInbox } from './inbox-key-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { FIXTURE_MODEL } from './testkit-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 
@@ -117,7 +118,7 @@ test('moves stay local while the machine credential expires, then replay after s
   runFixtureGit(['commit', '-q', '-m', 'test: prepare private ordered claim'], { cwd: box.root, env: box.env });
   const agentRoot = join(box.root, '..', 'claim-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/auth-claim', agentRoot], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', 'Fixture model');
+  const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL);
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent joins before the credentials are revoked');
   await revokeCredential(box, state.agentTokens.coordinator.id);
   const before = (await box.cli('export')).document.tables;
@@ -147,7 +148,7 @@ test('moves stay local while the machine credential expires, then replay after s
   const textRefusal = await box.script(`
     const { main } = await import(${JSON.stringify(box.mainURL)});
     let stdout = '', stderr = '';
-    const code = await main(['join', ${JSON.stringify(box.lane)}, '--model', 'Fixture model'], {
+    const code = await main(['join', ${JSON.stringify(box.lane)}, '--model', FIXTURE_MODEL], {
       cwd: ${JSON.stringify(agentRoot)}, stdout: { write(value) { stdout += value; } }, stderr: { write(value) { stderr += value; } },
     });
     console.log(JSON.stringify({ code, stdout, stderr }));
@@ -160,7 +161,7 @@ test('moves stay local while the machine credential expires, then replay after s
   assert.equal(stderrLines.length - refusalLines.length, 1, 'followed by the one next step every text refusal ends with (#176)');
   assert.match(refusalLines[0], new RegExp(state.board));
   assert.match(refusalLines[0], /pullboard relay on.*pullboard relay off/u);
-  const rejoin = await box.cliAt(agentRoot, 'join', box.lane, '--model', 'Fixture model');
+  const rejoin = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL);
   assert.equal(rejoin.code, 1);
   assert.equal(rejoin.document.error.code, 'AUTH_REQUIRED');
   assert.equal((rejoin.document.diagnostics ?? []).length, 0, 'registration reports only its refusal, without a read fallback first');
