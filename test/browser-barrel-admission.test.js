@@ -21,7 +21,7 @@ function graph(t, sources) {
 const SOURCES = {
   'packages/cell/index.js': "export { read } from './read.js'; export { launch } from './launch.js';",
   'packages/cell/read.js': 'export function read() { return 42; }',
-  'packages/cell/launch.js': "import { spawnSync } from 'node:child_process'; export function launch(options) { return spawnSync(options.command, []); }",
+  'packages/cell/launch.js': "import { spawnSync } from 'node:child_process'; export function launch(options) { return spawnSync(options.command ?? 'google-chrome', []); }",
   'bridge.js': "export { read as scan, launch as open } from './packages/cell/index.js';",
   'test/scanner.test.js': "import { read } from '../packages/cell/index.js'; read();",
   'test/alias.test.js': "import { scan } from '../bridge.js'; scan();",
@@ -66,7 +66,7 @@ test('unselected barrel modules retain direct and transitive evaluation launches
 
 test('opaque export aliases and dynamic scope retain every callable browser capability [C7,O5]', async t => {
   const root = graph(t, { ...SOURCES,
-    'quoted.js': "import {spawnSync} from 'node:child_process'; function work(options) {spawnSync(options.command, []);} export {work as 'browser-op'};",
+    'quoted.js': "import {spawnSync} from 'node:child_process'; function work(options) {spawnSync(options.command ?? 'google-chrome', []);} export {work as 'browser-op'};",
     'quoted-barrel.js': "export {'browser-op' as read} from './quoted.js';",
     'test/quoted.test.js': "import {read} from '../quoted-barrel.js'; read({command:'google-chrome'});",
     'test/eval.test.js': "import {launch} from '../packages/cell/index.js'; const input = JSON.parse(process.env.COMMAND); eval('launch(input)');",

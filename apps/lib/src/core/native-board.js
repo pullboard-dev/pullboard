@@ -1,4 +1,6 @@
+import { claimHealthSnapshot } from '../../../../packages/health/index.js';
 import { conditionalHoldFloor } from '../../../../packages/health/index.js';
+import { claimedItemRoot } from '../../../../packages/items/index.js';
 import { recordFamilyDeclareActivation } from '../../../../src/family-declaration.js';
 import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
@@ -15,6 +17,8 @@ import {
   dependencyLabel,
 } from '../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../packages/items/index.js';
+import { warmFamilyProjection } from '../../../../packages/items/index.js';
+import { familyProjectionCurrent } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
@@ -34,6 +38,7 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
+import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
 import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
 import {
@@ -305,7 +310,8 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    conditionalHoldFloor,
+    shadowJob: shadowSubmitHandoff,
+    conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
@@ -324,13 +330,13 @@ export function nativeBoardPorts() {
   });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
-    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile }),
+    presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile }),
     sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
-      ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
+      missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),
     auth: Object.freeze({ boardNotWritable, boardBusyError }),

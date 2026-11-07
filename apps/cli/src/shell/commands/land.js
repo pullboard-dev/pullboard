@@ -1,6 +1,9 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
+import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
+import { replayLanding } from '../../../../../packages/landing/index.js';
+import { replayLine } from '../../../../../packages/landing/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { landAcceptedItems } from '../../../../../packages/merge/index.js';
@@ -23,6 +26,10 @@ import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../../../../../packages/git/index.js';
 import { syncRelay } from '../../../../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
+import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
+import { landWhyLines } from '../../../../../packages/landing/src/core/land-why.js';
+import { withBoardRead } from '../cli-board-read.js';
+import { context } from '../cli-read-context.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   COORDINATOR,
@@ -55,8 +62,23 @@ import {
 
 /** Run `pullboard land` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
+  if (values.why) {
+    const ctx = context(io);
+    const why = await withBoardRead(ctx, (board) => landWhy(board, ctx.clock.now()));
+    if (values.json) io.result(why);
+    else for (const line of landWhyLines(why)) io.say(line);
+    return 0;
+  }
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
+  if (values.replay) {
+    if (first || second || rest.length || values.due || values.adopt || values['dry-run'] || values.waive !== undefined || values.max !== undefined) throw new Refused('USAGE', 'pullboard land --replay [--since <time>] takes no other option');
+    const rows = replayLanding(board, { since: values.since });
+    io.result?.({ replay: rows });
+    for (const row of rows) io.say(replayLine(row));
+    if (!rows.length) io.say('no recorded landing batches to replay');
+    return 0;
+  }
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
@@ -85,7 +107,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   let result;
   try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, landingFlakeRatchet, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../../../../bin/landing-worker.js', import.meta.url)),
-    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
+    write: (operation, parameters) => untilBoardFree(() => ordered(ctx, board, operation, parameters), { say: line => io.err?.(line) }), refresh: () => syncRelay(ctx.info.root, io), say: line => (PHASE_LINE.test(line) ? io.err?.(line) : io.say(line)), owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), automatic: values.automatic === true, due: Boolean(values.due), onWait: io.gateWaitReporter(io) });
   } catch (error) {
     await recordLandingNotices(ctx, board, io);
@@ -171,6 +193,7 @@ export async function untilBoardFree(work, { wait = ms => new Promise(resolve =>
  * Why: only an accept scheduled a landing, so a blocked batch left verified work idle until the next accept.
  */
 export function landingRetryAt(result, now) {
+  if (!result?.waiting) return null;
   // A run that moved work (landed it, or reopened a conflict or culprit) starts the next batch at once while verified
   // items wait, ahead of any deferral: the lander sat idle about 65% of the time waiting a full interval after every
   // landing (#3149). A run that moved nothing keeps its deferral or the interval, so a refusal that stays put never

@@ -10,6 +10,7 @@ import { openBoard } from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -65,10 +66,35 @@ test('a fresh worktree joins a board at current scale in under two seconds and c
   const worktree = join(root, 'fresh-worker');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/fresh-worker', worktree, 'HEAD'], { cwd: root, env });
   const started = performance.now();
-  const joined = run(process.execPath, [BIN, 'join', 'core', '--model', 'fixture-model'], worktree, env);
+  const joined = run(process.execPath, [...fixtureJoinArgv(BIN), 'core', '--model', 'fixture-model'], worktree, env);
   const elapsedMs = performance.now() - started;
   assert.match(joined.stdout, /joined as/u);
   assert.ok(elapsedMs < 1_800, `join took ${elapsedMs.toFixed(0)} ms on 1,000 items, 45,000 events and 23,000 shouts`); // budget: H24's 2 s ceiling gets 200 ms measurement margin.
   const claimed = run(process.execPath, [BIN, 'claim', '1'], worktree, env);
   assert.match(claimed.stdout, /claimed #1/u);
+});
+
+test('a seat on a light model joins the light route, and an explicit --route still wins [C7]', t => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-join-route-')));
+  const env = { ...process.env, PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine'),
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Join fixture',
+    GIT_AUTHOR_EMAIL: 'join@example.invalid', GIT_COMMITTER_NAME: 'Join fixture', GIT_COMMITTER_EMAIL: 'join@example.invalid' };
+  delete env.PULLBOARD_ROUTE;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', lanes: { core: { owns: ['src/'], specs: ['H24'] } } }));
+  writeFileSync(join(root, 'SPEC.md'), '# Join fixture\n\n## H · Human time\n- H24 [approved, aim] Joins are fast. | gate: test/join-fast.test.js\n');
+  runFixtureGit(['add', '-A'], { cwd: root, env });
+  runFixtureGit(['commit', '-qm', 'Seed join fixture'], { cwd: root, env });
+  run(process.execPath, [BIN, 'init'], root, env);
+  const joinAs = (name, args) => {
+    const dir = join(root, '..', `${root.split('/').pop()}-${name}`);
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    runFixtureGit(['worktree', 'add', '-q', '-b', `core/${name}`, dir], { cwd: root, env });
+    const result = run(process.execPath, [...fixtureJoinArgv(BIN), 'core', ...args], dir, env);
+    return result.stdout;
+  };
+  assert.match(joinAs('haiku', ['--model', 'claude-haiku-4-5']), /on the light route/u);
+  assert.match(joinAs('luna', ['--model', 'gpt-6-luna']), /on the light route/u);
+  assert.doesNotMatch(joinAs('strong', ['--model', 'gpt-6-luna', '--route', 'strong']), /light route/u);
 });
