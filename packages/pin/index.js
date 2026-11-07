@@ -2,3 +2,4 @@
 export { treeOf, pinFor, bundleFor } from "./src/shell/pin.js";
 export { isObjectId, bundleName } from "./src/core/pin-names.js";
 export { writeToolingPin, toolingPin, toolingFor } from "./src/shell/tooling-pin.js";
+export { cachePath, cacheFor, sweepCaches } from "./src/shell/tree-cache.js";

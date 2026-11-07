@@ -22,7 +22,7 @@ function repoWithOldAndNew() {
   return { repo, old, landed };
 }
 
-test('clause 1: the last landing writes the tooling pin; workers read it instead of the seat checkout; a seat on an older tree runs main tooling [C7]', () => {
+test('clause 1: packages/pin writes the tooling pin for a landed commit, and toolingFor returns the last landing tree as tooling and the seat own tree as source [C7]', () => {
   const { repo, old, landed } = repoWithOldAndNew();
   assert.equal(toolingPin(repo), null, 'no landing yet, no pin');
   assert.equal(toolingFor(repo, old).tooling, treeOf(repo, old), 'without a pin the seat runs its own tree');
