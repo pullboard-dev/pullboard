@@ -51,7 +51,7 @@ function refusal(result, code, itemId, pendingFields) {
   return document.error;
 }
 
-test("the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
+test("clause 1: the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
