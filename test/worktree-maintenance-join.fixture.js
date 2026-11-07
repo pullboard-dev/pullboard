@@ -1,5 +1,6 @@
 /** @pullboard-test-loads apps/cli/src/shell/commands/join.js apps/cli/src/shell/item-folder-identity.js */
 /** Join refuses inside an item folder, so a stray seat never owns work that maintenance can remove [C7]. */
+import { joinFixtureSeat } from './testkit-fixture.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -12,10 +13,10 @@ export function registerMaintenanceJoinTests() {
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
     const seat = join(box.dir, 'join-seat'), folder = join(box.dir, 'join-seat-item-7');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', seat, 'main');
-    assert.equal(box.run(seat, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json').code, 0, 'a lane worktree still joins');
+    assert.equal(joinFixtureSeat(box, seat, 'web').code, 0, 'a lane worktree still joins');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/item-7', folder, 'main');
 
-    const refused = box.run(folder, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json');
+    const refused = joinFixtureSeat(box, folder, 'web');
     assert.equal(refused.code, 1);
     const error = JSON.parse(refused.out).error;
     assert.equal(error.code, 'JOIN_IN_ITEM_FOLDER');

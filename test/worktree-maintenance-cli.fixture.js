@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { fileFixtureItem } from './testkit-fixture.js';
+import { joinFixtureSeat, fileFixtureItem } from './testkit-fixture.js';
 
 /** Hold a private timer registration with this actual process; no detached worker is needed in these CLI cases. */
 function retainFixtureTimer(box) {
@@ -59,7 +59,7 @@ export function registerMaintenanceCliTests() {
     enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    const joined = box.run(owner, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json');
+    const joined = joinFixtureSeat(box, owner, 'web');
     assert.equal(joined.code, 0, joined.err);
     const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive' }).item_id;
     const claimed = box.run(owner, 'claim', String(id), '--json');
@@ -91,7 +91,7 @@ export function registerMaintenanceCliTests() {
     enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-dirty-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    assert.equal(box.run(owner, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json').code, 0);
+    assert.equal(joinFixtureSeat(box, owner, 'web').code, 0);
     const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private dirty release' }).item_id;
     assert.equal(box.run(owner, 'claim', String(id), '--json').code, 0);
     const bytes = Buffer.from([0, 7, 8, 255]);

@@ -14,7 +14,7 @@ import { workingDirectories } from '../packages/landing/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { fileFixtureItem } from './testkit-fixture.js';
+import { joinFixtureSeat, fileFixtureItem } from './testkit-fixture.js';
 
 /** Keep an exact native timer owner registered so lifecycle cases never launch a scheduler. */
 function retainFixtureTimer(box) {
@@ -64,7 +64,7 @@ function assertArchivedBytes(archive, name, expected) {
 /** Join a temporary agent checkout and return its native seat identity. */
 function joinAgent(box, path) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-  const joined = box.run(path, 'join', 'web', '--model', 'Fixture Model', '--route', 'strong', '--json');
+  const joined = joinFixtureSeat(box, path, 'web');
   assert.equal(joined.code, 0, joined.err);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.listAgents(board).find(row => resolve(row.agent_path) === resolve(path)).agent_id; }
