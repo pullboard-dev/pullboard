@@ -38,6 +38,8 @@ import {
 } from './test-output-summary.js';
 import { readFileSync } from 'node:fs';
 import { timingSource } from './run-timing.js';
+import { whileSeatAlive } from './seat-keepalive.js';
+import { announceTestRun } from '../core/test-progress.js';
 import { trackedDefaultTestFiles } from './test-selection.js';
 import {
   browserFreeChecksEnabled,
@@ -145,7 +147,7 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, say, timers = {}, affected = false, compareMain = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -157,7 +159,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
   const { runProfiledShellAsync, withGateSlot } = await import('./gate.js');
   const started = Date.now();
   const admission = testRunnerAdmission();
-  const run = await inCleanCheckout(root, async (checkout) => {
+  // The claim stays live for the whole run: a long runner wait must not look like a gone seat (#3430).
+  const run = await whileSeatAlive(root, () => inCleanCheckout(root, async (checkout) => {
     let full = false;
     if (policy) {
       const options = { base: policy.commit, trunk: policy.commit };
@@ -171,9 +174,12 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
-    return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }),
+    return withGateSlot(checkout, async (lease) => {
+      const stop = typeof say === 'function' ? announceTestRun(say, { host: lease.runner?.host, files: paths, ...timers }) : () => {};
+      try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
+    },
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
-  }, withMainCheckout);
+  }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
