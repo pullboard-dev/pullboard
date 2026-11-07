@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
+import { temporaryDirectory } from './board-fixture.js';
 import { writeFileSync } from 'node:fs';
 
 /** Construct the existing stale-verdict check and read its exact immutable per-fixture invocation log. */
@@ -62,4 +63,11 @@ export function policyRepository(directory) {
   git('add', 'pullboard.json');
   git('commit', '-q', '-m', 'fixture policy');
   return directory;
+}
+
+/** Make a removed-after-test policy repository (one commit on main) and return its directory [C7]. */
+export function temporaryRepository(t, prefix) {
+  const directory = temporaryDirectory(prefix);
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  return policyRepository(directory);
 }
