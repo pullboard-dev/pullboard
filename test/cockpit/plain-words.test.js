@@ -93,7 +93,7 @@ test('only typed native words are translated while user quotations keep their co
   assert.equal(activityWords({ kind: 'proof-run' }).label, 'ran the proof');
 });
 
-test('native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
+test('clause 1: native board kinds, names, reasons and sentinel notices read plainly across every surface [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the visible plain-words scanner.');
   const box = machine(), alpha = project(box, 'plain-words');
