@@ -292,15 +292,39 @@ async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
  * queued it and whatever its item's state now. Why: recovery ran only when the queuing seat itself ran next or submit
  * on an item it still held, so a seat that stopped, or an item released or withdrawn, left its job running for hours
  * (#2627). A live worker, or one whose identity cannot be read, is left alone.
+ *
+ * One hand-off that cannot be recovered never stops the pass: on 7 Nov a seat taken over by another (the board
+ * refused AGENT_REPLACED) ended the sweep on its first job, and two gates read running with no worker for hours
+ * (#3450). Each failure is recorded on stderr and the rest are still recovered; a replaced seat's job is skipped,
+ * and any other failure is raised after the pass so the sweep exits non-zero and the dispatcher runs it again.
+ *
+ * @param {object} ctx - The CLI context of the repository's main checkout.
+ * @param {{ list?: Function, recover?: Function, recoverInfrastructure?: Function, returnNoVerdict?: Function }} [ports] - How unfinished hand-offs
+ *   are listed and recovered; the defaults read and write the real board.
+ * @returns {Promise<number>} How many unfinished hand-offs the sweep looked at.
  */
-export async function sweepDeadSubmitHandoffs(ctx) {
-  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHandoffs, recover = recoverSubmitHandoff, recoverInfrastructure = recoverInfrastructureHandoffs, returnNoVerdict = returnNoVerdictHandoffs } = {}) {
+  const jobs = list(ctx);
+  let failure = null;
+  for (const { itemId, job } of jobs) {
+    try { await recover(ctx, itemId, job.agentId, job); }
+    catch (error) {
+      const skipped = error?.code === 'AGENT_REPLACED';
+      ctx.io.err(`[HANDOFF_SWEEP] #${itemId} ${skipped ? 'skipped' : 'not recovered'}: ${error?.message ?? error}`);
+      if (!skipped) failure ??= error;
+    }
+  }
+  await recoverInfrastructure(ctx);
+  await returnNoVerdict(ctx);
+  if (failure) throw failure;
+  return jobs.length;
+}
+
+/** Every queued or running submit hand-off on the board, with its item id. */
+function unfinishedSubmitHandoffs(ctx) {
+  return withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
     .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
-  for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
-  await recoverInfrastructureHandoffs(ctx);
-  await returnNoVerdictHandoffs(ctx);
-  return jobs.length;
 }
 
 /**
