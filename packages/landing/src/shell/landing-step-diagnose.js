@@ -101,7 +101,8 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
     if (row?.result === 'red' && !(row.failures ?? []).length) unattributed.push(failure);
     (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
-  return { known, own, unattributed };
+  // Present only when a base-red file names no case at all, so a named base red never counts as unattributed [C7,#3388].
+  return unattributed.length ? { known, own, unattributed } : { known, own };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
