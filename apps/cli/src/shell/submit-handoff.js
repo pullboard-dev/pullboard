@@ -39,6 +39,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
+import { getItem } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -312,7 +313,53 @@ export async function sweepDeadSubmitHandoffs(ctx) {
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
   for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
   await recoverInfrastructureHandoffs(ctx);
+  await returnNoVerdictHandoffs(ctx);
   return jobs.length;
+}
+
+/**
+ * Whether a hand-off finished 'submitted' with no green gate for the item's current submitted head. Why: a submit
+ * whose proof was red only in cases that also fail on main is recorded with gateGreen false, so no review packet is
+ * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448).
+ *
+ * @param {{ state?: string, gateGreen?: boolean, submitted?: string, commit?: string } | null} job
+ * @param {{ item_status?: string, item_commit?: string | null } | null} item
+ * @returns {boolean}
+ */
+export function noVerdictHandoff(job, item) {
+  return job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
+    && typeof item.item_commit === 'string' && item.item_commit === (job.submitted ?? job.commit);
+}
+
+/**
+ * Return every item whose hand-off ended with no gate verdict to its builder: the coordinator reopens it with the
+ * named reason HANDOFF_NO_VERDICT and shouts the builder. Each item is re-read inside the writer before it moves.
+ *
+ * @param {object} ctx - The CLI context of the main checkout.
+ * @returns {Promise<number>} How many items were returned.
+ */
+export async function returnNoVerdictHandoffs(ctx) {
+  const stranded = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .filter(itemId => noVerdictHandoff(submitHandoff(board, itemId), getItem(board, itemId))));
+  let returned = 0;
+  for (const itemId of stranded) {
+    try {
+      returned += await withBoard(ctx, async board => {
+        const job = submitHandoff(board, itemId), item = getItem(board, itemId);
+        if (!noVerdictHandoff(job, item)) return 0;
+        const head = item.item_commit.slice(0, 12);
+        const note = `HANDOFF_NO_VERDICT: hand-off ${job.id} ended submitted at ${head} with no green gate, so no review packet exists and every reviewer is refused NO_REVIEW_PACKET; returned to its builder ${item.item_built_by ?? 'unknown'}`;
+        await ordered(ctx, board, 'reopen', [itemId, { agentId: 'coordinator', note }]);
+        if (item.item_built_by) {
+          await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: item.item_built_by, lanes: [],
+            text: `#${itemId} is back with you (HANDOFF_NO_VERDICT): its gate at ${head} ended with no green verdict, so it could not be reviewed. Read pullboard show ${itemId}, make its proof green, then claim and submit again.` }]);
+        }
+        return 1;
+      });
+    } catch (error) { ctx.io.err(`no-verdict hand-off #${itemId} was not returned: ${error.message}`); }
+  }
+  return returned;
 }
 
 /** Next may recover this seat's queued or running claims whose worker is gone, never another seat's or a live gate. */
