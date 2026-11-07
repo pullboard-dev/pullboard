@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { JOB_SCHEMA_SQL } from "./board-jobs-schema.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./board-checkpoint.js";
 import {
   SCHEMA,
@@ -154,7 +155,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA, migrate, storeTriggers)), onDiagnostic);
+      reportSharedSchema(file, sharedSchemaDiagnostic(db, expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL, migrate, storeTriggers)), onDiagnostic);
     }
     guardMoves(board);
     // Writable commands catch up old writers or missing local projections once. Read-only open
