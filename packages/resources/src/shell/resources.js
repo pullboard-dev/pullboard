@@ -4,6 +4,7 @@ import { isSeatTest } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
 import { pruneControllerOrphans } from './controller-custody.js';
@@ -56,6 +57,8 @@ import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
+import { reservedTimingRunner } from './runner-timing-reserve.js';
+import { timingReserveAllows } from './runner-timing-reserve.js';
 import { platformIdentity } from './holder-liveness.js';
 import { differentStart } from './holder-liveness.js';
 import {
@@ -87,7 +90,6 @@ export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
-
 /** Mark child commands whose parent already owns a machine gate slot. */
 export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
@@ -537,18 +539,19 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
     // predates the name guard and has no runner column value.
-    const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
+    const remoteHolders = db.prepare('SELECT browser, timing, since, landing, kind FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
       slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
-      browsers: remoteHolders.filter(holder => holder.browser === 1).length,
+      browsers: remoteHolders.filter(holder => holder.browser === 1).length, landingShards: remoteHolders.filter(holder => holder.kind === 'landing' || holder.landing === 1).length, // Spread a batch's shards across hosts [C7].
     }];
   }));
   const unavailable = unavailableRunnerHosts(db, now, runners);
   const troubled = loadPolicy.enabled === true ? troubledRunners(db, now, LEASE_MS) : new Set();
-  let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
+  const reserved = reservedTimingRunner(db, runners, unavailable, loadPolicy.timingRunner, now, waiters.find(waiter => waiter.ticket === ticket)); // #2512: replaces the drain
+  let drain = reserved ? null : currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
@@ -564,7 +567,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner)) return false;
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
         if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
         if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
@@ -604,7 +607,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       return null;
     }
     const remote = runnerSlot();
-    if (waiter.runnerOnly === 1) return remote;
+    if (waiter.runnerOnly === 1 || reserved && waiter.timing === 1 && waiter.remote === 1) return remote; // timed work waits for the kept runner
     if (runnersFirst) {
       if (remote) return remote;
       const local = localSlot();
@@ -632,7 +635,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       db.prepare('UPDATE resource SET capacity = ? WHERE name = ?').run(runner.slots, resourceName);
     }
   }
-  if (!drain) {
+  if (!drain && !reserved) {
     for (const waiter of waiters) {
       const waited = now - Date.parse(waiter.since);
       if (waiter.timing !== 1 || waiter.remote !== 1 || !Number.isFinite(waited) || waited < 120_000
@@ -750,12 +753,8 @@ function requiredRunnerHosts(waiter) {
   if (restriction?.kind !== 'ssh') return null;
   return restriction.hosts ?? [restriction.host];
 }
-
 /** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
-function runnerAllowed(waiter, runner) {
-  const hosts = requiredRunnerHosts(waiter);
-  return hosts === null || hosts.includes(runner.host);
-}
+function runnerAllowed(waiter, runner) { const hosts = requiredRunnerHosts(waiter); return hosts === null || hosts.includes(runner.host); }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
@@ -1085,7 +1084,7 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
-    const result = await options.onWait?.(state);
+    const result = await renewWithBeat(file, token, table === 'waiter', async () => { await options.beforeAdmission?.(); return options.onWait?.(state); });
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
         throw new Refused('BAD_RESOURCE_METADATA', 'the waiting item renewal must return a valid leaseUntil timestamp');
@@ -1150,7 +1149,7 @@ export async function takeResource(options) {
         // Await it like every other wait report, so an item-lease callback never renews unobserved.
         await keepItemLease({ holders: [], line: [], position: 0, memory }, 'waiter');
       }
-      const order = queueOrder(scope);
+      await options.beforeAdmission?.(); const order = queueOrder(scope);
       const acquired = await retryLockedSlotDatabase(file, () => update(db, () => {
         const now = Date.now();
         // The machine-settings provider performs a bounded local JSON read. Read it
@@ -1161,7 +1160,8 @@ export async function takeResource(options) {
           throw new Refused('BAD_RUNNER_POOL', 'none of the allowed SSH executors is registered');
         }
         const runnersFirst = runnersFirstProvider?.() === true;
-        if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
+        const timingReserved = name === 'gate' && timing && reservedTimingRunner(db, runners, unavailableRunnerHosts(db, now, runners), options.runnerLoadPolicyProvider?.().timingRunner, now, { remote: 1, timing: 1, requiredExecutor }); // a reserved timed check queues for its runner and its dispatch expiry never widens the executor
+        if (timingReserved) runnerDeadlineAt = 0; else if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
         const waiter = db.prepare('SELECT ticket, token, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
@@ -1349,7 +1349,7 @@ export async function takeResource(options) {
             startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
           }
           db.close();
-          const retryingInfrastructure = quarantine || infrastructureRetryCount > 0;
+          const retryingInfrastructure = infrastructureRetryCount > 0 || quarantine && reason !== 'worker-unresponsive'; // a first missed READY keeps its deadline: one bounded late start [C7,Q1,Q2]
           return takeResource({ ...options, requiredExecutor: retryRestriction ?? undefined, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,

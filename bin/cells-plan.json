@@ -1174,7 +1174,19 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/clause-inspection-engine.js",
+      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
+    },
+    {
+      "path": "src/infra-release-engine.js",
+      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
+    },
+    {
+      "path": "src/main-red-focus-engine.js",
       "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
     },
     {
@@ -1368,6 +1380,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/test-fixtures.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/current-cli.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1513,6 +1529,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/cells-object-snapshots.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-audit-backlog.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-snapshot-git.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/225.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1548,6 +1576,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/stranded-dependency-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/ledger-quarantine-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1565,6 +1598,86 @@
     },
     {
       "path": "bin/resident-socket.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/232.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/233.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/234.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/235.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/236.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/237.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/238.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/239.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/infra-handoff-recovery-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/main-red-withdraw-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/per-item-full-suite-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-twice-route-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-gone-release-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/tier-row-change.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/builder-family-required-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/240.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/review-head-builder-family-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/241.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/handoff-worker-detach.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -2009,6 +2122,10 @@
     },
     {
       "path": "bin/automatic-landing.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/main-red-refresh.js",
       "cell": "app:cli"
     }
   ],

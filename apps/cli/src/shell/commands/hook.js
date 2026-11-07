@@ -3,8 +3,6 @@ import { importsIn } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../../../../../packages/landing/index.js';
-import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
 /**
  * Claims that may stamp trailers: the live ones, or the submitted item's own claim when only its gate handoff remains,
  * so a fix commit still cites the item while the gate runs [C7,#2882].
@@ -23,8 +21,6 @@ import { boardBusyError } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { rowDecisions } from '../../../../../packages/spec/index.js';
 import { checkLoosening } from '../../../../../packages/doctrine/index.js';
-import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
-import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../../../../packages/commits/src/core/board-format.js';
@@ -42,13 +38,10 @@ import {
 import {
 } from '../../../../../packages/gate/index.js';
 import {
-  gateReport,
-  runGate,
-} from '../../../../../packages/gate/index.js';
-import {
   headTree,
   headCommit,
   tryGit,
+  withGitCommandMemo,
   isClean,
   repoInfo,
   untracked,
@@ -121,7 +114,7 @@ export async function hookCommand(io, { first, second }) {
     }) ?? '' : '';
     const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
-    problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    problems = withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }));
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
@@ -156,6 +149,11 @@ export async function hookCommand(io, { first, second }) {
     if (!problems.length && message !== originalMessage) writeFileSync(second, message);
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
+    // Only a push runs the gate, so the gate, runner, landing and flake graphs load here and never for a commit hook [C7,#3250].
+    const { gateReport, runGate } = await import('../../../../../packages/gate/index.js');
+    const { runnerExecutionServices } = await import('../../../../../packages/runners/index.js');
+    const { landingExecutionServices, waivedLandingProof: nativeWaivedLandingProof } = await import('../../../../../packages/landing/index.js');
+    const { quarantineWaivers } = await import('../../../../../packages/flakes/index.js');
     if (gitBoardDataPush(info.root, refsText)) {
       io.say('pre-push: validated append-only board data; no code refs are updated');
       return 0;

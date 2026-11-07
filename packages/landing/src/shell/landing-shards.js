@@ -188,6 +188,24 @@ export function planLandingShards(files, count, times = {}, root = null) {
 }
 
 /**
+ * Split a build, submit or review run's test files across the runner slots that are free right now: at most one shard per
+ * free slot and per distinct file, balanced by recorded file times through the landing planner. One free slot, or none,
+ * gives one shard holding every file, so such a run executes as it does today (#3228).
+ *
+ * @param {string[]} files
+ * @param {number} freeSlots - Runner slots the caller found free; fractions and negatives count as none.
+ * @param {Record<string, number>} [times] - Last wall time in ms by repository-relative path.
+ * @param {string|null} [root] - Repository root, so absolute spellings dedupe with relative ones.
+ * @returns {{ shards: { files: string[], weight: number }[], balance: 'history'|'history and average'|'file count', slots: number }}
+ */
+export function planFreeSlotShards(files, freeSlots, times = {}, root = null) {
+  const distinct = new Set(files.map(file => fileKey(file, root))).size;
+  const slots = Math.max(1, Math.min(Number.isFinite(freeSlots) ? Math.floor(freeSlots) : 1, distinct));
+  const shards = planLandingShards(files, slots, times, root);
+  return { shards, balance: landingBalance(files.map(file => fileKey(file, root)), times), slots: shards.length };
+}
+
+/**
  * Name how a plan was balanced: by the last measured per-file wall times when every file has one,
  * by those times with new files at their average when some do, and by file count when none do.
  *
@@ -330,7 +348,11 @@ function phaseText(record) {
   if (!at?.start) return '';
   const seconds = (from, to) => (from && to ? ` ${Math.round((to - from) / 100) / 10} s` : ' ?');
   const end = at.start + (record.wallMs ?? 0);
-  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)})`;
+  // The runner's own stages (its source-cache wait, pack transfer and checkout) say what "connect" and "ready" hold.
+  const stages = record.stages;
+  const stage = name => (Number.isFinite(stages?.[name]) ? ` ${Math.round(stages[name] / 100) / 10} s` : ' ?');
+  const inside = stages ? `; cache wait${stage('cacheWaitMs')}, transfer${stage('transferMs')}, materialize${stage('materializeMs')}` : '';
+  return ` (connect${seconds(at.connect ?? at.start, at.inventory ?? at.ready ?? end)}, history${at.inventory ? seconds(at.inventory, at['source-sent'] ?? at.ready ?? end) : ' 0 s'}, ready${seconds(at['source-sent'] ?? at.inventory ?? at.connect ?? at.start, at.ready ?? end)}, run${seconds(at.ready, end)}${inside})`;
 }
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
@@ -516,7 +538,10 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
         metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
-      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : 'red', output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null,
+      // A runner that could not prepare its checkout ran no test: that is infrastructure to requeue, never a red to
+      // hold the batch on. A locked slot database on .54 held #2794 as "no accounted failure" on 6 Nov [C7].
+      const setupRefused = !run.isGreen && /^runner setup refused:/u.test(run.output ?? '');
+      return { attempt: number, host: lease.runner.host, outcome: run.isGreen ? 'green' : setupRefused ? 'infrastructure' : 'red', ...(setupRefused ? { reason: run.output.split('\n')[0].slice(0, 160) } : {}), output: run.output, wallMs: Math.round(performance.now() - started), phases: run.phases ?? null, stages: run.sourcePreparation?.stages ?? null,
         ...(release ? { executor: run.executionRunner, head: run.executionSource?.commit, tree: run.executionSource?.tree,
           command: createHash('sha256').update(command).digest('hex') } : {}) };
     } catch (error) {

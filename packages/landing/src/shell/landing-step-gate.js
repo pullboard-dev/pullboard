@@ -7,6 +7,7 @@ import { packageHashesAt } from '../../../gate/index.js';
 import { TEST_TIERS_FILE } from '../../../gate/index.js';
 import { testTierCommand } from '../../../gate/index.js';
 import { VALUE_GATE } from '../../../gate/index.js';
+import { gateStages } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -49,6 +50,7 @@ import { knownMainLine } from './landing-known-main.js';
 import { fileKnownMainReds } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { landingOperations } from './landing-step-merge.js';
 
 /** Quote a command argument without allowing shell interpolation. */
@@ -83,9 +85,14 @@ function batchAffectedTests(state, readEvents, readItem) {
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
     return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
   }
-  const selection = submitted !== null ? { full: false, files: submitted } : state.config.affectedTests
-    ? selectAffectedTests(root, { base: state.batch.base, commit })
-    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
+  // The submit's files are a floor: a later accepted-trunk importer of a file the merged batch changed is found only
+  // on the merged tree, so its selection is added to the submitted union [C7,V4].
+  let selection;
+  if (!state.config.affectedTests) selection = submitted !== null ? { full: false, files: submitted } : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
+  else {
+    const merged = selectAffectedTests(root, { base: state.batch.base, commit });
+    selection = submitted === null ? merged : { ...merged, files: [...new Set([...submitted, ...merged.files])].sort() };
+  }
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
@@ -108,6 +115,17 @@ export function batchGatePlan(state, options = {}) {
   }
 }
 
+/**
+ * Split a gate plan's files into the ones the per-item gate runs and the ones landing.auditOnly leaves to the
+ * post-landing audit (a red there is filed as a main red minutes later). Why: the lifecycle audit alone was 64 s of
+ * every one-item gate, and any source change selects it [C7].
+ */
+export function auditOnlySplit(config, files) {
+  const auditOnly = new Set(config.landing?.auditOnly ?? []);
+  const sorted = [...new Set(files)].sort();
+  return { files: sorted.filter(file => !auditOnly.has(file)), left: sorted.filter(file => auditOnly.has(file)) };
+}
+
 /** The narrowest proved plan for the batch's merged tree, refusing LAND_DIAGNOSTIC when none can be read. */
 function selectedGatePlan(state, { readEvents = id => store.events(state.board, { itemId: id }), readItem = id => store.getItem(state.board, id), focus = null } = {}) {
   // A bisection round runs only the files the batch failed: a half's whole plan took a full gate per round, and the
@@ -121,8 +139,11 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   const selection = batchAffectedTests(state, readEvents, readItem);
   if (selection.fullGate) return fullGatePlan(state);
   if (selection.testTiers) {
-    const command = testTierCommand(selection.testTiers, selection.files) || 'true';
-    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
+    // This repository plans by test tiers, so landing.auditOnly applies here too (it did not on 6 Nov's first batch).
+    const { files, left } = auditOnlySplit(state.config, selection.files);
+    if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
+    const command = testTierCommand(selection.testTiers, files) || 'true';
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files, subset: false, testTiers: true,
       affectedGate: createHash('sha256').update(command).digest('hex') };
   }
   const deferred = selection.sourceProof ? [] : deferredSelections(state, readEvents).flatMap(row => row.files);
@@ -132,8 +153,12 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
     return { ...fullGatePlan(state), files: selection.files };
   }
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
-  const files = [...new Set([...selection.files, ...deferred])].sort();
-  const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  const { files, left } = auditOnlySplit(state.config, [...new Set([...selection.files, ...deferred])]);
+  if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
+  const affectedCommand = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  // An opaque configured gate (one the stage reader cannot split) still runs, ahead of the affected phase, and no stage
+  // of it is guessed: a waiver names only the affected phase's accounted failures [C7,V4].
+  const command = !gateStages(state.config.gate) && files.length ? `(\n${state.config.gate}\n) && ${affectedCommand}` : affectedCommand;
   const config = { ...state.config, gate: command, [VALUE_GATE]: true };
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
@@ -209,8 +234,13 @@ function smokeTree(state, tree) {
   state.smoked.add(tree);
 }
 
+/** Run one source-pinned gate or selective floor and say how long it took, so a slow landing names its gate [C7]. */
+export function gateGroup(state, label, options) {
+  return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
-export async function gateGroup(state, label, options) {
+async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   smokeTree(state, tree);
   const commit = headCommit(state.batch.root);
@@ -259,7 +289,12 @@ export async function gateGroup(state, label, options) {
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
   // cases red there too are filed as Main red and never charged to the items.
   const known = await knownMainAccount(state, result);
-  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
+  // A per-item landing cannot tell its item's red from main's without the comparison: it blocks as a landing fault and
+  // the verified item stays verified, never reopened on a guess [C7,#3065].
+  if (singleItemLanding(state) && known?.unavailable?.length) {
+    throw new Refused('LAND_MAIN_COMPARISON', `the per-item landing could not compare its red cases with base main ${state.batch.base.slice(0, 12)} (${known.unavailable.join('; ')}); retry the landing once main can run those files`);
+  }
+  if (known?.known.length) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),

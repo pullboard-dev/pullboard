@@ -3,6 +3,9 @@
  * command when there is any, and dispatch through the lazy command table. It loads a module only when the command
  * in hand needs it, so --version and a read pay for nothing they do not run [C7].
  */
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { commandOutput } from '../../../../../packages/config/core.js';
 import { Refused } from '../../../../../packages/kernel/core.js';
@@ -11,8 +14,13 @@ import { CHECKOUT_BOARD_ONLY } from './session.js';
 import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
+import { appendTrace } from '../cli-trace.js';
+import { extractWhy } from '../../core/why-flag.js';
 
 let startupMainTraced = false;
+
+/** Commands that start no worktree-maintenance timer after they run; the timer's git reads cost every call about 190 ms [C7]. */
+const QUIET_COMMANDS = new Set(['next', 'show', 'claim']);
 
 /** Retain the primary branch on every command without creating a board for global help. */
 async function rememberTrunk(io, { repoInfo, mainCheckout }) {
@@ -75,7 +83,8 @@ async function timedMain(argv, streams) {
 }
 
 /** Record local command wall time without sending timing data to the board. */
-export async function main(argv, streams) {
+export async function main(rawArgv, streams) {
+  const { argv, why } = extractWhy(rawArgv);
   const { beginSeatTiming, timingSeat } = await import('../../../../../src/seat-timing.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
@@ -84,7 +93,16 @@ export async function main(argv, streams) {
   const lockPort = Symbol.for('pullboard.seat-timing.lock');
   const previous = globalThis[lockPort];
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
-  try { return await timedMain(argv, streams); } finally { finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort]; }
+  const startedAt = Date.now();
+  const traced = { refusal: null };
+  let status; let thrown;
+  try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
+  catch (error) { thrown = error; status = 1; throw error; }
+  finally {
+    finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
+    // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
+    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
+  }
 }
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
@@ -93,6 +111,11 @@ async function runMain(argv, streams) {
     nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
     loadRefusal: async () => (await import('../../core/next-step-words.js')).refusalDocument,
   });
+  if (streams.traceRecord) {
+    // Remember the refusal the command reports so its trace line carries the code and message.
+    const report = io.refusal;
+    io.refusal = (error, ...rest) => { streams.traceRecord.refusal = error; return report.call(io, error, ...rest); };
+  }
   io.loadNativeBoard = streams.loadNativeBoard;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
@@ -190,6 +213,9 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
+      if (!parsed?.values['dry-run']) {
+        await (await import('./handoff-recovery.js')).recoverQueuedHandoffs(io, git);
+      }
     }
     traceServeStartup('cli-command-preamble-start');
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
@@ -217,7 +243,8 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
-    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance'
+      && !QUIET_COMMANDS.has(parsed?.positionals[0])) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
       automaticLandingAfterCommand = io.automaticLandingContext;
@@ -232,7 +259,15 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (automaticLandingAfterCommand) {
-      try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(automaticLandingAfterCommand.info.root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
+      // A release run from an item folder removes that folder before this wake; the pending record names the
+      // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
+      const { info } = automaticLandingAfterCommand;
+      const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
+      try {
+        const worker = await import('../../../../../packages/landing/index.js');
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot);
+      }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
     if (maintenanceAfterCommand) {
@@ -269,4 +304,10 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
+}
+
+/** The trunk checkout the pending landing record names, or null when there is no readable record. */
+function landingJobRoot(commonDir) {
+  try { return JSON.parse(readFileSync(join(commonDir, 'pullboard', 'automatic-landing', 'pending.json'), 'utf8')).root ?? null; }
+  catch { return null; }
 }

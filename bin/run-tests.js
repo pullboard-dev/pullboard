@@ -16,13 +16,13 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/verify/index.js';
+import { installFileWatchdog } from '../packages/verify/src/shell/file-watchdog.js';
 import {
   DEFAULT_TEST_FILE_TIMEOUT_MS,
   testFileTimeoutMs,
   activeHandleSummary,
   installTestChildDrain,
-} from '../packages/gate/index.js';
+} from '../packages/gate/src/shell/test-child-drain.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
@@ -30,21 +30,21 @@ import {
   trackedDefaultTestFiles,
   shardArguments,
   testSelectionPatterns, narrowsSelection,
-} from '../packages/gate/index.js';
+} from '../packages/gate/src/shell/test-selection.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
-import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/index.js';
-import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/index.js';
-import { optionTakesValue } from '../packages/gate/index.js';
-import { knownNodeOption } from '../packages/gate/index.js';
-import { COLLECTION_ID_ENV } from '../packages/gate/index.js';
-import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
-import { hasTestFiles as selectedFilesPresent } from '../packages/gate/index.js';
-import { explicitTestFiles as selectedFiles } from '../packages/gate/index.js';
-import { formatTestOutcomes } from '../packages/gate/index.js';
+import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
+import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
+import { optionTakesValue } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { knownNodeOption } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { COLLECTION_ID_ENV } from '../packages/gate/src/core/collection-env.js';
+import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/src/shell/run-timing.js';
+import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell/test-selection.js';
+import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
+import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
@@ -72,12 +72,14 @@ const watchdogSource = `
 const { parentPort } = require('node:worker_threads');
 const { writeSync } = require('node:fs');
 const timers = new Map();
+const finished = [];
 parentPort.on('message', (message) => {
   if (message.type === 'stop') {
     const active = timers.get(message.id);
     if (active) {
       clearTimeout(active.timer);
       if (active.probe) clearTimeout(active.probe);
+      if (active.name !== undefined) finished.push({ name: active.name, ms: Date.now() - active.startedAt });
     }
     timers.delete(message.id);
     return;
@@ -115,10 +117,10 @@ parentPort.on('message', (message) => {
     const elapsedMs = Date.now() - startedAt;
     writeSync(2, 'run-tests: test "' + message.name + '" in ' + message.file +
       ' failed: it ran ' + (elapsedMs / 1000).toFixed(1) + 's, past the ' +
-      message.timeoutMs + 'ms per-test timeout\\n');
+      message.timeoutMs + 'ms per-test timeout; finished cases ' + JSON.stringify(finished) + '\\n');
     try { process.kill(message.pid, 'SIGKILL'); } catch { /* The timed-out test process already exited. */ }
   }, message.timeoutMs);
-  timers.set(message.id, { timer });
+  timers.set(message.id, { timer, name: message.name, startedAt });
 });
 `;
 
@@ -168,7 +170,7 @@ function installTestWatchdog() {
     }
     const id = `${process.pid}:${++nextTestId}`;
     const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
-    reportFileTest(id, name);
+    reportFileTest(id, name, timeoutMs);
     activeTests.set(context, id);
     runningTests.add(id);
     watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });

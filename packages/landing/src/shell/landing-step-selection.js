@@ -52,6 +52,14 @@ export function landingEntry(item) {
     ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}) };
 }
 
+/**
+ * Whether a dependency no longer holds an item back: merged, or withdrawn [C7].
+ * Why: a withdrawn item never merges, so counting it unmerged left #2822 accepted for 34 h, re-blocked every minute.
+ */
+export function dependencySatisfied(dependency) {
+  return Boolean(dependency?.item_merged_commit) || dependency?.item_status === 'withdrawn';
+}
+
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
 export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [] } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
@@ -96,10 +104,19 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // is among the item's own commits past base. Why: two merge-base walks per pending item per submission (850 Git
   // processes for 85 waiting items) cost 4 minutes of every selection and left the lander idle between batches.
   const unverified = store.unverifiedSubmissions(board).filter((other) => tryGit(root, ['merge-base', '--is-ancestor', other.item_commit, base]).status !== 0);
+  let staleProbes = 0;
   for (const original of pending) {
     // A full batch stops the walk: each later item cost a verdict projection and two git calls per unverified
-    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7].
-    if (ready.length >= maximum) break;
+    // submission, so choosing 2 of 85 accepted items took 15 minutes before any test ran [C7]. A few items behind
+    // the batch still get their verdict projected, so a stale one returns to its lane this wake instead of waiting
+    // behind every fresh accept: #2466, #2711 and #2988 sat 30 h that way on 5 Nov [B3,C7].
+    if (ready.length >= maximum) {
+      if (staleProbes >= 8 || original.item_hold_at) continue;
+      staleProbes++;
+      const behind = projector.state({ ...original, item_landing_commit: store.checkedLandingCommit(board, original) });
+      if (behind?.code === 'STALE_VERDICT') blocked.push({ id: original.item_id, ...behind });
+      continue;
+    }
     // A held verified item keeps its accept but joins no batch until the hold is lifted.
     if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
@@ -114,7 +131,9 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const retried = runnerSourceHold(batches, item, base);
     if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
-    if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
+    const waitsOn = dependencies.filter((id) => !dependencySatisfied(all.find((other) => other.item_id === id))); // only merged or withdrawn count as met, even a verified dependency already in this batch [C7]
+    // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
+    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
     const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {
@@ -169,6 +188,16 @@ export function landingMaximum(board, config, maximum = Infinity, automatic = fa
  */
 export function singleItemLanding(state) {
   return landsPerItem(state.config) && (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
+}
+
+/**
+ * True when the batch holds exactly one item, whatever the trunk policy. A refusal of that item's own content (a red
+ * static check, a CLI smoke naming it) is the item's to fix, so it returns to its builder instead of being adopted
+ * again every wake. Why: with per-item off and a batch size of 1, #2566 was retried seven times in 20 minutes on
+ * 6 Nov and starved 24 other accepted items [C7,#2901,#2967].
+ */
+export function oneItemBatch(state) {
+  return (state.batch?.items ?? state.batch?.candidates ?? []).length === 1;
 }
 
 /** Git arguments that turn off repository hooks for a per-item landing's own merge and amend commits [C7,#2901]. */
