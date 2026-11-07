@@ -2,6 +2,8 @@ import { ensureFactIdentityIndexes } from "../../../spec/index.js";
 import { missingFactIdentityIndexes } from "../../../spec/index.js";
 import { ensureGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
 import { missingGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
+import { ensureJobTables } from "./board-jobs-schema.js";
+import { missingJobTables } from "./board-jobs-schema.js";
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,
@@ -47,7 +49,7 @@ function missingSessionPeersIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -55,6 +57,7 @@ export function ensureAdditiveIndexes(db) {
   ensureFactIdentityIndexes(db);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
+  ensureJobTables(db);
 }
 
 /**
