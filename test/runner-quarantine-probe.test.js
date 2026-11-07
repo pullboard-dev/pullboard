@@ -36,14 +36,18 @@ test('clause 1: a runner whose probe passes leaves CLEANUP_UNVERIFIED and TRANSP
     }
     assert.deepEqual([rowFor(db, 'runner-a').detail, rowFor(db, 'runner-b').detail], ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED']);
 
-    const asked = [];
+    // Both runners are busy: live gate leases hold them, so the old idle proof could never pass (7 Nov, .52).
+    for (const host of ['runner-a', 'runner-b']) db.prepare('INSERT INTO holder VALUES(?,?,?,?)').run(`lease-${host}`, `runner:${host}`, host, '#1');
+    const asked = [], idleAsked = [];
     const recovered = await recoverUnavailableRunners(db, [{ host: 'runner-a', slots: 4 }, { host: 'runner-b', slots: 4 }], {
       probe: async () => ({ healthy: false, step: 'worker readiness', reason: 'exact-job proof unavailable' }),
+      idleProbe: async runner => { idleAsked.push(runner.host); return { healthy: false, step: 'idle proof', reason: 'runner resource lease is active' }; },
       transportProbe: async runner => { asked.push(runner.host); return { ok: true, host: runner.host }; },
       now: start + 60_000,
     });
     assert.equal(recovered, true);
     assert.deepEqual(asked.sort(), ['runner-a', 'runner-b'], 'each quarantined runner got one transport probe');
+    assert.deepEqual(idleAsked, [], 'the idle proof never gates a runner its transport probe returned');
     assert.equal(rowFor(db, 'runner-a'), undefined, 'one good probe lifts CLEANUP_UNVERIFIED');
     assert.equal(rowFor(db, 'runner-b'), undefined, 'one good probe lifts TRANSPORT_UNVERIFIED');
     assert.equal(probeQuarantined(db, 'runner-a'), false);
