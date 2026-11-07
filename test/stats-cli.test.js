@@ -330,6 +330,14 @@ test('[R1,R2,A1] stats window and ordinary counters share one SQLite snapshot wh
 });
 
 /**
+ * Prove criterion clause 1: the shared board-submit fixture sets board.gitRoot itself, so the stats fixture's board is tied to its repository.
+ */
+test('clause 1: the shared board-submit fixture sets board.gitRoot to the fixture repository [C7,V4]', (t) => {
+  const { root, board } = fixture(t);
+  assert.equal(board.gitRoot, root, 'the board knows its repository without the case setting it');
+});
+
+/**
  * Prove criterion clause 2: the shared board-submit fixture seals the repository policy itself, so a submit is never refused NO_POLICY.
  * The fixture's own claim and submit would throw that refusal before returning if the board had no gitRoot policy.
  */
