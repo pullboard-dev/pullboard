@@ -156,7 +156,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   store.claim(board, other, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, head: base, freeze });
   submitFixture(board, other, { agentId: 'web-1', commit, tree });
   store.verify(board, other, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Synthetic private refusal fixture.', clause: 'Unrelated item',
-    head: commit, digest: freeze().digest, policy: 'any', familyPolicy: 'off', reopenFirstRefusalMinutes: 30,
+    head: commit, digest: freeze().digest, policy: 'any', familyPolicy: 'off', reopenFirstRefusalMinutes: 0,
     review: { commit, head: commit, trunk: base, paths: ['web/activity.txt'] } });
   assert.ok(store.itemThread(board, other).some(entry => entry.kind === 'reject'), 'a rejection remains item activity');
   const notices = board.db.prepare('SELECT * FROM shout WHERE shout_id > ? ORDER BY shout_id').all(beforeShouts.at(-1)?.shout_id ?? 0);
