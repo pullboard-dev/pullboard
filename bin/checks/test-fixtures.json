@@ -2644,7 +2644,7 @@
     "tempdir": 2,
     "model": 1
   },
-  "test/submit-gate-selection.test.js": {
+  "test/submit-gate.test.js": {
     "repo-read": 1
   },
   "test/submit-handoff-main-move.test.js": {
