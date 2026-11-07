@@ -50,6 +50,12 @@ test('clause 2: three waiting green reviews pause new builds at five minutes, wi
   for (const args of [['next'], ['next', '--build'], ['next', '--take']]) {
     const next = await cli(box, box.seats.actor.path, args);
     assert.equal(next.document.item ?? null, null, args.join(' '));
+    if (args.length === 1) {
+      // Plain next is the never-waiting default loop: it ends the turn with the reason instead of refusing.
+      assert.match(next.document.next, /end your turn/u, args.join(' '));
+      assert.match(next.document.reasons.join(' '), /independent review cover/u, args.join(' '));
+      continue;
+    }
     assert.equal(next.document.error.code, 'NOTHING_FREE', args.join(' '));
     assert.match(next.document.error.message, /independent review cover/u);
   }

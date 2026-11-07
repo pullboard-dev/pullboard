@@ -55,6 +55,8 @@ test('clause 4: recorded Nov3 green submissions get an automatic independent wak
   const haiku = replaySeat(box, 'Haiku', 'Anthropic', { clockFile, wakeLog });
   const luna = replaySeat(box, 'Luna', 'OpenAI', { clockFile, wakeLog });
   const info = repoInfo(box.root);
+  // The review packet reads the source's parent, so the replayed head must not be a root commit.
+  box.git(builder.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty', '-qm', 'replay source with a parent');
   const head = box.git(builder.path, 'rev-parse', 'HEAD');
   const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
   const timeline = trace.submissions.map(([offset, family], index) => ({ at: start + offset, family, index }));
