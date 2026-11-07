@@ -15,6 +15,7 @@ import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
 import { appendTrace } from '../cli-trace.js';
+import { extractWhy } from '../../core/why-flag.js';
 
 let startupMainTraced = false;
 
@@ -82,7 +83,8 @@ async function timedMain(argv, streams) {
 }
 
 /** Record local command wall time without sending timing data to the board. */
-export async function main(argv, streams) {
+export async function main(rawArgv, streams) {
+  const { argv, why } = extractWhy(rawArgv);
   const { beginSeatTiming, timingSeat } = await import('../../../../../src/seat-timing.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
@@ -99,7 +101,7 @@ export async function main(argv, streams) {
   finally {
     finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
-    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null });
+    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
   }
 }
 
