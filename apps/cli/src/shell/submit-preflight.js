@@ -2,9 +2,10 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { STATIC_CHECKS } from '../../../../packages/gate/index.js';
 
 const CHANGED_STATIC = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/gate/src/shell/changed-static.js')).href;
+const REGISTRY = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/gate/src/shell/static-check-registry.js')).href;
+const LIST_CHILD = `const { STATIC_CHECKS } = await import(${JSON.stringify(REGISTRY)}); process.stdout.write(JSON.stringify(STATIC_CHECKS.map(check => check.name)));`;
 const CHILD = `const { changedStaticFailures } = await import(${JSON.stringify(CHANGED_STATIC)});
 const [root, name, files] = process.argv.slice(1);
 const failures = changedStaticFailures(root, JSON.parse(files), { only: [name] });
@@ -31,6 +32,22 @@ function runOne(root, name, files) {
 }
 
 /**
+ * The registered check names, read in a child so this cell takes no import edge into the gate cell.
+ *
+ * @param {string} root - Checkout root.
+ * @returns {Promise<string[]>}
+ */
+function registeredNames(root) {
+  return new Promise((done, fail) => {
+    const child = spawn(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', LIST_CHILD], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+    let text = '';
+    child.stdout.on('data', chunk => { text += chunk; });
+    child.on('error', fail);
+    child.on('close', code => { if (code === 0) done(JSON.parse(text)); else fail(new Error('could not list the registered static checks')); });
+  });
+}
+
+/**
  * Run every registered static check in parallel on the changed files and collect all failures from all of them.
  *
  * @param {string} root - Checkout root.
@@ -39,7 +56,7 @@ function runOne(root, name, files) {
  */
 export async function runPreflight(root, files) {
   const started = performance.now();
-  const results = await Promise.all(STATIC_CHECKS.map(check => runOne(root, check.name, files)));
+  const results = await Promise.all((await registeredNames(root)).map(name => runOne(root, name, files)));
   return { ok: results.every(row => !row.failures.length), results, ms: performance.now() - started };
 }
 
