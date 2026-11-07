@@ -80,8 +80,8 @@ function replay(io, recovered) {
 /** Run the coordinator-only `patch attach|list|remove` command. */
 export async function run(io, { first, second, rest, values }) {
   const subcommand = first;
-  if (!['attach', 'list', 'remove'].includes(subcommand)) {
-    throw new Refused('USAGE', 'use pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>], patch list <item>, or patch remove <item> <key>');
+  if (!['attach', 'list', 'remove', 'object'].includes(subcommand)) {
+    throw new Refused('USAGE', 'use pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>], patch list <item>, patch remove <item> <key>, or patch object <item> <key> --note "why"');
   }
   const id = idArg(second, 'an item id');
   if (subcommand === 'list') {
@@ -96,6 +96,16 @@ export async function run(io, { first, second, rest, values }) {
       for (const patch of result.patches) io.say(`${patch.key} ${patch.digest} from ${patch.commit} by ${patch.author.agentId}`);
     }
     return 0;
+  }
+
+  if (subcommand === 'object') {
+    if (rest.length !== 1 || !values.note) throw new Refused('USAGE', 'use pullboard patch object <item> <key> --note "why"');
+    return actOn(io, async (ctx, board, me) => {
+      const result = await ordered(ctx, board, 'objectItemPatch', [id, { agentId: me.id, key: rest[0], note: values.note }]);
+      io.result?.(result);
+      io.say(`reopened #${id}; ${me.id} objected to companion ${rest[0]}`);
+      return 0;
+    });
   }
 
   return actOn(io, async (ctx, board, me) => {
