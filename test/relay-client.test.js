@@ -36,7 +36,7 @@ import { captureSpecApprovalBaseline } from '../packages/spec/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { legacyMirrorQueueFragment } from './relay-client-legacy-case.js';
 import { assertBaselineResumeEvidence, assertOriginalBaselineEvidence } from './relay-client-baseline-case.js';
-import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, syncReplica } from './relay-client-replica-fixture.js';
+import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, relayUploadSummary, syncReplica } from './relay-client-replica-fixture.js';
 import { assertDroppedReplyConsumed, commitInitializedRepoFiles, enterLegacyAckPolicy } from './relay-client-policy-fixture.js';
 import { threeReplicaPhaseCapture } from './relay-client-timing.js';
 
@@ -1189,7 +1189,7 @@ async function recoverReplicaReplies(fixture, timing) {
   gitAt(clones[0], envs[0], 'tag', '-d', lostRef);
   const mergeRetry = await timing.wait('retry the original merge after its tag is removed', () => cli(clones[0], envs[0], 'merged', '2', lostRef));
   assert.equal(mergeRetry.commit, originalCommit);
-  assert.equal(relay.uploads.length, beforeMerge + 1, 'merge retries report the original full commit after its ref disappears');
+  assert.deepEqual((await relayUploadSummary(relay.uploads.slice(beforeMerge), key, boardId)).map(({ operation }) => operation).filter(operation => operation === 'merged'), ['merged'], 'merge retries report the original full commit after its ref disappears, never a second merge');
 
   // One main checkout coordinates at a time (E19, #347): clone C takes the coordinator before it adds.
   await timing.wait('pass the coordinator to clone C', () => cli(clones[2], envs[2], 'takeover'));
@@ -1198,7 +1198,7 @@ async function recoverReplicaReplies(fixture, timing) {
   const automatic = await timing.wait('recover a dropped reply automatically on clone C', () => cli(clones[2], envs[2], 'add', 'web', 'Automatically recovered reply'));
   assertDroppedReplyConsumed(relay, 'the automatically recovered add reply');
   assert.equal(automatic.item.item_title, 'Automatically recovered reply');
-  assert.equal(relay.uploads.length, beforeAutomatic + 1, 'automatic recovery keeps one ordered move');
+  assert.deepEqual((await relayUploadSummary(relay.uploads.slice(beforeAutomatic), key, boardId)).map(({ operation }) => operation).filter(operation => operation === 'addItem'), ['addItem'], 'automatic recovery keeps one ordered add move');
   assert.equal(JSON.parse(readFileSync(join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json'), 'utf8')).recovered,
     undefined, 'automatic success consumes its recovered outcome');
   await timing.wait('pass the coordinator back to clone A', () => cli(clones[0], envs[0], 'takeover'));
