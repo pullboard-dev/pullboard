@@ -6,7 +6,7 @@ import { judge, verdictStep, settle, SECTIONS } from '../packages/receipt/index.
 
 const green = () => Object.fromEntries(SECTIONS.map((name) => [name, { outcome: 'pass' }]));
 
-test('clause 1: judge gives per-section outcomes and codes, pure, with no I/O', () => {
+test('clause 1: [C7] judge gives per-section outcomes and codes, pure, with no I/O', () => {
   const collected = { ...green(), proof: { outcome: 'fail', code: 'TEST_FAILURE' }, cells: { outcome: 'skip' } };
   const before = JSON.stringify(collected);
   const one = judge(collected);
@@ -23,7 +23,7 @@ test('clause 1: judge gives per-section outcomes and codes, pure, with no I/O', 
   assert.throws(() => judge(null), { code: 'JUDGE_INPUT' });
 });
 
-test('clause 1: the verdict step stores the receipt id and bookkeeping runs after and cannot change it', () => {
+test('clause 1: [C7] the verdict step stores the receipt id and bookkeeping runs after and cannot change it', () => {
   const order = [];
   const result = settle(green(), 'receipt-1', {
     record: (step) => order.push(['record', step.payload.receipt, step.payload.verdict]),
