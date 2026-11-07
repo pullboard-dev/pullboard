@@ -33,6 +33,7 @@ import { acceptedCutItems } from './cells-plan-fixture.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** A private ledger for deterministic rule controls; real gate integration is exercised separately below. */
 function fixture(t) {
@@ -109,7 +110,7 @@ fs.appendFileSync(${JSON.stringify(log)},'proof\\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: native proof source [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Native gate observations', '--specs', 'G1', '--criterion', 'The value is two.', '--check', 'node proof.cjs', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Native gate observations', '--specs', 'G1', '--criterion', 'The value is two.', '--check', 'node proof.cjs', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(item), '--json');

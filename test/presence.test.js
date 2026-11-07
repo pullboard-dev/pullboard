@@ -15,6 +15,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -25,7 +26,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Presence lock control', '--criterion', 'Offer real work despite a busy display cache', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   const observedAt = Date.now();
@@ -382,7 +383,7 @@ test('read commands never refresh presence while committed writes and hooks do [
   /** Reuse production parsing/dispatch with the same private identity and captured streams. */
   box.run = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
   // Complete the genuine baseline before measuring hooks, rather than racing its background event.
-  const added = await box.run(box.repo, 'add', 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
+  const added = await fixtureAdd(box.run, box.repo, 'web', 'Read-only presence control', '--criterion', 'Keep the same item', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
   const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
