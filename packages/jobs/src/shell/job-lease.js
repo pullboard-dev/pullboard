@@ -67,3 +67,20 @@ export function releaseLease(db, job, owner, { now = Date.now() } = {}) {
   return db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND job_lease_owner = ?')
     .run(now, job, owner).changes === 1;
 }
+
+/**
+ * End a job the driver finished: mark it `done` and release the lease the driver holds, in one UPDATE.
+ *
+ * Why: a landing that wrote its publish step still held a lease that lapsed, so status and show read it as a stalled
+ * landing though it merged. `done` is a terminal mark on the row, not a step, so the step log stays the work done.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner - The driver that holds the lease, live or lapsed.
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when the job is now done; false when another driver holds the lease.
+ */
+export function finishJob(db, job, owner, { now = Date.now() } = {}) {
+  return db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND (job_lease_owner = ? OR job_lease_owner IS NULL OR job_lease_until < ?)")
+    .run(now, job, owner, now).changes === 1;
+}
