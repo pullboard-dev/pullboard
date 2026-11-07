@@ -84,7 +84,9 @@ async function observe(predicate, description) {
   }
 }
 
-test('a gate run waiting for an unreachable runner falls back to a local slot after the deadline and names the runner [C7,Q1,Q2]', async () => {
+test('a first lost transport requeues the run onto the same runner without a quarantine or a deadline row [C7,Q1,Q2]', async () => {
+  // Since da6ea0ede7 (resource-recovery.js runnerExcluded) one lost transport no longer quarantines a runner: only two
+  // failed probes 30 s apart do, so inside the deadline the run is dispatched again rather than waiting on a dead host.
   const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -99,37 +101,26 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     assert.equal(idle.runner, undefined, 'an idle compatible local slot is not hidden by registered non-GUI runners');
     idle.release();
     held = await takeResource({ name: 'gate', scope: 'machine', root: box.repo, capacity: 1, agent: 'real-local-holder' });
-    const marker = join(box.dir, 'ran-locally');
-    const command = 'node -e ' + shellQuote(`require('node:fs').writeFileSync(${JSON.stringify(marker)},'actual local command'); console.log('DEADLINE_LOCAL_EXECUTION')`);
+    const command = 'node -e ' + shellQuote("console.log('DEADLINE_LOCAL_EXECUTION')");
     pending = runThroughGate(box.repo, box.env, command, { item: 'deadline-case', requests: box.requests });
     await observe(() => existsSync(box.requests) && readFileSync(box.requests, 'utf8').includes('"dropped":true'), 'the actual SSH transport drop');
-    const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
-    await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
-    const first = queue().line.find(row => row.item === 'deadline-case');
-    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
-    const resources = cli(box.repo, box.env, 'resources');
-    assert.equal(resources.status, 0, fixtureResultContext(resources));
-    assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
-    assert.match(resources.stdout, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'the actual dropped runner and reason are named');
-    const status = cli(box.repo, box.env, 'status');
-    assert.equal(status.status, 0, fixtureResultContext(status));
-    assert.match(status.stdout, /runner wait deadline/iu, 'ordinary status also names a run past its runner deadline');
-    const current = queue().line.find(row => row.item === 'deadline-case');
-    assert.equal(current.since, first.since, 'fallback preserves the original queue age');
-    assert.equal(existsSync(marker), false, 'the deadline never bypasses a live local holder');
-    held.release(); held = null;
     const result = await pending; pending = null;
     assert.equal(result.status, 0, fixtureResultContext(result));
-    assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u);
-    assert.equal(gateResult(result.stdout).runner, undefined, 'the command actually executes locally');
-    assert.match(result.stderr, new RegExp(HOST + '-drop.*unreachable', 'iu'), 'fallback emits the named runner reason');
+    assert.match(result.stdout, /DEADLINE_LOCAL_EXECUTION/u, 'the command ran through the runner stand-in, which shares this machine\'s filesystem');
+    assert.ok(gateResult(result.stdout).runner, 'the requeued run executed on the registered runner, not in the held local slot');
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-    assert.equal(calls.filter(call => !call.healthProbeFailed).length, 1, 'a quarantined runner gets no second job after the deadline');
-    assert.ok(calls.every(call => call.dropped || call.healthProbeFailed), 'other SSH calls are only the down-host health observations, never another job');
+    assert.equal(calls.filter(call => call.dropped).length, 1, 'only the first transport is dropped');
+    assert.ok(calls.filter(call => !call.healthProbeFailed && !call.dropped).length >= 1, 'a single lost transport does not quarantine the runner: the run is dispatched to it again');
+    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline');
+    const resources = cli(box.repo, box.env, 'resources');
+    assert.equal(resources.status, 0, fixtureResultContext(resources));
+    assert.doesNotMatch(resources.stdout, /runner wait deadline/iu, 'no run is overdue, so public resources names no deadline');
+    held.release(); held = null;
+    const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     assert.equal(queue().holders.length + queue().line.length, 0, 'all private leases drain');
   } finally {
     held?.release();
-    if (pending) await pending; // Release the held slot even on a missing-deadline assertion, then drain the owned controller.
+    if (pending) await pending; // Release the held slot even on a failed assertion, then drain the owned controller.
     for (const [index, key] of ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].entries()) {
       if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
     }
@@ -380,7 +371,8 @@ test('an overdue runner-only request refuses busy capacity with its next step in
   await withPrivateDeadlineMachine(box, async settings => {
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
-    const held = await takeResource(options);
+    // The holder takes the free runner on its first poll with a budget no loaded machine can outrun; at the fixture's 60ms a late first poll would count as an overdue late dispatch and its startup budget could expire, hiding the runner behind a non-busy reason.
+    const held = await takeResource({ ...options, runnerWaitMs: 60_000 });
     try {
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60 }), error => error.code === 'RUNNER_WAIT_DEADLINE'
         && /busy/u.test(error.message) && /then retry/u.test(error.message));
