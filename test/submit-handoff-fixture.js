@@ -7,6 +7,9 @@ import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { driverRecord } from './gate-driver-fixture.js';
+import { jobView } from '../packages/jobs/index.js';
+import { DISPATCHER_JOB } from '../packages/drive/index.js';
 
 /** Require authentic command success before interpreting any native result. */
 export function document(result) {
@@ -99,14 +102,38 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
  * races a still-exiting supervisor must wait for it asynchronously and stay well under that ceiling.
  */
 export async function workerGone(helpers, box, job) {
-  const record = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job, 'worker.json');
   let pid;
-  try { pid = JSON.parse(readFileSync(record, 'utf8')).pid; } catch { return; /* No launched supervisor to wait for. */ }
+  try { pid = driverRecord(box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite'), job)?.pid; } catch { return; /* No launched driver to wait for. */ }
   if (!Number.isSafeInteger(pid) || pid <= 0) return;
   await helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
     try { process.kill(pid, 0); return false; }
     catch (error) { return error.code === 'ESRCH'; }
   }, `queued submit supervisor ${pid} exit before fixture removal`, 10_000);
+}
+
+/**
+ * Wait until a fixture's gate processes have made their last write: the job's driver has exited and the board's
+ * dispatcher row is free, which the dispatcher writes last before it exits.
+ * Why: both outlive the job's terminal record by design. The driver ends its drive job and removes its checkout after
+ * it records the result, and the dispatcher's last pass records the worker cap under the machine home and then frees
+ * its board row. A fixture removed under them got a folder back after rmSync had walked past it, and rmSync then slept
+ * in its retry backoff on the root until run-tests killed the file (#3495).
+ *
+ * @param {any} helpers - The fixture's e2e helpers.
+ * @param {{ boardFile?: string, repo: string }} box - The fixture project.
+ * @param {string | undefined} job - The hand-off job whose driver must exit, when one was queued.
+ */
+export async function gateSettled(helpers, box, job) {
+  const boardFile = box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  if (job) await workerGone(helpers, { ...box, boardFile }, job);
+  await helpers.waitFor(() => { // budget: dispatcher last-pass ceiling inside the file-exit window, not a timing assertion.
+    // @pullboard-board-file journey: read the dispatcher's own board row, the last thing it writes before it exits.
+    const board = openBoard(boardFile);
+    try {
+      const row = jobView(board.db, DISPATCHER_JOB);
+      return !row?.leaseOwner || row.leaseUntil < Date.now();
+    } finally { board.db.close(); }
+  }, 'the gate dispatcher frees its board row before fixture removal', 15_000);
 }
 
 /**
