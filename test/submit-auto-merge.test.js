@@ -11,6 +11,8 @@ import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
 import { mergeSubmissionMain } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Real worktree with independent builder and main changes. */
 function project(t, conflict = false) {
@@ -55,7 +57,7 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', "test -f web/feature.txt && test -f docs/main.txt", '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -90,7 +92,7 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: compose at admission');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', 'test -f web/feature.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -102,7 +104,7 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   const source = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, source);
-  const joined = box.run(review, 'join', 'api');
+  const joined = fixtureJoin(box.run, review, 'api');
   assert.equal(joined.code, 0, joined.err);
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
   writeFileSync(join(box.repo, 'docs/review-main.txt'), 'review main\n');
@@ -128,7 +130,7 @@ test('submit names a real main conflict and leaves the builder checkout intact [
   const base = helpers.commitFile(box, box.repo, 'web/shared.txt', 'base\n', 'feat(web): seed conflict fixture [G1]');
   assert.equal(base.status, 0, base.stderr);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'conflicting auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'conflicting auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
     '--check', 'test -f web/shared.txt', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

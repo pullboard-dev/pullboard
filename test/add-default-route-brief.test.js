@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Add one item to a scratch project with no route and no brief, and read back its route and brief. */
 function addWith(t, check) {
@@ -12,7 +13,7 @@ function addWith(t, check) {
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = 'Default route brief fixture';
   const box = helpers.project('true', isolated);
-  const added = box.run(box.repo, 'add', 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', check, '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', check, '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
   return onBoard(box, board => store.getItem(board, id));

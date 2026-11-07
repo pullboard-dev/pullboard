@@ -15,7 +15,7 @@ import {
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { once } from 'node:events';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import {
   acceptedCellsIdentity,
   nudgeAcceptedCells,
@@ -24,10 +24,13 @@ import {
 } from '../packages/gate/index.js';
 import { acceptedInventoryKey } from '../packages/codemap/index.js';
 import { git } from './cells-plan-fixture.js';
+import { cleanupFixtureChildren, fixtureChildMessage, runFixtureChildAsync } from './fixture-child.js';
 import { temporaryDirectory } from './board-fixture.js';
 import { temporaryRepository } from './board-submit-fixture.js';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
+
+after(cleanupFixtureChildren);
 
 /** Isolate the machine cache for one test and restore the caller's setting. */
 function isolateMachine(t) {
@@ -99,4 +102,50 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   assert.equal(record.checker, identity.checker, 'the recorded checker is the pinned commit\'s, not the copy\'s');
   assert.equal(record.preloads, identity.preloads);
   assert.equal(readAcceptedCells(root, commit).descriptor?.checker, identity.checker);
+});
+
+/** Copy the fixture's tooling into a fresh folder and change one checker file, as a candidate that edits the gate does. */
+function modifiedToolingCopy(t, root) {
+  const copy = temporaryDirectory('accepted-identity-candidate-');
+  t.after(() => rmSync(copy, { recursive: true, force: true }));
+  for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
+  writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
+  const checker = join(copy, 'packages/gate/src/shell/module-imports.js');
+  writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// candidate changes the checker\n`);
+  return copy;
+}
+
+test('a gate whose own checker files differ from the pinned main gets the inventory its cells-inventory job built from the pinned tooling, never a pending stop [C7]', { timeout: 590_000 }, async t => {
+  const machine = isolateMachine(t);
+  const { root, commit } = toolingRepo(t);
+  const copy = modifiedToolingCopy(t, root);
+  const boards = temporaryDirectory('accepted-identity-board-');
+  t.after(() => rmSync(boards, { recursive: true, force: true }));
+  const pinned = acceptedCellsIdentity(root, commit, { pinned: true });
+  // The hand-off worker runs the candidate's tooling: this entry imports the modified copy, never this checkout.
+  const entry = join(copy, 'inventory-gate-entry.mjs');
+  writeFileSync(entry, `import { acceptedCellsFromJob, closeBoard, openBoard } from './apps/lib/index.js';
+import { toolingIsPinned } from './packages/gate/index.js';
+const [root, commit, file] = process.argv.slice(2);
+const board = openBoard(file);
+try {
+  const pinnedHere = toolingIsPinned(root, commit);
+  const got = await acceptedCellsFromJob(board.db, root, commit, { owner: 'gate:candidate' });
+  process.stdout.write(JSON.stringify({ pinnedHere, available: got.available, waited: got.waited, state: got.state, checker: got.descriptor?.checker, preloads: got.descriptor?.preloads }));
+} catch (error) {
+  process.stdout.write(JSON.stringify({ code: error.code ?? null, message: error.message }));
+} finally { closeBoard(board); }
+`);
+  const env = { ...process.env, PULLBOARD_MACHINE_HOME: machine };
+  delete env.NODE_OPTIONS;
+  const ran = await runFixtureChildAsync(process.execPath, [entry, root, commit, join(boards, 'board.sqlite')], { cwd: copy, env });
+  assert.equal(ran.status, 0, fixtureChildMessage(ran));
+  const got = JSON.parse(ran.stdout);
+  assert.equal(got.pinnedHere, false, 'the gate runs tooling that differs from the pinned main');
+  assert.equal(got.code, undefined, `the gate got the inventory instead of a stop: ${got.message}`);
+  assert.equal(got.available, true);
+  assert.equal(got.state, 'produced', 'the missing identity enqueued the cells-inventory job and this driver produced it');
+  assert.equal(got.checker, pinned.checker, 'the inventory carries the pinned main\'s checker, not the candidate\'s');
+  assert.equal(got.preloads, pinned.preloads);
+  assert.equal(readAcceptedCells(root, commit).descriptor?.checker, pinned.checker, 'any later reader finds it by the commit alone');
 });

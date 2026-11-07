@@ -48,16 +48,25 @@ function project(...args) {
   const run = box.run;
   box.run = (cwd, ...argv) => {
     if (argv[0] === 'submit') argv.push('--wait', '--no-next');
+    if (argv[0] === 'join' && !argv.includes('--model')) argv.push('--model', BUILDER_MODEL);
+    if (argv[0] === 'join' && !argv.includes('--route')) argv.push('--route', 'strong');
     if (argv[0] === 'verify') argv.push('--no-next');
     return run(cwd, ...argv);
   };
   return box;
 }
 
+/** The model name fixture seats join with. */
+const BUILDER_MODEL = 'Fixture builder';
+/** The model a reopen event records when none was given. */
+const UNRECORDED_MODEL = 'unknown';
+
 /** Await the production CLI for fixture setup and moves while retaining the real submit worker and gate. */
 function fixtureCommand(box, cwd, ...args) {
   if (args[0] === 'submit') args.push('--wait', '--no-next');
   if (args[0] === 'verify') args.push('--no-next');
+  if (args[0] === 'join' && !args.includes('--model')) args.push('--model', BUILDER_MODEL);
+  if (args[0] === 'join' && !args.includes('--route')) args.push('--route', 'strong');
   return runCliInProcess(args, { cwd, env: box.env });
 }
 
@@ -93,7 +102,7 @@ function replicaPair(t, box) {
 
 /** Add, claim and submit a real item through its joined Git worktree. */
 async function submitFixture(box) {
-  const added = (await fixtureCommand(box, box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.'));
+  const added = (await fixtureCommand(box, box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong'));
   assert.equal(added.code, 0, added.err);
   const claimed = (await fixtureCommand(box, box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.err);
@@ -159,7 +168,7 @@ async function submitLandingFixture(box, number, contents, cwd = box.web) {
     box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/landing-${number}`, cwd, 'main');
     assert.match((await fixtureCommand(box, cwd, 'join', 'web')).out, /joined as web-/u);
   }
-  const added = (await fixtureCommand(box, box.repo, 'add', 'web', `Landing fixture ${number}`, '--specs', 'G1', '--criterion', `landing fixture ${number} remains valid`,
+  const added = (await fixtureCommand(box, box.repo, 'add', 'web', `Landing fixture ${number}`, '--specs', 'G1', '--route', 'strong', '--criterion', `landing fixture ${number} remains valid`,
     '--check', 'node --check web/feature.js', '--json'));
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
@@ -186,6 +195,32 @@ function readItem(box, id) {
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return { ...store.getItem(board, id), thread: store.itemThread(board, id), verdicts: store.verdictsFor(board, id) }; }
   finally { store.closeBoard(board); }
+}
+
+/**
+ * Shape a current export for an archived client, which predates the additive job tables.
+ *
+ * Why: 7d16c88b1f added job and job_step on open, and old exchange.js refuses any table it does not know.
+ * The fixture boards hold no jobs, so dropping the empty tables hands the old client the same board.
+ * @param {any} snapshot
+ * @returns {any}
+ */
+function legacySnapshot(snapshot) {
+  const { job = [], job_step: jobStep = [], ...tables } = snapshot.tables;
+  assert.deepEqual([job.length, jobStep.length], [0, 0], 'the replayed fixture board holds no jobs');
+  return { ...snapshot, tables };
+}
+
+/**
+ * Drop the derived pipeline stage an archived client never computed.
+ *
+ * Why: c85ddac55a added item_stage to current item reads; clients before it return the same row without it.
+ * @param {any} row
+ * @returns {any}
+ */
+function withoutStage(row) {
+  const { item_stage: _stage, ...rest } = row;
+  return rest;
 }
 
 /** Accepted engine-9 source before verified-item reopening; the 0.8.8 tag is not yet published. */
@@ -228,7 +263,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
     const legacyExchange = await import(pathToFileURL(join(oldDirectory, 'src/exchange.js')).href);
     const legacyReceiver = legacyStore.openBoard(join(directory, 'legacy.sqlite'));
     t.after(() => legacyStore.closeBoard(legacyReceiver));
-    legacyExchange.importBoard(legacyReceiver, snapshot);
+    legacyExchange.importBoard(legacyReceiver, legacySnapshot(snapshot));
     assert.equal((await import(pathToFileURL(join(oldDirectory, 'src/machine.js')).href)).ENGINE_VERSION, version);
     const legacyBefore = legacyStore.getItem(legacyReceiver, item.id);
     const legacyResult = legacyEngine.applyRelayMove(legacyReceiver, move, receipt);
@@ -239,7 +274,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
       assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), legacyBefore, `the engine-${version} client keeps its submitted-only rule`);
     } else {
       assert.equal(legacyResult.error, undefined, JSON.stringify(legacyResult));
-      assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), store.getItem(currentReceiver, item.id));
+      assert.deepEqual(legacyStore.getItem(legacyReceiver, item.id), withoutStage(store.getItem(currentReceiver, item.id)));
       assert.deepEqual(legacyStore.events(legacyReceiver), store.events(currentReceiver), 'the actual engine-10 client and engine-11 source replay identical landing reopens');
     }
 
@@ -263,7 +298,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
   }
 }
 
-test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', async (t) => {
+test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V6,O8]', async (t) => {
   const box = project();
   const submitted = await submitFixture(box);
   await reserveFixtureReview(box);
@@ -295,13 +330,16 @@ test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', as
   assert.equal(item.item_verified_by, null);
   assert.equal(item.item_review_by, null, 'the old review reservation is cleared without a release/cooldown');
   assert.deepEqual(store.stats(board), {
-    items: { open: 1, claimed: 0, submitted: 0, verified: 0, withdrawn: 0 }, accepted: 0, rejected: 0,
+    items: { open: 1, claimed: 0, submitted: 0, verified: 0, withdrawn: 0 },
+    // c85ddac55a (pipeline stages) added the named stages beside the status counts.
+    stages: { open: 1, building: 0, 'in the gate': 0, 'back with builder': 0, 'in review': 0, accepted: 0, landed: 0, withdrawn: 0 },
+    accepted: 0, rejected: 0,
   });
   const last = store.events(board).at(-1);
   assert.equal(last.event_kind, 'reopen');
   assert.equal(last.event_by, 'coordinator');
   assert.deepEqual(JSON.parse(last.event_detail), {
-    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: 'unknown',
+    commit: submitted.commit, note: 'correct the frozen criterion, not the work', judgment: null, model: UNRECORDED_MODEL,
     cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true },
     pipelineCause: { type: 'other', cause: 'refusal:REOPENED', text: 'correct the frozen criterion, not the work' },
   });
@@ -431,7 +469,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
     'the current CLI preserves unquoted evidence found after prose');
 });
 
-test('a red landing gate returns a verified item to its builder [B3,V4]', async (t) => {
+test('clause 2: a red landing gate returns a verified item to its builder [B3,V4]', async (t) => {
   const box = landingProject();
   const item = await submitLandingFixture(box, 1, 'export const status = "RED";\n');
   await acceptLandingFixture(box, item);
@@ -465,6 +503,9 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
 
   const firstClaim = (await fixtureCommand(box, item.cwd, 'claim', String(item.id)));
   assert.equal(firstClaim.code, 0, firstClaim.err);
+  // A resubmit with no diff against main is EMPTY_SUBMIT before any proof; carry a real change so the red gate decides.
+  const stillRed = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "RED"; // unchanged behavior\n', 'fix(web): retry without fixing the landing behavior [G1]');
+  assert.equal(stillRed.status, 0, stillRed.stderr);
   const unchangedLandingHead = (await fixtureCommand(box, item.cwd, 'submit', String(item.id), '--json'));
   assert.equal(unchangedLandingHead.code, 1);
   const reclaimedHead = box.git(item.cwd, 'rev-parse', 'HEAD');
@@ -473,7 +514,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   assert.equal(readItem(box, item.id).item_status, 'claimed', 'neither refusal records another submission');
   assert.equal(box.tryGit(item.cwd, 'merge-base', '--is-ancestor', item.commit, 'HEAD').status, 0,
     'the builder reclaims on top of the accepted commit');
-  const firstFix = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "PASS";\n', 'fix(web): restore landing behavior [G1]');
+  const firstFix = commitFile(box, item.cwd, 'web/feature.js', 'export const status = "PASS_FIXED";\n', 'fix(web): restore landing behavior [G1]');
   assert.equal(firstFix.status, 0, firstFix.stderr);
   item.commit = box.git(item.cwd, 'rev-parse', 'HEAD');
   const firstSubmit = (await fixtureCommand(box, item.cwd, 'submit', String(item.id)));
@@ -734,7 +775,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     const legacyReceiver = legacyStore.openBoard(join(box.dir, `engine-${version}-reopen.sqlite`));
     t.after(() => legacyStore.closeBoard(legacyReceiver));
     const submittedSnapshot = exportBoard(copies[0]);
-    legacyExchange.importBoard(legacyReceiver, submittedSnapshot);
+    legacyExchange.importBoard(legacyReceiver, legacySnapshot(submittedSnapshot));
     assert.throws(() => legacyEngine.applyRelayMove(legacyReceiver, move, {
       sequence: 1, at: '2026-10-10T12:00:00.000Z', kind: 'move', sender,
     }), (error) => error.code === 'ENGINE_VERSION');
@@ -752,7 +793,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     });
     assert.equal(currentLegacyResult.error, undefined, JSON.stringify(currentLegacyResult));
     assert.deepEqual(currentLegacyResult.result, legacyResult.result);
-    assert.deepEqual(store.getItem(currentLegacyReceiver, 1), legacyStore.getItem(legacyReceiver, 1),
+    assert.deepEqual(withoutStage(store.getItem(currentLegacyReceiver, 1)), legacyStore.getItem(legacyReceiver, 1),
       `the current engine replays a submitted engine-${version} reopen as its older client did`);
   }
 
@@ -892,11 +933,11 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(store.getItem(board, 1).item_verdict, 'REJECT');
 });
 
-test('retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
+test('clause 3: retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
   /** Await real production commands; fixture moves do not start an unrelated next-work search. */
   const command = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
-  const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--wait');
+  const added = await command(box.repo, 'add', 'web', 'Corrected criterion', '--specs', 'G1', '--criterion', 'The page renders.', '--route', 'strong', '--wait');
   assert.equal(added.code, 0, added.err);
   const claimedFirst = await command(box.web, 'claim', '1');
   assert.equal(claimedFirst.code, 0, claimedFirst.err);
@@ -922,7 +963,7 @@ test('retained main controls builder first refusal during detached review [B13,B
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), main);
   const other = join(box.dir, 'web-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder')).code, 0);
+  assert.equal((await command(other, 'join', 'web', '--model', 'Other private builder', '--route', 'strong')).code, 0);
   const refused = await command(other, 'claim', '1', '--json');
   assert.equal(refused.code, 1, refused.out);
   const error = JSON.parse(refused.out).error;
@@ -934,8 +975,13 @@ test('retained main controls builder first refusal during detached review [B13,B
   assert.equal(window.builder, 'web-1');
   assert.equal(Date.parse(window.until) - Date.parse(returned.event_at), 30 * 60_000);
   assert.equal(store.recentShouts(board).filter(row => row.shout_to === 'web-1' && row.shout_text.includes('waits for you')).length, 1);
-  const released = await command(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next');
-  assert.equal(released.code, 0, released.err);
+  // #2460 (12ee9b638c, d80a319692) restored the first-refusal window after #2779: the claim opens only once it has passed.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  t.mock.timers.tick(29 * 60_000);
+  const insideWindow = await command(other, 'claim', '1', '--json');
+  assert.equal(insideWindow.code, 1, insideWindow.out);
+  assert.equal(JSON.parse(insideWindow.out).error.code, 'REOPEN_HELD_FOR_BUILDER', 'still inside the 30-minute window');
+  t.mock.timers.tick(2 * 60_000);
   const claimed = await command(other, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
 });
