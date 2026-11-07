@@ -26,6 +26,18 @@ function notDue(board, config, say) {
   return { batch: null, landed: [], conflicts: [], blocked: [], culprits: [], flakes: [], cadence };
 }
 
+/**
+ * Whether a landing waits on the trunk's landing cadence at all. A landing the automatic lander starts after an accept
+ * never does: it starts that item's landing at once (Corey 7 Nov: accepted work waited 20-40 min for hand landing).
+ * A hand `pullboard land` and a `land --due` keep the opt-in cadence [C7].
+ *
+ * @param {{ automatic?: boolean, due?: boolean }} landing - How this landing was started.
+ * @returns {boolean}
+ */
+export function cadenceApplies({ automatic = false, due = false } = {}) {
+  return !automatic || due;
+}
+
 /** A due call uses queue age/count; ordinary duration calls keep their original start-to-start cooldown. */
 export function cadenceDeferral(board, config, branch, say, due = false) {
   if (due) return notDue(board, config, say);
