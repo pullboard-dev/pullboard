@@ -112,7 +112,8 @@ export async function splitBaseRed(state, failures, compare = receiptCompare(sta
     // Main's receipt for the file decides: the case is main's own only when the receipt names it [C7,#3424].
     (classifyMainRed([failure.name], comparisonStatus(row)).owner === 'main' ? known : own).push(failure);
   }
-  return { known, own, unattributed };
+  // Present only when a base-red file names no case at all, so a named base red never counts as unattributed [C7,#3388].
+  return unattributed.length ? { known, own, unattributed } : { known, own };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
