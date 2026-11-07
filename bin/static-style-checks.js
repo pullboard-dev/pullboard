@@ -16,6 +16,7 @@ import { PULLBOARD_COMMANDS } from '../apps/cli/index.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { testWaitReport } from './checks/test-waits.js';
 import { testWaitGrowth } from './checks/test-waits.js';
+import { fixtureProblems } from './checks/test-fixtures.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
 import { relayBoundaryProblems } from './checks/relay-boundary.js';
 import { cellsEdgeProblems } from './checks/cells-edges.js';
@@ -32,6 +33,10 @@ if (process.argv[2] === '--changed-files') {
 let failed = false;
 const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
 for (const row of testWaitGrowth(testWaitReport(root), waitBaseline)) {
+  console.error(`${row.path}:${row.line}: ${row.text}`);
+  failed = true;
+}
+for (const row of fixtureProblems(root, join(root, 'bin/checks/test-fixtures.json'))) {
   console.error(`${row.path}:${row.line}: ${row.text}`);
   failed = true;
 }

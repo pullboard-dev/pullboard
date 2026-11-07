@@ -21,8 +21,12 @@ import { counterProofStats } from '../packages/verify/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
@@ -79,7 +83,11 @@ function fixture(t) {
   const health = id => staleStateSnapshot(board, {}, { now: new Date(at), items: [store.getItem(board, id)], claimsOnly: true,
     workObservation: () => ({ available: true, at: null }) }).claims[0]?.health;
   return { board, git, repo, base, worktrees, first, second, helper, seat, add, claim, maintain, touch, health,
-    now: () => at, advance: minutes => { at += minutes * 60_000; } };
+    now: () => at, advance: minutes => {
+      at += minutes * 60_000;
+      // A live seat keeps heartbeating while the clock moves; silence would read as a gone seat and release at once.
+      for (const id of Object.keys(worktrees)) heartbeatSeat(board, id);
+    } };
 }
 
 /** Events of one kind on one item. */
@@ -203,7 +211,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const ok = result => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--json'));
+  ok(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--json'));
   ok(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'half built\n');
@@ -214,7 +222,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   assert.equal(released.item_status, 'open');
   const next = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', next, 'main');
-  ok(box.run(next, 'join', 'web', '--json'));
+  ok(joinFixtureSeat(box, next, 'web', { model: FIXTURE_MODEL }));
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');
@@ -297,6 +305,8 @@ test('three rejected submits return the claim to another seat, including after a
     store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs the edge case.' });
     if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
   }
+  // A red gate return holds a re-claimed item for 40 minutes from the reject; the builder takes it back after that.
+  f.advance(41);
   f.claim(id, f.first);
   f.advance(31);
   f.maintain();
@@ -371,6 +381,8 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   const head = f.git(f.worktrees[f.first], 'rev-parse', 'HEAD');
   submitFixture(f.board, id, { agentId: f.first, commit: head, tree: head });
   store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs work.' });
+  // The reject above is a red return, which holds a re-claimed item for 40 minutes; the builder takes it back after that.
+  f.advance(41);
   f.claim(id, f.first);
   for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
   f.advance(31);
