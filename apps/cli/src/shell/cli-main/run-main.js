@@ -47,7 +47,7 @@ async function bindCheckoutSession(io, positionals, values) {
   }
   const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove', 'object'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
@@ -266,7 +266,8 @@ async function runMain(argv, streams) {
       try {
         const worker = await import('../../../../../packages/landing/index.js');
         const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot);
+        // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics: automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set() });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }

@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -63,7 +64,7 @@ function fixture({ fixer = false } = {}) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a self-hosted entry and a shim');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.match(box.run(api, 'join', 'api').out, /joined as api-/u);
+  assert.match(fixtureJoin(box.run, api, 'api').out, /joined as api-/u);
   const author = run(box, api, 'whoami').id;
   const item = run(box, box.repo, 'add', 'web', 'Delete the web shim', '--specs', 'G1').item.item_id;
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -158,7 +159,7 @@ function hooksFixture() {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a core lane and a hooks file');
   const core = join(box.dir, 'core-1');
   box.git(box.repo, 'worktree', 'add', '-q', core, '-b', 'core/one');
-  assert.match(box.run(core, 'join', 'core').out, /joined as core-/u);
+  assert.match(fixtureJoin(box.run, core, 'core').out, /joined as core-/u);
   // The coordinator owns .githooks, so its seat authors the companion.
   const author = run(box, box.repo, 'whoami').id;
   const item = run(box, box.repo, 'add', 'core', 'Edit the core value', '--specs', 'G1').item.item_id;

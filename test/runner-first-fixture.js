@@ -12,6 +12,7 @@ import {
   installRegistrationProbeStandIn,
   installSshStandIn,
 } from './runner-ssh-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Ask the real private machine queue for one gate lease from a fresh process. */
 function runPrivateGateLease(box, behavior = '') {
@@ -137,7 +138,7 @@ export async function runnerFirstPolicyCase(e2e) {
     const setting = integrated.run(integrated.repo, 'settings', key, value);
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
-  const added = integrated.run(integrated.repo, 'add', 'web', 'Runner-first public submit', '--specs', 'G1',
+  const added = fixtureAdd(integrated.run, integrated.repo, 'web', 'Runner-first public submit', '--specs', 'G1',
     '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
