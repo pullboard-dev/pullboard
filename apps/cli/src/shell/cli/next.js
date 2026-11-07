@@ -82,6 +82,10 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!(values.verify && values.verifyId !== undefined)) {
+    const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
+    values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
+  }
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   if (values.verify) return withBoardRead(ctx, board => {
@@ -115,6 +119,11 @@ export async function nextOnce(ctx, values) {
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
+    if (held) {
+      const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+      return { item, held, shared, reviewSkipped, reasons,
+        ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
+    }
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
@@ -173,18 +182,27 @@ function nextPick(ctx, board, values) {
   const items = store.listItems(board), agents = store.listAgents(board);
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
-  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  if (!values.defaultLoop) for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
-  const findOffer = () => nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+  const findOffer = () => values.defaultLoop
+    ? (() => {
+      const item = store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+        policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable,
+        routes: values.routes, observeIdle: values.observeIdle,
+        skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
+        priority: mainRedReviewItems(ctx.info.root, board) }).item;
+      return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
+    })()
+    : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
-  if (found?.mandatory && !ownClaim) return { autoReview: found.item, item: found.item, reasons: [] };
+  if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
@@ -205,7 +223,7 @@ function nextPick(ctx, board, values) {
   const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' ? null : found;
+  const offer = held && found?.urgent !== 'age' && !values.defaultLoop ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
@@ -227,6 +245,7 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
+  if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
 

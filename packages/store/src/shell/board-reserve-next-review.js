@@ -35,7 +35,7 @@ function look(board, { agentId, lane, policy, familyPolicy = 'off', familyRelaxA
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   const fits = familyRelaxAt === undefined || familyRelaxAt === frozenRelaxAt(found.item);
   // Cross-family pairs return null at once; only a same-family pair pays for the queue-wide witness, here.
-  const witness = enabled && fits ? reviewFamilyRelaxation(board, found.item, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) : null;
+  const witness = enabled && fits ? reviewFamilyRelaxation(board, found.item, agentId, familyRelaxAt, policy, familyPolicy, null, reviewHeartbeats) : null;
   afterSelection?.(found.item);
   return { ...found, witness };
 }

@@ -56,7 +56,7 @@ export function prepareReserveReview(board, id, who) {
   const found = getItem(board, id);
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   const fits = found && (who.familyRelaxAt === undefined || who.familyRelaxAt === frozenRelaxAt(found));
-  const witness = enabled && fits ? reviewFamilyRelaxation(board, found, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy ?? 'off', heartbeatSnapshot(board)) : null;
+  const witness = enabled && fits ? reviewFamilyRelaxation(board, found, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy ?? 'off', null, heartbeatSnapshot(board)) : null;
   const prepared = Object.freeze({ ...who });
   PREPARED_RESERVES.set(prepared, { board, id, witness });
   return prepared;

@@ -43,16 +43,23 @@ function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDif
   return Boolean(family && subject.item_builder_family && !familiesDiffer(board, family, subject.item_builder_family));
 }
 
-/** Derive a reservation witness solely from native events and the current unreserved review queue [V1,H16]. */
-export function relaxationWitness(board, subject, agentId, threshold, policy, ports) {
-  const { reviewHolder, listItems } = ports;
+/** Derive a reservation witness from native events and the unreserved queue, reusing one selection's authority reads [V1,H16]. */
+export function relaxationWitness(board, subject, agentId, threshold, policy, ports, cache = null) {
+  const { reviewHolder, listItems, reviewHeartbeats = null } = ports;
   if (!relaxable(board, subject, agentId, threshold, ports)) return null;
-  const now = board.clock.now();
-  const seats = freeActiveSeats(board, now);
-  const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item, reviewHeartbeats));
-  const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
-  if (!blocked.some(item => item.item_id === subject.item_id) || blocked.length < threshold) return null;
-  return { version: 1, threshold, queueLength: blocked.length, waiting: blocked.map(item => item.item_id).sort((a, b) => a - b), activeSeats: seats, at: now.toISOString() };
+  const cacheKey = `${agentId}:${threshold}:${policy}`;
+  let state = cache?.get(cacheKey);
+  if (!state) {
+    const now = board.clock.now();
+    const seats = freeActiveSeats(board, now);
+    const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item, reviewHeartbeats));
+    const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
+    const ids = blocked.map(item => item.item_id).sort((a, b) => a - b);
+    state = { waiting: ids, witness: blocked.length < threshold ? null
+      : { version: 1, threshold, queueLength: blocked.length, waiting: ids, activeSeats: seats, at: now.toISOString() } };
+    if (cache) cache.set(cacheKey, state);
+  }
+  return state.witness && state.waiting.includes(subject.item_id) ? state.witness : null;
 }
 
 /**
