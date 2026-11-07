@@ -118,6 +118,10 @@ test('clause 1: a stalled in-process landing ends after 10 minutes without progr
   await beatsPass(2);
   assert.equal(jobView(board.db, id).steps.some(step => step.name === 'failed'), false, 'nine quiet minutes do not end the batch');
   clock = 10 * 60_000;
+  // The heartbeat timer is unref'd, as in production, so the test keeps the loop turning until the landing settles.
+  let settled = false;
+  landing.finally(() => { settled = true; }).catch(() => {});
+  while (!settled) await new Promise(resolve => setImmediate(resolve));
   const result = await landing;
   assert.equal(result.stalled, true, 'the batch ended as stalled');
   const view = jobView(board.db, id);
