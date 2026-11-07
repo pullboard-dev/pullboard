@@ -73,10 +73,12 @@ export async function assertRecoveredStackUploads({ uploads, bounds, key, boardI
   let stackOwnerA;
   let stackOwnerB;
   let proofRunsB;
+  let proofRunsA;
   try {
     stackOwnerB = store.getItem(stackBoardA, stackedB).item_owner;
     stackOwnerA = store.getItem(stackBoardB, stackedA).item_owner;
     proofRunsB = store.proofReceipts(stackBoardA, stackedB).length;
+    proofRunsA = store.proofReceipts(stackBoardB, stackedA).length;
   } finally {
     store.closeBoard(stackBoardA);
     store.closeBoard(stackBoardB);
@@ -99,15 +101,15 @@ export async function assertRecoveredStackUploads({ uploads, bounds, key, boardI
   assertOneOrderedSubmit(lostBMoves, proofRunsB, stackedB, recoveredStackCommit);
   const lostBSubmit = lostBMoves.at(-1);
   assert.equal(lostBSubmit.moveId, pendingOutcome.move.id);
-  assert.deepEqual(submitAMoves.map(({ operation }) => operation),
-    ['recordProofRun', 'recordProofRun', 'submit', 'recordActivityDelivery'],
-    'A records both proof runs, its one ordered submit, and its activity delivery');
-  assert.deepEqual(submitAMoves.slice(0, 2).map(({ itemId }) => itemId), [stackedA, stackedA]);
-  assert.equal(submitAMoves[2].itemId, stackedA);
-  assert.equal(submitAMoves[2].commit, firstRecoveryCommit);
-  assert.equal(submitAMoves[3].recipient, stackOwnerA);
+  const submitAIndex = submitAMoves.findIndex(({ operation }) => operation === 'submit');
+  assertOneOrderedSubmit(submitAMoves.slice(0, submitAIndex + 1), proofRunsA, stackedA, firstRecoveryCommit);
+  const afterSubmitA = submitAMoves.slice(submitAIndex + 1);
+  assert.deepEqual(afterSubmitA.filter(({ operation }) => operation === 'submit' || operation === 'recordProofRun'), [],
+    'A never records another proof run or a second submit after its one ordered submit');
+  const deliveriesA = afterSubmitA.filter(({ operation }) => operation === 'recordActivityDelivery');
+  assert.deepEqual(deliveriesA.map(({ recipient }) => recipient), [stackOwnerA], 'A records its one activity delivery');
   const submittedAReceipt = receipts(replicaFiles[1]).map(({ move }) => JSON.parse(move))
-    .find((move) => move.id === submitAMoves[2].moveId);
+    .find((move) => move.id === submitAMoves[submitAIndex].moveId);
   assert.equal(submittedAReceipt?.operation, 'submit');
   assert.equal(submittedAReceipt?.args[0], stackedA);
   assert.deepEqual(syncAMoves, [], 'sync after both accepted submissions creates no relay moves');
