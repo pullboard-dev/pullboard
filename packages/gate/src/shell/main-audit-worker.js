@@ -41,6 +41,7 @@ import {
   join,
 } from 'node:path';
 import * as store from '../../../../src/board.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   codeIsFromMain,
 } from '../../../../src/git.js';
@@ -80,6 +81,11 @@ import {
 import {
   saveMainAudit,
 } from './main-audit-state.js';
+import {
+  mainRedCheckFiles,
+  mainRedFilesProven,
+  mainRedFrozenCheck,
+} from './test-economics.js';
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -96,7 +102,29 @@ function readBoard(info, action, openBoardForRead) {
 function writer(root, { context, ordered, withBoard, nativeBoard }) {
   const io = { cwd: root, nativeBoard, say() {}, err() {}, stderr: { write() {} } };
   const ctx = context(io);
-  return (operation, args) => withBoard(ctx, board => ordered(ctx, board, operation, args));
+  return (operation, args) => withBoard(ctx, board => withAuditedMain(root, board,
+    operation === 'withdraw' ? args[1]?.expected : null, () => ordered(ctx, board, operation, args)));
+}
+
+/** Bind an audit withdrawal to the existing native policy witness across queued SQLite admission. */
+export async function withAuditedMain(root, board, expected, write) {
+  if (expected === null || expected === undefined) return write();
+  const descriptor = Object.getOwnPropertyDescriptor(board, 'prepareWritePolicy');
+  const prepare = board.prepareWritePolicy;
+  Object.defineProperty(board, 'prepareWritePolicy', { configurable: true, value() {
+    // Preparation runs before BEGIN. The existing witness then detects ref changes under the lock and at commit.
+    const policy = typeof prepare === 'function' ? prepare.call(board) : null;
+    if (!policy || typeof policy.current !== 'function' || typeof policy.assertCurrent !== 'function'
+      || git(root, ['rev-parse', 'main^{commit}']).trim() !== expected.head || !policy.current()) {
+      throw new Refused('STALE_MAIN_RED', 'main changed after the captured passing audit; retain the item for the next current-tip audit');
+    }
+    return policy;
+  } });
+  try { return await write(); }
+  finally {
+    if (descriptor) Object.defineProperty(board, 'prepareWritePolicy', descriptor);
+    else delete board.prepareWritePolicy;
+  }
 }
 /** Identify the actual owning process, never an expiry-based permission to steal a controller. */
 function processStart(pid) {
@@ -213,6 +241,32 @@ async function noteRegression(read, write, item, text) {
   const present = read(board => board.db.prepare("SELECT 1 FROM event WHERE event_kind='fact' AND item_id=? AND json_extract(event_detail,'$.text')=? LIMIT 1").get(item, text));
   if (!present) await write('appendFact', [item, { agentId: 'coordinator', kind: 'measurement', text }]);
 }
+/** Withdraw only a still-identical frozen Main red whose every named file passed this current-tip audit. */
+export async function closeAuditedMainReds(root, job, plan, receipt, write, openBoardForRead) {
+  const info = repoInfo(root);
+  const candidates = readBoard(info, board => store.listItems(board).filter(item => item.item_status === 'open'
+    && item.item_title.startsWith('Main red:')), openBoardForRead);
+  let closed = 0;
+  for (const item of candidates) {
+    const check = mainRedFrozenCheck(item);
+    if (!check || !mainRedCheckFiles(check)) continue;
+    const currentHead = git(root, ['rev-parse', 'main^{commit}']).trim();
+    const currentTree = git(root, ['rev-parse', 'main^{tree}']).trim();
+    if (currentHead !== job.tip || currentTree !== job.tree) break;
+    if (!mainRedFilesProven(check, { plan, receipt, auditedHead: job.tip, currentHead,
+      auditedTree: job.tree, currentTree })) continue;
+    try {
+      await write('withdraw', [item.item_id, { agentId: 'coordinator',
+        reason: `Every named frozen-check file passed on main at ${job.tip}.`,
+        expected: { status: 'open', title: item.item_title, check, frozenDigest: item.item_frozen_digest, head: job.tip } }]);
+    } catch (error) {
+      if (error?.code === 'STALE_MAIN_RED') continue;
+      throw error;
+    }
+    closed++;
+  }
+  return closed;
+}
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
 async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead, collectCellsBacklog) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
@@ -290,6 +344,7 @@ async function audit(root, directory, job, write, options, testValueServices, ex
     await routeAuditFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
     if (receipt.collection?.complete !== true || (saved.plan?.reused.length
       ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
+    await closeAuditedMainReds(root, job, saved.plan, receipt, write, openBoardForRead);
     const { incomplete, error, noticeRecorded, ...completed } = saved;
     saveMainAudit(file, { ...completed, state: 'complete', green: receipt.green });
     retainGreenAudit(directory, job, saved, receipt);
