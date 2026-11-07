@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { queuedWorkerRecord } from '../apps/cli/src/shell/submit-handoff.js';
@@ -103,7 +104,8 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   assert.equal(onBoard(box, board => getItem(board, id)).item_status, 'open', 'the lapsed claim reads open');
   const other = join(box.dir, 'other-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/other-seat', other, 'main');
-  assert.equal(box.run(other, 'join', 'web').code, 0);
+  // The item routes strong, so the other seat joins on the strong route.
+  assert.equal(joinFixtureSeat(box, other, 'web').code, 0);
   const claimed = box.run(other, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
 });
