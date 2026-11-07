@@ -69,7 +69,7 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   assert.equal(withBoard(box.repo, board => store.verdictsFor(board, 1)).length, 1);
 });
 
-test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
+test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
   const box = helpers.project();
   const source = (feature, expected) => `feature = ${feature}\n${'// independent caller line\n'.repeat(12)}expected = ${expected}\n`;
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 1), 'feat(web): baseline caller [G1]').status, 0);
@@ -115,7 +115,7 @@ test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', 
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_commit, submitted, 'the original submission remains the immutable item identity');
 });
 
-test('an older pushed landing shows stale checked proof and a correction path across public views [E8,H16,R3]',
+test('clause 2: an older pushed landing shows stale checked proof and a correction path across public views [E8,H16,R3]',
   { timeout: 120_000 }, async t => { // budget: hang ceiling for real Git, private push and CLI verification; not a speed target.
     const box = helpers.project();
     assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', 'feature = 0\n', 'feat(web): legacy landing base [G1]').status, 0);
