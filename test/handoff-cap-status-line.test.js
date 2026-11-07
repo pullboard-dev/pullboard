@@ -1,9 +1,9 @@
 /** Status shows the dispatcher's live worker cap and where it came from; an inherited cap never lowers it [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from './fixture-child.js';
 import { currentCapacity, liveCapacity } from '../bin/handoff-worker-dispatcher.js';
 import { handoffCapLine, handoffWorkerCapacityDetail } from '../packages/resources/index.js';
 import { DISPATCH_WORKER_BOUND } from '../packages/resources/src/shell/handoff-worker-cap.js';
@@ -11,7 +11,7 @@ import { DISPATCH_WORKER_BOUND } from '../packages/resources/src/shell/handoff-w
 /** Run work with the machine home pointed at a fresh folder and an inherited cap of 1. */
 function withMachine(work) {
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, cap: process.env.PULLBOARD_HANDOFF_WORKERS };
-  process.env.PULLBOARD_MACHINE_HOME = mkdtempSync(join(tmpdir(), 'handoff-cap-status-'));
+  process.env.PULLBOARD_MACHINE_HOME = privateFixtureFiles('handoff-cap-status-').root;
   process.env.PULLBOARD_HANDOFF_WORKERS = '1';
   try { return work(); } finally {
     for (const [key, value] of [['PULLBOARD_MACHINE_HOME', saved.home], ['PULLBOARD_HANDOFF_WORKERS', saved.cap]]) {
