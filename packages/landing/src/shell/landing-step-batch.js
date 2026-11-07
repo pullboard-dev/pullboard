@@ -2,6 +2,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
@@ -142,7 +143,7 @@ export async function land(options) {
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
-    if (!options.due || idleLanding(options.board, trunk.commit)) {
+    if (cadenceApplies(options) && (!options.due || idleLanding(options.board, trunk.commit))) {
       const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
       if (deferred) return deferred;
     }
@@ -341,7 +342,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
-  if ((!dryRun || due) && !adopt && !unfinished) {
+  if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
