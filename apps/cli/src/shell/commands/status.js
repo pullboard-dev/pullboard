@@ -19,6 +19,7 @@ import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { stalledGates } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
 import { landingLine } from '../../../../../packages/landing/src/core/land-why.js';
@@ -70,6 +71,8 @@ export async function run(io, { values }) {
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  const reclaim = await fallbackReclaim(ctx, 'status');
   let landing = null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -99,6 +102,7 @@ export async function run(io, { values }) {
     const exclusion = (await import('../../../../../packages/link/index.js')).relayExclusion(ctx.info.root);
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
+  summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
