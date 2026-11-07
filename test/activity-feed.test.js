@@ -30,6 +30,7 @@ import { budgetInbox } from '../packages/activity/index.js';
 import { readActivityCursor } from '../packages/activity/index.js';
 import { readActivityDelivery } from '../packages/activity/index.js';
 import { saveActivityCursor } from '../packages/activity/index.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -473,7 +474,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const box = e2e.project('true', e2e.sandbox({ declareFamilies: true }));
   const foreignRoot = join(box.dir, 'interrupt-other');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', foreignRoot, 'main');
-  assert.equal(box.run(foreignRoot, 'join', 'api', '--json').code, 0);
+  assert.equal(fixtureJoin(box.run, foreignRoot, 'api', '--json').code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(e2e.commitFile(box, box.web, 'web/interrupt.txt', 'private interrupt fixture\n', 'feat(web): interrupt fixture [G1]').status, 0);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
