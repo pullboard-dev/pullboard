@@ -11,6 +11,8 @@ import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const HOUR = 3_600_000;
 const e2e = createE2eHelpers();
@@ -99,7 +101,7 @@ test('[B29,B30,B31,H16] renewals keep the current note and a new claim starts a 
 
 test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once and records the warning', () => {
   const box = e2e.project();
-  const added = box.run(box.repo, 'add', 'web', 'Bar check submit', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Bar check submit', '--route', 'mid', '--criterion', 'the page renders', '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
   const enabled = box.run(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
@@ -126,7 +128,7 @@ test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once 
 
 test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when it is reclaimed', () => {
   const box = e2e.project();
-  const added = box.run(box.repo, 'add', 'web', 'Light bar check', '--route', 'light', '--criterion', 'the page renders', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Light bar check', '--route', 'light', '--criterion', 'the page renders', '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
   const enabled = box.run(box.repo, 'settings', 'line', 'bar.check', 'on', '--reason', 'check the criterion before building',
@@ -140,7 +142,7 @@ test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when i
   const reviewer = join(box.dir, 'web-reviewer');
   const submittedCommit = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submittedCommit);
-  const reviewerJoin = box.run(reviewer, 'join', 'web');
+  const reviewerJoin = fixtureJoin(box.run, reviewer, 'web');
   assert.equal(reviewerJoin.code, 0, reviewerJoin.err);
   const rejected = box.run(reviewer, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'the page renders', '--note', 'the heading is not specified');
   assert.equal(rejected.code, 0, rejected.err);
