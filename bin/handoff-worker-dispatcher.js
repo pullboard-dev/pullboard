@@ -16,6 +16,9 @@ export function currentCapacityDetail(env = {}) {
   let settings;
   try { settings = loadMachineSettings(); }
   catch { return handoffWorkerCapacityDetail({ env }); /* no runners readable: the local core cap still applies */ }
+  // The machine setting gate.handoffWorkers is the one durable way to lower the cap; it reads from the machine's own settings file, so every launch sees the same number [C7].
+  const machineCap = settings.gate?.handoffWorkers;
+  if (Number.isSafeInteger(machineCap) && machineCap >= 1 && env.PULLBOARD_HANDOFF_WORKERS === undefined) return { cap: machineCap, source: 'gate.handoffWorkers machine setting' };
   let runnerSlots = 0;
   try { runnerSlots = effectiveRunners(settings).reduce((sum, runner) => sum + runner.slots, 0); }
   catch { runnerSlots = 0; /* no runners readable: the local core cap still applies */ }
