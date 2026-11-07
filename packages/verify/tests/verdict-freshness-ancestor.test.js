@@ -47,3 +47,8 @@ test('clause 2: a verified item whose reviewed trunk is an ancestor of main is f
   assert.equal(overlap.file, 'y.txt', 'a real overlap names the file, not an unavailable history');
   assert.equal(overlap.reason, undefined);
 });
+
+test('clause 1: the ancestor check runs through the Git adapter, so a trunk on main raises no ReferenceError [C7]', () => {
+  const state = ancestorState('x.txt');
+  assert.equal(state, null, 'an undefined spawnSync would surface as a history-unavailable stale state');
+});
