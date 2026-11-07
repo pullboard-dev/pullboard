@@ -167,7 +167,7 @@ export async function submitCellsInventory(root, main, source) {
       try { await nudgeAcceptedCells(root, new URL('../../../../bin/main-audit.js', import.meta.url), commit); }
       catch (error) { nudgeFailure = String(error.message); }
       throw Object.assign(new Error(`accepted cells inventory for ${commit.slice(0, 12)} is warming (${artifact.cause}${nudgeFailure ? `; ${nudgeFailure}` : ''}); requeue after the independent producer finishes`),
-        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true });
+        { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
     }
     directory ??= dirname(artifact.file);
     sources.push({ commit, descriptor: artifact.descriptor });
