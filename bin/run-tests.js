@@ -298,7 +298,7 @@ async function loadCustomReporter(reporter) {
  * @returns {Promise<{status:number,signal:null}>}
  */
 async function runTests(args, env, concurrency) {
-  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../packages/gate/index.js');
+  const { nativeFileArguments, reportDispatchedTests, legacyFileMode, legacyNativeFileRun } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   if (legacyFileMode(args)) return legacyNativeFileRun(args, env, concurrency, { runner, knownNodeOption, optionTakesValue });
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
@@ -309,7 +309,7 @@ async function runTests(args, env, concurrency) {
 
 /** Convert the Node test CLI subset to the supported node:test run() options. */
 async function landingTestOptions(args, env, concurrency) {
-  const { testFileOptions } = await import('../packages/gate/index.js');
+  const { testFileOptions } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   return testFileOptions(args, env, concurrency, { runner, optionTakesValue, knownNodeOption });
 }
 
@@ -725,7 +725,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
-  const { dispatchTestFiles, legacyFileMode } = await import('../packages/gate/index.js');
+  const { dispatchTestFiles, legacyFileMode } = await import('../packages/gate/src/shell/test-file-dispatch.js');
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
