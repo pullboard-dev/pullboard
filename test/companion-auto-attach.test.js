@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd, fixtureJoin } from './testkit-fixture.js';
 
 /** Require a successful real CLI result and decode its native JSON document. */
 function document(result) {
@@ -16,7 +17,7 @@ function companionFixture(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(box.run(box.repo, 'add', 'web', 'Use an API companion', '--specs', 'G1',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Use an API companion', '--specs', 'G1',
     '--criterion', 'the companion file is present', '--check', 'test -f api/companion.txt', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
@@ -25,7 +26,7 @@ function companionFixture(t) {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add page [G1]');
   const owner = join(box.dir, 'api-owner');
   box.git(box.repo, 'worktree', 'add', '-q', owner, '-b', 'api/owner', 'main');
-  const ownerSeat = document(box.run(owner, 'join', 'api', '--json')).agent;
+  const ownerSeat = document(fixtureJoin(box.run, owner, 'api', '--json')).agent;
   mkdirSync(join(owner, 'api'), { recursive: true });
   writeFileSync(join(owner, 'api/companion.txt'), 'required\n');
   box.git(owner, 'add', 'api/companion.txt');
@@ -56,7 +57,7 @@ test('a submit without a recorded companion does not open an objection window [C
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(box.run(box.repo, 'add', 'web', 'Web only', '--specs', 'G1', '--criterion', 'the web file exists',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', 'Web only', '--specs', 'G1', '--criterion', 'the web file exists',
     '--check', 'test -f web/page.txt', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });

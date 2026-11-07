@@ -310,7 +310,7 @@ export { reviewQueue } from "./board-query.js";
  * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor }) {
+export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
   const family = reviewRouting.seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
@@ -326,7 +326,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
-      const holder = reviewHolder(board, found);
+      const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
