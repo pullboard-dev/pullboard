@@ -198,7 +198,8 @@ function staleHeadFixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(web): main lands its own list [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review');
-  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  // The reviewer joins on the strong route the fixture items are filed for, so it may review a strong head.
+  json(joinFixtureSeat(box, reviewer, 'api'));
   return { box, json, build, conflicted, reviewer };
 }
 
@@ -224,8 +225,7 @@ test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
-  // The reviewer seat routes mid, so the second builder joins mid and its head is one the reviewer may take.
-  json(joinFixtureSeat(box, second, 'web', { route: 'mid' }));
+  json(joinFixtureSeat(box, second, 'web'));
   const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   const next = json(box.run(reviewer, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
