@@ -75,6 +75,8 @@ async function withBrowser(box, run) {
   try {
     chrome = await openSnapshotChrome(executable, server.link.href, profile);
     await settled(chrome, SCRIPT);
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await run(chrome, server);
     assert.deepEqual(chrome.exceptions, [], 'new-document navigation causes no page exceptions');
   } finally {
@@ -239,6 +241,8 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
     await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project");
     await settled(chrome, 'snapshotReplay.index === snapshotReplay.events.length');
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await press(chrome, `document.querySelector('[data-tab="items"]')`);
     await chrome.waitFor(`!!document.querySelector('#chain [data-item="2"]')`);
     await press(chrome, `document.querySelector('#chain [data-item="2"]')`);
