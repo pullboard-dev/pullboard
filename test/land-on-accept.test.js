@@ -15,7 +15,7 @@ import { automaticLandingDirectory } from '../packages/landing/index.js';
 import { cadenceApplies } from '../packages/landing/index.js';
 import { cadenceDeferral } from '../packages/landing/index.js';
 import { configFromSource } from '../packages/config/index.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = new URL('../bin/pullboard.js', import.meta.url).pathname;
 /** The criterion's bar: an accepted item's landing starts within this long of its ACCEPT. */
@@ -92,7 +92,7 @@ function fixture(t) {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
+  joinFixtureSeat(box, api, 'api', { model: 'fixture-model' }); // the strong route, as the web seat joined
   const builders = { web: box.web, api };
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
   const items = ['web', 'api'].map((lane, index) => {

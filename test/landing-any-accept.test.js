@@ -12,7 +12,7 @@ import { runFixtureChildAsync } from './fixture-child.js';
 import { waitForCondition } from './runner-fixture-state.js';
 import * as store from '../packages/store/index.js';
 import { automaticLandingDirectory } from '../packages/landing/index.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = new URL('../bin/pullboard.js', import.meta.url).pathname;
 
@@ -68,7 +68,7 @@ function fixture(t, lanes) {
   if (lanes.includes('api')) {
     builders.api = join(box.dir, 'api-1');
     box.git(box.repo, 'worktree', 'add', '-q', builders.api, '-b', 'api/one');
-    assert.equal(fixtureJoin(box.run, builders.api, 'api').code, 0);
+    joinFixtureSeat(box, builders.api, 'api', { model: 'fixture-model' }); // the strong route, as the web seat joined
   }
   const files = { web: 'web/result.txt', api: 'api/answer.txt' };
   const items = lanes.map((lane, index) => {
