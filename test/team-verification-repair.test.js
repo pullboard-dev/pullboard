@@ -65,7 +65,7 @@ test('clause 1: a checkout or trunk moving during verification cannot acquire pr
   assert.equal(withBoard(box.repo, board => store.verdictsFor(board, 1)).length, 1);
 });
 
-test('landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
+test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', () => {
   const box = helpers.project();
   const source = (feature, expected) => `feature = ${feature}\n${'// independent caller line\n'.repeat(12)}expected = ${expected}\n`;
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 1), 'feat(web): baseline caller [G1]').status, 0);
