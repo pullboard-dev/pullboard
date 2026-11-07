@@ -100,7 +100,7 @@ function addCorrectedRepeat(board, builder, reviewer, setNow) {
   return id;
 }
 
-test('clause 1: [R1,R2,A1] stats JSON is versioned, text states the same proof numbers and neither records a move', async (t) => {
+test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and neither records a move', async (t) => {
   const { root, board } = fixture(t);
   const before = store.events(board);
   const observationBefore = Date.now();
@@ -193,7 +193,7 @@ function addCatches(board) {
   store.logEvent(board, 'sentinel', 'health-failure', 1, { key: 'k1', cause: 'refusal:STUCK', subject: 'item 1', engine: 1 });
 }
 
-test('clause 2: [N26,D1] stats names what the board caught', async (t) => {
+test('[N26,D1] stats names what the board caught', async (t) => {
   const { root, board, builder, reviewer, setNow } = fixture(t);
   const repeatedId = addCorrectedRepeat(board, builder, reviewer, setNow);
   addCatches(board);
@@ -227,7 +227,8 @@ test('clause 2: [N26,D1] stats names what the board caught', async (t) => {
   assert.match(text.stdout, /flakes proven: no item, \S+: test\/b\.test\.js: waits passed on rerun/u);
   assert.match(text.stdout, new RegExp(`flakes proven: #1, \\S+: test/c\\.test\\.js :: same tree went red and green on tree ${'d'.repeat(40)}`, 'u'), 'a test the board quarantined after one tree went red and green is a proven flake');
   assert.match(text.stdout, /stuck states the sentinel reported: #1, \S+: item 1 \(STUCK\)/u);
-  const digest = await run(root, ['digest', '--json']);
+  // The fixture's events are dated 8-9 Oct 2026, so the 30-day digest window needs a clock beside them.
+  const digest = await run(root, ['digest', '--json'], { now: () => new Date('2026-10-10T00:00:00.000Z') });
   assert.equal(digest.code, 0, digest.stderr);
   assert.match(digest.data.markdown, /## What the board caught, last 30 days/u);
   assert.match(digest.data.markdown, /3 sent back by a reviewer; 1 conflicted with the trunk/u);
