@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
-import { createJob, takeJob, renewLease, writeStep, jobView } from '../packages/jobs/index.js';
+import { createJob, takeJob, renewLease, releaseLease, writeStep, jobView } from '../packages/jobs/index.js';
 import { treeOf, bundleFor } from '../packages/pin/index.js';
 import { checkSignedResult, resultStatement } from '../packages/receipt/index.js';
 import { createTransport, pullAdapter, pullServer, pullRunner } from '../packages/transport/index.js';
@@ -39,8 +39,8 @@ function projectRepo(name) {
 }
 
 /**
- * The board side: a real board file, the jobs cell holding the runner's lease on a `pull:` row so the driver's own
- * job lease is untouched, one writeStep per accepted result, and the HTTP server on a loopback port.
+ * The board side: a real board file, the jobs cell leasing the gate job row itself to the runner that takes it, one
+ * writeStep per accepted result, and the HTTP server on a loopback port.
  */
 async function boardFixture(name, trusted) {
   const { repo, tree } = projectRepo(name);
@@ -50,8 +50,8 @@ async function boardFixture(name, trusted) {
   const adapter = pullAdapter({
     trusted: () => trusted,
     lease: {
-      take: (job, runner) => { createJob(db, { id: `pull:${job}`, kind: 'pull' }); return takeJob(db, `pull:${job}`, runner).taken; },
-      renew: (job, runner) => renewLease(db, `pull:${job}`, runner),
+      take: (job, runner) => takeJob(db, job, runner).taken,
+      renew: (job, runner) => renewLease(db, job, runner),
     },
     record: (job, shard, payload) => {
       if (!seqs.has(shard)) seqs.set(shard, seqs.size + 1);
@@ -66,6 +66,7 @@ async function boardFixture(name, trusted) {
   const transport = createTransport({ adapter });
   return {
     db, tree, adapter, url, transport,
+    lease: job => db.prepare('SELECT job_lease_owner AS owner, job_lease_until AS until FROM job WHERE job_id = ?').get(job),
     steps: job => db.prepare('SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = ?').get(job).n,
     async close() { transport.close(); await new Promise(resolve => server.close(resolve)); closeBoard(board); },
   };
@@ -88,6 +89,10 @@ test('clause 1: a pull runner with no inbound connection registers, takes the ga
 
     const runner = pullRunner({ board: board.url, runner: 'sandbox-1', publicKey: keys.publicKey, privateKey: keys.privateKey, workdir: join(files.root, 'sandbox-1') });
     assert.deepEqual(await runner.register(), { runner: 'sandbox-1' });
+    assert.equal(takeJob(board.db, 'gate-1', 'driver-a').taken, true);
+    assert.equal(await runner.runOnce(), null, 'a gate job whose lease another holder keeps live is not handed to a runner');
+    assert.equal(board.lease('gate-1').owner, 'driver-a', 'a refused take leaves the live lease where it was');
+    assert.equal(releaseLease(board.db, 'gate-1', 'driver-a'), true);
     const before = board.steps('gate-1');
     const ran = await runner.runOnce();
     assert.equal(ran.job, 'gate-1');
@@ -102,7 +107,11 @@ test('clause 1: a pull runner with no inbound connection registers, takes the ga
     assert.equal(done.payload.runner, 'sandbox-1');
     assert.equal(done.payload.tree, board.tree);
     assert.equal(done.payload.digest, ran.posted[0].digest);
-    assert.equal(board.db.prepare("SELECT job_lease_owner AS owner FROM job WHERE job_id = 'pull:gate-1'").get().owner, 'sandbox-1', 'the runner took the job by lease');
+    const held = board.lease('gate-1');
+    assert.equal(held.owner, 'sandbox-1', 'the runner took the gate job row itself by lease');
+    assert.ok(held.until > Date.now(), 'the runner holds a live lease on the gate job');
+    assert.equal(takeJob(board.db, 'gate-1', 'driver-b').taken, false, 'while the runner holds the gate job lease no other driver takes it');
+    assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_id LIKE 'pull:%'").get().n, 0, 'no synthetic pull row stands in for the gate job');
 
     const read = await channel.fetchResult({ job: 'gate-1', shard: 's1', digest: done.payload.digest });
     assert.equal(read.state, 'done');
