@@ -15,6 +15,7 @@ import { undoQueued } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture, relayFixtureChild } from './relay-client-fixture.js';
 import { senderProcesses, stopSender } from './relay-sender-fixture.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 // Budget: the criterion's bar for a move or a read, measured from spawn to exit of the real CLI.
@@ -185,7 +186,7 @@ test('a seat registration waits for relay authority while ordinary moves and rea
     await registrationResponse;
   });
   const joining = runFixtureChildAsync(process.execPath,
-    [CLI, 'join', box.lane, '--model', 'fixture-model', '--json'], { cwd: agentPath, env });
+    [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json'], { cwd: agentPath, env });
   let joinResult;
   try {
     await eventually('the genuine agent registration reaches the relay', () => registrationReached,
