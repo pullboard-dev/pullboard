@@ -27,16 +27,16 @@ function freeActiveSeats(board, now) {
 }
 
 /** Whether no free seat may review the item: each is cooling down on it or refused by a reviewer check [V1,H16]. */
-function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseCooldown }) {
+function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseCooldown, reviewHeartbeats = null }) {
   return !seats.some(id => {
     if (reviewReleaseCooldown(board, item.item_id, id)) return false;
-    const checks = reviewerChecks(board, { agentId: id, policy, familyPolicy: 'require' });
+    const checks = reviewerChecks(board, { agentId: id, policy, familyPolicy: 'require', reviewHeartbeats });
     return Object.values(checks).every(check => !check(item));
   });
 }
 
 /** Whether the subject and its reviewer may be relaxed at all: a standard same-family submission under a threshold. */
-function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDiffer, itemReviewPolicy }) {
+function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats = null }) {
   if (!Number.isSafeInteger(threshold) || threshold < 1 || subject.item_status !== 'submitted'
     || itemReviewPolicy(board, subject.item_id).tier !== 'standard') return false;
   const family = seatFamily(board, agentId);
@@ -45,14 +45,14 @@ function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDif
 
 /** Derive a reservation witness from native events and the unreserved queue, reusing one selection's authority reads [V1,H16]. */
 export function relaxationWitness(board, subject, agentId, threshold, policy, ports, cache = null) {
-  const { reviewHolder, listItems } = ports;
+  const { reviewHolder, listItems, reviewHeartbeats = null } = ports;
   if (!relaxable(board, subject, agentId, threshold, ports)) return null;
   const cacheKey = `${agentId}:${threshold}:${policy}`;
   let state = cache?.get(cacheKey);
   if (!state) {
     const now = board.clock.now();
     const seats = freeActiveSeats(board, now);
-    const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item));
+    const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item, reviewHeartbeats));
     const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
     const ids = blocked.map(item => item.item_id).sort((a, b) => a - b);
     state = { waiting: ids, witness: blocked.length < threshold ? null

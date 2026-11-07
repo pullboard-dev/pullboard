@@ -160,7 +160,7 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
     path => read(snapshot, path)?.bytes, path => Boolean(pathBlobEntry(root, commit, path)));
   const mechanical = denied.filter(path => importOnlyAtCandidate(root, snapshot, commit, path, moves) || planChanges.get(path).allowed);
   const remaining = denied.filter(path => !mechanical.includes(path));
-  if (remaining.length) throw new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + remaining.map(path => `${outOfLane(ownership, item.item_lane, [path]).join(', ')}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}`).join(', ') + ` under frozen policy ${policy.commit}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically; shout the owner for any other edit or ask the coordinator to refreeze if ownership changed`);
+  if (remaining.length) throw Object.assign(new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + remaining.map(path => `${outOfLane(ownership, item.item_lane, [path]).join(', ')}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}`).join(', ') + ` under frozen policy ${policy.commit}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically; shout the owner for any other edit or ask the coordinator to refreeze if ownership changed`), { paths: remaining, policy: policy.commit });
   if (mechanical.length) onMechanicalPaths?.([...new Set(mechanical)].sort());
   return paths;
 }

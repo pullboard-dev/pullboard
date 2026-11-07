@@ -51,6 +51,7 @@ export const PERSON = 'person';
  * @returns {string}
  */
 export const now = (board) => board.clock.now().toISOString();
+const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
@@ -207,10 +208,15 @@ export function itemsInStatus(board, status, owner = null) {
  *
  * @param {any} board
  * @param {any} item
+ * @param {Map<string, string | null> | null} [heartbeatSnapshot] - Heartbeats captured before a board write, when one is active.
  * @returns {string | null}
  */
-export function reviewHolder(board, item) {
-  return item.item_status === 'submitted' && item.item_review_by && (item.item_review_until ?? '') > now(board) ? item.item_review_by : null;
+export function reviewHolder(board, item, heartbeatSnapshot = null) {
+  if (item.item_status !== 'submitted' || !item.item_review_by || (item.item_review_until ?? '') <= now(board)) return null;
+  if (!heartbeatSnapshot) return item.item_review_by;
+  const heartbeatAt = heartbeatSnapshot.get(item.item_review_by);
+  const heartbeatAge = heartbeatAt === null || heartbeatAt === undefined ? Infinity : board.clock.now().getTime() - Date.parse(heartbeatAt);
+  return heartbeatAge < REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS ? item.item_review_by : null;
 }
 
 /** Count unreserved submissions by whether they are awaiting a first reviewer or were released [R1]. */
@@ -546,7 +552,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -591,6 +597,9 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const newsIds = [...rows.values()].filter(event => isActivityNews(event, byShout.get(activityEventDetail(event)?.shout)))
     .map(event => activityEventDetail(event).shout);
   for (const event of rows.values()) if (event.event_kind === 'main-moved') event.activityBase = activityBatchBase(board, event);
+  // A caller that reads Git for every landing learns them all first and can answer in one process (#3252).
+  prepareMainChanges?.([...rows.values()].filter(event => event.event_kind === 'main-moved')
+    .map(event => ({ commit: activityEventDetail(event)?.sha, base: event.activityBase })));
   for (const event of rows.values()) if (event.event_kind === 'row_apply') {
     const ids = activityEventDetail(event)?.events;
     event.activityRows = [];
@@ -606,4 +615,15 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   }
   return { ...projectAgentActivity({ agent, interests, events: [...rows.values()].toSorted((a, b) => a.event_id - b.event_id),
     shouts: messages, changesForMain, sessionStart, after, newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
+}
+
+/**
+ * Every seat's last heartbeat, read before a board write opens so a reservation check inside the lock never reads the
+ * private heartbeat store [C7,V15].
+ *
+ * @param {any} board
+ * @returns {Map<string, string | null>} Seat id to its last heartbeat time, or null when it never sent one.
+ */
+export function heartbeatSnapshot(board) {
+  return new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
 }

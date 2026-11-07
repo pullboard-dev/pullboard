@@ -12,6 +12,7 @@ import { getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { assertToolTreeRoom, sweepToolTrees, queuedToolOwners } from '../packages/items/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -71,7 +72,7 @@ async function fixture(t) {
 
 /** File an item, claim it into its own item folder, commit a change there and submit it; returns the item id and its job. */
 function submitted(box, title, file) {
-  const id = document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The candidate passes.',
+  const id = document(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'The candidate passes.',
     '--check', 'true', '--route', 'strong', '--brief', `Files: ${file}\nTest: the check proves the fixture`, '--wait', '--json')).item.item_id;
   const folder = document(box.run(box.web, 'claim', String(id), '--json')).itemFolder;
   const committed = box.helpers.commitFile(box, folder, file, 'x\n', `feat(web): ${title.toLowerCase()} [G1]`);

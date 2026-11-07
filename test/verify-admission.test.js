@@ -9,6 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { checkNeedsGui } from '../packages/gate/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require successful native setup rather than interpreting a setup refusal as admission evidence. */
 function document(result) {
@@ -39,13 +41,13 @@ test('verify admits a GUI check through the GUI slot like the gate [C7,V4]', asy
     box.git(box.repo, 'commit', '-q', '-m', 'test: explicit desktop admission fixture [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
     const check = 'node bin/run-tests.js test/desktop.test.js';
-    document(box.run(box.repo, 'add', 'web', 'Desktop admission', '--criterion', 'the selected check executes', '--check', check, '--specs', 'G1', '--json'));
+    document(fixtureAdd(box.run, box.repo, 'web', 'Desktop admission', '--criterion', 'the selected check executes', '--check', check, '--specs', 'G1', '--json'));
     document(box.run(box.web, 'claim', '1', '--json'));
     const head = box.git(box.web, 'rev-parse', 'HEAD');
     helpers.historicalCheckSubmission(box, head);
     const reviewer = join(box.dir, 'reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-    document(box.run(reviewer, 'join', 'api', '--json'));
+    document(fixtureJoin(box.run, reviewer, 'api', '--json'));
     assert.equal(await checkNeedsGui(reviewer, check), liveGui, 'the live classifier reads only the original tracked annotation');
     if (companion) {
       const coordinator = document(box.run(box.repo, 'whoami', '--json'));
