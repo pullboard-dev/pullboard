@@ -11,6 +11,9 @@ import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
+import { warmAcceptedCells } from '../packages/gate/index.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { writeBoardCommand } from '../src/board-command-write.js';
@@ -483,6 +486,12 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
  * content, so a probe queued submit from a spare worktree records that identity first and the ledger is then aged.
  */
 async function enforceCellTrial(box, kind, code) {
+  // A queued gate reads only a completed accepted-cells inventory and ends as infrastructure when main's is cold, so the
+  // fixture's own producer run finishes it first (the real producer is a background process the fixture never starts).
+  const previousHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
+  try { await warmAcceptedCells(box.repo, box.git(box.repo, 'rev-parse', 'main'), { withCheckout: withMainCheckout, withLock: withFileLock }); }
+  finally { if (previousHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previousHome; }
   const probe = join(box.dir, `trial-probe-${kind}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
   document(joinFixtureSeat(box, probe, 'web'));
@@ -501,7 +510,8 @@ async function enforceCellTrial(box, kind, code) {
   assert.equal(document(box.run(probe, 'submit', String(probeId), '--no-next', '--json')).queued, true);
   const file = join(box.repo, '.git', 'pullboard', 'refusal-trials.json');
   const recorded = () => { try { return JSON.parse(readFileSync(file, 'utf8')).codes[code]; } catch { return undefined; } };
-  await box.helpers.waitFor(() => recorded() !== undefined, `the probe's ${code} trial`, 120000); // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
+  try { await box.helpers.waitFor(() => recorded() !== undefined, `the probe's ${code} trial`, 120000); } // budget: hang ceiling for observed real worker progress; no elapsed-time assertion.
+  catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, probeId)}`, { cause: error }); }
   const ledger = JSON.parse(readFileSync(file, 'utf8'));
   ledger.gates = 20;
   ledger.codes[code].start = 0;
