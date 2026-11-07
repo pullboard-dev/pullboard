@@ -55,8 +55,10 @@ test('clause 2: a runner that fails its probe is still quarantined and re-probed
   const seen = [];
   const unhealthy = async configured => { seen.push(configured.host); return { healthy: false, step: 'worker readiness' }; };
   const runner = { host: HOST, slots: 2, browser: 0 };
+  // A hung worker is re-probed every 300 s, so each pass lands past the previous pass's backoff.
+  const base = Date.now();
   for (const pass of [1, 2]) {
-    await recoverUnavailableRunners(db, [runner], { now: Date.now() + pass * 120_000, probe: unhealthy, idleProbe: unhealthy });
+    await recoverUnavailableRunners(db, [runner], { now: base + pass * 400_000, probe: unhealthy, idleProbe: unhealthy });
     assert.ok(db.prepare('SELECT 1 FROM runner_unavailable WHERE host=?').get(HOST), `pass ${pass}: the host stays quarantined while its probe fails`);
   }
   assert.ok(seen.length >= 2, 'the quarantined host was probed again on each pass');
