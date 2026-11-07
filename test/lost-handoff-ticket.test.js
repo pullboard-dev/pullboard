@@ -86,7 +86,17 @@ test('clause 1: a queued gate with no worker and no ticket ends on one sweep onl
   const ended = onBoard(box, board => submitHandoff(board, id));
   assert.notEqual(ended.id, job.id, 'the retried job replaces the lost launch on the board');
   assert.ok(['queued', 'infrastructure'].includes(ended.state), 'the retry is queued, or ended as infrastructure when its launch failed');
-  if (ended.state === 'infrastructure') assert.equal(ended.error?.code, 'SUBMIT_HANDOFF_DEAD');
+  // Each retry holds the claim while queued, so lose every retry's place in line too, until the two-retry budget is spent.
+  let last = ended;
+  for (let round = 0; round < 3 && last.state === 'queued'; round++) {
+    const names = await inMachineHome(box, () => readdirSync(handoffQueueDirectory()).filter(name => name.includes(last.id) && !name.startsWith('.')));
+    await inMachineHome(box, () => { for (const name of names) rmSync(join(handoffQueueDirectory(), name)); });
+    ageJob(box, id, 3 * 60_000);
+    sweep(box);
+    last = onBoard(box, board => submitHandoff(board, id));
+  }
+  assert.equal(last.state, 'infrastructure', 'once the retries are spent the lost launch ends as infrastructure');
+  assert.equal(last.error?.code, 'SUBMIT_HANDOFF_DEAD');
 
   // The claim lease lapsing, as it does once its two hours pass, now opens the item instead of holding it.
   onBoard(box, board => board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(new Date(Date.now() - 60_000).toISOString(), id));
