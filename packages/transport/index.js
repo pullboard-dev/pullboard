@@ -1,3 +1,5 @@
-/** One reused connection per runner, shared by every gate on it, with a probe apart from the channel [C7]. */
-export { createTransport, sharedTransport, connect, probe } from './src/shell/transport.js';
+/** One reused channel per runner through a runner adapter, shards as result files, health as a lease renewed by probe [C7]. */
+export { createTransport, sharedTransport, connect, probe, startShard, fetchResult } from './src/shell/transport.js';
+export { sshAdapter } from './src/shell/ssh.js';
 export { shellWord, channelKey } from './src/core/frames.js';
+export { resultDigest, parseResult } from './src/core/result-file.js';
