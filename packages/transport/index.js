@@ -4,3 +4,4 @@ export { runGate } from './src/shell/gate-run.js';
 export { sshAdapter } from './src/shell/ssh.js';
 export { shellWord, channelKey } from './src/core/frames.js';
 export { resultDigest, parseResult } from './src/core/result-file.js';
+export { probeStanding, QUARANTINE_GAP_MS } from './src/core/quarantine.js';
