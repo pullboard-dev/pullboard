@@ -613,14 +613,15 @@ test('output after the match', async () => {
   const named = `${shellWord(process.execPath)} ${shellWord(runner)} ${shellWord(fixture)} 2>&1`;
   const captured = (probe, assertion = `printf '%s\\n' "$out"`) => `out=$(${probe}) && ${assertion}`;
   const commands = [
-    captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`),
+    // On a miss the run's own tail is printed, so a red baseline records why it was red (#2463).
+    `${captured(named, `printf '%s\\n' "$out" | grep -Eq '^ok [0-9]+ - passing named item check'`)} || { printf '%s\\n' "$out" | tail -n 12; exit 1; }`,
     captured('yes | grep -q y'),
     captured('sh -c "exit 7" | tail -1'),
   ];
   for (const command of commands) {
     const item = repoWithGate('true', command);
     const baseline = JSON.parse(item.run('show', '1', '--json').stdout).item_check_baseline;
-    assert.equal(baseline.result, 'green', 'background baselines preserve last-stage semantics');
+    assert.equal(baseline.result, 'green', `background baselines preserve last-stage semantics: ${JSON.stringify({ command, reason: baseline.reason })}`);
     const checked = item.run('check', '1', '--yes');
     assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
     const submitted = item.run('submit', '1', '--json');
