@@ -44,7 +44,7 @@ test('a paired relay reference explains that committed source is available only 
   const joined = sourceCli('join', 'app');
   assert.equal(joined.status, 0, `the source checkout joins its lane: ${joined.stderr.trim()}`);
   const itemTitle = 'private cleanup fixture item 251';
-  const addedItem = await box.cli('add', 'app', itemTitle, '--route', 'mid'); // the source checkout joined on the mid route
+  const addedItem = await box.cli('add', 'app', itemTitle, '--route', 'mid', '--brief', 'Files:\n- src/local-only.js\nChange:\n- add the local-only source\nTest:\n- The item check passes'); // the source checkout joined on the mid route
   assert.equal(addedItem.code, 0, `the coordinator adds a fixture item after the setup commit: ${JSON.stringify(addedItem.document.error ?? addedItem.document)}`);
   const latest = await box.cli('export');
   assert.equal(latest.code, 0);
