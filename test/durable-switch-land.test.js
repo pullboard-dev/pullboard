@@ -63,7 +63,8 @@ async function acceptedItem(t) {
   t.after(() => closeBoard(board));
   const reviewer = join(box.dir, 'drive-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
-  const joined = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--json');
+  // The board may route this item strong, and a strong verifier covers every route.
+  const joined = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--route', 'strong', '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   const reserved = await cli(reviewer, 'next', '--verify', String(item), '--json');
   assert.equal(reserved.code, 0, reserved.err + reserved.out);
