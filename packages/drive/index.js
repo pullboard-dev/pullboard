@@ -2,3 +2,5 @@
 export { driveOnce } from './src/shell/drive-once.js';
 export { PHASES, phaseOf, owedShards, shardSections } from './src/core/drive-phase.js';
 export { ensureDispatcher, renewDispatcher, DISPATCHER_JOB } from './src/shell/dispatcher.js';
+export { queueFlakeDiagnoses, driveFlakeDiagnose, flakeDiagnosesFor } from './src/shell/flake-diagnose.js';
+export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/core/flake-diagnose.js';
