@@ -214,7 +214,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.deepEqual(report.blocks.drafts.map(draft => draft.cause), ['refusal:COORDINATOR_ONLY', 'refusal:TOKEN_EXPIRED']);
   const [draft] = report.blocks.drafts;
   assert.equal(draft.title, 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY');
-  const text = box.run(box.repo, 'health').out;
+  const text = box.run(box.repo, 'health', '--detail').out;
   assert.match(text, /^ {2}COORDINATOR_ONLY 3x on pullboard hold, stopped web-1; the coordinator clears it: ask the coordinator/mu);
   assert.match(text, /^ {2}repeated, draft an item: pullboard add coordinator 'Pullboard blocked 3 requests in a day with COORDINATOR_ONLY'/mu);
 
