@@ -10,6 +10,8 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
 import { events } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { removeSandboxes, workerGone } from './submit-handoff-fixture.js';
 
 /** Require a real ordinary CLI acknowledgement before reading its document. */
 function document(result) {
@@ -37,7 +39,11 @@ export async function submitHandoffEventContract(t) {
       const job = id ? read(board => submitHandoff(board, id)) : null;
       return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
     }, 'actual native handoff worker cleanup', 120000);
-    helpers.cleanup();
+    // The supervisor still removes its worktree and tool snapshot after the source goes: wait for it to exit, then
+    // remove asynchronously, never the shared synchronous rmSync retries that block past the 30 s file-exit ceiling.
+    const job = id ? read(board => submitHandoff(board, id)) : null;
+    if (job) await workerGone(helpers, box, job.id);
+    await removeSandboxes(helpers);
   });
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -45,8 +51,8 @@ export async function submitHandoffEventContract(t) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: native handoff event fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  id = document(box.run(box.repo, 'add', 'web', 'Real handoff event contract', '--specs', 'G1',
-    '--criterion', 'A real failing check returns the captured candidate.', '--brief', 'Files:\n- web/event-contract.txt\nTest:\n- The check fails and returns the candidate', '--check', 'false', '--wait', '--json')).item.item_id;
+  id = document(fixtureAdd(box.run, box.repo, 'web', 'Real handoff event contract', '--specs', 'G1',
+    '--criterion', 'A real failing check returns the captured candidate.', '--check', 'false', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/event-contract.txt', 'captured\n', 'feat(web): native handoff contract [G1]').status, 0);
   assert.equal(document(box.run(box.web, 'submit', String(id), '--no-next', '--json')).queued, true);

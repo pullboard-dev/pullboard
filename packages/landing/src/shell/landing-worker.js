@@ -220,7 +220,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       if (signal.aborted || failure) throw signal.reason ?? failure;
       if (message.operation === 'check') { await checkLease(); checkLeaseNow(); return null; }
       if (message.operation === 'wait') return await onWait?.(message.args[0]);
-      if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact'].includes(message.operation)) {
+      if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact', 'holdItem', 'releaseItemHold', 'shout'].includes(message.operation)) {
         throw new Refused('LAND_WORKER', 'the landing worker requested an unsupported operation; stop it and inspect pullboard resume');
       }
       const value = await write(message.operation, message.args);
@@ -321,13 +321,22 @@ function guardianMain({ workerFile, parseProcessCensus }) {
   let closed = false;
   let pending = 0;
   let deadline = 0;
-  let expiring = false;
-  /** Fail closed independently of a suspended CLI, using only its last acknowledged authority deadline. */
+  let notified = false;
+  let lastStopAt = 0;
+  /**
+   * Fail closed independently of a suspended CLI, using only its last acknowledged authority deadline.
+   * The stop retries about once a second until the process is gone: a single census failure on a loaded
+   * machine used to skip the group signal and leave the expired guardian alive forever.
+   */
   const expire = () => {
-    if (finished || expiring) return;
-    expiring = true;
-    if (process.connected) process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }, undefined, { parseProcessCensus }));
-    else stop({ pid: process.pid }, undefined, { parseProcessCensus });
+    if (finished) return;
+    const at = Date.now();
+    if (at - lastStopAt < 1000) return;
+    lastStopAt = at;
+    if (!notified && process.connected) {
+      notified = true;
+      process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }, undefined, { parseProcessCensus }));
+    } else stop({ pid: process.pid }, undefined, { parseProcessCensus });
   };
   const watchdog = setInterval(() => { if (deadline && Date.now() >= deadline - 1500) expire(); }, 100);
   /** Flush result and refusal messages before ending this private channel normally. */

@@ -1,22 +1,25 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
+import { copyPackageFiles, toolSourcePath } from '../packages/runners/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const RUNNER = join(ROOT, 'bin/run-tests.js');
 const HEAVY = ['packages/gate/src/shell/gate.js', 'src/board.js', 'src/machine.js'];
+const FULL_GATE_PROOF = ['packages/gate/src/shell/gate.js', 'src/board.js', 'packages/state/index.js'];
 
 /** Observe each process where Node preloads this observer; PID records distinguish the controller from file workers. */
 function moduleObserver(box) {
@@ -76,7 +79,10 @@ function knownLiteralBoardImporters(closures, modules) {
   const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', ...runners];
   const releaseSource = modules.get('packages/landing/src/shell/release-queue.js');
   const releaseImports = importsIn([releaseSource])[0];
-  assert.ok(releaseImports.includes('../../../store/index.js'), 'release capture uses the store front door');
+  assert.ok(!releaseImports.includes('../../../store/index.js'), 'release capture avoids the eager store front door');
+  for (const reader of ['../../../store/src/shell/board-event-log.js', '../../../store/src/shell/board-query.js', '../../../store/src/core/board-milestones-read.js']) {
+    assert.ok(releaseSource.includes(`load('${reader}')`), `release capture loads its lazy read-only store module ${reader}`);
+  }
   for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
   assert.ok(!releaseImports.includes('../../../../src/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
@@ -102,7 +108,7 @@ function knownLiteralBoardImporters(closures, modules) {
   return known;
 }
 
-test('a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.
+test('clause 1: a plain test run loads no gate board or machine modules through its runner [C7,V4]', { timeout: 90_000 }, // budget: one real private admission and test-file child; hang ceiling only.
 () => {
   const box = fixture();
   const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
@@ -113,7 +119,7 @@ test('a plain test run loads no gate board or machine modules through its runner
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
 });
 
-test('a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
+test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
 () => {
   const box = fixture({ currentReleaseFirst: true });
   const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
@@ -148,7 +154,8 @@ ${executionServicesSource(gate)} const result = await runGate(process.cwd(), {ga
   const { child, urls } = observed(box, ['--input-type=module', '-e', source]);
   assert.equal(readFileSync(box.ran, 'utf8'), 'executed');
   assert.match(child.stdout, /FULL_GATE_EXECUTED/u);
-  for (const file of HEAVY) assert.ok(urls.includes(pathToFileURL(join(ROOT, file)).href), `a real full gate retains ${file}`);
+  // src/machine.js is a pure forward of the state front door; the full gate loads what it forwards to, not the shim [C7].
+  for (const file of FULL_GATE_PROOF) assert.ok(urls.includes(pathToFileURL(join(ROOT, file)).href), `a real full gate retains ${file}`);
 });
 
 test('a board change selects its real importers in the actual committed repository [C7,V4]', { timeout: 120_000 }, // budget: complete actual committed import graph; correctness only, no benchmark.
@@ -170,4 +177,63 @@ test('a board change selects its real importers in the actual committed reposito
     || sourceTreeReader(modules.get(file)) || known.has(file)).map(([file]) => file).sort();
   assert.deepEqual(selection.files, expected, 'exact selection retains actual board importers, declared readers and disclosed conservative unknown roots');
   assert.ok(selection.files.length < closures.size, 'unrelated tests do not become board dependencies through the runner');
+});
+
+
+/** Count every process and worker thread a child starts, from a preload that wraps the real builtins. */
+const SPAWN_COUNTER = `
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+const require = createRequire(import.meta.url);
+const cp = require('node:child_process');
+const threads = require('node:worker_threads');
+globalThis.__spawned = [];
+for (const name of ['spawn', 'spawnSync', 'execFile', 'execFileSync', 'fork', 'exec', 'execSync']) {
+  const original = cp[name];
+  cp[name] = function (...args) { globalThis.__spawned.push(name + ' ' + String(args[0])); return original.apply(this, args); };
+}
+const Worker = threads.Worker;
+threads.Worker = class extends Worker { constructor(...args) { globalThis.__spawned.push('worker ' + String(args[0])); super(...args); } };
+syncBuiltinESMExports();
+`;
+
+test('importing the runners package spawns nothing and pins no tooling; the first runner operation pins it and later changes are refused [C7,P3]', { timeout: 120_000 }, t => { // budget: one private installed copy and one child that pins real tooling; hang ceiling only.
+  const directory = privateFixtureFiles('pullboard-lazy-runner-pin-').root;
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const installed = join(directory, 'installed');
+  copyPackageFiles(ROOT, installed);
+  mkdirSync(join(installed, 'test'), { recursive: true });
+  copyFileSync(join(ROOT, 'test/wall-clock-budgets.js'), join(installed, 'test/wall-clock-budgets.js'));
+  const counter = join(directory, 'counter.mjs');
+  writeFileSync(counter, SPAWN_COUNTER);
+  const url = file => JSON.stringify(pathToFileURL(join(installed, file)).href);
+  const script = `
+import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
+const runners = await import(${url('packages/runners/index.js')});
+assert.deepEqual(globalThis.__spawned, [], 'importing the runners package starts no process or worker');
+assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'import pins no tooling generation');
+// A front-door runner operation pins first; this one then fails on its invalid runner without any SSH.
+await runners.probeRunnerJob({ host: '' }, {}).catch(() => {});
+assert.ok(globalThis.__spawned.some(entry => entry.startsWith('spawn ')), 'the first runner operation captures the tooling');
+assert.ok(runners.loadedToolingFiles({ rescan: false }).files, 'the pinned generation matches the unchanged tooling');
+appendFileSync(${JSON.stringify(toolSourcePath(installed, 'packages/runners/src/shell/runner-dispatch.js'))}, '\\n// changed after the first dispatch\\n');
+assert.throws(() => runners.loadedToolingFiles({ rescan: false }), error => error.code === 'RUNNER_TOOLING_CHANGED', 'later changed tooling is refused');
+`;
+  const result = runFixtureChild(process.execPath, ['--import', pathToFileURL(counter).href, '--input-type=module', '-e', script], { cwd: installed, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.context ?? result.stderr);
+});
+
+test('clause 1: importing the runners package spawns nothing and pins no tooling [C7]', () => {
+  const script = [
+    "import cp from 'node:child_process';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    'let spawned = 0;',
+    "for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) { const original = cp[name]; cp[name] = (...args) => { spawned += 1; return original(...args); }; }",
+    'syncBuiltinESMExports();',
+    `const runners = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'packages/runners/index.js')).href)});`,
+    'console.log(JSON.stringify({ spawned, pinned: runners.runnerToolingPinned() }));',
+  ].join('\n');
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout.trim().split('\n').at(-1)), { spawned: 0, pinned: false });
 });
