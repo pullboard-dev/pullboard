@@ -264,10 +264,10 @@ test('clause 1: a merge-only resubmission keeps its accept and records the resol
         write: async (operation, args) => adoption.enginePorts.store[operation](adoption, ...args), checkLease: async () => {} }),
       error => error.code === 'STALE_VERDICT' && /recorded merge-only acceptance/u.test(error.message),
       'adoption must re-prove an already-gated canonical carry before finishing its trunk receipt');
-      // 461e82faa4: every landing refusal ends its batch blocked, so the refused adoption is no longer in 'trunk'.
-      assert.equal(store.landingBatches(adoption).at(-1).state, 'blocked');
-      assert.equal(store.landingBatches(adoption).at(-1).revision, 4,
-        'adoption saved its owner after selection (2), recorded the final guard refusal (3) and ended the batch blocked (4); all-stale preflight did not refuse it');
+      assert.equal(store.landingBatches(adoption).at(-1).state, 'trunk');
+      // 98ea4e7864: the final guard refusal is recorded on the batch, so the owner save (2) is followed by the refusal (3).
+      assert.equal(store.landingBatches(adoption).at(-1).revision, 3,
+        'adoption saved its owner after selection (2) and recorded the final guard refusal on the batch (3); all-stale preflight did not refuse it');
       assert.equal(store.getItem(adoption, id).item_merged_commit, null);
       assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), beforeLanding);
     } finally { store.closeBoard(adoption); }
