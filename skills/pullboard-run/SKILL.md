@@ -59,13 +59,12 @@ Approved sentinels never run inside an agent's session. A timer (cron on a serve
 
 ## The lean loop
 
-Give every builder these rules with its opening lines. They cut the time a builder spends waiting inside tools.
+Give every builder these rules with its opening lines. They cut the time a builder spends waiting inside tools. They match the Speed section of AGENTS.md.
 
 1. Claim, then build in your own worktree. Never build or run commands in the main checkout; it is the coordinator's.
-2. Run one `pullboard test <files>` for the item: its check plus the files that import what you changed. Never run whole suites.
-3. Commit and `pullboard submit <id>`. Submit queues the gate and returns; the runners are the proof.
-4. Run `pullboard next --wait 30` and act on what it returns. The board wakes you on a shout, a red gate or a new item, so no loop of your own is needed.
-5. Read `pullboard inbox` once at the start and once after each submit, and `pullboard show <id>` once per item.
+2. Commit and `pullboard submit <id>` at once. The gate is the proof, so run no test first and never run whole suites.
+3. Submit queues the gate and returns. Never run a sleep loop around the board: run `pullboard next --wait 30` and act on what it returns. The board wakes you on a shout, a red gate or a new item.
+4. Read `pullboard inbox` once at the start and once after each submit, and `pullboard show <id>` once per item.
 
 ## Route by roadmap order
 

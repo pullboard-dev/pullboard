@@ -17,15 +17,15 @@ function leanLoop() {
   return run.slice(start, end < 0 ? run.length : end).replace(/\s+/gu, ' ');
 }
 
-test('clause 1: the run skill has a lean-loop section with one pullboard test, no sleep loop and no main checkout [N31]', () => {
+test('clause 1: the skills teach the no-wait loop [N31]', () => {
   const section = leanLoop();
+  assert.match(section, /Claim, then build in your own worktree/u, 'claim and own worktree');
   assert.match(section, /Never build or run commands in the main checkout/u, 'builders stay out of the main checkout');
-  assert.match(section, /Run one `pullboard test <files>` for the item: its check plus the files that import what you changed\./u,
-    'one pullboard test covers the check and the importers');
-  assert.match(section, /Never run whole suites/u, 'no broad test runs');
-  assert.match(section, /`pullboard submit <id>`\. Submit queues the gate and returns/u, 'submit returns at once');
+  assert.match(section, /Commit and `pullboard submit <id>` at once/u, 'commit and submit at once');
+  assert.match(section, /The gate is the proof, so run no test first/u, 'the gate is the proof, no test first');
+  assert.match(section, /Never run a sleep loop around the board/u, 'no sleep loop');
   assert.match(section, /`pullboard next --wait 30`/u, 'the board does the waiting');
-  assert.match(section, /no loop of your own is needed/u, 'no hand-made wait loop');
+  assert.match(section, /match the Speed section of AGENTS\.md/u, 'matches AGENTS.md');
 });
 
 test('clause 2: no shipped skill teaches a sleep loop, a status poll or a main-checkout build [N31]', () => {
