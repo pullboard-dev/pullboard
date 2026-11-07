@@ -73,5 +73,5 @@ test('clause 3: the check runs in the changed-file static list and in the full s
     join(REPO, 'bin/checks/changed-static.js'), 'packages/b/deep.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
-  assert.match(readFileSync(join(REPO, 'bin/static-style-checks.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
+  assert.match(readFileSync(join(REPO, 'bin/checks/static-tree-registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
 });
