@@ -474,7 +474,8 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
     && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
   const artifact = services.acceptedArtifact ?? readAcceptedCells(root, acceptedMain);
   if (!artifact?.available) throw inventoryPending(artifact?.cause ?? 'missing accepted tree artifact', acceptedMain);
-  const expectedInventory = acceptedCellsIdentity(root, acceptedMain);
+  // The accepted inventory's identity is the pinned main's own tooling, whatever tooling runs this check (#3322).
+  const expectedInventory = acceptedCellsIdentity(root, acceptedMain, { pinned: true });
   if (['tree', 'checker', 'preloads'].some(name => artifact.descriptor?.[name] !== expectedInventory[name])) throw inventoryPending('accepted inventory identity differs from the actual main checker', acceptedMain);
   const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads,
     { acceptedMain, artifact, artifacts: services.acceptedArtifacts, strict: true });
