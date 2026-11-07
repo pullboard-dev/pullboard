@@ -82,6 +82,21 @@ test('clause 1, clause 2: a reviewer is refused for any item its session ever bu
   assert.notEqual(store.getItem(board, id).item_review_by, first);
 });
 
+/**
+ * Record the builder's submit as a board move with no sealed gate proof. verify then has no submit proof to reuse and runs
+ * the armed frozen check itself; the cases below observe that run [C7,V4].
+ */
+function submitUnsealed(box) {
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    submitFixture(board, 1, { agentId: document(box.run(box.web, 'whoami', '--json')).id,
+      commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
+      policyCommit: box.git(box.repo, 'rev-parse', 'main') });
+  } finally {
+    store.closeBoard(board);
+  }
+}
+
 /** Move only a private fixture's main during a real frozen check, then inspect the exact checked source. */
 function movingReview(t, mode) {
   const helpers = createE2eHelpers();
@@ -120,20 +135,17 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   document(fixtureAdd(box.run, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-  document(box.run(box.web, 'submit', '1', '--json'));
+  submitUnsealed(box);
   const before = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, before.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
-  // An untracked file in the reviewer checkout makes the submit proof unreusable, so verify runs the frozen check itself.
-  writeFileSync(join(reviewer, 'review-scratch.txt'), 'scratch\n');
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
   const after = document(box.run(box.repo, 'show', '1', '--json'));
   assert.equal(after.item_commit, before.item_commit, 'retry preserves the submitted head');
   assert.equal(after.item_frozen_digest, before.item_frozen_digest, 'retry preserves the frozen bar');
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), before.item_commit, 'retry never changes the live reviewer checkout');
-  assert.ok(existsSync(runs), `the armed frozen check never ran: ${result.out}${result.err}`);
   return { box, result, after, before, runs: JSON.parse(readFileSync(runs, 'utf8')) };
 }
 
@@ -197,13 +209,11 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   document(fixtureAdd(box.run, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-  document(box.run(box.web, 'submit', '1', '--json'));
+  submitUnsealed(box);
   const submitted = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
   document(joinFixtureSeat(box, reviewer, 'api'));
-  // An untracked file in the reviewer checkout makes the submit proof unreusable, so verify runs the frozen check itself.
-  writeFileSync(join(reviewer, 'review-scratch.txt'), 'scratch\n');
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
   return { box, result };

@@ -99,7 +99,10 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
   assert.equal(JSON.parse(box.run(review, 'show', String(stacked), '--json').out).item_status, 'submitted');
 });
 
-/** Create private history where a claimed item is placed at an unverified submission on trunk. */
+/**
+ * Create private history where a claimed item is placed at an unverified submission on trunk. Historical placement
+ * records the unverified commit itself; a live single-checkout submit gets its own commit on trunk above it [V17,V1].
+ */
 function trunkStack(box, { historical = false } = {}) {
   const stacked = add(box, 'coordinator', 'Single-checkout stack');
   assert.equal(box.run(box.repo, 'claim', String(stacked)).code, 0);
@@ -123,8 +126,11 @@ function trunkStack(box, { historical = false } = {}) {
     } finally {
       store.closeBoard(board);
     }
+    return { first, firstCommit, stacked, trunkHead };
   }
-  return { first, firstCommit, stacked, trunkHead };
+  // Since #2608 a submit whose head is main itself is EMPTY_SUBMIT unless that head cites the item, so the single
+  // checkout commits the stacked item's own change on trunk above the unverified commit and submits that head.
+  return { first, firstCommit, stacked, trunkHead: commitFile(box, box.repo, 'web/single-checkout.txt', 'single-checkout stacked change') };
 }
 
 test('[V17,V1] single-checkout submit allows an unverified head already on trunk', () => {
