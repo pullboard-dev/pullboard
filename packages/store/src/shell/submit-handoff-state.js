@@ -58,10 +58,20 @@ function save(board, id, value) {
     .run(PREFIX + id, JSON.stringify(value));
 }
 
+/**
+ * Mirror a saved hand-off into the job tables through the optional `shadowJob` port, never changing the hand-off.
+ * Why: the durable gate proves its job rows beside today's records first; a board without the tables or the port is unaffected [C7].
+ */
+function shadow(board, id, job) {
+  try { board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board))); }
+  catch { /* A shadow row is an observation: its failure must never fail the hand-off it mirrors. */ }
+}
+
 /** Keep private job identifiers and refusal text out of the public native event payload. */
 function record(board, id, job) {
   logEvent(board, job.agentId, 'submit-handoff', id, { state: job.state, commit: job.commit });
   save(board, id, job);
+  shadow(board, id, job);
   return structuredClone(job);
 }
 
@@ -266,7 +276,7 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
   const next = { version: job.version, id: retryJob, agentId: job.agentId, commit: job.commit, tree: job.tree,
     main: job.main, executionCommit: job.executionCommit, executionTree: job.executionTree, digest: job.digest,
     companionDigest: job.companionDigest, leaseMs: job.leaseMs, state: 'queued', at: now(board),
-    recoveryRetries: retries + 1, retryOf: job.id };
+    recoveryRetries: retries + 1, retryOf: job.id, ...(typeof error.reason === 'string' ? { requeuedFor: error.reason } : {}) };
   return record(board, id, next);
 }
 
@@ -290,7 +300,8 @@ function retryStoppedHandoff(board, id, job, retryJob) {
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run('submit_handoff_ended:' + job.id, JSON.stringify(job));
   const next = { ...job, id: retryJob, state: 'queued', at: now(board),
-    infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id };
+    infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id,
+    ...(typeof job.error?.reason === 'string' ? { requeuedFor: job.error.reason } : {}) };
   for (const field of ['error', 'completedAt', 'startedAt', 'hookProjection', 'infrastructureNotified']) delete next[field];
   return record(board, id, next);
 }

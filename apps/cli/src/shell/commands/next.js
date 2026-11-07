@@ -4,6 +4,7 @@ import { renderVerificationComparison } from '../../../../../packages/verify/ind
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
+import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -31,6 +32,7 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -121,6 +123,8 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
@@ -140,7 +144,7 @@ async function nextWithProgress(io, values, progress) {
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, reviewFamilyBuildPause };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
