@@ -67,11 +67,11 @@ test('clause 2: a prune removes unnamed parts and lists, oldest first, only unti
   const size = (name) => statSync(join(store, 'parts-ref', `${hash(name)}.json`)).size;
   const total = [...readdirSync(join(store, 'parts-ref')).map(name => statSync(join(store, 'parts-ref', name)).size),
     ...readdirSync(join(store, 'lists')).map(name => statSync(join(store, 'lists', name)).size)].reduce((sum, bytes) => sum + bytes, 0);
-  const result = prunePartsStore(store, { capBytes: total - size('c') - size('d') });
+  const result = prunePartsStore(store, { capBytes: total - size('c') - size('d'), maxAgeMs: Infinity });
   assert.equal(result.removedParts, 2);
   assert.deepEqual(left(store), ['1', '2', 'e', 'f'], 'the two oldest unnamed parts went; newer and named ones stayed');
   assert.ok(existsSync(join(store, 'lists', `${hash('b')}.json`)), 'a list a remaining part names stays');
-  const all = prunePartsStore(store, { capBytes: 0 });
+  const all = prunePartsStore(store, { capBytes: 0, maxAgeMs: Infinity });
   assert.deepEqual(left(store), ['1', '2', 'f'], 'the cap cannot remove a named part or one younger than the grace period');
   assert.equal(all.removedParts, 1);
   assert.ok(existsSync(join(store, 'lists', `${hash('a')}.json`)));
@@ -96,4 +96,18 @@ test('clause 2: a part named only by a retained runner completion survives the p
   const result = prunePartsStore(store, { capBytes: 0 });
   assert.deepEqual(left(store), ['1', '2', 'c', 'f'], 'the completion keeps part c; the other unnamed old parts went');
   assert.equal(result.removedParts, 2);
+});
+
+test('clause 2: an unnamed part or list older than the age cap is removed even under the size cap, and a named or newer one stays [C7]', () => {
+  const store = populated();
+  put(store, 'lists', `${hash('c')}.json`, [['c.js', 'c'.repeat(40)]], 4);
+  const result = prunePartsStore(store, { capBytes: 1024 ** 4, maxAgeMs: 2.5 * DAY });
+  assert.deepEqual(left(store), ['1', '2', 'e', 'f'], 'parts c and d passed the age cap; named 1 and 2 stay at five days old');
+  assert.equal(result.removedParts, 2);
+  assert.equal(result.removedLists, 1, 'only the list no part names went');
+  assert.equal(existsSync(join(store, 'lists', `${hash('c')}.json`)), false);
+  assert.ok(existsSync(join(store, 'lists', `${hash('a')}.json`)) && existsSync(join(store, 'lists', `${hash('b')}.json`)));
+  const later = populated();
+  maintainPartsStore(later, { PULLBOARD_TEST_PARTS_MAX_AGE_MS: String(2.5 * DAY) });
+  assert.deepEqual(left(later), ['1', '2', 'e', 'f'], 'maintenance reads the configured age cap');
 });

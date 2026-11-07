@@ -1,4 +1,4 @@
-/** Test-action parts and shared file lists are pruned to a size cap, never a record a key or receipt still names [C7]. */
+/** Test-action parts and shared file lists are pruned by age and to a size cap, never a record a key or receipt still names [C7]. */
 import {
   existsSync,
   mkdirSync,
@@ -14,6 +14,7 @@ import { gunzipSync } from 'node:zlib';
 import { REFERENCE_PARTS } from './test-cache-account.js';
 
 export const PARTS_CAP_BYTES = 10 * 1024 ** 3;
+export const PARTS_MAX_AGE_MS = 24 * 60 * 60_000;
 const HASH = /^[0-9a-f]{64}$/u;
 const GRACE_MS = 10 * 60_000;
 const INTERVAL_MS = 10 * 60_000;
@@ -66,14 +67,15 @@ export function namedInputKeys(store) {
 }
 
 /**
- * Remove parts no record names, then shared file lists no remaining part names, oldest first, until the parts and
- * lists together fit under the cap. A record younger than the grace period is kept: its run may not have been named yet.
+ * Remove parts no record names, then shared file lists no remaining part names: every such record older than the age
+ * cap, then the rest oldest first until the parts and lists together fit under the size cap. A record younger than the
+ * grace period is kept: its run may not have been named yet. A named record is never removed, whatever its age.
  *
  * @param {string} store the test-action store
- * @param {{ capBytes?: number, graceMs?: number, now?: number }} [options]
+ * @param {{ capBytes?: number, maxAgeMs?: number, graceMs?: number, now?: number }} [options]
  * @returns {{ removedParts: number, removedLists: number, bytes: number }} what was removed and the size left
  */
-export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = GRACE_MS, now = Date.now() } = {}) {
+export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, maxAgeMs = PARTS_MAX_AGE_MS, graceMs = GRACE_MS, now = Date.now() } = {}) {
   const listsDirectory = join(store, 'lists');
   /** Size and age of every record in a folder, tagged with the folder. */
   const scan = (directory) => names(directory).flatMap(file => {
@@ -87,13 +89,15 @@ export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = G
   let removedParts = 0, removedLists = 0;
   /** Remove one record and its size from the total. */
   const drop = (row) => { try { rmSync(row.path, { force: true }); bytes -= row.size; return true; } catch { return false; } };
+  /** Whether an unnamed record goes now: past the age cap, or the store is still over the size cap. */
+  const due = (row) => now - row.at >= Math.max(graceMs, maxAgeMs) || bytes > capBytes;
   const unnamedParts = parts.filter(row => !named.has(row.file.replace(/\.json$/u, '')) && now - row.at >= graceMs).sort((a, b) => a.at - b.at);
   const gone = new Set();
   for (const row of unnamedParts) {
-    if (bytes <= capBytes) break;
+    if (!due(row)) continue;
     if (drop(row)) { removedParts += 1; gone.add(row.path); }
   }
-  if (bytes > capBytes) {
+  if (bytes > capBytes || lists.some(row => now - row.at >= Math.max(graceMs, maxAgeMs))) {
     const used = new Set();
     for (const row of parts) {
       if (gone.has(row.path)) continue;
@@ -101,7 +105,7 @@ export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = G
       for (const value of [part?.files, part?.runner]) if (typeof value === 'string') used.add(value);
     }
     for (const row of lists.filter(row => !used.has(row.file.replace(/\.json$/u, '')) && now - row.at >= graceMs).sort((a, b) => a.at - b.at)) {
-      if (bytes <= capBytes) break;
+      if (!due(row)) continue;
       if (drop(row)) removedLists += 1;
     }
   }
@@ -109,8 +113,9 @@ export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, graceMs = G
 }
 
 /**
- * Routine maintenance entry: prune at most once per ten minutes per store, under a configurable cap
- * (PULLBOARD_TEST_PARTS_CAP_BYTES, default 10 GB). A failure here never changes whether a test runs.
+ * Routine maintenance entry: prune at most once per ten minutes per store, under a configurable size cap
+ * (PULLBOARD_TEST_PARTS_CAP_BYTES, default 10 GB) and age cap (PULLBOARD_TEST_PARTS_MAX_AGE_MS, default 24 hours).
+ * A failure here never changes whether a test runs.
  *
  * @param {string} store the test-action store
  * @param {NodeJS.ProcessEnv} [env]
@@ -123,7 +128,11 @@ export function maintainPartsStore(store, env = process.env) {
     try { if (at - statSync(marker).mtimeMs < INTERVAL_MS) return null; } catch { /* Never pruned. */ }
     mkdirSync(store, { recursive: true, mode: 0o700 });
     if (existsSync(marker)) utimesSync(marker, new Date(at), new Date(at)); else writeFileSync(marker, '', { mode: 0o600 });
-    const configured = Number(env.PULLBOARD_TEST_PARTS_CAP_BYTES);
-    return prunePartsStore(store, { capBytes: Number.isFinite(configured) && configured > 0 ? configured : PARTS_CAP_BYTES });
+    /** A positive configured number, or the default. */
+    const setting = (value, fallback) => { const number = Number(value); return Number.isFinite(number) && number > 0 ? number : fallback; };
+    return prunePartsStore(store, {
+      capBytes: setting(env.PULLBOARD_TEST_PARTS_CAP_BYTES, PARTS_CAP_BYTES),
+      maxAgeMs: setting(env.PULLBOARD_TEST_PARTS_MAX_AGE_MS, PARTS_MAX_AGE_MS),
+    });
   } catch { return null; }
 }
