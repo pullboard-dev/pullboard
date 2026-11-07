@@ -179,7 +179,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
-  return await withGateSlot(root, async (lease) => {
+  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission };
+  /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
+  const diagnostics = [];
+  const gateResult = await withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
     await onStart?.();
@@ -267,13 +270,13 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };
     };
-    if (!criterion.isGreen && onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease });
+    if (!criterion.isGreen && onFailure) diagnostics.push([{ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease }]);
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
-    if (!proof.isGreen && onFailure) await onFailure(proof, { root,
-      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease });
+    if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
+      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease }]);
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
     const result = finish(proof);
@@ -288,6 +291,36 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
-  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission });
+  }, slotOptions);
+  if (diagnostics.length) await diagnoseAfterResult(root, onFailure, diagnostics, slotOptions);
+  return gateResult;
+}
+
+/**
+ * Run a red gate's flake diagnostics after its result is made and its gate slot is released, in a slot of their own.
+ * Each diagnostic keeps the proof context of the phase it observes, so its probes stay bound to the admitted submit.
+ *
+ * Why: diagnostics used to run inside the gate's runner lease, holding the worker for minutes after the result was
+ * known (#3324); they never change that result, so a failure here is reported and the gate's result stands.
+ *
+ * @param {string} root
+ * @param {(run: object, context: { root: string, command: string, lease: object }) => Promise<void>} onFailure
+ * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
+ * @param {object} slotOptions - The gate's own slot options.
+ * @returns {Promise<void>}
+ */
+async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions) {
+  try {
+    await withGateSlot(root, async (lease) => {
+      for (const [run, context] of diagnostics) {
+        const phase = context.lease;
+        Object.assign(lease, { timingOperation: 'submit', proof: phase.proof, runMetadata: phase.runMetadata, quarantines: phase.quarantines ?? [],
+          pinnedMain: phase.pinnedMain ?? null, testTiers: phase.testTiers, tracker: startReceipt(), proofReceiptIds: [] });
+        await onFailure(run, { ...context, lease });
+      }
+    }, slotOptions);
+  } catch (error) {
+    process.stderr.write(`flake diagnostics could not run after the gate (${error?.code ?? 'FLAKE_DIAGNOSTIC_FAILED'}); the gate's result stands\n`);
+  }
 }
 
