@@ -53,6 +53,16 @@ function handoffProcessEnvironment(env = process.env) {
   return clean;
 }
 
+/** Keep the detached dispatcher functional without passing agent or command session state to it. */
+function handoffDispatcherEnvironment(source) {
+  const env = {};
+  for (const name of ['HOME', 'PATH', 'TMPDIR', 'TMP', 'TEMP', 'SYSTEMROOT', 'PULLBOARD_MACHINE_HOME',
+    'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_HOME']) {
+    if (source[name] !== undefined) env[name] = source[name];
+  }
+  return env;
+}
+
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
  * one worker per five registered runner slots, or to every runner slot when gate.runnersOnly is on. Why: a handoff
@@ -436,14 +446,24 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' }
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
     const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
-    const log = openSync(handoffDispatcherLog(), 'a', 0o600);
-    let dispatcher;
-    try {
-      dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
-      await once(dispatcher, 'spawn');
-    } finally { closeSync(log); }
-    try { writeFileSync(receipt, JSON.stringify({ pid: dispatcher.pid, started: startOf(dispatcher.pid) }) + '\n', { mode: 0o600 }); }
-    catch (error) { const closed = once(dispatcher, 'close'); dispatcher.kill('SIGTERM'); await closed; throw error; }
-    dispatcher.unref();
+    const detachedLauncher = join(realpathSync(tools), 'bin', 'handoff-worker-detach.js');
+    const env = handoffDispatcherEnvironment(process.env);
+    const launcher = spawn(process.execPath, [detachedLauncher, JSON.stringify({ entry, cwd, env, log: handoffDispatcherLog() })], {
+      cwd, stdio: ['ignore', 'pipe', 'pipe'], env,
+    });
+    const output = [];
+    const errors = [];
+    launcher.stdout.on('data', chunk => output.push(chunk));
+    launcher.stderr.on('data', chunk => errors.push(chunk));
+    await once(launcher, 'spawn');
+    const [code, signal] = await once(launcher, 'close');
+    if (code !== 0) throw new Error(Buffer.concat(errors).toString('utf8').trim() || `detached launcher exited ${signal ?? code}`);
+    const pid = Number(Buffer.concat(output).toString('utf8').trim());
+    if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('detached launcher did not report its dispatcher pid');
+    try { writeFileSync(receipt, JSON.stringify({ pid, started: startOf(pid) }) + '\n', { mode: 0o600 }); }
+    catch (error) {
+      try { process.kill(pid, 'SIGTERM'); } catch (killError) { if (killError.code !== 'ESRCH') throw killError; }
+      throw error;
+    }
   } finally { lock.release(); }
 }

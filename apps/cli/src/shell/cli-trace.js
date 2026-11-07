@@ -86,10 +86,10 @@ function branchOf(gitDir) {
 
 /**
  * Append one trace line for a finished command. `status` is the exit code, `error` an uncaught throw and `refusal`
- * a Refused the command reported; `seat` is the registered agent id when known. It returns the line written, or
+ * a Refused the command reported; `seat` is the registered agent id when known; `why` is the agent's stated intent. It returns the line written, or
  * null when nothing could be written; it never throws.
  */
-export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, env = process.env, now = Date.now }) {
+export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, why = null, env = process.env, now = Date.now }) {
   try {
     const where = locate(cwd);
     if (!where) return null;
@@ -99,7 +99,7 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
     const line = {
       at: at.toISOString(), agent: seat, model: firstEnv(MODEL_ENV, env), session: firstEnv(SESSION_ENV, env),
       worktree: where.root, branch: branchOf(where.gitDir), command: argv[0] ?? 'help', item,
-      args: redactArgs(argv.slice(1)), exit: status,
+      args: redactArgs(argv.slice(1)), why, exit: status,
       refusal: refused ? { code: refused.code, message: String(refused.message) } : null,
       error: error && !refused ? String(error.message ?? error) : undefined,
       ms: Math.max(0, now() - startedAt),
