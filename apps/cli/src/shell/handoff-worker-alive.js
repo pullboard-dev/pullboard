@@ -1,7 +1,7 @@
 /** Liveness of a submit hand-off worker: its worker.json record and the process it names [C7]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { exactStart } from '../../../../packages/gate/index.js';
+import { exactStart } from '../../../../packages/gate/src/shell/child-journal-preload.js';
 
 /** An absent process, a different exact incarnation or a worker the dispatcher could not start proves death; unavailable identity never does. */
 export function deadWorker(worker, job) {
