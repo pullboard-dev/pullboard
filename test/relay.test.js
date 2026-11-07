@@ -1246,7 +1246,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
   }
 });
 
-test('clause 1: relay.test.js fixture seats claim on the strong route', async (t) => {
+test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
   const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
