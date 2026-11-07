@@ -14,6 +14,8 @@ import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
+import { deadWorker } from './handoff-worker-alive.js';
+import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -39,6 +41,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
+import { getItem } from '../../../../packages/store/index.js';
 import { withBoardRead } from './cli-context.js';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
@@ -129,14 +132,21 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
 }
 
-/** An absent process, a different exact incarnation or a worker the dispatcher could not start proves death; unavailable identity never does. */
-function deadWorker(worker, job) {
-  if (worker?.job === job.id && worker.unstarted && worker.pid === null) return true;
-  if (worker?.job !== job.id || !Number.isSafeInteger(worker.pid) || worker.pid < 1) return false;
-  try { process.kill(worker.pid, 0); }
-  catch (error) { return error.code === 'ESRCH'; }
-  const observed = exactStart(worker.pid);
-  return Boolean(worker.started && observed && observed !== worker.started);
+/** How long a hand-off may have no place in line and no live worker before the board requeues it as worker-gone. */
+export const WORKER_GONE_GRACE_MS = 10 * 60_000;
+
+/**
+ * Whether a queued or running job has outlived the worker-gone grace with no place in line. Why: on 6 Nov five items
+ * showed gate running or queued for 8 h with no queue entry and no worker, and their builders waited on a gate that no
+ * longer existed (#3221).
+ *
+ * @param {{ id: string, state: string, at: string, startedAt?: string }} job
+ * @param {{ now?: number, waiting?: (job: string) => boolean }} [ports]
+ * @returns {boolean}
+ */
+export function goneHandoff(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
+  const since = Date.parse(job?.startedAt ?? job?.at ?? '');
+  return ['queued', 'running'].includes(job?.state) && Number.isFinite(since) && now - since > WORKER_GONE_GRACE_MS && !waiting(job.id);
 }
 
 /** A queued job past its launch grace with no worker record and no place in line will never start. */
@@ -152,12 +162,6 @@ export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicke
   return job?.state === 'queued' && Number.isFinite(at) && now - at > LOST_LAUNCH_GRACE_MS && !waiting(job.id);
 }
 
-/** The job's worker record, or null while none is written. */
-function readWorkerRecord(directory) {
-  try { return JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch { return null; }
-}
-
 /**
  * The worker record recovery judges: the written one, or a lost-launch record when the job has neither a worker nor a
  * place in line; null leaves the job alone. Why the second read: the dispatcher writes worker.json and only then
@@ -171,11 +175,12 @@ function readWorkerRecord(directory) {
 export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWaiting, now = Date.now() }) {
   const first = readWorker();
   if (first) return first;
-  if (!lostQueuedLaunch(job, { now, waiting })) return null;
+  const lostRunning = job?.state === 'running' && goneHandoff(job, { now, waiting });
+  if (!lostRunning && !lostQueuedLaunch(job, { now, waiting })) return null;
   const again = readWorker();
   if (again) return again;
   return { version: 1, job: job.id, pid: null, started: null, relaunches: 0,
-    unstarted: { code: 'HANDOFF_TICKET_LOST', message: 'the queued job has no worker record and no place in line' } };
+    unstarted: { code: lostRunning ? 'HANDOFF_WORKER_GONE' : 'HANDOFF_TICKET_LOST', message: `the ${job.state} job has no worker record and no place in line` } };
 }
 
 /**
@@ -185,6 +190,8 @@ export function queuedWorkerRecord(job, { readWorker, waiting = handoffTicketWai
 async function recoverSubmitHandoff(ctx, itemId, actor, observed) {
   if (observed?.agentId !== actor || !['queued', 'running'].includes(observed.state)) return;
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, observed));
+  // A hand-off whose folder was removed (a ghost gate) still ends: the lock and the retained refusal need the folder (#3221).
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
   return withFileLock(join(directory, 'recovery.guard.sqlite'), () => recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory));
 }
 
@@ -238,14 +245,18 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     ctx.io.say(`relaunched queued submit #${itemId} from its captured tools`);
     return;
   } catch (error) {
+    // Past the grace with no place in line, a gone worker's job is requeued on its same source, queued or running (#3221).
+    const gone = goneHandoff(current);
     let retry = null;
-    if (owned && current.state === 'running' && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
+    if (owned && (current.state === 'running' || gone) && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
       try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
       `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; the gate stopped on infrastructure, never a builder red`,
       'the health sweep retries the captured candidate within its retry budget; the coordinator restores missing tools'), { caller: 'seat' }) };
+    if (gone) failure.error.reason = 'worker-gone';
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
     let ended;
     try {
@@ -281,14 +292,84 @@ async function failUnlaunchedSubmitHandoff(ctx, itemId, actor, job, cause) {
  * queued it and whatever its item's state now. Why: recovery ran only when the queuing seat itself ran next or submit
  * on an item it still held, so a seat that stopped, or an item released or withdrawn, left its job running for hours
  * (#2627). A live worker, or one whose identity cannot be read, is left alone.
+ *
+ * One hand-off that cannot be recovered never stops the pass: on 7 Nov a seat taken over by another (the board
+ * refused AGENT_REPLACED) ended the sweep on its first job, and two gates read running with no worker for hours
+ * (#3450). Each failure is recorded on stderr and the rest are still recovered; a replaced seat's job is skipped,
+ * and any other failure is raised after the pass so the sweep exits non-zero and the dispatcher runs it again.
+ *
+ * @param {object} ctx - The CLI context of the repository's main checkout.
+ * @param {{ list?: Function, recover?: Function, recoverInfrastructure?: Function, returnNoVerdict?: Function }} [ports] - How unfinished hand-offs
+ *   are listed and recovered; the defaults read and write the real board.
+ * @returns {Promise<number>} How many unfinished hand-offs the sweep looked at.
  */
-export async function sweepDeadSubmitHandoffs(ctx) {
-  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+export async function sweepDeadSubmitHandoffs(ctx, { list = unfinishedSubmitHandoffs, recover = recoverSubmitHandoff, recoverInfrastructure = recoverInfrastructureHandoffs, returnNoVerdict = returnNoVerdictHandoffs } = {}) {
+  const jobs = list(ctx);
+  let failure = null;
+  for (const { itemId, job } of jobs) {
+    try { await recover(ctx, itemId, job.agentId, job); }
+    catch (error) {
+      const skipped = error?.code === 'AGENT_REPLACED';
+      ctx.io.err(`[HANDOFF_SWEEP] #${itemId} ${skipped ? 'skipped' : 'not recovered'}: ${error?.message ?? error}`);
+      if (!skipped) failure ??= error;
+    }
+  }
+  await recoverInfrastructure(ctx);
+  await returnNoVerdict(ctx);
+  if (failure) throw failure;
+  return jobs.length;
+}
+
+/** Every queued or running submit hand-off on the board, with its item id. */
+function unfinishedSubmitHandoffs(ctx) {
+  return withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
     .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
-  for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
-  await recoverInfrastructureHandoffs(ctx);
-  return jobs.length;
+}
+
+/**
+ * Whether a hand-off finished 'submitted' with no green gate for the item's current submitted head. Why: a submit
+ * whose proof was red only in cases that also fail on main is recorded with gateGreen false, so no review packet is
+ * stored and every reviewer is refused NO_REVIEW_PACKET while the item sits in review for hours (#3448).
+ *
+ * @param {{ state?: string, gateGreen?: boolean, submitted?: string, commit?: string } | null} job
+ * @param {{ item_status?: string, item_commit?: string | null } | null} item
+ * @returns {boolean}
+ */
+export function noVerdictHandoff(job, item) {
+  return job?.state === 'submitted' && job.gateGreen !== true && item?.item_status === 'submitted'
+    && typeof item.item_commit === 'string' && item.item_commit === (job.submitted ?? job.commit);
+}
+
+/**
+ * Return every item whose hand-off ended with no gate verdict to its builder: the coordinator reopens it with the
+ * named reason HANDOFF_NO_VERDICT and shouts the builder. Each item is re-read inside the writer before it moves.
+ *
+ * @param {object} ctx - The CLI context of the main checkout.
+ * @returns {Promise<number>} How many items were returned.
+ */
+export async function returnNoVerdictHandoffs(ctx) {
+  const stranded = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .filter(itemId => noVerdictHandoff(submitHandoff(board, itemId), getItem(board, itemId))));
+  let returned = 0;
+  for (const itemId of stranded) {
+    try {
+      returned += await withBoard(ctx, async board => {
+        const job = submitHandoff(board, itemId), item = getItem(board, itemId);
+        if (!noVerdictHandoff(job, item)) return 0;
+        const head = item.item_commit.slice(0, 12);
+        const note = `HANDOFF_NO_VERDICT: hand-off ${job.id} ended submitted at ${head} with no green gate, so no review packet exists and every reviewer is refused NO_REVIEW_PACKET; returned to its builder ${item.item_built_by ?? 'unknown'}`;
+        await ordered(ctx, board, 'reopen', [itemId, { agentId: 'coordinator', note }]);
+        if (item.item_built_by) {
+          await ordered(ctx, board, 'shout', [{ from: 'coordinator', to: item.item_built_by, lanes: [],
+            text: `#${itemId} is back with you (HANDOFF_NO_VERDICT): its gate at ${head} ended with no green verdict, so it could not be reviewed. Read pullboard show ${itemId}, make its proof green, then claim and submit again.` }]);
+        }
+        return 1;
+      });
+    } catch (error) { ctx.io.err(`no-verdict hand-off #${itemId} was not returned: ${error.message}`); }
+  }
+  return returned;
 }
 
 /** Next may recover this seat's queued or running claims whose worker is gone, never another seat's or a live gate. */
