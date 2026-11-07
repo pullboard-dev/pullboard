@@ -187,6 +187,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     // Pair the real board key in the fragment; the relay client consumes it into device storage before local discovery.
     await chrome.send('Page.navigate', { url: JOURNEY_HOSTED + '/#board=' + linkedId + '&key=' + encodeURIComponent(linkedKey) });
     await chrome.waitFor('data?.project?.items?.some(item => item.title === ' + JSON.stringify(remoteTitle) + ')', 30_000); // budget: 30s hang ceiling for the real linked-board read under load.
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()"); // a fresh board opens on the first-run Dashboard; set it aside.
     // The address is empty only on Items (the Dashboard writes its own), so a person opens Items before the pairing fragment is checked.
     await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor('location.hash === ""', 10_000); // budget: 10s hang ceiling for relay-fragment consumption after the board renders.
