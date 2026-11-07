@@ -46,6 +46,7 @@ function census(parseProcessCensus) {
 export function stop(child, member, { parseProcessCensus, read = () => census(parseProcessCensus), kill = process.kill, log = stopNotice } = {}) {
   if (!child.pid) return;
   const rows = read();
+  import('node:fs').then(f => f.appendFileSync('/tmp/c1439-guardian.log', `stop ${child.pid} rows=${rows ? rows.size : null} root=${!!rows?.get(child.pid)} ppid=${rows?.get(child.pid)?.ppid} me=${process.pid}\n`));
   const root = rows?.get(child.pid);
   const known = member && rows?.get(member.pid);
   const ownsRoot = root && (child.pid === process.pid || root.ppid === process.pid && child.exitCode === null && child.signalCode === null);
@@ -83,7 +84,7 @@ export function stop(child, member, { parseProcessCensus, read = () => census(pa
 }
 
 /** Report unattributed remaining work without claiming its group was reused or drained. */
-function stopNotice(message) { process.stderr.write(message + '\n'); }
+function stopNotice(message) { process.stderr.write(message + '\n'); require('node:fs').appendFileSync('/tmp/c1439-guardian.log', message + '\n'); }
 
 /** Unknown states remain executing; only a known group without non-zombie members is drained. */
 function runningGroup(rows, pgid) { return [...rows.values()].some(row => row.pgid === pgid && !row.state.startsWith('Z')); }
