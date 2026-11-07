@@ -1,6 +1,11 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
 
+/** Model names fixtures register or join with, kept here so tests never carry literal model strings. */
+export const FIXTURE_MODEL = 'Fixture';
+export const SYNTHETIC_MODEL = 'Synthetic fixture model';
+export const NO_CHECKOUT_MODEL = 'no-checkout-fixture';
+
 /** Normalize the two child-process result shapes used by CLI-backed fixtures. */
 function fixtureResult(result) {
   return { code: result.code ?? result.status, out: result.out ?? result.stdout ?? '', err: result.err ?? result.stderr ?? '' };

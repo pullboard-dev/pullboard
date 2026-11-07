@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { healLeakedRunner } from '../packages/resources/src/shell/runner-leak-heal.js';
 import { stopScript } from '../packages/runners/src/shell/runner-leak-stop.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
 const HOST = 'coreyolson@192.168.1.51';
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'TRANSPORT_UNVERIFIED' };
@@ -14,7 +14,7 @@ const unhealthy = { healthy: false, step: 'worker readiness', reason: 'transport
 
 /** A resource queue with one quarantined runner and the given live holders on it. */
 function queueWith(holders) {
-  const home = mkdtempSync(join(tmpdir(), 'pullboard-leak-live-'));
+  const home = privateFixtureFiles('pullboard-leak-live-').root;
   const db = new DatabaseSync(join(home, 'resources.sqlite'));
   db.exec(`CREATE TABLE runner_unavailable (host TEXT, since TEXT, detail TEXT, probe_token TEXT, probe_until INTEGER, healing INTEGER);
     CREATE TABLE holder (token TEXT, name TEXT, runner TEXT, item TEXT, pid INTEGER);
@@ -37,7 +37,7 @@ test('clause 1: a quarantine heal on a runner with a holder never calls the leak
 });
 
 test('clause 2: the stop script excludes a live job id and a fake ps listing keeps only the non-live job pid [C7]', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-leak-ps-'));
+  const dir = privateFixtureFiles('pullboard-leak-ps-').root;
   try {
     const root = join(dir, 'runner');
     const script = stopScript(root, ['live-job']);

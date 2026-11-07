@@ -1,8 +1,7 @@
 /** The dispatcher joins existing capacity with a capacity function, and says why it died [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +13,7 @@ import { listResources } from '../packages/resources/index.js';
 import { queueHandoffLaunch } from '../packages/resources/index.js';
 import { reserveHandoffTicket } from '../packages/resources/index.js';
 import { takeResource } from '../packages/resources/index.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
 const DISPATCHER = fileURLToPath(new URL('../bin/handoff-worker-dispatcher.js', import.meta.url));
 
@@ -25,7 +25,7 @@ writeFileSync(join(dirname(process.argv[2]), 'result.json'), '{}');
 
 /** A private machine home and one job directory with a captured tools tree. */
 function fixture() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-dispatcher-capacity-')));
+  const dir = privateFixtureFiles('pullboard-dispatcher-capacity-').root;
   const tools = join(dir, 'tools');
   mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
   writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);

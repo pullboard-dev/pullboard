@@ -14,6 +14,7 @@ import { queueHandoffLaunch } from '../packages/resources/index.js';
 import { reserveHandoffTicket } from '../packages/resources/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
 /** Demand a native success before consuming fixture data. */
@@ -37,8 +38,8 @@ async function fixture(t, state) {
     } finally { helpers.cleanup(); }
   });
   const box = helpers.project('true');
-  const id = document(box.run(box.repo, 'add', 'web', 'Dispatcher recovery fixture',
-    '--specs', 'G1', '--criterion', 'The fixture remains held.', '--json')).item.item_id;
+  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Dispatcher recovery fixture',
+    criterion: 'The fixture remains held.', args: ['--specs', 'G1'] }).item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   const tools = join(box.dir, 'captured-tools');
   marker = join(box.dir, 'dispatcher-starts');

@@ -33,7 +33,7 @@ function claimWithStrayFolder() {
   }
   const web2 = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', web2, '-b', 'web/two');
-  const joined = joinFixtureSeat(box, web2, 'web', { model: 'Fixture' });
+  const joined = joinFixtureSeat(box, web2, 'web', { model: FIXTURE_MODEL });
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { stray, claim: box.run(web2, 'claim', id) };
 }

@@ -6,6 +6,8 @@ import { contextCeiling } from '../packages/stats/index.js';
 import { exitContextDecision } from '../packages/stats/index.js';
 import { nativeLastPrompt } from '../packages/stats/index.js';
 
+const CODEX = 'gpt-6';
+const SONNET = 'claude-sonnet-5-5';
 const policy = { enabled: true, tokens: 150_000_000, calls: 2000 };
 
 /** A Claude-shaped native log whose assistant calls carry the given usage rows. */
@@ -16,14 +18,14 @@ function claudeLog(model, ...prompts) {
 test('clause 1: a seat whose last call prompt exceeds the ceiling ends after its claim settles, counted across claims [C7]', () => {
   // Two claims in one session: the first call was small, the newest prompt (input + cached reads + cache writes) is over 200000.
   const last = nativeLastPrompt('claude', claudeLog('claude-sonnet-5-5', [100, 1000, 0], [500, 190_000, 10_000]));
-  assert.deepEqual(last, { tokens: 200_500, model: 'claude-sonnet-5-5' });
+  assert.deepEqual(last, { tokens: 200_500, model: SONNET });
   const decision = exitContextDecision(policy, last);
   assert.equal(decision.code, 'EXIT_CONTEXT');
   assert.equal(decision.ceiling, 200_000);
   assert.equal(exitContextDecision(policy, nativeLastPrompt('claude', claudeLog('claude-sonnet-5-5', [500, 190_000, 9_000]))), null, 'under the ceiling keeps the session');
-  assert.equal(exitContextDecision(policy, { tokens: 200_000, model: 'claude-sonnet-5-5' }), null, 'a prompt exactly at the ceiling keeps the session');
-  assert.equal(exitContextDecision(policy, { tokens: 200_001, model: 'claude-sonnet-5-5' }).code, 'EXIT_CONTEXT');
-  const codex = Buffer.from([{ type: 'turn_context', payload: { model: 'gpt-6' } }, { type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 250_000 } } } }].map(row => JSON.stringify(row)).join('\n') + '\n');
+  assert.equal(exitContextDecision(policy, { tokens: 200_000, model: SONNET }), null, 'a prompt exactly at the ceiling keeps the session');
+  assert.equal(exitContextDecision(policy, { tokens: 200_001, model: SONNET }).code, 'EXIT_CONTEXT');
+  const codex = Buffer.from([{ type: 'turn_context', payload: { model: CODEX } }, { type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 250_000 } } } }].map(row => JSON.stringify(row)).join('\n') + '\n');
   assert.equal(exitContextDecision(policy, nativeLastPrompt('codex', codex)).context, 250_000);
 });
 
