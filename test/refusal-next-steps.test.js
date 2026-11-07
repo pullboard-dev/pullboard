@@ -127,7 +127,8 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   succeeded(gateBox.run(gateWeb, 'submit', String(redId)));
 
   box.env.CODEX_THREAD_ID = 'main-owner-session';
-  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model'));
+  // The coordinator is always strong; join refuses BAD_ROUTE when its model maps to no tier and the route defaults to mid.
+  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model', '--route', 'strong'));
   const bindingPath = join(repo, '.git', 'pullboard-checkout-session.json');
   const binding = readFileSync(bindingPath, 'utf8');
   box.env.CODEX_THREAD_ID = 'new-agent-session';
