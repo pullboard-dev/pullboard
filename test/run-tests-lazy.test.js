@@ -1,14 +1,14 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin copies the shipped wall-clock budgets helper into the private installed copy the runners package is imported from. */
 /** Ordinary runner loading stays light; full gates and truthful repository selection retain their inputs [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { testClosures } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
@@ -195,7 +195,7 @@ syncBuiltinESMExports();
 `;
 
 test('importing the runners package spawns nothing and pins no tooling; the first runner operation pins it and later changes are refused [C7,P3]', { timeout: 120_000 }, t => { // budget: one private installed copy and one child that pins real tooling; hang ceiling only.
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-lazy-runner-pin-'));
+  const directory = privateFixtureFiles('pullboard-lazy-runner-pin-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const installed = join(directory, 'installed');
   copyPackageFiles(ROOT, installed);

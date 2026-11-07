@@ -29,10 +29,23 @@ import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 
+/**
+ * The exact commit and tree a pinned source names, read from the repository's object store in place; null unless that
+ * commit holds exactly that tree. Why: a main comparison cloned main into a temporary repository whose cache id was new
+ * every time, so each one shipped the whole history to a cold runner cache (584 s median, #3323) [C7].
+ */
+function pinnedSource(root, source) {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '') || typeof source.tree !== 'string') return null;
+  try { return sourceGit(root, ['rev-parse', '--verify', `${source.commit}^{tree}`]).trim() === source.tree ? { commit: source.commit, tree: source.tree } : null; }
+  catch { return null; }
+}
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
-  const current = runnerSource(root);
+  // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
+  // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
+  const current = source?.pinned === true ? pinnedSource(root, source) : runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
     throw new Refused('RUNNER_SOURCE_CHANGED', 'the queued source changed; restore the committed tree and retry the run');
   }
@@ -66,7 +79,8 @@ export async function requestFor(root, command, { runner, source, browser = fals
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
   try {
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
-    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0';
+    // A pinned main comparison never reuses or exports results, as it did from its throwaway clone's empty store.
+    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0' && source?.pinned !== true;
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
     const exchange = reuse ? await (await import('../../../gate/index.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();

@@ -11,9 +11,9 @@ import {
   sep,
 } from 'node:path';
 
-import { COLLECTION_REPORT_PREFIX } from './gate-run-receipt.js';
-import { formatCollectionReport } from './gate-run-receipt.js';
-import { parseCollectionReports } from './gate-run-receipt.js';
+import { COLLECTION_REPORT_PREFIX } from '../core/collection-report.js';
+import { formatCollectionReport } from '../core/collection-report.js';
+import { parseCollectionReports } from '../core/collection-report.js';
 import { readTestOutcomes } from './test-outcomes.js';
 import { keepSeatAlive } from './seat-keepalive.js';
 
