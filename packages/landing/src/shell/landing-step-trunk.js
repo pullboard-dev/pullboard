@@ -11,6 +11,9 @@ import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { git } from '../../../git/index.js';
+import { headTree } from '../../../git/index.js';
+import { runLandingCliSmoke } from './landing-cli-smoke.js';
+import { submitHandoff } from '../../../store/index.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -21,6 +24,7 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
+import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -42,18 +46,51 @@ import { landingFault } from './landing-step-diagnose.js';
 function accepted(state, gate) { return gate.isGreen || Boolean(gate.knownMainProof) || Boolean(waivedProof(state, gate)); }
 
 /**
+ * The proof a landing records: a green gate's tree and log, keeping the submit receipt it reused, or the waived
+ * proof for a red one [C7,#2902]. Why: the board must be able to name the receipt that proved a reused tree.
+ */
+export function landingProof(gate, waived) {
+  if (!gate.isGreen) return waived();
+  return { tree: gate.tree, failures: [], logPath: gate.logPath, ...(gate.reusedSubmitGate ? { reusedSubmitGate: gate.reusedSubmitGate } : {}) };
+}
+
+/**
+ * A green submit gate that already ran exactly this merged tree, for the batch's one item at its frozen bar, or null
+ * [C7,#2902]. Why: when main has not moved since the item's gate, landing re-ran the same tests on the same bytes.
+ */
+export function provenTreeGate(board, items, tree) {
+  if (items.length !== 1 || !tree) return null;
+  const item = store.getItem(board, items[0].id);
+  const job = submitHandoff(board, items[0].id);
+  if (!item || !job || job.state !== 'green' || job.gateGreen === false || job.executionTree !== tree
+    || job.commit !== items[0].commit || job.digest !== item.item_frozen_digest) return null;
+  return { isGreen: true, tree, failures: [], logPath: null, reusedSubmitGate: job.id };
+}
+
+/**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
  * guards remain a floor; an uncertain import graph requires the configured full gate before adoption.
  */
-async function quickGuards(state, label = 'local-trunk', options = {}) {
+export async function quickGuards(state, label = 'local-trunk', options = {}) {
+  const services = state.guardServices ?? {};
+  const runChecks = services.runStaticChecks ?? runStaticChecks;
+  const smoke = services.runLandingCliSmoke ?? runLandingCliSmoke;
+  const runGate = services.gateGroup ?? gateGroup;
+  const proven = provenTreeGate(state.board, state.batch.items, headTree(state.batch.root));
+  if (proven) {
+    await runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } });
+    smoke(state.batch.root);
+    state.say?.(`#${state.batch.items[0].id}: its submit gate ${proven.reusedSubmitGate} already proved this exact tree green; no tests rerun`);
+    return proven;
+  }
   // The static checks run beside the gate, not before it: in their own slot they cost a one-item batch about 50 s on
   // the critical path for an 8 s check. A red static check still refuses the batch once the gate has finished [C7].
   // The landing's static check waits as a landing: as an ordinary item check it queued 58 to 211 s behind builder
   // submits on 6 Nov, longer than the gate it was meant to run beside [C7].
-  const staticChecks = runStaticChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
+  const staticChecks = runChecks(state.batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } }) // a landing slot: not an item check, not a short slot
     .then(result => ({ result }), error => ({ error }));
   let gate;
-  try { gate = await gateGroup(state, label, { localTrunk: true, ...options }); }
+  try { gate = await runGate(state, label, { localTrunk: true, ...options }); }
   finally { await staticChecks; }
   const checked = await staticChecks;
   if (checked.error) throw checked.error;
@@ -169,6 +206,7 @@ export async function landOnTrunk(state) {
       const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
       const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
+      if (await splitRedBatch(state, gate)) return;
       const green = await bisect(state, state.batch.items, own, 'local-split', quickGuards);
       if (state.flaky || !green.length) {
         if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });
@@ -203,7 +241,7 @@ export async function landOnTrunk(state) {
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit) throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed after the batch merged; rebuild its landing`);
   }
   gate = await followMovedTrunk(state, gate);
-  const proof = gate.isGreen ? { tree: gate.tree, failures: [], logPath: gate.logPath } : gate.knownMainProof ?? waivedProof(state, gate);
+  const proof = landingProof(gate, () => gate.knownMainProof ?? waivedProof(state, gate));
   if (!proof) throw new Refused('LAND_WAIVER', 'the local-trunk red lost its live person waiver; ask the person for a new expiring waiver, then adopt the batch');
   state.say('trunk: gate proved; binding the flake ratchet');
   if (!await flakeRatchetOrBlock(state)) return;

@@ -18,6 +18,8 @@ import { git } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 
 const VERSION = 1;
+/** Bump when the rule deciding a verdict changes: entries of another version are recomputed, never reused. */
+export const BROWSER_RULE_VERSION = 2;
 const ENTRY_LIMIT = 6000;
 const SHA = /^[0-9a-f]{40,64}$/u;
 
@@ -44,7 +46,8 @@ export function readBrowserScanCache(file) {
     for (const [path, entry] of Object.entries(value.entries)) {
       if (typeof path !== 'string' || !path || typeof entry?.bound !== 'boolean' || typeof entry.byLaunch !== 'boolean'
         || !SHA.test(entry.tree ?? '') || !Array.isArray(entry.closure) || entry.closure.some(item => typeof item !== 'string' || !item)) continue;
-      entries[path] = { bound: entry.bound, byLaunch: entry.byLaunch, tree: entry.tree, closure: [...new Set(entry.closure)] };
+      entries[path] = { bound: entry.bound, byLaunch: entry.byLaunch, tree: entry.tree, closure: [...new Set(entry.closure)],
+        ruleVersion: Number.isInteger(entry.ruleVersion) ? entry.ruleVersion : 0, reason: typeof entry.reason === 'string' ? entry.reason : '' };
     }
     return { version: VERSION, entries };
   } catch { return empty; }
@@ -79,8 +82,8 @@ export function changedPaths(root, fromTree, toTree, memo = new Map()) {
 }
 
 /** True when a cached verdict still holds at `tree`: same mode, and no path of its closure changed since its tree. */
-export function cachedVerdictHolds(entry, { byLaunch, tree, changed }) {
-  if (!entry || entry.byLaunch !== byLaunch || !tree) return false;
+export function cachedVerdictHolds(entry, { byLaunch, tree, changed, ruleVersion = BROWSER_RULE_VERSION }) {
+  if (!entry || entry.byLaunch !== byLaunch || !tree || entry.ruleVersion !== ruleVersion) return false;
   if (entry.tree === tree) return true;
   const diff = changed(entry.tree);
   if (diff === null) return false;
