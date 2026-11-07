@@ -21,6 +21,7 @@ import { RUNNERS } from './blueprint-fixture.js';
 import { FRAMEWORKS } from './blueprint-fixture.js';
 import { bundled } from './blueprint-fixture.js';
 import { draftedTexts } from './blueprint-fixture.js';
+import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
 
 test('blueprint add files a blueprint as drafts and runs nothing it supplies [S1,I1]', () => {

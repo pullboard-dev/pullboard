@@ -25,6 +25,7 @@ import { UNSAFE_CHECK } from './blueprint-fixture.js';
 import { SOURCED } from './blueprint-fixture.js';
 import { emptyRepo } from './blueprint-fixture.js';
 import { bundled } from './blueprint-fixture.js';
+import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
 
 test('blueprint add files a blueprint as drafts [S1,I1]', () => {

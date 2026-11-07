@@ -20,8 +20,10 @@ import { LEGACY_FRAMEWORK } from './blueprint-fixture.js';
 import { freshBoard } from './blueprint-fixture.js';
 import { json } from './blueprint-fixture.js';
 import { UNSAFE_CHECK } from './blueprint-fixture.js';
+import { SOURCED } from './blueprint-fixture.js';
 import { emptyRepo } from './blueprint-fixture.js';
 import { bundled } from './blueprint-fixture.js';
+import { ok } from './blueprint-fixture.js';
 import { refusal } from './blueprint-fixture.js';
 
 test('infrastructure loads as architecture [S1]', async () => {
