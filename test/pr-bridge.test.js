@@ -131,7 +131,7 @@ test('a pull request carries a verified-by-a-second-agent status and an outside 
   assert.ok(JSON.parse(discovered.out).verification.find(entry => entry.number === 70).intake.includes('pullboard intake'));
   collision.state = 'closed';
   const filed = await runBridgeCLI(proven, 'intake', 'https://github.com/fixture/repository/pull/70',
-    '--lane', 'web', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
+    '--lane', 'web', '--route', 'strong', '--criterion', 'the outside contribution behaves correctly', '--check', 'test ! -f RED', '--json');
   assert.equal(filed.code, 0, filed.err);
   const intake = JSON.parse(filed.out).item;
   assert.equal(intake.item_status, 'submitted', 'the bridge files outside work for another agent, without certifying it');
