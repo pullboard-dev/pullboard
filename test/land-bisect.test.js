@@ -46,6 +46,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   delete box.env.LAND_SUPPRESS_RED;
   assert.equal(commitFile(box, box.repo, FILES[1], 'different main content\n', 'chore: create a merge conflict').status, 0);
   const base = box.git(box.repo, 'rev-parse', 'main');
+  await drainOwnedProcesses(box.dir); // A submit's finishing gate writes its event on its own clock, so count only after it ends.
   const beforeEvents = events(box).length;
   const beforeCalls = calls(box).length;
   const dry = json(box, box.repo, 'land', '--max', '4', '--dry-run');
