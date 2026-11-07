@@ -13,6 +13,7 @@ import {
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+import { joinFixtureSeat } from "../../../test/testkit-fixture.js";
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -24,12 +25,12 @@ function add(box, lane, title) {
   return Number(result.out.match(/#(\d+)/u)?.[1]);
 }
 
-/** Commit one owned file in a fixture worktree and return its real Git commit. */
-function commitFile(box, worktree, name, contents) {
+/** Commit one owned file in a fixture worktree and return its real Git commit; a trailer cites the item the commit also serves. */
+function commitFile(box, worktree, name, contents, trailer = '') {
   mkdirSync(join(worktree, name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '.'), { recursive: true });
   writeFileSync(join(worktree, name), contents);
   box.git(worktree, 'add', name);
-  box.git(worktree, 'commit', '-q', '-m', `feat(web): ${contents.trim()} [G1]`);
+  box.git(worktree, 'commit', '-q', '-m', `feat(web): ${contents.trim()} [G1]`, ...(trailer ? ['-m', trailer] : []));
   return box.git(worktree, 'rev-parse', 'HEAD');
 }
 
@@ -59,7 +60,7 @@ test('clause 1, clause 2: [V17] submit refuses a candidate stacked on another it
 
   const review = join(box.dir, 'review-first');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, firstCommit);
-  assert.match(box.run(review, 'join', 'api', '--model', 'fixture-model').out, /joined as api-1/u);
+  assert.match(joinFixtureSeat(box, review, 'api').out, /joined as api-1/u);
   const accepted = box.run(review, 'verify', String(first), 'accept', '--note', 'checked the submitted change', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   const resubmitted = box.run(box.web, 'submit', String(stacked), '--json');
@@ -83,7 +84,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
       agentId: 'web-1',
       commit: stackedCommit,
       tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
-      policyCommit: JSON.parse(box.run(box.web, 'show', String(stacked), '--json').out).item_claim_head,
+      policyCommit: box.git(box.repo, 'rev-parse', 'main'),
     });
   } finally {
     store.closeBoard(board);
@@ -91,7 +92,7 @@ test('[V17] accept refuses a historical candidate stacked on another item', () =
 
   const review = join(box.dir, 'review-stacked');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, stackedCommit);
-  assert.match(box.run(review, 'join', 'api', '--model', 'fixture-model').out, /joined as api-1/u);
+  assert.match(joinFixtureSeat(box, review, 'api').out, /joined as api-1/u);
   assertStackRefusal(box.run(review, 'verify', String(stacked), 'accept', '--note', 'reviewed historical submission', '--json'), first, firstCommit);
   assert.equal(JSON.parse(box.run(review, 'show', String(stacked), '--json').out).item_status, 'submitted');
 });
@@ -102,7 +103,7 @@ function trunkStack(box, { historical = false } = {}) {
   assert.equal(box.run(box.repo, 'claim', String(stacked)).code, 0);
   const first = add(box, 'web', 'Unverified trunk commit');
   assert.equal(box.run(box.web, 'claim', String(first)).code, 0);
-  const firstCommit = commitFile(box, box.web, 'web/trunk.txt', 'unverified trunk commit');
+  const firstCommit = commitFile(box, box.web, 'web/trunk.txt', 'unverified trunk commit', `Pullboard-Item: #${stacked}`);
   assert.equal(box.run(box.web, 'submit', String(first)).code, 0);
 
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
@@ -139,7 +140,7 @@ test('[V17,V1] detached accept allows an unverified head already on trunk', () =
   const { first, firstCommit, stacked, trunkHead } = trunkStack(box, { historical: true });
   const review = join(box.dir, 'review-trunk');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, trunkHead);
-  assert.match(box.run(review, 'join', 'api', '--model', 'fixture-model').out, /joined as api-1/u);
+  assert.match(joinFixtureSeat(box, review, 'api').out, /joined as api-1/u);
   const result = box.run(review, 'verify', String(stacked), 'accept', '--note', 'checked detached trunk history', '--json');
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(JSON.parse(box.run(review, 'show', String(stacked), '--json').out).item_status, 'verified');

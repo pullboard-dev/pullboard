@@ -22,11 +22,13 @@ function document(result) {
 
 /** A refusal leaves the submitted item and event stream untouched. */
 function refused(box, board, cwd, args, expected) {
+  const quiet = events => events.filter(event => event.event_kind !== 'next-idle');
   const before = store.events(board);
   const result = box.run(cwd, ...args, '--json');
   assert.equal(result.code, 1, result.err || result.out);
   assert.equal(JSON.parse(result.out).error.code, expected, result.out);
-  assert.deepEqual(store.events(board), before);
+  // A next --verify with nothing free records its idle cause; no refusal records anything else.
+  assert.deepEqual(quiet(store.events(board)), quiet(before));
   assert.equal(store.getItem(board, 1).item_review_by, null);
 }
 
@@ -128,6 +130,7 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   assert.equal(after.item_commit, before.item_commit, 'retry preserves the submitted head');
   assert.equal(after.item_frozen_digest, before.item_frozen_digest, 'retry preserves the frozen bar');
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), before.item_commit, 'retry never changes the live reviewer checkout');
+  assert.ok(existsSync(runs), `the armed frozen check never ran: ${result.out}${result.err}`);
   return { box, result, after, before, runs: JSON.parse(readFileSync(runs, 'utf8')) };
 }
 
