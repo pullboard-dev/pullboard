@@ -9,6 +9,8 @@ import { PER_ITEM_FULL_SUITE_ENGINE } from '../src/per-item-full-suite-engine.js
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 const { LIGHT_BRIEF } = e2e;
@@ -26,7 +28,7 @@ test('clause 1: add and edit refuse per-item criteria that require the full suit
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox, { withWorktree: false });
-  const existing = box.run(box.repo, 'add', 'web', 'Scoped check item', '--criterion', 'The page renders. [test]',
+  const existing = fixtureAdd(box.run, box.repo, 'web', 'Scoped check item', '--criterion', 'The page renders. [test]',
     '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
   assert.equal(existing.code, 0, existing.err || existing.out);
   const id = JSON.parse(existing.out).item.item_id;
@@ -55,7 +57,7 @@ test('clause 1: add and edit refuse per-item criteria that require the full suit
     "Drop the words 'the full suite passes as run by the submit gate' from old bars. [test]",
     'CI runs the gate on every push; this item is complete when its named test passes. [test]',
   ]) {
-    const added = box.run(box.repo, 'add', 'web', 'Scoped check item', '--criterion', criterion,
+    const added = fixtureAdd(box.run, box.repo, 'web', 'Scoped check item', '--criterion', criterion,
       '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
     assert.equal(added.code, 0, added.err || added.out);
   }
@@ -67,14 +69,14 @@ test('clause 2: the coordinator sweep edits open, claimed, and submitted legacy 
   const box = e2e.project('true', sandbox);
   const ids = [];
   for (const label of ['Open', 'Claimed', 'Submitted']) {
-    const added = box.run(box.repo, 'add', 'web', `${label} legacy bar`, '--criterion', 'The named test passes. [test]',
+    const added = fixtureAdd(box.run, box.repo, 'web', `${label} legacy bar`, '--criterion', 'The named test passes. [test]',
       '--brief', LIGHT_BRIEF, '--check', 'true', '--json');
     assert.equal(added.code, 0, added.err || added.out);
     ids.push(JSON.parse(added.out).item.item_id);
   }
   const secondBuilder = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', secondBuilder, '-b', 'web/two');
-  assert.match(box.run(secondBuilder, 'join', 'web').out, /joined as web-2/u);
+  assert.match(fixtureJoin(box.run, secondBuilder, 'web').out, /joined as web-2/u);
   assert.equal(box.run(box.web, 'claim', String(ids[1])).code, 0);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');

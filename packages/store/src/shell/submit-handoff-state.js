@@ -57,10 +57,20 @@ function save(board, id, value) {
     .run(PREFIX + id, JSON.stringify(value));
 }
 
+/**
+ * Mirror a saved hand-off into the job tables through the optional `shadowJob` port, never changing the hand-off.
+ * Why: the durable gate proves its job rows beside today's records first; a board without the tables or the port is unaffected [C7].
+ */
+function shadow(board, id, job) {
+  try { board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board))); }
+  catch { /* A shadow row is an observation: its failure must never fail the hand-off it mirrors. */ }
+}
+
 /** Keep private job identifiers and refusal text out of the public native event payload. */
 function record(board, id, job) {
   logEvent(board, job.agentId, 'submit-handoff', id, { state: job.state, commit: job.commit });
   save(board, id, job);
+  shadow(board, id, job);
   return structuredClone(job);
 }
 

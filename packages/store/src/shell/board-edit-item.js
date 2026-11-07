@@ -4,6 +4,8 @@ import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { validateMachineVerification } from '../../../verify/index.js';
+import { saveMachineVerification } from '../../../verify/index.js';
 import { createHash } from 'node:crypto';
 import { notifyFileGrowth as applyFileGrowthNotice } from "../../../items/index.js";
 import { reviewPolicyChange } from "../../../verify/index.js";
@@ -54,7 +56,7 @@ import { persistShout } from "./board-shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen = false }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
   if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
     || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
     || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
@@ -65,7 +67,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen });
     if (preserveFrozen) {
       const engine = board.executionEngineVersion ?? ENGINE_VERSION;
       const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
@@ -101,8 +103,11 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
+    const machineVerification = saveMachineVerification(board, { ...item, ...next }, { agentId, machineVerified, machineCommands });
+    if (machineVerification) setItem(board, id, { item_frozen: null, item_frozen_digest: null });
     logEvent(board, agentId, 'edit', id, {
       ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}),
+      ...(machineVerification ? { machineVerification } : {}),
       ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}),
       ...(reviewPolicy ? { reviewPolicy } : {}),
       ...(next.item_brief !== item.item_brief ? { brief: `${next.item_brief.length} characters` } : {}),
@@ -143,11 +148,12 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes, preserveFrozen = false }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
   if (expectedBuildMinutes !== undefined && engine < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
+  validateMachineVerification(board, { ...itemById(board, id), ...(criterion === undefined ? {} : { item_criterion: criterion }), ...(check === undefined ? {} : { item_check: check }) }, { agentId, machineVerified, machineCommands });
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
   }
@@ -161,7 +167,7 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = checkWiden.editCheck(agentId, check, widened);
-  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes].every((value) => value === undefined)) {
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));

@@ -10,9 +10,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  FIXTURE_HELPERS,
+  compositionBase,
   fixtureProblems,
   fixtureSites,
 } from '../bin/checks/test-fixtures.js';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { privateFixtureFiles } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { fileURLToPath } from 'node:url';
 
 /** The kinds the scanner finds in one source, sorted and de-duplicated. */
 function kinds(source) {
@@ -24,6 +31,10 @@ test('clause 1: each pattern is flagged and a clean file is not [C7]', () => {
   assert.deepEqual(kinds("git(dir, ['init', '-q']);"), ['tempdir']);
   assert.deepEqual(kinds("run(dir, 'add', 'Title');"), ['raw-cli']);
   assert.deepEqual(kinds("run(dir, 'join', 'core');"), ['raw-cli']);
+  assert.deepEqual(kinds("box.run('lane', 'add', 'web', '--owns', 'web/');"), []);
+  assert.deepEqual(kinds("fixtureAdd(box.run, box.repo, 'web', 'Title'); fixtureJoin(box.run, dir, 'core');"), []);
+  assert.deepEqual(kinds("spawnSync(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Title']);"), []);
+  assert.deepEqual(fixtureSites("run(cwd, 'add', ...args);", 'test/testkit-fixture.js'), []);
   assert.deepEqual(kinds("run(dir, ['join', 'core', '--model', 'claude-x']);"), ['model']);
   assert.deepEqual(kinds("const env = { PULLBOARD_MODEL: 'gpt-x' };"), ['model']);
   assert.deepEqual(kinds("const text = readFileSync(join(import.meta.dirname, '../SPEC.md'), 'utf8');"), ['repo-read']);
@@ -58,4 +69,62 @@ test('clause 2: a test file one over its ceiling is refused [C7]', () => {
     assert.equal(refused[0].line, 2);
     assert.match(refused[0].text, /^raw-cli:/u);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+/** The repository root this test file lives in. */
+const REPO = fileURLToPath(new URL('..', import.meta.url));
+
+test('clause 1: the fixture check finds no site past its ceilings in this repository [C7]', () => {
+  assert.deepEqual(fixtureProblems(REPO), []);
+});
+
+test('clause 2: every helper path the check names exists in the tree and appears in its messages [C7]', () => {
+  for (const [kind, path] of Object.entries(FIXTURE_HELPERS)) {
+    assert.ok(existsSync(join(REPO, path)), `${kind} names ${path}, which must exist`);
+    const message = fixtureSites(kind === 'model' ? "x({ model: 'm' });" : kind === 'raw-cli' ? "box.run(box.repo, 'add', 'web');" : "mkdtempSync('x');", 'test/example.test.js')
+      .find(row => row.kind === kind)?.text ?? '';
+    assert.ok(message.includes(path), `${kind} message names ${path}`);
+  }
+});
+
+/** A private repository with one test file F carrying two raw tempdir rows at its base commit. */
+function ratchetFixture() {
+  const fixture = privateFixtureFiles('pullboard-ratchet-base-');
+  const run = (...args) => runFixtureChild('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: fixture.root, encoding: 'utf8' });
+  const rows = count => Array.from({ length: count }, (_, at) => `const dir${at} = mkdtempSync(join(tmpdir(), 'x${at}'));`).join('\n') + '\n';
+  fixture.write('ceilings.json', '{}\n');
+  fixture.write('test/f.test.js', rows(2));
+  run('init', '-q', '-b', 'main'); run('add', '.'); run('commit', '-qm', 'base: F carries two inherited rows');
+  const base = run('rev-parse', 'HEAD').stdout.trim();
+  return { fixture, run, rows, base, ceilings: join(fixture.root, 'ceilings.json') };
+}
+
+test('clause 2: only the rows a submission adds are red against its composition base, and the ceilings file is untouched [C7]', () => {
+  const { fixture, rows, base, ceilings } = ratchetFixture();
+  const before = readFileSync(ceilings, 'utf8');
+  const against = () => fixtureProblems(fixture.root, ceilings, { base });
+  assert.deepEqual(fixtureProblems(fixture.root, ceilings, { base: null }).map(row => row.line), [1, 2], 'without a base the two inherited rows are red');
+  assert.deepEqual(against(), [], 'a submission that leaves F at 2 rows is green');
+  fixture.write('test/f.test.js', rows(3));
+  const grown = against();
+  assert.deepEqual(grown.map(row => `${row.path}:${row.line}`), ['test/f.test.js:3'], 'taking F to 3 is red, naming the added row');
+  fixture.write('test/f.test.js', rows(2));
+  fixture.write('test/g.test.js', rows(1));
+  assert.deepEqual(against().map(row => `${row.path}:${row.line}`), ['test/g.test.js:1'], 'a new file with one row is red');
+  fixture.write('test/f.test.js', rows(1));
+  fixture.write('test/g.test.js', 'export const clean = true;\n');
+  assert.deepEqual(against(), [], 'a submission that removes a row is green');
+  assert.equal(readFileSync(ceilings, 'utf8'), before, 'the ceilings file is byte-identical');
+});
+
+test('clause 1: the composition base is the second parent of a merge and nothing otherwise [C7]', () => {
+  const { fixture, run, rows, base } = ratchetFixture();
+  assert.equal(compositionBase(fixture.root), null, 'a plain commit has no composition base');
+  run('checkout', '-q', '-b', 'item'); fixture.write('test/h.test.js', 'export const item = true;\n'); run('add', '.'); run('commit', '-qm', 'item work');
+  run('checkout', '-q', 'main'); fixture.write('test/f.test.js', rows(2) + 'export const trunk = true;\n'); run('commit', '-qam', 'trunk moves');
+  const trunk = run('rev-parse', 'HEAD').stdout.trim();
+  run('checkout', '-q', 'item'); run('merge', '-q', '--no-ff', '-m', 'compose', 'main');
+  assert.equal(compositionBase(fixture.root), trunk, 'the merged trunk commit is the base');
+  assert.notEqual(base, trunk);
+  assert.deepEqual(fixtureProblems(fixture.root, join(fixture.root, 'ceilings.json')), [], 'the default base is the composition base, so inherited rows are green');
 });

@@ -1,0 +1,52 @@
+/** Take, renew and reclaim job leases on the board's SQLite handle [C7]. */
+import { Refused } from "../../../kernel/index.js";
+import { LEASE_MS } from "../core/lease-rules.js";
+import { jobView } from "./job-store.js";
+
+/**
+ * Take a job for a driver. Succeeds only in one statement where the lease has lapsed, so two drivers never both win.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner - The driver id.
+ * @param {{now?: number, leaseMs?: number}} [options]
+ * @returns {{taken: boolean, job: ReturnType<typeof jobView>}} taken is false when another driver holds a live lease.
+ */
+export function takeJob(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS } = {}) {
+  if (!owner) throw new Refused('JOB_OWNER', 'A lease needs an owner: pass the driver id.');
+  const result = db.prepare('UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_updated = ? WHERE job_id = ? AND job_lease_until < ?')
+    .run(owner, now + leaseMs, now, job, now);
+  const view = jobView(db, job);
+  if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
+  return { taken: result.changes === 1, job: view };
+}
+
+/**
+ * Extend the lease of the driver that holds it: one UPDATE, no history read. A driver whose lease moved gets false.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner
+ * @param {{now?: number, leaseMs?: number}} [options]
+ * @returns {boolean} True when the lease was renewed.
+ */
+export function renewLease(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS } = {}) {
+  return db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ? AND job_lease_until >= ?')
+    .run(now + leaseMs, job, owner, now).changes === 1;
+}
+
+/**
+ * Jobs that were taken and whose lease has lapsed (lease_until < now), oldest first. A lease runs 2 minutes from the last
+ * renewal, so a silent driver's job is reclaimable 2 minutes after that renewal.
+ *
+ * Why: a job never taken has no owner and is simply queued; only a taken job that went silent is stalled.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{now?: number, leaseMs?: number}} [options]
+ * @returns {{id: string, kind: string, step: string, leaseOwner: string, lapsedMs: number}[]}
+ */
+export function reclaimLapsed(db, { now = Date.now() } = {}) {
+  return db.prepare('SELECT job_id, job_kind, job_step, job_lease_owner, job_lease_until FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until < ? ORDER BY job_lease_until')
+    .all(now)
+    .map(row => ({ id: row.job_id, kind: row.job_kind, step: row.job_step, leaseOwner: row.job_lease_owner, lapsedMs: now - row.job_lease_until }));
+}
