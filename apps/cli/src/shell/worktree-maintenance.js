@@ -76,8 +76,11 @@ export function maintenanceDirtyPaths(path) {
     const field = fields[index];
     if (field.length < 4) continue;
     found.add(field.slice(3));
-    // A rename or copy entry is followed by its source path as a separate field.
-    if (/[RC]/u.test(field.slice(0, 2))) index++;
+    // A rename or copy entry is followed by its source path as a separate field; record it too.
+    if (/[RC]/u.test(field.slice(0, 2))) {
+      index++;
+      if (fields[index]) found.add(fields[index]);
+    }
   }
   return [...found].sort();
 }

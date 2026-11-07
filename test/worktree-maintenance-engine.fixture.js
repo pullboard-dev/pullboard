@@ -245,6 +245,7 @@ export function registerMaintenanceEngineTests() {
     const dirty = fx.addTree('dirty-orphan');
     const clean = fx.addTree('clean-orphan');
     seedOldTrees(fx, [dirty.path, clean.path]);
+    fx.box.git(dirty.path, 'mv', 'SPEC.md', 'SPEC-moved.md');
     const before = makeDirty(fx.box, dirty.path);
     fx.setNow(BORN + 3 * DAY);
     const first = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
@@ -254,10 +255,11 @@ export function registerMaintenanceEngineTests() {
     assert.equal(maintenanceSnapshot(dirty.path, { includeMetadata: true }).signature, before.signature);
     const entry = first.entries.find(row => row.path === dirty.path);
     assert.equal(entry.action, 'kept');
-    assert.deepEqual(entry.dirtyPaths, ['pullboard.json', 'untracked.bin']);
+    assert.deepEqual(entry.dirtyPaths, ['SPEC-moved.md', 'SPEC.md', 'pullboard.json', 'untracked.bin'], 'a staged rename reports both its destination and its source');
     assert.match(entry.reason, /uncommitted changes/u);
     const facts = store.itemThread(fx.board, fx.factItem).filter(row => row.type === 'fact' && row.text.includes('uncommitted'));
     assert.equal(facts.length, 1);
+    assert.ok(facts[0].text.includes('SPEC-moved.md') && facts[0].text.includes('SPEC.md'), 'the fact names both rename paths');
     assert.ok(facts[0].text.includes(dirty.path) && facts[0].text.includes('pullboard.json') && facts[0].text.includes('untracked.bin'));
     await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() + HOUR });
     assert.equal(store.itemThread(fx.board, fx.factItem).filter(row => row.type === 'fact' && row.text.includes('uncommitted')).length, 1,
