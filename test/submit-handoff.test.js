@@ -7,6 +7,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
@@ -74,12 +75,9 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = `${word(process.execPath)} ${word(script)}`;
-  const id = document(box.run(box.repo, 'add', 'web', '--route', 'strong', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
-    '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
-  const third = document(box.run(box.repo, 'add', 'web', '--route', 'strong', 'Third ordinary build', '--specs', 'G1',
-    '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const second = document(box.run(box.repo, 'add', 'web', '--route', 'strong', 'Independent second build', '--specs', 'G1',
-    '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', criterion: 'The captured candidate passes its real gate.', check: check, diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
+  const third = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Third ordinary build', criterion: 'An ordinary third build stays refused.', check: 'true', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
+  const second = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Independent second build', criterion: 'The second build remains separate.', check: 'true', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
   const claim = document(box.run(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
@@ -238,7 +236,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   const box = fixture(t, { companion: true });
   const author = join(box.dir, 'companion-author');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', author, box.commit);
-  const authorId = document(box.run(author, 'join', 'api', '--model', 'Fixture', '--json')).agent;
+  const authorId = document(joinFixtureSeat(box, author, 'api')).agent;
   mkdirSync(join(author, 'api'), { recursive: true });
   writeFileSync(join(author, 'api', 'companion.txt'), 'required\n');
   box.git(author, 'add', 'api/companion.txt');
@@ -261,7 +259,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(box.run(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(box.run(box.repo, 'add', 'web', '--route', 'strong', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const fourth = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fourth ordinary build', criterion: 'One ordinary build at a time.', check: 'true', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
   document(box.run(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   const duplicate = state(box, box.id).job;
@@ -278,7 +276,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
-  document(box.run(reviewer, 'join', 'api', '--model', 'Fixture', '--json'));
+  document(joinFixtureSeat(box, reviewer, 'api'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
@@ -432,7 +430,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
     assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
     const other = join(box.dir, 'other-web');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-    document(box.run(other, 'join', 'web', '--model', 'Fixture', '--json'));
+    document(joinFixtureSeat(box, other, 'web'));
     const foreign = box.run(other, 'claim', String(box.id), '--json');
     assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
     if (mode === 'silent') rmSync(request.tools, { recursive: true, force: true });
@@ -467,7 +465,7 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
-  document(box.run(other, 'join', 'web', '--model', 'Fixture', '--json'));
+  document(joinFixtureSeat(box, other, 'web'));
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'HELD');
@@ -487,10 +485,9 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
 async function enforceCellTrial(box, kind, code) {
   const probe = join(box.dir, `trial-probe-${kind}`);
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', probe, 'main');
-  document(box.run(probe, 'join', 'web', '--model', 'Fixture', '--json'));
+  document(joinFixtureSeat(box, probe, 'web'));
   // Cell checks apply only to an item titled as a Cells move, so the probe files its own.
-  const probeId = document(box.run(box.repo, 'add', 'web', '--route', 'strong', `Cells move 1/1: trial probe ${kind}`, '--specs', 'G1',
-    '--criterion', 'The probe source reaches the cell checks.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const probeId = fileFixtureItem(box, box.repo, { lane: 'web', title: `Cells move 1/1: trial probe ${kind}`, criterion: 'The probe source reaches the cell checks.', check: 'true', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
   document(box.run(probe, 'claim', String(probeId), '--json'));
   mkdirSync(join(probe, 'src'), { recursive: true });
   assert.equal(box.helpers.commitFile(box, probe, 'src/unplaced.js', 'export const unsafe = true;\n', 'feat(web): trial probe source [G1]').status, 0);
@@ -647,8 +644,7 @@ function mainAdvanceFixture(t) {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const id = document(box.run(box.repo, 'add', 'web', '--route', 'strong', 'Queued proof across accepted main', '--specs', 'G1',
-    '--criterion', 'The captured feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
+  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Queued proof across accepted main', criterion: 'The captured feature is item.', check: 'node bin/run-tests.js test/feature.test.js', diagnose: false, wait: true, args: ['--specs', 'G1'] }).item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', "export const feature = 'item';\n", 'feat(web): captured implementation [G1]').status, 0);
   document(box.run(box.repo, 'bar', 'ready', 'on', '--json'));
