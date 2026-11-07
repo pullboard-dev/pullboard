@@ -63,6 +63,45 @@ function currentTree(root, common, path, head) {
   return row;
 }
 
+/**
+ * List the paths Git reports as modified, staged or untracked in one worktree, sorted and unique.
+ * Why: a worktree holding any of these is somebody's unfinished work, so maintenance must never remove or reset it.
+ * @param {string} path absolute worktree folder
+ * @returns {string[]} dirty paths; empty when the worktree is clean
+ */
+export function maintenanceDirtyPaths(path) {
+  const fields = String(maintenanceGit(path, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])).split('\0');
+  const found = new Set();
+  for (let index = 0; index < fields.length; index++) {
+    const field = fields[index];
+    if (field.length < 4) continue;
+    found.add(field.slice(3));
+    // A rename or copy entry is followed by its source path as a separate field; record it too.
+    if (/[RC]/u.test(field.slice(0, 2))) {
+      index++;
+      if (fields[index]) found.add(fields[index]);
+    }
+  }
+  return [...found].sort();
+}
+
+/**
+ * Keep a dirty worktree in place: say why on the report entry and record a fact naming the folder and its dirty paths.
+ * The fact is written once per distinct set of dirty paths, so an hourly sweep does not repeat itself.
+ * @param {object} ports maintenance ports; an optional recordDirty writes the native fact
+ * @param {{ path: string, agents: string[], items: (string|number)[] }} row the classified tree
+ * @param {string[]} paths the dirty paths
+ * @param {object} entry the report entry to explain
+ * @param {boolean} fresh whether this set of dirty paths is new since the last sweep
+ */
+async function keepDirty(ports, row, paths, entry, fresh = true) {
+  entry.reason = `uncommitted changes in ${row.path}; worktree kept`;
+  entry.dirtyPaths = paths;
+  if (!fresh || typeof ports.recordDirty !== 'function') return;
+  try { await ports.recordDirty({ path: row.path, agents: row.agents, items: row.items, paths }); }
+  catch (error) { entry.reason += `; its fact could not be recorded: ${error.message}`; }
+}
+
 /** One summary has no file contents, individual shell commands, or inferred cleanup claims. */
 export function maintenanceSummary(report) {
   const freed = report.freedBytes === null ? 'unknown' : String(report.freedBytes) + ' B';
@@ -92,6 +131,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
     report.entries.push(entry);
     next.trees[tree.path] = { firstSeenAt: previous?.firstSeenAt ?? now,
       inactiveSince: row.inactiveSince, agents: row.agents, dirtySince: previous?.dirtySince ?? null,
+      dirtyFact: previous?.dirtyFact ?? null,
       ...(previous?.retainedWithdrawal ? { retainedWithdrawal: previous.retainedWithdrawal } : {}) };
     if (observeDirt(tree, observed, mainRoot, root, config, now)) {
       try {
@@ -108,8 +148,15 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       const fresh = classifyMaintenanceTree(actual, { mainRoot, currentRoot: root, config,
         ...await ports.readSnapshot(), previous: next.trees[tree.path], now, workingDirectories: readDirectories() });
       if (fresh.protected || !fresh.oldEnough) { entry.reason = fresh.reason; continue; }
-      const before = maintenanceSnapshot(tree.path);
-      next.trees[tree.path].dirtySince = before.dirty ? previous?.dirtySince ?? now : null;
+      const dirtyPaths = maintenanceDirtyPaths(tree.path);
+      next.trees[tree.path].dirtySince = dirtyPaths.length ? previous?.dirtySince ?? now : null;
+      if (dirtyPaths.length) {
+        const key = JSON.stringify(dirtyPaths);
+        await keepDirty(ports, fresh, dirtyPaths, entry, previous?.dirtyFact !== key);
+        next.trees[tree.path].dirtyFact = key;
+        continue;
+      }
+      next.trees[tree.path].dirtyFact = null;
       const allocated = maintenanceAllocatedBytes(tree.path);
       const archive = archiveMaintenanceWorktree(tree.path, common, { now: report.at, includeMetadata: true });
       await recordArchive(archive, fresh, ports);
@@ -123,7 +170,9 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       if (final.protected || !final.oldEnough || !maintenanceArchiveMatches(tree.path, archive))
         throw new Error('maintenance custody or bytes changed after archive; source retained');
       const archiveSize = maintenanceAllocatedBytes(archive.directory);
-      maintenanceGit(root, ['worktree', 'remove', '--force', tree.path]);
+      const late = maintenanceDirtyPaths(tree.path);
+      if (late.length) { await keepDirty(ports, fresh, late, entry); entry.action = 'archived-kept'; continue; }
+      maintenanceGit(root, ['worktree', 'remove', tree.path]);
       if (existsSync(tree.path)) throw new Error('maintenance removal did not complete');
       entry.action = 'pruned';
       report.pruned++;
@@ -179,8 +228,13 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
     if (fresh.items.some(row => row.item_status === 'claimed' && row.item_owner === agent)) return null;
     if (retired && fresh.seats.some(seat => seat.agent_id === agent && seat.presence === 'live') && !ports.completedTakeover)
       return null;
+    const row = { path, agents: [agent], items: [item].filter(id => id !== undefined && id !== null) };
+    // An explicit withdrawal or completed takeover archives the work before cleaning; ordinary release keeps dirty trees.
+    const explicit = withdrawn || retired;
+    const dirty = explicit ? [] : maintenanceDirtyPaths(path);
+    if (dirty.length) { await keepDirty(ports, row, dirty, {}); return null; }
     const archive = archiveMaintenanceWorktree(path, common, { now: new Date(now).toISOString() });
-    await recordArchive(archive, { path, agents: [agent], items: [item] }, ports);
+    await recordArchive(archive, row, ports);
     currentTree(root, common, path, tree.head);
     const final = await ports.readSnapshot();
     if (!withdrawalConfirmed(final)) return null;
@@ -190,6 +244,8 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
       || final.items.some(row => row.item_status === 'claimed' && row.item_owner === agent)) return null;
     if (!census()) return null;
     if (!maintenanceArchiveMatches(path, archive)) throw new Error('released work changed after archive; source retained');
+    const late = explicit ? [] : maintenanceDirtyPaths(path);
+    if (late.length) { await keepDirty(ports, row, late, {}); return null; }
     maintenanceGit(path, ['reset', '--hard', archive.manifest.head]);
     maintenanceGit(path, ['clean', '-fdx']);
     return { path, item, archive: archive.directory, clean: !maintenanceSnapshot(path).dirty };
