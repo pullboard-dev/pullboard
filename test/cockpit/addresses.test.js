@@ -150,17 +150,17 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');
     assert.ok(activity.some(([text, href]) => text === '#1' && href === '/items/1'), 'Activity item events also link to their item addresses');
     await openAddress(chrome, server, '/items/1');
-    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .verdict .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
+    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .item-panel-latest .verdict .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
     assert.deepEqual(verdict, [['#2', '/items/2']], 'verdict notes link only their plain cited item');
     const verdictCode = JSON.parse(await chrome.stable(`JSON.stringify({
-      code: [...document.querySelectorAll('#detail .verdict .note code')].map(node => node.textContent),
-      linkedCode: document.querySelectorAll('#detail .verdict .note code a, #detail .verdict .note a code').length
+      code: [...document.querySelectorAll('#detail .item-panel-latest .verdict .note code')].map(node => node.textContent),
+      linkedCode: document.querySelectorAll('#detail .item-panel-latest .verdict .note code a, #detail .item-panel-latest .verdict .note a code').length
     })`));
     assert.deepEqual(verdictCode, { code: ['#2'], linkedCode: 0 }, 'actual recorded verdict notes keep backticked references literal');
     const beforeCode = await history(chrome);
-    await press(chrome, `document.querySelector('#detail .verdict .note code')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`);
     assert.deepEqual(await history(chrome), beforeCode, 'plain click on verdict code does not navigate');
-    await press(chrome, `document.querySelector('#detail .verdict .note a.ref[data-go]')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go]')`);
     assert.equal(await chrome.stable('location.pathname'), '/items/2', 'plain click stays in the page and opens the linked place');
     assert.equal(await chrome.stable("document.querySelector('#detail h2 > span')?.textContent"), '#2');
     assert.deepEqual(chrome.exceptions, [], 'the real view raises no page errors');
@@ -204,13 +204,13 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
     await chrome.send('Target.closeTarget', { targetId: target.id });
     await chrome.send('Target.closeTarget', { targetId: modifierTarget.id });
     await openAddress(chrome, server, '/items/1');
-    const verdictSelector = `document.querySelector('#detail .verdict .note a.ref[data-go="item:2"]')`;
-    assert.equal(await chrome.stable(`document.querySelector('#detail .verdict .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
+    const verdictSelector = `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go="item:2"]')`;
+    assert.equal(await chrome.stable(`document.querySelector('#detail .item-panel-latest .verdict .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
     const verdictHref = await chrome.stable(`${verdictSelector}?.href`);
     assert.equal(new URL(verdictHref).pathname, '/items/2', 'recorded verdict prose exposes its real href');
     for (const input of [{ button: 'middle' }, { modifiers }]) {
       const beforeTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
-      await press(chrome, `document.querySelector('#detail .verdict .note code')`, input);
+      await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`, input);
       const afterTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
       assert.deepEqual(afterTargets.filter(id => !beforeTargets.includes(id)), [], 'modified click on literal verdict code opens no tab');
       assert.equal(await chrome.stable('location.pathname'), '/items/1', 'literal code leaves the original tab in place');
