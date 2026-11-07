@@ -1,8 +1,8 @@
 /** Every command's default text fits a declared budget, and a ratchet keeps measured sizes from growing [C7,N26]. */
+/** @pullboard-world-pin: clause 2 asserts the committed byte baseline file is absent from the repository. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -12,7 +12,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../packages/config/index.js';
 import { COMMANDS } from '../apps/cli/index.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -52,7 +52,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 function mainTree() {
   const base = spawnSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' });
   if (base.status !== 0) return null;
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-budget-main-'));
+  const dir = privateFixtureFiles('pullboard-budget-main-').root;
   const archive = spawnSync('git', ['archive', base.stdout.trim()], { cwd: ROOT });
   const untar = spawnSync('tar', ['-x', '-C', dir], { input: archive.stdout });
   if (archive.status !== 0 || untar.status !== 0) throw new Error('could not extract merge-base main');
@@ -110,7 +110,7 @@ function seeded() {
   return box;
 }
 
-test('every measured command prints within its committed baseline and declared budget on a seeded board [C7,N26] clause 1', () => {
+test('clause 1: every measured command prints within its main size and declared budget on a seeded board [C7,N26]', () => {
   const box = seeded();
   const headSizes = measure(box, helpers.BIN);
   const main = mainTree();
@@ -119,7 +119,8 @@ test('every measured command prints within its committed baseline and declared b
     assert.deepEqual(ratchetProblems(headSizes, mainSizes), [], JSON.stringify(headSizes));
   } finally {
     if (main) rmSync(main, { recursive: true, force: true });
-  }  const full = box.run(box.repo, 'list', 'web', '--detail');
+  }
+  const full = box.run(box.repo, 'list', 'web', '--detail');
   assert.ok(Buffer.byteLength(full.out) > DEFAULT_OUTPUT_BUDGET, '--detail still prints every row');
   const bounded = box.run(box.repo, 'list', 'web');
   assert.match(bounded.out, /more lines withheld to keep this output within 8192 bytes; add --detail for all of it, or --json/u);
