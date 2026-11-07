@@ -368,11 +368,11 @@ test('one background sender per machine sends each new move once, asks GitHub on
   }
 });
 
-/** Join a real agent worktree beside this machine's main checkout before the outage. */
+/** Join a real agent worktree beside this machine's main checkout before the outage, on the strong route so it may claim the strong-route item the test adds. */
 async function seat(box, name) {
   const path = join(dirname(box.root), name);
   runFixtureGit(['worktree', 'add', '-q', '-b', `agent/${name}`, path], { cwd: box.root, env: box.env });
-  const joined = await box.cliAt(path, 'join', box.lane, '--model', 'fixture-model');
+  const joined = await box.cliAt(path, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
   assert.equal(joined.code, 0, joined.failure);
   return { path, id: joined.document.agent };
 }
@@ -387,7 +387,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const here = await seat(box, 'here-agent');
   const otherPath = join(dirname(other.root), 'there-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/there', otherPath], { cwd: other.root, env: other.env });
-  const there = await other.cliAt(otherPath, 'join', box.lane, '--model', 'fixture-model');
+  const there = await other.cliAt(otherPath, 'join', box.lane, '--model', 'fixture-model', '--route', 'strong');
   assert.equal(there.code, 0, there.failure);
   const winner = there.document.agent;
 
