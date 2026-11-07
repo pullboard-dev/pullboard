@@ -220,3 +220,10 @@ test('clause 1: two idle next --verify polls with nothing to review open zero bo
   await poll();
   assert.equal(writers, 0, 'idle polls open no write connection');
 });
+
+/** Clause 2 of #3206: the idle-review case keeps its title and body, so its pass is the gate's record. */
+test('clause 2: the [V15,C7] idle review cycles open no writer case stays in this file unchanged [C7]', () => {
+  const source = readFileSync(import.meta.filename, 'utf8');
+  assert.ok(source.includes("test('[V15,C7] idle review cycles open no writer and a newly eligible review reserves exactly once'"));
+  assert.ok(source.includes("assert.equal(writers, 0, 'unchanged idle cycles never open a write-capable connection');"));
+});
