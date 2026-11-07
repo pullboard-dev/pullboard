@@ -30,7 +30,7 @@ import {
   importBoard,
 } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { fixtureJoin, joinFixtureSeat } from './testkit-fixture.js';
 
 const HOUR = 60 * 60 * 1000;
 const REVIEW_LEASE = 1_000;
@@ -77,7 +77,7 @@ function reserve(board, item, agentId, leaseMs = REVIEW_LEASE) {
   return store.reserveReview(board, item, { agentId, leaseMs, policy: 'any' });
 }
 
-test('[Q1,V15] an empty queue is zeroed and exactly three waiting items produce an offer over build work', (t) => {
+test('[Q1,V15] clause 1: an empty queue is zeroed and exactly three waiting items produce an offer over build work', (t) => {
   const { board, agents } = fixture(t);
   assert.deepEqual(store.reviewQueue(board), {
     pending: 0, reviewing: 0, reserved: 0, oldestSubmittedAt: null, ageMs: 0,
@@ -198,7 +198,8 @@ function staleHeadFixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(web): main lands its own list [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review');
-  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  // The reviewer joins on the strong route the fixture items are filed for, so it may review a strong head.
+  json(joinFixtureSeat(box, reviewer, 'api'));
   return { box, json, build, conflicted, reviewer };
 }
 
@@ -224,12 +225,28 @@ test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
-  json(fixtureJoin(box.run, second, 'web', '--json'));
+  json(joinFixtureSeat(box, second, 'web'));
   const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   const next = json(box.run(reviewer, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
   assert.equal(json(box.run(box.repo, 'show', String(conflicted), '--json')).item_status, 'open');
   assert.equal(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by !== null, true, 'the clean head is reserved for review');
+});
+
+/** Clause 1 of #2745: the review queue skips a submitted head that no longer merges and hands the reviewer the clean one. */
+test('clause 1: next --verify skips a head that does not merge and returns it unreviewed [C7,V4]', (t) => {
+  const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
+  const second = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
+  json(joinFixtureSeat(box, second, 'web'));
+  const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
+  const next = json(box.run(reviewer, 'next', '--verify', '--json'));
+  assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
+  const returned = json(box.run(box.repo, 'show', String(conflicted), '--json'));
+  assert.equal(returned.item_status, 'open', 'the head that does not merge goes back to its builder');
+  assert.equal(returned.item_review_by, null, 'no reviewer holds the head that does not merge');
+  assert.equal(returned.item_verdict, null, 'returning it is not a reject');
+  assert.notEqual(json(box.run(box.repo, 'show', String(clean), '--json')).item_review_by, null, 'the clean head is reserved for review');
 });
 
 /** Drive nextReview over a board with one submitted head that conflicts, recording each ordered operation. */
@@ -420,7 +437,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   assert.equal(store.getItem(recordedCopies[0], conflicted).item_status, 'open');
   const second = join(box.dir, 'clean-computed-return');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/clean-return', 'main');
-  json(fixtureJoin(box.run, second, 'web', '--json'));
+  json(joinFixtureSeat(box, second, 'web'));
   const clean = build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   assert.throws(() => prepareEngineMove(source, 'reopen', [clean, { agentId: actor, automaticConflict: true }]),
     error => error.code === 'NOT_CONFLICTING', 'a clean submitted head cannot acquire computed conflict evidence');
