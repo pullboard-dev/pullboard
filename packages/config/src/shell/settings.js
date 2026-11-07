@@ -83,25 +83,26 @@ export function gateRunnerWaitMs() {
   return loadMachineSettings().gate?.runnerWaitMs ?? DEFAULT_RUNNER_WAIT_MS;
 }
 
-/** Parse the person's budget, such as 40/day or 200/week: seat-hours over a declared window. */
+/** Parse the person's budget, such as 40/day or 200/week: spend over a declared window, one unit being a seat-hour of an unpriced model. */
 export function parseWorkerBudget(text) {
   const match = /^(\d+(?:\.\d+)?)\/(day|week)$/u.exec(String(text));
-  const seatHours = match ? Number(match[1]) : NaN;
-  if (!match || !Number.isFinite(seatHours) || seatHours < 0) {
-    throw new Refused('BAD_MACHINE_SETTINGS', 'workers.budget is seat-hours per day or week, such as 40/day or 200/week; 0/day turns it off');
+  const spend = match ? Number(match[1]) : NaN;
+  if (!match || !Number.isFinite(spend) || spend < 0) {
+    throw new Refused('BAD_MACHINE_SETTINGS', 'workers.budget is spend per day or week, such as 40/day or 200/week; 0/day turns it off');
   }
-  return { seatHours, window: match[2] };
+  return { spend, window: match[2] };
 }
 
-/** The seat-hours pullboard run --scale may spend per day or week on this machine, or null when unset (off). */
+/** The spend pullboard run --scale may use per day or week on this machine, or null when unset (off); a budget stored as seatHours reads as the same spend. */
 export function workerBudget() {
-  return loadMachineSettings().workers?.budget ?? null;
+  const stored = loadMachineSettings().workers?.budget;
+  return stored ? { spend: stored.spend ?? stored.seatHours, window: stored.window } : null;
 }
 
-/** Set the seat-hour budget; a lower budget stops only idle workers, so it never interrupts a claim or a review. */
+/** Set the spend budget; a lower budget stops only idle workers, so it never interrupts a claim or a review. */
 export function setWorkerBudget(budget) {
   const current = loadMachineSettings();
-  const next = { ...current, workers: { ...current.workers, budget: { seatHours: budget.seatHours, window: budget.window } } };
+  const next = { ...current, workers: { ...current.workers, budget: { spend: budget.spend, window: budget.window } } };
   writeMachineSettings(next);
   return next;
 }

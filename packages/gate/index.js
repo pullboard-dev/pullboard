@@ -70,6 +70,7 @@ export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } f
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/shell/prove-once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/shell/red-gate-report.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
+export { testRunPhaseClock } from './src/shell/test-run-phases.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
 

@@ -6,7 +6,7 @@ import { MODEL_SEAT_HOUR_PRICE, planWorkerScale, scaleWorkers, seatHourPrice } f
 /** The priced models, read from the table so the cases name no model literal. */
 const [OPUS, SONNET, HAIKU] = Object.keys(MODEL_SEAT_HOUR_PRICE);
 const UNPRICED = ['some', 'new', 'model'].join('-');
-const base = { budget: { seatHours: 40, window: 'day' }, usedHours: 0, cycleHours: 0.5, hoursLeft: 10, worth: 100, workers: [], reviews: 0, builds: 100 };
+const base = { budget: { spend: 40, window: 'day' }, usedSpend: 0, cycleHours: 0.5, hoursLeft: 10, worth: 100, workers: [], reviews: 0, builds: 100 };
 
 test('clause 1: the price table holds a per-hour price per model and the plan charges a seat by its model [C7]', () => {
   assert.equal(MODEL_SEAT_HOUR_PRICE['claude-opus-5-5'], 5);
@@ -39,9 +39,9 @@ async function cycleLineFor(model) {
     await scaleWorkers(io, { lane: 'web', route: 'strong', agent: 'true', cycles: '1', every: '60' }, {
       context: () => ({ info: { isMain: true }, config: {} }),
       withBoard: (_ctx, run) => run({}),
-      workerBudget: () => ({ seatHours: 40, window: 'day' }),
+      workerBudget: () => ({ spend: 40, window: 'day' }),
       observe: () => ({ workers: [], reviews: 0, builds: 100, worth: 100 }),
-      ledger: { record: () => ({ usedHours: 0, spent: null }) },
+      ledger: { record: () => ({ spend: 0, spent: null }) },
       now: () => day + 2 * 3_600_000,
       sleep: async () => {},
       worktreeFor: async (quiet) => { quiet.result({ agent: 'seat-1', path: process.cwd(), prompt: 'go' }); },
