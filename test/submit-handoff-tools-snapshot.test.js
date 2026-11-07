@@ -56,3 +56,14 @@ test('clause 2: snapshots older than 24 h with no running worker are removed and
   assert.deepEqual(sweepToolTrees({ temp, maxAgeMs: 24 * 3600 * 1000 }), [join(temp, old)]);
   assert.deepEqual(snapshots(temp), [fresh]);
 });
+
+test('clause 2: a submit that reuses the shared snapshot still removes a stale unowned one [C7]', t => {
+  const { temp, repo } = sandbox(t);
+  const shared = toolsSnapshot(repo, 'job-1');
+  const old = join(temp, 'pullboard-handoff-tools-' + 'c'.repeat(40));
+  mkdirSync(old);
+  const past = new Date(Date.now() - 25 * 3600 * 1000);
+  utimesSync(old, past, past);
+  assert.equal(toolsSnapshot(repo, 'job-2'), shared, 'the reuse path');
+  assert.deepEqual(snapshots(temp), [shared.split('/').pop()], 'the stale snapshot is gone, the live one stays');
+});
