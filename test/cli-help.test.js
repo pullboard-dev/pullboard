@@ -220,7 +220,7 @@ test('init help names --blueprint [I1,N37]', async () => {
   assert.match((await run('help', '--all')).stdout, /pullboard init \[--model <name>\] \[--blueprint <name or file>\]/u);
 });
 
-test('help add example runs on a fresh board [I1,L3]', async (t) => {
+test('clause 1: help add example runs on a fresh board and its help adds no next line [I1,L3]', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-help-add-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
