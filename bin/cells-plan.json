@@ -1676,6 +1676,10 @@
     {
       "path": "src/review-head-builder-family-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/241.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
