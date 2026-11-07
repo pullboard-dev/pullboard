@@ -25,6 +25,13 @@ async function revokeCredential(box, id) {
   assert.equal(response.status, 200, 'the fixture revokes the selected opaque credential');
 }
 
+/** Record a relay revocation on this board's link, as pullboard relay revoke does after the phone approves it. */
+function markRevoked(box, id) {
+  const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  for (const credential of Object.values(state.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
+  writeFileSync(box.linkFile, JSON.stringify(state) + '\n', { mode: 0o600 });
+}
+
 /** Read one real CLI result and check its single board-named local fallback diagnostic. */
 async function assertLocalRead(box, board, ...args) {
   const result = await box.cli(...args);
@@ -81,6 +88,9 @@ test('a revoked agent token is never reminted from the machine credential; the p
   const agent = state.agentTokens.coordinator;
   assert.ok(agent?.id, 'the board link caches a scoped coordinator credential');
   await revokeCredential(box, agent.id);
+  // The board knows this revocation, as pullboard relay revoke records it: a known-revoked seat refuses at once,
+  // while an unknown one queues local-first and refuses at replay (coordinator ruling, #2729).
+  markRevoked(box, agent.id);
 
   const before = (await box.cli('export')).document.tables;
   const mintsBefore = box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length;
@@ -148,7 +158,7 @@ test('moves stay local while the machine credential expires, then replay after s
   const textRefusal = await box.script(`
     const { main } = await import(${JSON.stringify(box.mainURL)});
     let stdout = '', stderr = '';
-    const code = await main(['join', ${JSON.stringify(box.lane)}, '--model', FIXTURE_MODEL], {
+    const code = await main(['join', ${JSON.stringify(box.lane)}, '--model', ${JSON.stringify(FIXTURE_MODEL)}], {
       cwd: ${JSON.stringify(agentRoot)}, stdout: { write(value) { stdout += value; } }, stderr: { write(value) { stderr += value; } },
     });
     console.log(JSON.stringify({ code, stdout, stderr }));
@@ -405,6 +415,8 @@ test('a move pending acknowledgement when the relay copy is deleted is kept [H17
 
 test('a deleted-copy pending move survives interrupted cleanup and is returned only once on retry [H17,E9] [clause 1]', async t => {
   const box = await relayClientFixture(t);
+  // This case loses the acknowledgement of a move sent in the foreground, so its board sends before it applies.
+  commitOutboxChoice(box, false);
   await box.link();
   const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const phone = await box.phoneSession();
