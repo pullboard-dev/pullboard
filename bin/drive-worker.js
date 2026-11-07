@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 import { drainLoop } from '../packages/drive/index.js';
 import { Refused } from '../packages/kernel/index.js';
+import { createTransport } from '../packages/transport/index.js';
 import { sharedTransport } from '../packages/transport/index.js';
 
 const ENTRY = fileURLToPath(import.meta.url);
@@ -17,8 +18,11 @@ const ENTRY = fileURLToPath(import.meta.url);
  * Why: the worker holds no state of its own, so its death loses nothing: a child respawned with the same owner
  * renews the lease and continues from the job's last written step, and after 2 minutes any driver can.
  *
+ * With `local: true` the runner is this machine: the shard runs under a local `sh` with the worker's environment,
+ * through the same result-file protocol a remote runner uses. The submit hand-off worker runs its gate this way.
+ *
  * @param {{ file: string, job: string, owner: string, repo?: string, runner?: { host: string, root?: string },
- *   plan?: { shard: string, command: string }[], intervalMs?: number }} options
+ *   plan?: { shard: string, command: string }[], intervalMs?: number, local?: boolean }} options
  * @param {{ env?: NodeJS.ProcessEnv, stdio?: import('node:child_process').StdioOptions }} [spawnOptions]
  * @returns {import('node:child_process').ChildProcess}
  */
@@ -30,20 +34,33 @@ export function spawnDriveWorker(options, { env = process.env, stdio = ['ignore'
 }
 
 /**
+ * The transport a child drives through: this machine's own `sh` for a local runner, else the shared SSH transport.
+ *
+ * @param {boolean} local
+ * @returns {ReturnType<typeof createTransport>}
+ */
+function workerTransport(local) {
+  if (!local) return sharedTransport();
+  const sh = () => spawn('sh', [], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+  return createTransport({ open: sh, launch: (runner, script) => spawn('sh', ['-c', script], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }) });
+}
+
+/**
  * The child's body: open the board, drain the job, close the runner channels and the board, and set the exit code.
  *
  * @param {string} argument - The JSON options spawnDriveWorker passed.
  * @returns {Promise<void>}
  */
 async function main(argument) {
-  const { file, job, ...options } = JSON.parse(argument ?? '{}');
+  const { file, job, local = false, ...options } = JSON.parse(argument ?? '{}');
   const board = openBoard(file);
+  const transport = workerTransport(local);
   try {
-    const last = await drainLoop(board.db, job, { ...options,
+    const last = await drainLoop(board.db, job, { ...options, transport,
       onStep: result => process.stdout.write(`step ${result.phase} ${result.transition ?? '-'}\n`) });
     process.exitCode = last.code === 'JOB_LEASED' ? 3 : 0;
   } finally {
-    sharedTransport().close();
+    transport.close();
     closeBoard(board);
   }
 }

@@ -17,6 +17,7 @@ import { shout } from '../packages/store/index.js';
 import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
 import { fixtureAdd } from './testkit-fixture.js';
 import { fixtureJoin } from './testkit-fixture.js';
+import { jobView } from '../packages/jobs/index.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -359,7 +360,8 @@ test('supervisor termination reaches its live child and retains a native refusal
   writeFileSync(worker, `if (process.argv[3] === '--execute') {
     const fs = await import('node:fs');
     fs.writeFileSync('untracked-worker-output', 'partial');
-    fs.writeFileSync(${JSON.stringify(ready)}, JSON.stringify({pid:process.pid, supervisor:process.ppid}));
+    const group = Number((await import('node:child_process')).execFileSync('ps', ['-o', 'pgid=', '-p', String(process.pid)], { encoding: 'utf8' }).trim());
+    fs.writeFileSync(${JSON.stringify(ready)}, JSON.stringify({pid:process.pid, group}));
     setInterval(() => {}, 1000);
     await new Promise(() => {});
   }\n` + readFileSync(worker, 'utf8'));
@@ -371,7 +373,7 @@ test('supervisor termination reaches its live child and retains a native refusal
   const job = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
   const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
-  assert.equal(child.supervisor, owner.pid, 'signal only the actual launcher-owned supervisor');
+  assert.equal(child.group, owner.pid, 'signal only the actual launcher-owned supervisor, whose process group holds the gate');
   process.kill(owner.pid, 'SIGTERM');
   await waitJob(box, 'red');
   assert.equal(state(box, box.id).item.item_status, 'claimed');
@@ -447,6 +449,33 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
 function helpersCommit(box, path, body) {
   return box.helpers.commitFile(box, box.web, path, body, 'feat(web): independent later work [G1]');
 }
+
+test('clause 1: the real hand-off worker is a drive worker child; killing it mid-gate loses nothing and the next driver finishes [C7]', async t => {
+  const box = fixture(t);
+  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  assert.equal(queued.queued, true);
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: observed worker progress ceiling, not a timing assertion.
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const drive = JSON.parse(readFileSync(join(directory, 'drive.json'), 'utf8'));
+  assert.equal(drive.start, 0);
+  const supervisor = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  const parent = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(drive.pid)], { encoding: 'utf8' }).trim());
+  assert.equal(parent, supervisor.pid, 'the hand-off worker the dispatcher started runs the drive worker as its child');
+  process.kill(drive.pid, 'SIGKILL');
+  await box.helpers.waitFor(() => JSON.parse(readFileSync(join(directory, 'drive.json'), 'utf8')).start === 1, 'next drive worker', 120000); // budget: observed respawn ceiling, not a timing assertion.
+  assert.equal(state(box, box.id).job.state, 'running', 'the killed worker ended nothing');
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  // @pullboard-board-file journey: read the drive job's persisted steps after both workers.
+  const board = openBoard(box.boardFile);
+  let steps;
+  try { steps = jobView(board.db, drive.job).steps; } finally { board.db.close(); }
+  const named = name => steps.filter(step => step.name === name).length;
+  assert.deepEqual([named('captured'), named('running'), named('collected'), named('verdict')], [1, 1, 1, 1], 'the next driver continued the same job to its verdict');
+  assert.equal(readFileSync(box.started, 'utf8').trim().split('\n').length, 1, 'the gate ran once: the death lost nothing and the resume reran nothing');
+  assert.equal(readFileSync(box.finished, 'utf8').trim().split('\n').length, 1);
+});
 
 test('a queued red retains the exact canonical refusal and the builder claim while another claim stays owned [B5,V4,H16]', async t => {
   const box = fixture(t, { result: 'red' });
