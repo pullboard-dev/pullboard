@@ -14,6 +14,7 @@ import { drainHandoffQueue, queueHandoffLaunch, reserveHandoffTicket } from '../
 import { inProcessLandingBatch, landingProgress } from '../packages/landing/index.js';
 import { dispatcherRow, gateAdmission } from '../bin/handoff-worker-dispatcher.js';
 import { fixtureBoard, temporaryDirectory } from './board-fixture.js';
+import { runFixtureChildAsync } from './fixture-child.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -150,4 +151,28 @@ test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off
   assert.deepEqual(offenders(/'worker\.json'/u, ['packages/verify/src/shell/comparison-worker.js']), [], 'no hand-off module reads or writes worker.json');
   assert.deepEqual(offenders(/'submit_handoff:'\s*\+|`submit_handoff:\$\{|meta_key GLOB 'submit_handoff/u), [], 'no module reads or writes board_meta hand-off rows');
   assert.deepEqual(offenders(/runLandingWorker|landingWorkerEntry|superviseSubmitHandoffWorker|runSubmitHandoffWorker/u), [], 'nothing names the old worker entries');
+});
+
+test('clause 3: two drivers writing steps on one board never fail with database is locked [C7]', async t => {
+  const dir = temporaryDirectory('pullboard-durable-lock-');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'board.sqlite');
+  closeBoard(openBoard(file));
+  // Each driver reads its job's step log and writes the next step, 300 times, against the other on the same file.
+  const driver = name => `import { openBoard, closeBoard } from ${JSON.stringify(join(ROOT, 'apps/lib/index.js'))};
+import { createJob, writeStep } from ${JSON.stringify(join(ROOT, 'packages/jobs/index.js'))};
+const board = openBoard(${JSON.stringify(file)});
+try {
+  createJob(board.db, { id: ${JSON.stringify(name)}, kind: 'gate' });
+  for (let seq = 0; seq < 300; seq += 1) writeStep(board.db, ${JSON.stringify(name)}, 'shard.done', { seq }, { seq });
+} finally { closeBoard(board); }`;
+  const runs = await Promise.all(['driver-a', 'driver-b'].map(name =>
+    runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', driver(name)], { encoding: 'utf8' })));
+  for (const run of runs) {
+    assert.doesNotMatch(run.stderr ?? '', /database is locked/u, run.context);
+    assert.equal(run.status, 0, run.context);
+  }
+  const board = openBoard(file);
+  try { for (const name of ['driver-a', 'driver-b']) assert.equal(jobView(board.db, name).steps.length, 300, `${name} wrote every step`); }
+  finally { closeBoard(board); }
 });

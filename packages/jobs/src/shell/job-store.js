@@ -3,7 +3,12 @@ import { Refused } from "../../../kernel/index.js";
 import { viewOf } from "../core/job-view.js";
 
 /**
- * Run `work` inside a savepoint so its statements land together or not at all, in or out of a transaction.
+ * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
+ * when the caller already holds a transaction.
+ *
+ * Why: `work` reads before it writes. A deferred transaction that read first cannot upgrade to a write once another
+ * process committed, and SQLite answers "database is locked" at once without waiting; two drivers writing steps for
+ * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn.
  *
  * @template T
  * @param {import('node:sqlite').DatabaseSync} db
@@ -11,6 +16,31 @@ import { viewOf } from "../core/job-view.js";
  * @returns {T}
  */
 function atomically(db, work) {
+  try {
+    db.exec('BEGIN IMMEDIATE');
+  } catch (error) {
+    if (!/within a transaction/u.test(String(error?.message))) throw error;
+    return inSavepoint(db, work);
+  }
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/**
+ * Run `work` inside a savepoint of the caller's transaction.
+ *
+ * @template T
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {() => T} work
+ * @returns {T}
+ */
+function inSavepoint(db, work) {
   db.exec('SAVEPOINT job_store');
   try {
     const result = work();
