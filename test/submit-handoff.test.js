@@ -676,7 +676,7 @@ function mainAdvanceFixture(t) {
   return { ...box, id, helpers, release, started };
 }
 
-test('queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
+test('clause 1: queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
   const box = mainAdvanceFixture(t);
   const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
   try { await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000); } // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
