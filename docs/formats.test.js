@@ -355,6 +355,8 @@ function recordEventContract() {
   const askedAgain = shout(board, { from: builder, to: coordinator, text: 'superseding decision', lanes: ['docs', 'tests'], decision: true });
   answerDecision(board, askedAgain, { agentId: coordinator, text: 'no', lanes: ['docs', 'tests'], supersedes: implyingAnswer });
   editItem(board, first, { agentId: coordinator, after: [] });
+  // The coordinator's reversible machine-verification mark on an open item records `machineVerification` on its edit.
+  editItem(board, first, { agentId: coordinator, machineVerified: false });
   holdItem(board, first, { agentId: coordinator, reason: 'fixture item hold' });
   releaseItemHold(board, first, { agentId: coordinator });
   recordAttempt(board, first, { agentId: builder, n: 1, seconds: 2, result: 'failed' });
