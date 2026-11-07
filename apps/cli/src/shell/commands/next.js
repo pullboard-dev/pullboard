@@ -32,6 +32,7 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -122,6 +123,8 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
