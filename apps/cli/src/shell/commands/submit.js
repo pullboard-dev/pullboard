@@ -52,6 +52,7 @@ import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { remoteGateWanted } from '../submit-remote-gate.js';
 import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
+import { sharedRemoteAnalysis } from '../submit-remote-gate.js';
 import { acceptRunnerPlan } from '../submit-remote-gate.js';
 import { runSubmitGateWithRunnerPlan } from '../submit-remote-gate.js';
 import { gateWithRunnerPlan } from '../submit-remote-gate.js';
@@ -499,15 +500,15 @@ export async function submitHere(ctx, id, infra) {
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
-  // Each trusted analysis part gets its own runner lease and a main-pinned private check.
-  const runRemotePart = (part, signal) => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
+  // The four trusted analysis parts run as one runner job on one lease and one main-pinned private check (#3379).
+  const runRemotePart = sharedRemoteAnalysis(signal => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
-      title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: part === 'selection' ? crossRun.tests : [],
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part], collectMachinery: true }, lease, ctx.submitHandoffOutput),
-    { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: `analysis-${part}`, ...gateAdmission,
+      title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true }, lease, ctx.submitHandoffOutput),
+    { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
-    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
+    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
   const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
