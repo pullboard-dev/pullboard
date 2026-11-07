@@ -39,7 +39,7 @@ export function lapsedGateJobs(db, { now = Date.now() } = {}) {
 function withinBudget(drive, budgetMs) {
   drive.catch(() => {});
   let timer;
-  const budget = new Promise((done) => { timer = setTimeout(() => done({ pending: true }), budgetMs); timer.unref?.(); });
+  const budget = new Promise((done) => { timer = setTimeout(() => done({ pending: true }), budgetMs); });
   return Promise.race([drive, budget]).finally(() => clearTimeout(timer));
 }
 
