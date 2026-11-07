@@ -89,7 +89,7 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
     await chrome.waitFor('data?.project?.milestones?.some(row => row.name === "State order")');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await settled(chrome, "!document.querySelector('[data-pane=roadmap]').hidden && !!document.querySelector('#roadmap-list > [data-key=\"m:State order\"]')");
-    const heading = "document.querySelector('#roadmap-list > [data-key=\"m:State order\"] > .milestone-head')";
+    const heading = "document.querySelector('#roadmap-list > [data-key=\"m:State order\"] .milestone-head')";
     if (await chrome.stable(`${heading}.getAttribute('aria-expanded')`) !== 'true') await press(chrome, heading);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
