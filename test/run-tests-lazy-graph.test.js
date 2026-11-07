@@ -1,3 +1,4 @@
+/** @pullboard-world-pin reads the real command modules to walk their static import graph. */
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -81,4 +82,34 @@ test('clause 2: the gate-free landing identity entry is placed in the cells plan
   const plan = JSON.parse(readFileSync(new URL('../bin/cells-plan/30-landing.json', import.meta.url), 'utf8'));
   assert.ok(plan.reexports.includes('src/landing-worker-identity.js'), 'pre-commit accepts the entry as a placed re-export, not a stray shim');
   assert.ok(plan.paths.some(move => move[0] === 'src/landing-worker-identity.js'), 'the plan places it with its moved implementation');
+});
+
+const RUNNER_TARGETS = ['src/board.js', 'src/machine.js', 'packages/gate/src/shell/check-baseline-worker.js'];
+const BARRELS = ['packages/verify/index.js', 'packages/seats/index.js'];
+
+/**
+ * Walk the literal static import graph from one entry file, recording each file's parent.
+ * Dynamic imports are skipped; nothing is imported or executed.
+ */
+function importParents(entry) {
+  const parent = new Map();
+  const queue = [[entry, null]];
+  while (queue.length) {
+    const [file, from] = queue.shift();
+    if (parent.has(file)) continue;
+    parent.set(file, from);
+    let source;
+    try { source = readFileSync(new URL('../' + file, import.meta.url), 'utf8'); } catch { continue; }
+    for (const to of staticEdges(file, source)) if (to.startsWith('.') || to.includes('/')) queue.push([to, file]);
+  }
+  return parent;
+}
+
+test('clause 1: bin/run-tests.js static graph does not reach src/board.js, src/machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+  const runner = importParents('bin/run-tests.js');
+  for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `bin/run-tests.js statically imports ${barrel}`);
+  for (const barrel of BARRELS) {
+    const graph = importParents(barrel);
+    for (const target of RUNNER_TARGETS) assert.ok(!graph.has(target) || !runner.has(barrel), `${barrel} reaches ${target}`);
+  }
 });

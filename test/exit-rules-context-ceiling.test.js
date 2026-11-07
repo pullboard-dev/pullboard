@@ -6,6 +6,7 @@ import { contextCeiling } from '../packages/stats/index.js';
 import { exitContextDecision } from '../packages/stats/index.js';
 import { nativeLastPrompt } from '../packages/stats/index.js';
 
+const CODEX_MODEL = 'gpt-6';
 const policy = { enabled: true, tokens: 150_000_000, calls: 2000 };
 
 /** A Claude-shaped native log whose assistant calls carry the given usage rows. */
@@ -23,7 +24,7 @@ test('clause 1: a seat whose last call prompt exceeds the ceiling ends after its
   assert.equal(exitContextDecision(policy, nativeLastPrompt('claude', claudeLog('claude-sonnet-5-5', [500, 190_000, 9_000]))), null, 'under the ceiling keeps the session');
   assert.equal(exitContextDecision(policy, { tokens: 200_000, model: 'claude-sonnet-5-5' }), null, 'a prompt exactly at the ceiling keeps the session');
   assert.equal(exitContextDecision(policy, { tokens: 200_001, model: 'claude-sonnet-5-5' }).code, 'EXIT_CONTEXT');
-  const codex = Buffer.from([{ type: 'turn_context', payload: { model: 'gpt-6' } }, { type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 250_000 } } } }].map(row => JSON.stringify(row)).join('\n') + '\n');
+  const codex = Buffer.from([{ type: 'turn_context', payload: { model: CODEX_MODEL } }, { type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 250_000 } } } }].map(row => JSON.stringify(row)).join('\n') + '\n');
   assert.equal(exitContextDecision(policy, nativeLastPrompt('codex', codex)).context, 250_000);
 });
 
