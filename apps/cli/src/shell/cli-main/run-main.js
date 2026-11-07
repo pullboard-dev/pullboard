@@ -211,6 +211,9 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
+      if (!parsed?.values['dry-run']) {
+        await (await import('./handoff-recovery.js')).recoverQueuedHandoffs(io, git);
+      }
     }
     traceServeStartup('cli-command-preamble-start');
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
