@@ -14,6 +14,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { once } from 'node:events';
 import { join } from 'node:path';
 import {
@@ -235,6 +237,17 @@ export function handoffTicketWaiting(job) {
   return waitingTickets().some(name => name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') === job);
 }
 
+/**
+ * Whether any place in line waits, reserved or filled, for any repository on this machine.
+ * Why: a dispatcher that freed its board row after its last ticket check must look once more, because a submit that
+ * saw the row still held queued its ticket without launching a dispatcher (#3495).
+ *
+ * @returns {boolean}
+ */
+export function handoffTicketsWaiting() {
+  return waitingTickets().length > 0;
+}
+
 /** A reservation whose submitting process died gives up its place. */
 function reservationAbandoned(name, startOf) {
   const file = join(handoffQueueDirectory(), name);
@@ -265,7 +278,7 @@ function waitingCommonDirs() {
 
 /**
  * Run the caller's sweep once for the dispatcher's own directory and for each repository with a waiting launch.
- * A failed sweep is logged and never stops dispatch.
+ * A failed sweep is logged and never stops dispatch; it never rejects, so it may run beside the dispatch loop.
  *
  * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
  */
@@ -273,36 +286,81 @@ async function sweepGoneHandoffs(sweep) {
   if (!sweep) return;
   for (const commonDir of new Set([process.cwd(), ...waitingCommonDirs()])) {
     try { await sweep(commonDir); }
-    catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
+    catch (error) { logDispatcher(`worker-gone sweep of ${commonDir} failed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}; it runs again on a later pass`); }
   }
 }
 
-/** Start one captured worker detached from the dispatcher's terminal, keeping its incarnation on disk. */
-async function startWorker(launch, relaunches, startOf) {
-  const log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
-  try {
-    const worker = spawn(process.execPath, [join(realpathSync(launch.tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(launch.directory, 'request.json')],
-      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
-    await once(worker, 'spawn');
-    try { writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: worker.pid, started: startOf(worker.pid), relaunches }) + '\n', { mode: 0o600 }); }
-    catch (error) {
-      const closed = once(worker, 'close'); worker.kill('SIGTERM'); await closed; throw error;
-    }
-    return worker;
-  } finally { closeSync(log); }
+/** How often a dispatcher that stays busy sweeps again for hand-offs whose worker is gone [C7,#3450]. */
+const HANDOFF_SWEEP_EVERY_MS = 60_000;
+
+/**
+ * A sweep that runs once at the start of a drain and again, in the background, at most every `everyMs` while it lasts.
+ * Why: a drain lasts as long as any worker runs, so on 7 Nov one failed sweep at its start was never retried and two
+ * gates read running with no worker for hours (#3450). At most one sweep runs at a time, and a slow one never holds up launches.
+ *
+ * @param {((commonDir: string) => Promise<void> | void) | undefined} sweep - Ends hand-offs whose worker is gone in one repository.
+ * @param {number} everyMs - The least time between the starts of two sweeps.
+ * @returns {{ now: () => Promise<void>, due: () => void, settled: () => Promise<void> }} Run now, start one if due, and wait for one in flight.
+ */
+function repeatingSweep(sweep, everyMs) {
+  let startedAt = 0;
+  let running = null;
+  /** Start one sweep and remember it until it ends. */
+  const start = () => { startedAt = Date.now(); running = sweepGoneHandoffs(sweep).finally(() => { running = null; }); return running; };
+  return {
+    now: () => start(),
+    due() { if (sweep && !running && Date.now() - startedAt >= everyMs) start(); },
+    settled: () => running ?? Promise.resolve(),
+  };
 }
 
 /**
- * A worker that cannot start, most often because temp cleanup removed its captured tools, leaves an unstarted record
- * where its worker record would be, so the health sweep ends its job as infrastructure, never a builder red; the
- * dispatcher then carries on with the next ticket. Why: on 4 Nov one missing tools folder stopped the dispatcher, and
- * 100 of 142 queued gates sat behind it. A ticket whose record cannot be written is kept aside, hidden, as evidence.
+ * The admission that records each gate's driver on its board before and after the dispatcher starts it. The default
+ * records nothing, for a dispatcher run without a board (its own tests); bin/handoff-worker-dispatcher.js passes the
+ * drive cell's admission, which writes the gate's drive job [C7].
  */
-function endUnstarted(file, name, launch, error) {
+const NO_ADMISSION = Object.freeze({ admit() {}, spawned() {}, unstarted() {}, entry: null });
+
+/** The driver entry inside a captured tools tree: the drive cell's gate driver. */
+function driverEntry(tools) { return join(realpathSync(tools), 'bin', 'gate-drive-worker.js'); }
+
+/**
+ * Start one captured gate's driver detached from the dispatcher's terminal: admit the gate to a fresh driver id on its
+ * board, start the drive cell's gate driver from the captured tools, then record the process it started. Nothing
+ * is written beside the hand-off; the drive job is the gate's record of who drives it [C7].
+ * Why the dispatcher's own entry for an older snapshot: a gate queued before its tools had the gate driver still runs.
+ */
+async function startWorker(launch, relaunches, startOf, admission = NO_ADMISSION) {
+  const owner = `gate-driver:${launch.job}:${randomUUID()}`;
+  // An admission that cannot be written starts nothing: the ticket keeps its place for the next pass.
+  try { admission.admit(launch, { owner, relaunches }); }
+  catch (error) { throw Object.assign(error, { owner, admission: true }); }
+  let log;
+  try {
+    log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
+    const entry = driverEntry(launch.tools);
+    const worker = spawn(process.execPath, [!existsSync(entry) && admission.entry ? admission.entry : entry, join(launch.directory, 'request.json'), owner],
+      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
+    await once(worker, 'spawn');
+    try { admission.spawned(launch, { owner, pid: worker.pid, started: startOf(worker.pid) }); }
+    catch (error) {
+      const closed = once(worker, 'close'); worker.kill('SIGTERM'); await closed; throw Object.assign(error, { owner });
+    }
+    return worker;
+  } catch (error) { throw Object.assign(error, { owner }); }
+  finally { if (log !== undefined) closeSync(log); }
+}
+
+/**
+ * A gate whose driver cannot start, most often because temp cleanup removed its captured tools, gets an unstarted
+ * record on its drive job, so the health sweep ends its job as infrastructure, never a builder red; the dispatcher
+ * then carries on with the next ticket. Why: on 4 Nov one missing tools folder stopped the dispatcher, and 100 of
+ * 142 queued gates sat behind it. A ticket whose record cannot be written is kept aside, hidden, as evidence.
+ */
+function endUnstarted(file, name, launch, error, admission = NO_ADMISSION) {
   const reason = { code: error.code ?? 'HANDOFF_WORKER_START', message: error.message };
   try {
-    writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: null, started: null,
-      relaunches: launch.relaunches ?? 0, unstarted: reason }) + '\n', { mode: 0o600 });
+    admission.unstarted(launch, { owner: error.owner ?? null, ...reason });
     rmSync(file, { force: true });
     process.stderr.write(`[HANDOFF_WORKER_START] queued worker ${launch.job} could not start (${error.message}); its gate ends as infrastructure\n`);
   } catch (record) {
@@ -321,11 +379,16 @@ function endUnstarted(file, name, launch, error) {
  *   function read again on every pass so a running dispatcher picks up a raised cap without a restart, how often new tickets
  *   are noticed, how an exited worker's slot is freed (a throw is logged and retried on the next pass), how to take a worker slot, how long
  *   an idle dispatcher with queued tickets waits before it logs why it launched nothing, and a
- *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone.
- * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
+ *   sweep run on each drain for every repository with work in line, which requeues hand-offs whose worker is gone, and
+ *   how often a drain that stays busy runs that sweep again (sweepEveryMs), the admission that records each gate's
+ *   driver on its board (the drive cell's, from bin/handoff-worker-dispatcher.js), and onPass, run once a pass to renew
+ *   the dispatcher's job row.
+ * @returns {Promise<{ started: string[], deferred?: true }>} Jobs this dispatcher started, in order; deferred when another
+ *   dispatcher held the machine, which then drains every repository's tickets.
  */
-export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep } = {}) {
+export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {} } = {}) {
   const started = [];
+  const sweeps = repeatingSweep(sweep, sweepEveryMs);
   let existing;
   try { existing = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity; }
   catch (error) { if (!RETRIED_SLOT_ERRORS.has(error.code)) throw error; logDispatcher(`worker pool unreadable at start: ${error.code}; using the cap alone`); }
@@ -342,15 +405,16 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher', loopHeartbeat: true,
         onWait() { throw new Refused('HANDOFF_DISPATCHER_RUNNING', 'another dispatcher is starting the queued workers'); } });
     } catch (error) {
-      if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
+      if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started, deferred: true };
       // A locked slot database must not end a dispatcher that has tickets to start: wait a pass and take the lock again [C7,#3326].
       if (RETRIED_SLOT_ERRORS.has(error.code)) { logDispatcher(`dispatcher lock not taken: ${error.code}; retrying on the next pass`); await new Promise(done => setTimeout(done, pollMs)); if (!waitingTickets().length) return { started }; continue; }
       throw error;
     }
     // Every drain first ends and requeues hand-offs whose worker is gone, so no gate shows running for hours (#3221).
-    await sweepGoneHandoffs(sweep);
-    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock); }
-    finally { lock.release(); }
+    // A busy drain sweeps again every sweepEveryMs, so a failed sweep is retried while workers still run (#3450).
+    await sweeps.now();
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot, stallMs, lock, sweeps.due, admission, onPass); }
+    finally { await sweeps.settled(); lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
   }
@@ -415,7 +479,7 @@ function passCapacity(capacity) {
  * The lock is renewed once per pass and nowhere else: a wedged loop stops renewing, its lock goes stale and the
  * next submit starts a fresh dispatcher [C7,#2990].
  */
-async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock) {
+async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, lock, sweepIfDue = () => {}, admission = NO_ADMISSION, onPass = () => {}) {
   const running = new Map();
   let wake = () => {};
   let lastLaunchAt = Date.now();
@@ -423,8 +487,11 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
   let prunedAt = 0;
   while (waitingTickets().length || running.size) {
     lock.renew();
+    // The dispatcher's job row is renewed from here too, so a wedged loop stops renewing both (#2990).
+    try { onPass(); } catch (error) { logDispatcher(`dispatcher row not renewed: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`); }
     // Finished folders are swept from this loop, at most once a minute; queued and running jobs are spared [C7,#3292].
     if (Date.now() - prunedAt >= 60_000) { prunedAt = Date.now(); sweepFinished(running); }
+    sweepIfDue();
     releaseExited(running, releaseSlot);
     for (const entry of running.values()) boundAfterResult(entry, Date.now(), resultGraceMs);
     const cap = passCapacity(capacity);
@@ -452,8 +519,15 @@ async function dispatchWhileQueued(capacity, pollMs, started, startOf, resultGra
       catch (error) { slot.release(); throw new Refused('HANDOFF_QUEUE_SOURCE', `cannot read queued worker ${name}: ${error.message}; restore its ticket before dispatch`); }
       let worker;
       const startedAt = Date.now();
-      try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf); }
-      catch (error) { slot.release(); endUnstarted(file, name, launch, error); continue; }
+      try { worker = await startWorker(launch, launch.relaunches ?? 0, startOf, admission); }
+      catch (error) {
+        slot.release();
+        // A gate whose last driver's lease is still live waits in line until that lease ends or lapses (2 minutes).
+        if (error.code === 'GATE_DRIVE_LEASED') continue;
+        // A board that could not record the admission keeps the ticket in line for the next pass.
+        if (error.admission) { lastError = error.code ?? 'ERROR'; logDispatcher(`gate ${launch.job} not admitted: ${error.code ?? 'ERROR'} ${error.message}; retrying on the next pass`); break; }
+        endUnstarted(file, name, launch, error, admission); continue;
+      }
       rmSync(file);
       lastLaunchAt = Date.now();
       rememberHandoffRoot(launch.directory);
@@ -472,25 +546,33 @@ function dispatcherHeld() {
   return Boolean(listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders?.length);
 }
 
+/** The environment variable that names the dispatcher's job-row lease owner to the dispatcher it launches. */
+export const HANDOFF_DISPATCHER_OWNER_ENV = 'PULLBOARD_DISPATCHER_OWNER';
+
 /**
  * Make sure a dispatcher is running; spawn one from the captured tooling whenever none holds the machine's lock.
  * Why: the lock holder is the only proof of a working dispatcher. On 4 Nov a receipt with a live pid and an empty
  * start time kept a wedged dispatcher trusted while the queue sat; an extra spawn only exits when the lock is held.
+ * The caller took the board's dispatcher row for `owner` (the drive cell's ensureDispatcher); the launched dispatcher
+ * renews that row under the same owner [C7].
  *
  * @param {string} tools - A captured tooling snapshot that contains this module.
  * @param {string} cwd - Directory for the dispatcher process.
+ * @param {{ startOf?: (pid: number) => string, owner?: string }} [options]
+ * @returns {Promise<boolean>} True when this call launched a dispatcher; false when a live one already holds the machine.
  */
-export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' } = {}) {
-  if (dispatcherHeld()) return;
+export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '', owner } = {}) {
+  if (dispatcherHeld()) return false;
   const lock = await takeResource({ name: 'submit-handoff-dispatcher-launch', capacity: 1, scope: 'machine', agent: 'handoff-dispatcher-launch' });
   try {
-    if (dispatcherHeld()) return;
+    if (dispatcherHeld()) return false;
     const queue = handoffQueueDirectory();
     mkdirSync(queue, { recursive: true, mode: 0o700 });
     const receipt = join(queue, 'dispatcher.json');
     const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
     const detachedLauncher = join(realpathSync(tools), 'bin', 'handoff-worker-detach.js');
     const env = handoffDispatcherEnvironment(process.env);
+    if (owner) env[HANDOFF_DISPATCHER_OWNER_ENV] = owner;
     const launcher = spawn(process.execPath, [detachedLauncher, JSON.stringify({ entry, cwd, env, log: handoffDispatcherLog() })], {
       cwd, stdio: ['ignore', 'pipe', 'pipe'], env,
     });
@@ -508,5 +590,6 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' }
       try { process.kill(pid, 'SIGTERM'); } catch (killError) { if (killError.code !== 'ESRCH') throw killError; }
       throw error;
     }
+    return true;
   } finally { lock.release(); }
 }

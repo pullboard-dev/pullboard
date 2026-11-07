@@ -1,16 +1,7 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { importStyleViolations } from './static-import-style.js';
-import { engineFolderProblems } from '../../../state/index.js';
-import { engineFolderViolations } from '../../../state/index.js';
-import { emptyCatchProblems } from '../../../../bin/checks/empty-catch.js';
-import { fileSizeProblems } from '../../../../bin/checks/file-size.js';
-import { testInputProblems } from '../../../../bin/checks/test-inputs.js';
-import { testWaitSites } from '../../../../bin/checks/test-waits.js';
-import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
-import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
-import { fixedWallMargins } from './wall-clock-budgets.js';
+import { runStaticRegistry } from './static-check-registry.js';
 import { gitSpawnSync } from '../../../git/index.js';
 
 /**
@@ -57,28 +48,7 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
     const extra = paths.stdout.split('\0').filter(file => file && !files.includes(file) && /\.[cm]?js$/u.test(file));
     engineSources = [...sources, ...extra.map(read)];
   }
-  const failures = [
-    ...relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file)).map(read)]).map(row => `${row.file}:${row.line}: ${row.text}`),
-    ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
-    // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-    ...(staged ? engineFolderViolations(engineSources) : engineFolderProblems(root)).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),
-  ];
-  for (const check of [emptyCatchProblems, fileSizeProblems, testInputProblems]) {
-    for (const file of files) {
-      const current = check(root, [file], text);
-      const baseline = check(root, [file], previous);
-      failures.push(...current.slice(baseline.length).map(row => `${row.path}:${row.line}: ${row.text}`));
-    }
-  }
-  const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
-  for (const file of files) {
-    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) {
-      const { source } = read(file);
-      failures.push(...fixedWallMargins(source, file));
-      failures.push(...testWaitGrowth(testWaitSites(source, file), waitBaseline).map(row => `${row.path}:${row.line}: ${row.text}`));
-    }
-  }
-  return failures;
+  return runStaticRegistry({ root, files, staged, text, previous, read, sources, engineSources });
 }
 
 /** Judge the actual index whenever the explicit staged checker is invoked. */

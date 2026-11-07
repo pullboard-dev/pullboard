@@ -33,6 +33,22 @@ import {
   textArg,
 } from '../cli.js';
 
+/**
+ * The existing record when the item is already merged: the same commit is a no-op naming it, a different one is refused
+ * naming both. Why: a hand-landing loop retried after a lost reply and appended a second merged event for five items [C7].
+ * The check lives in the command, not the move, so replaying the older doubled events still reproduces them.
+ *
+ * @param {{ item_id: number, item_merged_commit?: string | null }} item
+ * @param {string} commit
+ * @returns {{ commit: string } | null}
+ */
+export function recordedMerge(item, commit) {
+  const recorded = item.item_merged_commit;
+  if (!recorded) return null;
+  if (recorded === commit) return { commit: recorded };
+  throw new Refused('MERGED_ALREADY', `item #${item.item_id} is already merged as ${recorded}; ${commit} is a different commit, so nothing was recorded`);
+}
+
 /** Refresh the derived map after the merged receipt has been recorded. */
 async function refreshMap(ctx, io, board, trunk) {
   const root = primaryCheckoutRoot(ctx.info);
@@ -103,6 +119,12 @@ export async function run(io, { first, second, values }) {
   const commit = resolveCommit(ctx.info.root, second ?? '');
   if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
   const id = idArg(first);
+  const existing = recordedMerge(store.getItem(board, id), commit);
+  if (existing) {
+    io.result?.({ id, commit: existing.commit, already: true });
+    io.say(`#${first} is already merged as ${existing.commit.slice(0, 12)}; nothing recorded`);
+    return 0;
+  }
   const train = values['gate-receipt'] !== undefined || mainPolicy(ctx.info.root).config.landing?.requireReceipts === true;
   const ids = train && values.items !== undefined ? String(values.items).split(',').map(value => idArg(value.trim())) : [id];
   const parent = tryGit(ctx.info.root, ['rev-parse', '--verify', '--quiet', `${commit}^`]);

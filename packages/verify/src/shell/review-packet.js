@@ -1,7 +1,7 @@
 /**
  * The review packet: one prepared page a reviewer reads instead of checking out and rerunning [V4,C7].
  *
- * It is built once, when an item's gate goes green, from what the gate already recorded: the
+ * It is built once, when an item's gate goes green (or red only in cases main fails by name), from what the gate already recorded: the
  * submit event's proof, the native proof receipts at that head, the known-main failures and the
  * check baseline. Git supplies the diff and the cells and lint baselines by reading objects only,
  * never by checking anything out. The packet is stored under the board's directory, keyed by item
@@ -88,7 +88,7 @@ function storeReviewPacket(commonDir, packet) {
  * The board records a packet needs: the item, its newest submit at the head, the proof receipts
  * at that head and the check baseline. Board reads only; no Git and no process.
  */
-function reviewPacketInputs(board, { getItem, events }, id) {
+function reviewPacketInputs(board, { getItem, events, eventsOfKinds }, id) {
   const item = getItem(board, id);
   const history = events(board, { itemId: id });
   const detailOf = event => { try { return JSON.parse(event.event_detail); } catch { return {}; } };
@@ -96,7 +96,39 @@ function reviewPacketInputs(board, { getItem, events }, id) {
   const receipts = history.filter(event => event.event_kind === 'proof-run').map(event => detailOf(event).receipt)
     .filter(receipt => receipt && receipt.item === Number(id) && receipt.commit === item.item_commit);
   const baseline = history.filter(event => event.event_kind === 'check-baseline').map(event => detailOf(event).checkBaseline).at(-1) ?? null;
-  return { item, submit, receipts, baseline };
+  // The main comparison runs recorded at the known main, read only for a gate red in main's named cases (#3449).
+  const known = submit?.gateGreen === false ? submit.submissionProof?.knownMainFailures : null;
+  const mainRuns = known && typeof eventsOfKinds === 'function' ? eventsOfKinds(board, ['gate-run']).map(event => detailOf(event).run)
+    .filter(run => run?.kind === 'main-red' && run.head === known.main).map(run => run.id) : [];
+  return { item, submit, receipts, baseline, mainRuns };
+}
+
+/**
+ * The submit's known main failures when every red its gate recorded at head is one of them by file and name, else null.
+ * Why: submit accepts a proof red only in cases main fails by name and records gateGreen false, but the packet was
+ * stored only for a green gate, so every such item met NO_REVIEW_PACKET and sat in review for hours (#3449) [V4,C7].
+ * A red receipt that names no failing case cannot be matched, so it leaves no packet.
+ */
+function excusedMainReds(submit, receipts) {
+  const known = submit?.submissionProof?.knownMainFailures;
+  if (submit?.gateGreen !== false || !SHA.test(known?.main ?? '') || !Array.isArray(known.failures) || !known.failures.length) return null;
+  const red = receipts.filter(receipt => receipt.exitCode !== 0 && receipt.green !== true);
+  if (red.some(receipt => !(receipt.failures ?? []).length)) return null;
+  const named = (row, failure) => row.file === failure.file && row.name === failure.name;
+  return red.flatMap(receipt => receipt.failures).every(failure => known.failures.some(row => named(row, failure))) ? known : null;
+}
+
+/** The id of the main comparison receipt at `main` that records this case failing, from the gate's own receipt files. */
+function mainReceiptFor(commonDir, ids, main, failure) {
+  for (const id of new Set(ids)) {
+    if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
+    try {
+      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${id}.json`), 'utf8'));
+      if (stored.id === id && stored.kind === 'main-red' && stored.head === main
+        && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
+    } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
+  }
+  return null;
 }
 
 /** Split the frozen bar into numbered clauses: the criterion's sentences, then each frozen row. */
@@ -206,14 +238,16 @@ function cellsAt(root, commit) {
 }
 
 /**
- * Build the packet for an item whose gate went green at its head, or null when it has not. Reads
- * Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never starts a test.
- * It returns rather than refuses because submit and verify reach it; only show names the refusal.
+ * Build the packet for an item whose gate went green at its head, or went red only in cases main fails by name,
+ * or null otherwise. Reads Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never
+ * starts a test. It returns rather than refuses because submit and verify reach it; only show names the refusal.
+ * `mainReceiptIds` are the submit's main comparison receipts; the board's recorded main runs are tried too.
  */
-function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = new Date(), commonDir = null, errors = [] } = {}) {
+function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
-  if (!submit || submit.gateGreen !== true || !SHA.test(head ?? '')) return null;
+  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : null;
+  if (!submit || (submit.gateGreen !== true && !excused) || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
   const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
   const stat = gitRead(root, ['diff', '--stat', '--no-color', base, head]).trimEnd();
@@ -279,11 +313,20 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     return { ...clause, runs: evidence, ...(evidence.length ? {} : { gap: gap ?? 'no recorded run' }) };
   });
   const seen = new Set();
-  const failures = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
+  const atHead = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
     .filter(failure => !seen.has(`${failure.file}\0${failure.name}`) && seen.add(`${failure.file}\0${failure.name}`))
     .map(failure => ({ file: failure.file, name: failure.name, receipt: failure.receipt,
       error: errors.find(row => row?.name === failure.name && (!row.file || row.file === failure.file))?.error ?? null,
       ...mainStatus(failure, { known: proof.knownMainFailures, baseline }) }));
+  // A gate red only in main's named cases keeps those cases apart from the item's own failures: they are listed with
+  // the main receipt that names each, and never read as this item's red, so the reviewer judges its own clauses (#3449).
+  const failures = excused ? [] : atHead;
+  const mainIds = [...mainReceiptIds, ...mainRuns];
+  const excusedMain = (excused ? atHead : []).map(failure => {
+    const repair = excused.failures.find(row => row.file === failure.file && row.name === failure.name)?.item;
+    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: mainReceiptFor(commonDir, mainIds, excused.main, failure),
+      ...(repair ? { repair } : {}) };
+  });
   const cellsBefore = cellsAt(root, base);
   const cellsAfter = cellsAt(root, head);
   const touched = [...new Set(changed.map(file => /^(?:apps|packages)\/[^/]+/u.exec(file)?.[0]).filter(Boolean))].sort();
@@ -292,7 +335,7 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     criterionDigest: submit.criterionDigest ?? item.item_frozen_digest ?? null,
     proof: { full: proof.full === true, deferred: proof.deferred === true, files: proofFiles.length, reason: proof.reason ?? '' },
     diff: { stat, patch, truncated, files: changed },
-    clauses: mapped, failures,
+    gate: excused ? 'red only in main reds' : 'green', clauses: mapped, failures, excusedMainReds: excusedMain,
     cells: { before: cellsBefore.size, after: cellsAfter.size, added: [...cellsAfter].filter(cell => !cellsBefore.has(cell)).sort(),
       removed: [...cellsBefore].filter(cell => !cellsAfter.has(cell)).sort(), touched },
     lints: { before: lintCounts(root, base), after: lintCounts(root, head) },
@@ -307,7 +350,7 @@ function reviewRerunClauses(packet) {
 /** The packet as lines, summary first and the full hunks last. */
 function renderReviewPacket(packet, { hunks = true } = {}) {
   const short = sha => (sha ? sha.slice(0, 12) : 'unknown');
-  const lines = [`review packet #${packet.item} at ${short(packet.head)}: base ${short(packet.base)}, main ${short(packet.main)}; built ${packet.builtAt} when the gate went green`];
+  const lines = [`review packet #${packet.item} at ${short(packet.head)}: base ${short(packet.base)}, main ${short(packet.main)}; built ${packet.builtAt} when the gate went ${packet.gate === 'red only in main reds' ? 'red only in cases main also fails by name' : 'green'}`];
   lines.push(`proof: ${packet.proof.full ? 'full suite' : packet.proof.deferred ? 'full suite deferred to the landing gate' : 'selected files'}; ${packet.proof.files} proof file(s)`);
   lines.push('clauses:');
   for (const clause of packet.clauses) {
@@ -321,6 +364,12 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   for (const failure of packet.failures) {
     lines.push(`  ${failure.file} :: ${failure.name}: ${failure.alsoRedOnMain ? `also red on main ${short(failure.main)}${failure.repair ? `, repair #${failure.repair}` : ''}` : `not red on main ${short(failure.main)}`}`,
       `     first error: ${failure.error ?? 'no error line recorded'}`);
+  }
+  // Main's own reds come after the item's clauses and failures, under their own heading, so none reads as the item's.
+  const excused = packet.excusedMainReds ?? [];
+  if (excused.length) lines.push(`excused main reds (not this item's: each fails on main by name, so they do not count against its clauses):`);
+  for (const red of excused) {
+    lines.push(`  ${red.file} :: ${red.name}: red on main ${short(red.main)}, main receipt ${red.mainReceipt ? red.mainReceipt.slice(0, 8) : 'not recorded'}${red.repair ? `, repair #${red.repair}` : ''}; head receipt ${String(red.receipt ?? 'unknown').slice(0, 8)}`);
   }
   const { cells } = packet;
   lines.push(`cells: ${cells.before} before, ${cells.after} after${cells.added.length ? `; added ${cells.added.join(', ')}` : ''}${cells.removed.length ? `; removed ${cells.removed.join(', ')}` : ''}; touched ${cells.touched.join(', ') || 'none'}`);
@@ -346,13 +395,14 @@ function loadReviewPacket(root, commonDir, inputs) {
 }
 
 /**
- * Store the packet right after a submit whose gate went green; a failure never fails the submit.
- * `errors` are the gate summary's failed cases, so each failure at head carries its first error line.
+ * Store the packet right after a submit whose gate went green, or red only in main's named cases; a failure never
+ * fails the submit. `errors` are the gate summary's failed cases, so each failure at head carries its first error
+ * line; `mainReceiptIds` are the main comparison receipts the submit ran, so each excused main red names its own.
  */
-export async function recordReviewPacket(ctx, id, readBoard, { errors = [] } = {}) {
+export async function recordReviewPacket(ctx, id, readBoard, { errors = [], mainReceiptIds = [] } = {}) {
   try {
     const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-    const packet = buildReviewPacket(ctx.info.root, inputs, { commonDir: ctx.info.commonDir, errors });
+    const packet = buildReviewPacket(ctx.info.root, inputs, { commonDir: ctx.info.commonDir, errors, mainReceiptIds });
     return packet && storeReviewPacket(ctx.info.commonDir, packet);
   } catch (error) {
     ctx.io.err(`review packet for #${id} was not stored (${error.message}); pullboard show ${id} --review builds it`);

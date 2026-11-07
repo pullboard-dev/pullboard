@@ -7,7 +7,7 @@ export { captureBoardChanges, beginCapture } from './src/shell/board-capture.js'
 export { migrateEventLogVersion } from './src/shell/board-event-log-migrate.js';
 export { atomic, logEvent } from './src/shell/board-event-log.js';
 export { applyHealthFindings } from './src/shell/board-health.js';
-export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables } from './src/shell/board-jobs-schema.js';
+export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/shell/board-jobs-schema.js';
 export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/shell/board-hot.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/shell/board-inventory.js';
 export { validateItemDependencies } from './src/shell/board-item-dependencies.js';
@@ -103,7 +103,7 @@ export { nextIdleChanged } from './src/core/board-stats.js';
 export { prepareSubmit, sealStrictRenames } from './src/shell/board-submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/shell/board-checkpoint.js';
 
-export { endedSubmitHandoff } from './src/shell/submit-handoff-read.js';
+export { endedSubmitHandoff, handoffRecord, handoffRecords } from './src/shell/submit-handoff-read.js';
 export {
   repositoryOfBoardFile,
   withBoardRepositoryPolicy,
@@ -111,5 +111,7 @@ export {
 } from './src/shell/board-repository.js';
 
 export { boardWriteLog } from './src/shell/board-write-lock.js';
+export { objectItemPatch } from './src/shell/board.js';
 
+export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";

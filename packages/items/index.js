@@ -25,7 +25,7 @@ export { itemOfferAnnouncement, readItemOffer, acceptItemOffer, declineItemOffer
 export { composeItemPatches } from './src/shell/item-patch-compose.js';
 export { validateItemPatchInput, prepareItemPatchReview, reviewCompanionOffer, missingCompanionKeys } from './src/shell/item-patch-review.js';
 export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, itemPatchAuthors } from './src/shell/item-patch-state.js';
-export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem } from './src/shell/item-patches.js';
+export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem, startItemPatchObjectionWindow, companionWindowProblem, applyItemPatchObjection } from './src/shell/item-patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/shell/item-receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/shell/item-rehome.js';
 export { checkRouted, checkRoute, checkTestFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/core/item-routing.js';

@@ -1,6 +1,7 @@
 /** next never offers a build for an open item whose latest head already has a gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { addItem, nextFor } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
@@ -9,8 +10,7 @@ const HEAD = 'a'.repeat(40);
 /** Record a queue observation for an item the way the submit queue does, with no worker running. */
 function observe(board, id, job, head = HEAD) {
   board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(head, id);
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(`submit_handoff:${id}`, JSON.stringify({ commit: HEAD, agentId: 'web-1', ...job }));
+  recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: HEAD, agentId: 'web-1', ...job });
 }
 
 test('nextFor skips an open item whose gate is queued, running, green or infra-exhausted at its head, and offers a red one [C7, #2881]', t => {
