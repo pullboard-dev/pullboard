@@ -10,6 +10,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { recordClaimWorktrees, recordedClaimWorktrees } from '../packages/activity/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const BUDGET_MS = 200;
 const CLI = new URL('./native-cli-fixture.js', import.meta.url).href;
@@ -101,7 +102,7 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
     store.claim(board, itemId, { agentId, lane: 'web', leaseMs: 3_600_000, head: base, freeze });
     others.push(path);
   }
-  const added = box.run(box.repo, 'add', 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Next work', '--route', 'mid', '--specs', 'G1', '--criterion', 'Next work passes', '--check', 'true',
     '--brief', 'Files: web/next-work.js\nTest: the native fixture item has a named web path and a test description.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const itemId = JSON.parse(added.out).item.item_id;

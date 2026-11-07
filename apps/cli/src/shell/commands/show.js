@@ -1,5 +1,6 @@
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
+import { machineVerification } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
@@ -65,13 +66,13 @@ export async function run(io, { first, values }) {
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, work), { json: values.json });
   const prices = loadMachineSettings().costPrices;
-  const { item, queuedSubmit, queuedJobId, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress } = await withBoardRead(ctx, (board) => {
+  const { item, queuedSubmit, queuedJobId, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}) } : null;
-    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
+    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it.
@@ -95,7 +96,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, progress, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -117,6 +118,7 @@ export async function run(io, { first, values }) {
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));
+  io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
   if (queuedSubmit) io.say(`queued gate: ${queuedSubmit.state} at ${queuedSubmit.executionCommit}`);
   if (queuedSubmit?.error) io.say(`${queuedSubmit.error.code}: ${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].

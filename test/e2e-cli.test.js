@@ -31,6 +31,7 @@ import { fetchFresh } from './http-fixture.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
 import { once } from 'node:events';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -194,7 +195,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   };
   const greet = script('greet.sh', ["echo \"export const title = 'Hi';\" > web/page.js"]);
   const follow = script('follow.sh', ['grep -q "^- #1 Greet: web/page.js$" "$PULLBOARD_PACK" && echo "export const bye = \'Bye\';" >> web/page.js']);
-  box.run(box.repo, 'add', 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
+  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   assert.match(box.run(runner, 'run', '--agent-light', greet, '--attempts', '1').out, /submitted #1/);
   const firstCommit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
@@ -204,7 +205,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   box.git(box.repo, 'merge', '-q', '--ff-only', firstCommit);
   const landed = box.run(box.repo, 'merged', '1', firstCommit);
   assert.equal(landed.code, 0, landed.err);
-  box.run(box.repo, 'add', 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
+  fixtureAdd(box.run, box.repo, 'web', 'Say', 'bye', '--route', 'light', '--criterion', 'says Bye', '--check', 'grep -q Bye web/page.js', '--brief', LIGHT_BRIEF);
   const ran = box.run(runner, 'run', '--agent-light', follow, '--attempts', '1');
   assert.match(ran.out, /submitted #2/, ran.out);
   const packs = join(box.dir, 'repo', '.git', 'worktrees', runner.split('/').at(-1), 'pullboard', 'packs');
@@ -288,7 +289,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
 
 test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   box.run(box.web, 'claim', '1');
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
   assert.equal(box.run(box.repo, 'spec', 'approve', 'G1').code, 0);
@@ -308,11 +309,11 @@ test('spec check at an older commit skips ids that items cite from a later commi
   const box = project();
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n`);
   box.git(box.repo, 'commit', '-qam', 'docs(spec): a footer row');
-  box.run(box.repo, 'add', 'web', 'Footer', '--specs', 'G3');
+  fixtureAdd(box.run, box.repo, 'web', 'Footer', '--specs', 'G3');
   const older = box.run(box.web, 'spec', 'check');
   assert.equal(older.code, 0, older.out);
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n- G4 [draft, must] Not committed.\n`);
-  box.run(box.repo, 'add', 'web', 'Ghost', '--specs', 'G4');
+  fixtureAdd(box.run, box.repo, 'web', 'Ghost', '--specs', 'G4');
   const ghost = box.run(box.web, 'spec', 'check');
   assert.equal(ghost.code, 1);
   assert.match(ghost.out, /SPEC.md: G4 error: item #2 cites it, but it was never committed/);
@@ -321,8 +322,8 @@ test('spec check at an older commit skips ids that items cite from a later commi
 
 test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
-  box.run(box.repo, 'add', 'web', 'Loose', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
+  fixtureAdd(box.run, box.repo, 'web', 'Loose', '--specs', 'G1');
   assert.match(box.run(box.web, 'check').err, /NOT_HOLDING.*pullboard gate/);
   box.run(box.web, 'claim', '1');
   const red = box.run(box.web, 'check', '--yes');
@@ -344,8 +345,8 @@ test('check runs the item\'s own check command, yours by default, and prints a d
 
 test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Dependency', '--specs', 'G1');
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--after', '1');
+  fixtureAdd(box.run, box.repo, 'web', 'Dependency', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--after', '1');
   const second = box.run(box.repo, 'worktree', 'web').out.match(/^made (\S+) /)[1];
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
@@ -362,7 +363,7 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
 
 test('verify and escalate take a note from a file, exactly as written [V12]', () => {
   const box = project();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
@@ -374,7 +375,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', ()
   assert.match(box.run(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'The page renders.', '--note-file', join(box.dir, 'note.txt'), '--as', 'coordinator').out, /rejected #1/);
   assert.equal(JSON.parse(box.run(box.repo, 'show', '1', '--json').out).verdicts[0].verdict_note, note);
   box.git(box.repo, 'switch', '-q', 'main');
-  box.run(box.repo, 'add', 'web', 'Light', '--route', 'light', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
+  fixtureAdd(box.run, box.repo, 'web', 'Light', '--route', 'light', '--criterion', 'says hi', '--check', 'true', '--brief', LIGHT_BRIEF);
   const light = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
   box.run(light, 'claim', '2');
   assert.match(box.run(light, 'escalate', '2', '--note-file', join(box.dir, 'note.txt')).out, /#2 escalated light -> mid/);
@@ -422,8 +423,8 @@ test('every wait pullboard suggests names its unit and fits one ten-minute tool 
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
   await view.stop();
-  box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
-  box.run(box.repo, 'add', 'web', 'Second', '--specs', 'G1', '--after', '1');
+  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
+  fixtureAdd(box.run, box.repo, 'web', 'Second', '--specs', 'G1', '--after', '1');
   box.run(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
