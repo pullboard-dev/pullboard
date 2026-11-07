@@ -13,7 +13,19 @@ import { itemPatches } from '../../../store/index.js';
 import { withMainCheckout } from './main-red.js';
 
 const graphs = new Map();
-const parsers = { importsIn, commonJsIn };
+/** Imports of each source; a source that does not compile imports nothing provable, as the seal graph also treats it (#2438). */
+function tolerantImportsIn(sources) {
+  try { return importsIn(sources); }
+  catch (error) {
+    if (error.message !== 'source does not compile as an ES module') throw error;
+    return sources.map(source => {
+      try { return importsIn([source])[0]; }
+      catch (failure) { if (failure.message !== 'source does not compile as an ES module') throw failure; return []; }
+    });
+  }
+}
+
+const parsers = { importsIn: tolerantImportsIn, commonJsIn };
 
 /** Check all ordered companion effects as one patch set, allowing unrelated later main edits. */
 export function requireLandingCompanions(root, board, entries, tip) {

@@ -146,7 +146,7 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
     const activity = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
     const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-event')]
       .filter(node=>node.textContent.includes('Activity cites #1 and waits on #2'))
-      .flatMap(node=>[...node.querySelectorAll('a.ref[data-go]')].map(link=>[link.textContent,new URL(link.href).pathname])))`));
+      .flatMap(node=>[...node.querySelectorAll('a.ref[data-go]:not(.activity-about)')].map(link=>[link.textContent,new URL(link.href).pathname])))`));
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');
     assert.ok(activity.some(([text, href]) => text === '#1' && href === '/items/1'), 'Activity item events also link to their item addresses');
     await openAddress(chrome, server, '/items/1');
@@ -281,6 +281,9 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await checkPlace(new URL(oldest.href).hash, `view.tab === 'items' && view.item === ${oldest.id}`);
     await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
     await checkPlace('#shouts', "view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
+    // The Shouts tab lists conversations; open the first one so its message cards render.
+    await press(chrome, `document.querySelector('#feed .conversation-row')`);
+    await chrome.waitFor(`!!document.querySelector('#feed [data-shout-id]')`);
     const shoutId = await chrome.stable(`document.querySelector('#feed [data-shout-id]')?.dataset.shoutId`);
     await press(chrome, `document.querySelector('#feed [data-shout-id]')`);
     await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed article.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);

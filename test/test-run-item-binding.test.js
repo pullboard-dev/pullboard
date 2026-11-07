@@ -8,6 +8,7 @@ import { listResources } from '../packages/resources/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild } from './fixture-child.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const RESOURCES = pathToFileURL(fileURLToPath(new URL('../packages/resources/index.js', import.meta.url))).href;
@@ -57,7 +58,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   writeFileSync(join(box.repo, 'test/ready.test.js'), "import { test } from 'node:test';\nimport { appendFileSync } from 'node:fs';\ntest('private fixture body', () => appendFileSync(process.env.BINDING_LOG, process.env.BINDING_LABEL+'\\n'));\n");
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-q', '-m', 'test(web): configure focused runner [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
   for (const args of [['milestone', 'add', 'Now', '--items', String(item), '--reason', 'Arrange fixture release'], ['milestone', 'pin', 'Now', String(item), '--reason', 'Synthetic release blocker'], ['claim', String(item)]]) {

@@ -116,7 +116,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -169,7 +169,7 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -190,7 +190,7 @@ export function nextFor(board, options) {
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const candidates = reviewable.map((entry) => ({
       entry,
-      holder: reviewHolder(board, entry),
+      holder: reviewHolder(board, entry, reviewHeartbeats),
       problem: failures.get(entry)?.problem,
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
@@ -201,7 +201,7 @@ export function nextFor(board, options) {
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
-      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry)), { listAgents }) : null;
+      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy, reviewHeartbeats })).every(guard => !guard(entry)), { listAgents }) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)
@@ -301,6 +301,7 @@ export function nextFor(board, options) {
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
   }
+  const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
@@ -323,7 +324,7 @@ export function nextFor(board, options) {
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       skip(entry, 'FOREIGN_DEPENDENCY');
@@ -338,6 +339,12 @@ export function nextFor(board, options) {
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
     skip(entry, 'DEPENDENCY'); reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
+  // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
+  for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
+    if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
+  }
+  for (const { collisions } of overlapping) reasons.push(...collisions);
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));

@@ -5,6 +5,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const PAD = Array.from({ length: 8 }, (_, i) => `export const pad${i} = ${i};`).join('\n');
 
@@ -52,7 +54,7 @@ test('page is built', () => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: a page item with recorded landings [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), `export const page = 'built';\n${PAD}\n`);
   box.git(box.web, 'add', 'web/lib.js');
@@ -64,7 +66,7 @@ test('page is built', () => {
   box.git(box.repo, 'commit', '-q', '-m', 'test: an earlier landing [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
   return { box, verdict, json };
