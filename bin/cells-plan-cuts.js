@@ -60,7 +60,7 @@ function nodeBinding(parsed, module, name) {
 }
 
 /** Prove an own-file main guard, or a non-exporting Node script that actually awaits its program. */
-function processEntry(file, source) {
+export function processEntry(file, source) {
   const parsed = lex(source), code = parsed.code;
   if (/\b(?:const|let|var|function|class)\s+process\b/u.test(code)) return false;
   const identities = [];

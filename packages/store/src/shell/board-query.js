@@ -552,7 +552,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -597,6 +597,9 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const newsIds = [...rows.values()].filter(event => isActivityNews(event, byShout.get(activityEventDetail(event)?.shout)))
     .map(event => activityEventDetail(event).shout);
   for (const event of rows.values()) if (event.event_kind === 'main-moved') event.activityBase = activityBatchBase(board, event);
+  // A caller that reads Git for every landing learns them all first and can answer in one process (#3252).
+  prepareMainChanges?.([...rows.values()].filter(event => event.event_kind === 'main-moved')
+    .map(event => ({ commit: activityEventDetail(event)?.sha, base: event.activityBase })));
   for (const event of rows.values()) if (event.event_kind === 'row_apply') {
     const ids = activityEventDetail(event)?.events;
     event.activityRows = [];
