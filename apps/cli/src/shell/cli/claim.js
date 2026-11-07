@@ -282,7 +282,12 @@ export async function claimOrdered(ctx, board, args) {
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
   const exitRules = accepted.exitRules;
-  const estimate = store.getItem(board, args[0]).item_expected_build_minutes;
+  const held = store.getItem(board, args[0]);
+  if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const refusal = (await import('../exit-rules-runtime.js')).contextCeilingRefusal(exitRules);
+    if (refusal) throw refusal;
+  }
+  const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
