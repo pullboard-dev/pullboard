@@ -36,8 +36,10 @@ function existingMinimumEngine(args, board, at) {
 function actor(move) { return move.args[0]?.from ?? null; }
 
 /** New coordinator shouts carry the drafting engine; recorded older shouts retain their original effects. */
-function minimumEngine(args, board, at) {
-  return Math.max(existingMinimumEngine(args, board, at), args[0]?.from === 'coordinator' ? RIGOR_INSTRUCTIONS_ENGINE : 1);
+function minimumEngine(args, board, at, { replayEngine } = {}) {
+  const draftFloor = args[0]?.from === 'coordinator' && (replayEngine === undefined || replayEngine >= RIGOR_INSTRUCTIONS_ENGINE)
+    ? RIGOR_INSTRUCTIONS_ENGINE : 1;
+  return Math.max(existingMinimumEngine(args, board, at), draftFloor);
 }
 
 export default Object.freeze({ operation: "shout", order: 23, engine: 1,

@@ -11,6 +11,8 @@ import { repoInfo } from '../packages/git/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
 import { main } from './native-cli-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Register through the actual join command; the executable records its literal argument vector. */
 function wakeFixture(t) {
@@ -23,7 +25,7 @@ function wakeFixture(t) {
   chmodSync(command, 0o755);
   const seatRoot = join(box.dir, 'idle-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/wake', seatRoot);
-  const joined = box.run(seatRoot, 'join', 'api', '--wake', command, '--json');
+  const joined = fixtureJoin(box.run, seatRoot, 'api', '--wake', command, '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   const seat = JSON.parse(joined.out).agent;
   let at = Date.now();
@@ -31,7 +33,7 @@ function wakeFixture(t) {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   heartbeatSeat(board, seat);
-  const added = box.run(box.repo, 'add', 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'test -f api/wake-ready', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'test -f api/wake-ready', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const item = JSON.parse(added.out).item.item_id;
   /** Execute the real CLI with this fixture's deterministic presence clock. */
