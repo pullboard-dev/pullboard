@@ -27,7 +27,7 @@ for (const [name, comparison] of [
   ['red on base', { main: 'base', files: [{ file: 'test/red.test.js', result: 'red' }] }],
   ['unavailable on base', { main: 'base', files: [], unavailable: 'runner unavailable' }],
 ]) {
-  test(`bisection holds verdicts when a failing file is ${name} [B3,C7]`, async () => {
+  test(`clause 2: bisection holds verdicts when a failing file is ${name} [B3,C7]`, async () => {
     const writes = [];
     const state = { batch: { id: 'batch', base: 'base', root: '.', revision: 0 }, culprits: [], board: { clock: { now: () => new Date('2026-01-01T00:00:00Z') } },
       write: async (operation, args) => { writes.push(operation); return args[0].batch; }, say: () => {} };
