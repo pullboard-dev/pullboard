@@ -1,7 +1,7 @@
 /** Durable A1: the jobs cell owns the submit hand-off record and submitHandoff() reads it from the gate job [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -23,9 +23,9 @@ function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true', helpers.sandbox());
+  // The kit wrote exactly its shared CONFIG with this gate, so the hand-off setting is added to that, not reread.
   const configFile = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true } }, null, 2) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...helpers.CONFIG, gate: 'true', submit: { handoff: true } }, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');

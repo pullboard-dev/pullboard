@@ -1716,6 +1716,10 @@
     {
       "path": "bin/gate-drive-worker.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/check-cla.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -2156,6 +2160,14 @@
     {
       "path": "bin/main-red-refresh.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/handoff-worker-dispatcher.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "cell": "app:lib"
     }
   ],
   "engineStays": [

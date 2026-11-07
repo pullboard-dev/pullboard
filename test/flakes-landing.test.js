@@ -2,10 +2,11 @@
 import { flakyProject, targetRuns, assertReceipts, privateBuilder, commitCandidate, checkedItem } from '../packages/git/tests/flakes-fixture.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
+import { loadConfig } from '../packages/config/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { land } from '../packages/landing/index.js';
 import { inProcessLandingBatch } from '../packages/landing/index.js';
@@ -68,7 +69,8 @@ test('an interrupted landing consumes its saved diagnostic without inventing ano
   box.git('config', '--local', 'user.email', 'fixture@example.com');
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
-    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+    // The product's own config loader reads the fixture repo's settings, as automatic landing does.
+    const config = loadConfig(box.root);
     // A direct API call must not hand Node's outer test-worker protocol to its own configured Node test command.
     const context = process.env.NODE_TEST_CONTEXT;
     delete process.env.NODE_TEST_CONTEXT;

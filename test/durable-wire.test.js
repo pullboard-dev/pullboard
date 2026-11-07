@@ -15,6 +15,7 @@ import { inProcessLandingBatch, landingProgress } from '../packages/landing/inde
 import { dispatcherRow, gateAdmission } from '../bin/handoff-worker-dispatcher.js';
 import { fixtureBoard, temporaryDirectory } from './board-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
+import { readText } from '../bin/checks/scan.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -146,7 +147,7 @@ test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off
   };
   for (const folder of ['apps', 'packages', 'bin', 'src']) walk(folder);
   const offenders = (pattern, allowed = []) => sources.filter(path => !allowed.includes(relative(ROOT, join(ROOT, path)))
-    && pattern.test(readFileSync(join(ROOT, path), 'utf8')));
+    && pattern.test(readText(ROOT, path)));
   assert.deepEqual(offenders(/submit-handoff-worker\.js'\)?,\s*join\(launch\.directory/u), [], 'the dispatcher never launches the hand-off worker');
   assert.deepEqual(offenders(/'worker\.json'/u, ['packages/verify/src/shell/comparison-worker.js']), [], 'no hand-off module reads or writes worker.json');
   assert.deepEqual(offenders(/'submit_handoff:'\s*\+|`submit_handoff:\$\{|meta_key GLOB 'submit_handoff/u), [], 'no module reads or writes board_meta hand-off rows');
