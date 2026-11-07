@@ -84,7 +84,7 @@ export function stop(child, member, { parseProcessCensus, read = () => census(pa
 }
 
 /** Report unattributed remaining work without claiming its group was reused or drained. */
-function stopNotice(message) { process.stderr.write(message + '\n'); require('node:fs').appendFileSync('/tmp/c1439-guardian.log', message + '\n'); }
+function stopNotice(message) { process.stderr.write(message + '\n'); import('node:fs').then(f => f.appendFileSync('/tmp/c1439-guardian.log', 'NOTICE ' + message + '\n')); }
 
 /** Unknown states remain executing; only a known group without non-zombie members is drained. */
 function runningGroup(rows, pgid) { return [...rows.values()].some(row => row.pgid === pgid && !row.state.startsWith('Z')); }
