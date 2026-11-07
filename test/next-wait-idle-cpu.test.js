@@ -1,8 +1,7 @@
 /** Event-driven next and live gate streams remain idle and wake on real board writes [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
@@ -14,11 +13,12 @@ import { main } from './native-cli-fixture.js';
 
 for (const kind of ['created WAL', 'atomic replacement', 'new parent']) {
   test(`file notifications retain a ${kind} change before sleeping [C7]`, async t => {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-file-wake-'));
+    const directory = join((await fixture(t)).root, 'file-wake');
+    mkdirSync(directory);
     const file = kind === 'new parent' ? join(directory, 'nested', 'input') : join(directory, 'board.sqlite-wal');
     if (kind === 'atomic replacement') writeFileSync(file, 'old');
     const watcher = fileChangeWaiter([file]);
-    t.after(() => { watcher.close(); rmSync(directory, { recursive: true, force: true }); });
+    t.after(() => watcher.close());
     const before = watcher.version();
     if (kind === 'atomic replacement') { writeFileSync(file + '.tmp', 'new'); renameSync(file + '.tmp', file); }
     else { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, 'new'); }

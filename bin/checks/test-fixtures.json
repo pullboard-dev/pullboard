@@ -465,9 +465,12 @@
   "test/api-fixture.js": {
     "tempdir": 2
   },
+  "test/api-http-events.test.js": {
+    "model": 5
+  },
   "test/api-http.test.js": {
     "tempdir": 4,
-    "model": 13
+    "model": 8
   },
   "test/api-requests.test.js": {
     "tempdir": 1,
