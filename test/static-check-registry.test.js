@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin reads the shipped registry, tree-registry and entry sources to prove submit uses the one list. */
 /** Submit's static checks are one registry list, each class run by a function on a tree [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
