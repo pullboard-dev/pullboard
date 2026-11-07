@@ -167,20 +167,21 @@ test('automatic claim expiry records current reason codes while prior lease-laps
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
   assert.equal(snapshot.claims[0].id, id);
   const before = exportBoard(box.board);
+  const args = [{ agentId: box.seats.actor.id, snapshot, health: box.config.health ?? {}, claimsOnly: true }];
   // A current capture carries the stranded-dependency limit, which raises the floor; a genuine lease-lapse envelope predates it.
   const { dependency: _dependency, ...legacyLimits } = snapshot.limits;
-  const args = [{ agentId: box.seats.actor.id, snapshot: { ...snapshot, limits: legacyLimits }, health: box.config.health ?? {}, claimsOnly: true }];
+  const legacyArgs = [{ ...args[0], snapshot: { ...snapshot, limits: legacyLimits } }];
   const move = prepareEngineMove(box.board, 'maintainStaleState', args);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
   assert.ok(RELEASE_REASONS_ENGINE > LEASE_LAPSE_ENGINE);
-  assert.equal(minimumMoveEngine('maintainStaleState', args), LEASE_LAPSE_ENGINE,
+  assert.equal(minimumMoveEngine('maintainStaleState', legacyArgs), LEASE_LAPSE_ENGINE,
     'genuine accepted lease-lapse envelopes retain their original operation floor');
   const releaseRows = [];
   for (const [engine, coded] of [[move.engine, true], [LEASE_LAPSE_ENGINE, false]]) {
     const replica = openBoard(':memory:', box.clock);
     t.after(() => store.closeBoard(replica));
     importBoard(replica, before);
-    const applied = applyRelayMove(replica, { ...move, engine }, { sequence: appliedSequence(replica) + 1,
+    const applied = applyRelayMove(replica, { ...move, ...(coded ? {} : { args: legacyArgs }), engine }, { sequence: appliedSequence(replica) + 1,
       at: box.clock.now().toISOString(), kind: 'move',
       sender: { kind: 'agent', agent: box.seats.actor.id, userId: 'fixture-user' } });
     assert.equal(applied.error, undefined, JSON.stringify(applied));
