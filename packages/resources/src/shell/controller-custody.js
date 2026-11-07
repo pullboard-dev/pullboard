@@ -120,11 +120,14 @@ function custodyRecords(pool, machineHome) {
   return records;
 }
 
+/** The orphan cause for a controller whose process is gone while its holder lives; the host is not at fault. */
+export const CONTROLLER_GONE = 'controller process is gone';
+
 /** A matching caller incarnation and source identity distinguish an orphan from unknown observation. */
 function orphanReason(record, holder, sameProcess) {
   if (!record.holderStarted || record.holderStarted !== holder.started) return null;
   if (!sameProcess(holder.pid, holder.started)) return 'holder process is gone';
-  if (!sameProcess(record.controllerPid, record.started)) return 'controller process is gone';
+  if (!sameProcess(record.controllerPid, record.started)) return CONTROLLER_GONE;
   const source = record.source;
   if (!source || source.root !== holder.repo || !isAbsolute(source.root)
     || !Number.isSafeInteger(source.dev) || !Number.isSafeInteger(source.ino)) return null;
@@ -194,9 +197,12 @@ export function pruneControllerOrphans(db, { sameProcess, recordRunnerFailure })
       controllerPid: row.controllerPid, controllerStarted: row.controllerStarted, item: row.item, source: row.repo,
       // The exact job lets recovery prove this one cleanup on a busy runner; the runner loses only this slot meanwhile.
       remoteCleanup: 'unknown', ...(row.recovery ? { recovery: row.recovery } : {}) };
-    recordRunnerFailure(db, row.runner, 'cleanup-unverified', diagnostic);
+    // A dead controller says nothing about its host: the job is requeued with the cause recorded and the runner stays
+    // in service. Only a runner that fails its probe is quarantined, and recovery re-probes it [C7].
+    const hostHealthy = row.cause === CONTROLLER_GONE;
+    recordRunnerFailure(db, row.runner, hostHealthy ? 'controller-orphan' : 'cleanup-unverified', diagnostic, { quarantine: !hostHealthy });
     db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), row.runner,
-      new Date().toISOString(), 'cleanup', JSON.stringify(diagnostic));
+      new Date().toISOString(), hostHealthy ? 'orphan-requeued' : 'cleanup', JSON.stringify(diagnostic));
     db.prepare('DELETE FROM holder WHERE token=? AND pid=? AND started=?').run(row.token, row.pid, row.started);
   }
 }
