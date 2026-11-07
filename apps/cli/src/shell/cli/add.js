@@ -11,9 +11,12 @@ import { briefFiles } from '../../../../../packages/items/index.js';
 import { startCheckBaseline } from '../../../../../packages/gate/index.js';
 import { ordered } from './claim.js';
 
-/** Start an already-recorded request, recording an unavailable result if its child cannot start. */
-export async function launchBaseline(ctx, board, id, baseline) {
-  try { await startCheckBaseline(ctx.info.root, id, baseline); }
+/**
+ * Start an already-recorded request, recording an unavailable result if its child cannot start.
+ * With `wait`, resolves to a promise that settles when the worker process has exited.
+ */
+export async function launchBaseline(ctx, board, id, baseline, options = {}) {
+  try { return await startCheckBaseline(ctx.info.root, id, baseline, options); }
   catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);

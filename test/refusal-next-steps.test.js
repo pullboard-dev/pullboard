@@ -26,7 +26,7 @@ function addBuild(box, repo, title, check) {
   return JSON.parse(result.out).item.item_id;
 }
 
-test('every refusal names a next step that works [P4,I1,I2]', async () => {
+test('clause 2: every refusal names a next step that works [P4,I1,I2]', async () => {
   const sourceRoot = resolve(import.meta.dirname, '../src');
   const codes = new Set(['API_LISTEN', 'CORE_BARE', 'VIEW_SIGN_IN_STOPPED']);
   for (const file of readdirSync(sourceRoot).filter(name => name.endsWith('.js'))) {
