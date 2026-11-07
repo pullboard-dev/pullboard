@@ -15,10 +15,16 @@ import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { fetchFresh } from './http-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
 import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
+
+/** Build the run function joinFixtureSeat expects from a relay fixture box: the real CLI in the box's isolated environment. */
+function fixtureCli(box) {
+  return (cwd, ...args) => spawnSync(process.execPath, [CLI, ...args], { cwd, env: box.env, encoding: 'utf8' });
+}
 
 /** Open the relay confirmation page and retain only its browser cookie and one-use ticket. */
 async function openRelayConfirmation(box, confirmationURL) {
@@ -1253,6 +1259,7 @@ test('a linked device without its key reads locally and refuses moves with both 
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
+  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
   const prepare = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
@@ -1262,11 +1269,9 @@ test('a linked device without its key reads locally and refuses moves with both 
       const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
       return { code, document: JSON.parse(output) };
     }
-    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
     const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
-    process.stdout.write(JSON.stringify({ joined, asked }));
+    process.stdout.write(JSON.stringify({ asked }));
   `);
-  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
   assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
   const decision = prepare.document.asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
@@ -1343,6 +1348,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
+  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
   const prepare = await box.script(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
@@ -1352,11 +1358,9 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
       const code = await main([...args, '--json'], { cwd, stdout: { isTTY: false, write: value => { output += value; } }, stderr: { write() {} }, stdin: process.stdin });
       return { code, document: JSON.parse(output) };
     }
-    const joined = await command(${JSON.stringify(agentRoot)}, ['join', ${JSON.stringify(box.lane)}, '--route', 'mid']);
     const asked = await command(${JSON.stringify(agentRoot)}, ['shout', 'coordinator', 'Should this fixture continue?', '--kind', 'question', '--decision']);
-    process.stdout.write(JSON.stringify({ joined, asked }));
+    process.stdout.write(JSON.stringify({ asked }));
   `);
-  assert.equal(prepare.document.joined.code, 0, 'the real agent worktree joins its lane');
   assert.equal(prepare.document.asked.code, 0, 'the agent creates a real open decision before its key is removed');
   const decision = prepare.document.asked.document.id;
   assert.ok(Number.isSafeInteger(decision));
