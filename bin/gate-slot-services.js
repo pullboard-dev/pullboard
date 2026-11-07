@@ -10,7 +10,7 @@ import { Refused } from '../packages/kernel/index.js';
  * Build the execution services withGateSlot validates, loading only what it calls synchronously.
  * Why: the runner and landing front doors statically reach gate.js, src/board.js and src/machine.js,
  * which an ordinary run never uses. Async runner probes load the runner front door on first use;
- * the release queue loads the landing front door only when current-release-first policy is on.
+ * the release queue loads its own shell file, not the landing front door, only when current-release-first policy is on.
  * Full gates keep the canonical runnerExecutionServices and landingExecutionServices.
  *
  * @returns {Promise<{ runners: object, landing: object }>} Services shaped for requireGateExecutionServices.
@@ -24,7 +24,7 @@ export async function gateSlotServices() {
     runOnRunnerAsync: async (...args) => (await front()).runOnRunnerAsync(...args),
     runOnRunner: () => { throw new Refused('GATE_SLOT_SERVICES', 'an ordinary gate slot dispatches remote runs itself; use runnerExecutionServices() from the runners front door for gate execution'); },
   });
-  const release = gateQueueSettings().currentReleaseFirst ? (await import('../packages/landing/index.js')).landingExecutionServices() : null;
+  const release = gateQueueSettings().currentReleaseFirst ? await import('../packages/landing/src/shell/release-queue.js') : null;
   const landing = Object.freeze({
     // Policy off: withGateSlot reads the same setting and never asks; a flip between the two reads keeps queue position.
     captureReleaseQueue: release ? release.captureReleaseQueue : () => undefined,
