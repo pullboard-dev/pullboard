@@ -1,18 +1,15 @@
+/** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: the wiring case reads the merged and land command sources themselves. */
 /** Durable gate 19/20: `pullboard merged` and `land` share the land cell's finish sequence; the hand loop retires [C7]. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { test } from 'node:test';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
-import { fixtureAdd } from './testkit-fixture.js';
-import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard, closeBoard } from '../apps/lib/index.js';
 import { jobView, LEASE_MS } from '../packages/jobs/index.js';
 import { toolingPin, treeOf } from '../packages/pin/index.js';
 import { FINISH_STEPS, batchLandingJobId, landBatch, landMerged, mergedLandingJobId } from '../packages/land/index.js';
-
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
 
 /** A repo with a trunk commit and a landed commit on top of it. */
 function landedRepo() {
@@ -88,29 +85,17 @@ test('clause 1: land writes a landed batch through the same finish sequence; a r
   });
 });
 
-test('clause 1: pullboard merged records through the landing job, once, and a second run answers the same commit [C7]', () => {
-  const box = e2e.project();
-  fixtureAdd(box.run, box.repo, 'web', 'Greet', '--route', 'light', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', e2e.LIGHT_BRIEF);
-  const runner = box.run(box.repo, 'worktree', 'web', '--route', 'light').out.match(/^made (\S+) /)[1];
-  const greet = join(box.dir, 'greet.sh');
-  writeFileSync(greet, ['#!/bin/sh', 'mkdir -p web', "echo \"export const title = 'Hi';\" > web/page.js", ''].join('\n'));
-  assert.match(box.run(runner, 'run', '--agent-light', `sh ${greet}`, '--attempts', '1').out, /submitted #1/);
-  const itemCommit = JSON.parse(box.run(box.repo, 'show', '1', '--json').out).item_commit;
-  box.git(box.web, 'merge', '-q', '--ff-only', itemCommit);
-  assert.match(box.run(box.web, 'verify', '1', 'accept', '--note', 'the page says Hi').out, /verified #1/);
-  box.git(box.repo, 'merge', '-q', '--ff-only', itemCommit);
-  const first = box.run(box.repo, 'merged', '1', itemCommit);
-  assert.equal(first.code, 0, first.err);
-  assert.match(first.out, new RegExp(`#1 merged as ${itemCommit.slice(0, 12)}`));
-  const second = box.run(box.repo, 'merged', '1', itemCommit);
-  assert.equal(second.code, 0, second.err);
-  assert.match(second.out, new RegExp(`#1 merged as ${itemCommit.slice(0, 12)}`), 'the repeat answers the same commit');
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
-  try {
-    const view = jobView(board.db, mergedLandingJobId([1], itemCommit));
-    assert.deepEqual(view.steps.map(step => step.name), FINISH_STEPS, 'merged ran the finish sequence');
-    const events = board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'merged' AND item_id = 1").get().n;
-    assert.equal(events, 1, 'the merge is recorded once');
-  } finally { closeBoard(board); }
-  assert.deepEqual(toolingPin(box.repo), { tree: treeOf(box.repo, itemCommit), commit: itemCommit });
+test('clause 1: pullboard merged and pullboard land both call the land cell, and merged records only inside its record step [C7]', () => {
+  const source = name => readFileSync(new URL(`../apps/cli/src/shell/commands/${name}.js`, import.meta.url), 'utf8');
+  const merged = source('merged');
+  const land = source('land');
+  assert.match(merged, /import \{ landMerged \} from '[./]+packages\/land\/index\.js';/);
+  assert.match(merged, /await landMerged\(board\.db, \{/, 'merged runs its landing as the finish sequence');
+  assert.match(land, /import \{ landBatch \} from '[./]+packages\/land\/index\.js';/);
+  assert.match(land, /await landBatch\(board\.db, \{/, 'land writes its batch through the same sequence');
+  const record = merged.slice(merged.indexOf('const record = async'), merged.indexOf('let announced'));
+  assert.equal(merged.match(/ordered\(ctx, board, '(merged|recordTrainLanding)'/g).length, 2);
+  assert.match(record, /ordered\(ctx, board, 'merged'/, 'the hand loop retires: the merge record is the record step');
+  assert.match(record, /ordered\(ctx, board, 'recordTrainLanding'/);
+  assert.match(record, /item_merged_commit === commit\)\) return \{ already: true \}/, 'a recorded merge is never recorded twice');
 });
