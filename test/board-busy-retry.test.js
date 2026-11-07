@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Give in-process metrics the same private machine custody as the fixture's SQLite file. */
 function privateHome(t) {
@@ -115,7 +116,7 @@ test('submit dry-run prepares repository evidence before locking and records a h
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'busy-retry-fixture';
   const box = helpers.project('true', sandbox, { withWorktree: false });
-  const added = box.run(box.repo, 'add', 'web', 'Preflight lock measurement', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Preflight lock measurement', '--specs', 'G1',
     '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
@@ -167,7 +168,7 @@ test('submit dry-run prepares again when another seat commits after preparation,
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'busy-retry-fixture';
   const box = helpers.project('true', sandbox, { withWorktree: false });
-  const added = box.run(box.repo, 'add', 'web', 'Preflight stale snapshot', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Preflight stale snapshot', '--specs', 'G1',
     '--criterion', 'The dry-run leaves no submission. [test]', '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
