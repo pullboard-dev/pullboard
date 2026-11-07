@@ -316,8 +316,12 @@ function stages(output) {
   return byPath;
 }
 
-/** Classify the same virtual merge for health and immutable replay without touching any index or checkout. */
-export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, version = MECHANICAL_VERSION } = {}) {
+/**
+ * Classify the same virtual merge for health and immutable replay without touching any index or checkout.
+ * With `raw`, name every file Git itself reports as conflicting, including those a mechanical rule would
+ * resolve at landing: a coordinator's `reopen --conflict` answers to Git's report, not to the landing's [C7].
+ */
+export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, version = MECHANICAL_VERSION, raw = false } = {}) {
   const result = gitData(root, ['merge-tree', '--write-tree', '-z', trunk, head], gitDirectory);
   const output = result.stdout?.toString('utf8').split('\0') ?? [];
   if (![0, 1].includes(result.status) || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(output[0]?.trim() ?? '')) return null;
@@ -325,6 +329,7 @@ export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, versi
   const end = output.indexOf('', 1);
   const entries = stages(output.slice(1, end < 0 ? undefined : end));
   if (!entries.size) return null;
+  if (raw) return [...entries.keys()];
   return [...entries].filter(([path, records]) => !stageResolution(root, path, records, gitDirectory, version)).map(([path]) => path);
 }
 
