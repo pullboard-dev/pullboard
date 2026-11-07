@@ -1,7 +1,7 @@
 /** The handoff dispatcher holds a flat number of resources database connections across passes, locked or not [C7,#3338]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { realpathSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -24,9 +24,12 @@ function fixture() {
   return { dir, file: join(dir, 'home', 'resources.sqlite'), cleanup };
 }
 
-/** How many file descriptors of this process point at the resources database itself (not its wal or shm). */
+/** How many file descriptors of this process point at the resources database itself (not its wal or shm): /proc on Linux, lsof (either install path) elsewhere. */
 function openHandles(file) {
-  const output = execFileSync('/usr/sbin/lsof', ['-n', '-P', '-F', 'n', '-p', String(process.pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  if (existsSync('/proc/self/fd')) return readdirSync('/proc/self/fd').filter(fd => { try { return readlinkSync(`/proc/self/fd/${fd}`) === file; } catch { return false; } }).length;
+  const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
+  assert.ok(lsof, 'neither /proc nor lsof is available to count open handles');
+  const output = execFileSync(lsof, ['-n', '-P', '-F', 'n', '-p', String(process.pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return output.split('\n').filter(line => line === `n${file}`).length;
 }
 
