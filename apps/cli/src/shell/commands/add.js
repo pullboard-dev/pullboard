@@ -87,6 +87,9 @@ export async function run(io, args) {
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
   const title = [second, ...rest].filter(Boolean).join(' ');
+  // Before the brief's own lane check, so a coordinator-owned path gets the cross-ownership code and the split, not a bare lane refusal [C7,#2650].
+  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title,
+    criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' });
   let item = {
     by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id,
     lane: first,
