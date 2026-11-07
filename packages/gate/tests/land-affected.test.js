@@ -106,23 +106,23 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   if (stableBadges) assert.deepEqual(selection.files, ['web/new-importer.test.js', 'web/value.test.js']);
 }
 
-test('a batch that breaks an affected test is caught at landing [C7,V4]', t => {
+test('clause 1: a batch that breaks an affected test is caught at landing [C7,V4]', t => {
   affectedBatch(t);
 });
 
-test('a finite affected import subset is checked with the fixed guard floor [C7,V4]', t => {
+test('clause 1: a finite affected import subset is checked with the fixed guard floor [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true });
 });
 
-test('a custom inline gate cannot omit a batch affected importer [C7,V4]', t => {
+test('clause 1: a custom inline gate cannot omit a batch affected importer [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true });
 });
 
 
-test('a generated affected phase retains exact person waiver accounting [C7,V4]', t => {
+test('clause 1: a generated affected phase retains exact person waiver accounting [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true, waive: true });
 });
 
-test('an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', t => {
+test('clause 1: an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', t => {
   affectedBatch(t, { stableBadges: true, inline: true, waive: true, opaque: true });
 });

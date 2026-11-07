@@ -64,7 +64,7 @@ export function mainLandingWorker(root, workerUrl) {
  * custody: the newer record carries it, and that run lands the new work when it finishes instead of a second
  * landing racing it (#2541).
  */
-export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now } = {}) {
+export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now, expectedId } = {}) {
   if (!Number.isFinite(Date.parse(dueAt))) throw new TypeError('automatic landing needs its native deferred time');
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('automatic landing needs its actual worker entry');
   workerUrl = mainLandingWorker(root, workerUrl);
@@ -74,11 +74,14 @@ export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedul
   const file = join(directory, 'pending.json');
   const job = await withPending(directory, () => {
     const current = readMainAudit(file);
+    // A main observer may not replace an accept that arrived while it was reading Git.
+    if (expectedId !== undefined && (current?.id ?? null) !== expectedId) return null;
     const next = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at, by: process.pid,
       ...(current?.running && running(current.running) ? { running: current.running } : {}) };
     saveMainAudit(file, next);
     return next;
   });
+  if (!job) return null;
   await schedule(root, directory, at, workerUrl);
   return job;
 }
@@ -88,7 +91,7 @@ export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedul
  * finds another live landing leaves the record to it; the running landing repeats once per newer record, so
  * accepts that arrive together or mid-landing coalesce into the one landing worker (#2541).
  */
-export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = waitMainAudit } = {}) {
+export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = waitMainAudit, schedule = scheduleAutomaticLanding } = {}) {
   const directory = automaticLandingDirectory(root);
   if (!await wait(directory, token, dueAt)) return false;
   const file = join(directory, 'pending.json');
@@ -102,12 +105,28 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   });
   if (!job) return false;
   while (job) {
-    try { await run(job.root); }
+    let outcome;
+    try { outcome = await run(job.root); }
     catch (error) {
       const failed = { ...job, error: error.message };
       delete failed.running;
       await withPending(directory, () => { if (readMainAudit(file)?.id === failed.id) saveMainAudit(file, failed); });
       throw error;
+    }
+    if (outcome?.reloadAt) {
+      // Release old-tooling custody before starting its replacement timer; even an immediate wake can now acquire it.
+      const deferred = await withPending(directory, () => {
+        const current = readMainAudit(file);
+        if (!current || current.running?.pid !== self.pid || current.running?.started !== self.started) return null;
+        const next = { ...current };
+        delete next.running;
+        saveMainAudit(file, next);
+        return next;
+      });
+      if (deferred) await schedule(root,
+        new Date(Math.max(Date.parse(outcome.reloadAt), Date.parse(deferred.dueAt))).toISOString(), outcome.workerUrl,
+        { expectedId: deferred.id });
+      return true;
     }
     const finished = job;
     job = await withPending(directory, () => {

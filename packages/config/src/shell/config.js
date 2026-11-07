@@ -65,6 +65,13 @@ export function defaults() {
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
+    modelTiers: [
+      { contains: 'haiku', route: 'light' },
+      { contains: 'luna', route: 'light' },
+      { contains: 'sonnet', route: 'mid' },
+      { contains: 'sol', route: 'mid' },
+      { contains: 'opus', route: 'strong' },
+    ],
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
     // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
@@ -206,6 +213,13 @@ function laneProblems(name, lane) {
  */
 export function configProblems(config) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
+  if (!Array.isArray(config.modelTiers) || config.modelTiers.some(entry => !entry || typeof entry !== 'object'
+    || Array.isArray(entry) || Object.keys(entry).some(key => !['contains', 'route'].includes(key))
+    || typeof entry.contains !== 'string' || !entry.contains.trim() || entry.contains.trim() !== entry.contains
+    || !['light', 'mid', 'strong'].includes(entry.route))
+    || new Set((config.modelTiers ?? []).map(entry => typeof entry?.contains === 'string' ? entry.contains.toLowerCase() : null)).size !== (config.modelTiers ?? []).length) {
+    problems.push('"modelTiers" is a list of unique { "contains": "model label fragment", "route": "light|mid|strong" } entries; unmatched models use mid');
+  }
   if (!config.toolBuild || typeof config.toolBuild.enabled !== 'boolean'
     || typeof config.toolBuild.autoGate !== 'boolean'
     || !Number.isSafeInteger(config.toolBuild.refreshMs) || config.toolBuild.refreshMs < 1
@@ -278,13 +292,14 @@ export function configProblems(config) {
   }
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (typeof config.landing !== 'object' || config.landing === null || Array.isArray(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout" and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
   }
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
   if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: landing takes one verified item at a time and runs only that item\'s plan; false keeps batch landing');
+  if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.first !== undefined && (!Array.isArray(config.landing.first) || config.landing.first.some(id => !Number.isSafeInteger(id) || id < 1))) {
     problems.push('"landing.first" is a list of item ids the lander takes ahead of the accept order, in the order listed');
