@@ -59,7 +59,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.equal(existsSync(join(repo, '.git', 'pullboard', 'board.sqlite')), false, 'the refused open creates no shared database');
   const initialized = cli(repo, 'init');
   assert.equal(initialized.status, 0, initialized.stderr + initialized.stdout);
-  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker');
+  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker', '--route', 'strong');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const joinedDocument = JSON.parse(joined.stdout);
   const added = cli(repo, 'add', 'web', 'shared schema fixture item', '--criterion', 'the branch claim uses the shared board');

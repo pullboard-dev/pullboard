@@ -1151,7 +1151,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
       // Each seat declares its model; the builder's family differs so its peers may review it.
-      const joined = run(path, 'join', 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
+      const joined = run(path, 'join', 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model', '--route', 'strong');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });
