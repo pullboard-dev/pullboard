@@ -14,6 +14,7 @@ import { CHECKOUT_BOARD_ONLY } from './session.js';
 import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
+import { appendTrace } from '../cli-trace.js';
 
 let startupMainTraced = false;
 
@@ -90,7 +91,16 @@ export async function main(argv, streams) {
   const lockPort = Symbol.for('pullboard.seat-timing.lock');
   const previous = globalThis[lockPort];
   globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
-  try { return await timedMain(argv, streams); } finally { finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort]; }
+  const startedAt = Date.now();
+  const traced = { refusal: null };
+  let status; let thrown;
+  try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
+  catch (error) { thrown = error; status = 1; throw error; }
+  finally {
+    finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
+    // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
+    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null });
+  }
 }
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
@@ -99,6 +109,11 @@ async function runMain(argv, streams) {
     nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
     loadRefusal: async () => (await import('../../core/next-step-words.js')).refusalDocument,
   });
+  if (streams.traceRecord) {
+    // Remember the refusal the command reports so its trace line carries the code and message.
+    const report = io.refusal;
+    io.refusal = (error, ...rest) => { streams.traceRecord.refusal = error; return report.call(io, error, ...rest); };
+  }
   io.loadNativeBoard = streams.loadNativeBoard;
   io.withOutboxGuard = streams.withOutboxGuard;
   io.replayConflictRecord = streams.replayConflictRecord;
