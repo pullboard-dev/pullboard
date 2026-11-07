@@ -9,6 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** Each command gets this long; the whole smoke is about 15 s, so a hung command is a failure, not a wait. */
 const COMMAND_MS = 30_000;
@@ -42,7 +43,7 @@ export function runLandingCliSmoke(candidate) {
     const env = scratchEnvironment(home), repo = join(home, 'repo'), seat = join(home, 'seat');
     const git = (cwd, ...args) => {
       // init installs this repository's hooks, which call a pullboard that is not installed here; the scratch repository runs none.
-      const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
+      const result = gitSpawnSync(['-c', 'core.hooksPath=/dev/null', ...args], { cwd, env, encoding: 'utf8' });
       if (result.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not prepare its scratch repository (git ${args[0]}): ${result.stderr.trim()}`);
     };
     mkdirSync(repo);
@@ -63,7 +64,7 @@ export function runLandingCliSmoke(candidate) {
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
-    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke');
+    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke', '--route', 'strong');
     pullboard(repo, 'add', 'add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists');
     pullboard(seat, 'list', 'list');
     pullboard(seat, 'show', 'show', '1');
@@ -83,11 +84,11 @@ export function runLandingCliSmoke(candidate) {
  * @returns {{ ran: string[] }}
  */
 export function runCommitCliSmoke(root, commit) {
-  const exists = spawnSync('git', ['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
+  const exists = gitSpawnSync(['cat-file', '-e', `${commit}:bin/pullboard.js`], { cwd: root });
   if (exists.status !== 0) return { ran: [] };
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-tree-')));
   try {
-    const archive = spawnSync('git', ['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
+    const archive = gitSpawnSync(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
     if (unpacked.status !== 0) throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${String(archive.stderr ?? unpacked.stderr).trim()}`);
     return runLandingCliSmoke(directory);
