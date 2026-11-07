@@ -20,7 +20,7 @@ const ROWS = [
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
-  ['workers.budget', 'Worker budget', 'The seat-hours per day or week that pullboard run --scale may spend across every live seat on this computer; off launches no workers.', 'Capacity', 'seat-hours'],
+  ['workers.budget', 'Worker budget', 'The spend per day or week that pullboard run --scale may use across every live seat on this computer, priced by each seat\'s model; off launches no workers.', 'Capacity', 'spend'],
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],

@@ -1716,6 +1716,10 @@
     {
       "path": "bin/drive-worker.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/check-cla.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
