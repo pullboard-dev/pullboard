@@ -82,10 +82,11 @@ test('a queued gate with no worker and no ticket ends on one sweep only past its
 
   ageJob(box, id, 3 * 60_000);
   sweep(box);
+  // The sweep ends the lost launch as infrastructure, then recoverInfrastructureHandoffs retries it under a new job id (3810cc1a6d).
   const ended = onBoard(box, board => submitHandoff(board, id));
-  assert.equal(ended.id, job.id);
-  assert.equal(ended.state, 'infrastructure', 'one sweep ends the lost launch as infrastructure');
-  assert.equal(ended.error?.code, 'SUBMIT_HANDOFF_DEAD');
+  assert.notEqual(ended.id, job.id, 'the retried job replaces the lost launch on the board');
+  assert.ok(['queued', 'infrastructure'].includes(ended.state), 'the retry is queued, or ended as infrastructure when its launch failed');
+  if (ended.state === 'infrastructure') assert.equal(ended.error?.code, 'SUBMIT_HANDOFF_DEAD');
 
   // The claim lease lapsing, as it does once its two hours pass, now opens the item instead of holding it.
   onBoard(box, board => board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(new Date(Date.now() - 60_000).toISOString(), id));
