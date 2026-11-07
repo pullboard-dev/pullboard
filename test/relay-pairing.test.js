@@ -42,7 +42,7 @@ function deviceExpression() {
     request.onerror = () => reject(new Error('private fixture browser storage unavailable')); })`;
 }
 
-test('a second browser pairs with the command the page names after the first is paired [H15,H17]', async t => {
+test('clause 1: a second browser pairs with the command the page names after the first is paired [H15,H17]', async t => {
   assert.ok(findChromeExecutable(), 'the acceptance case requires the installed real browser');
   const box = await relayClientFixture(t);
   const browsers = [];
