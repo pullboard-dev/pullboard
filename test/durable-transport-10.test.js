@@ -1,7 +1,7 @@
 /** Durable gate 10/20: gates run on the runner's shared channel, with no runner-controller process on the Mac [C7]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { cleanupFixtureChildren, privateFixtureFiles, runFixtureExecFile, startFixtureChild } from './fixture-child.js';
+import { cleanupFixtureChildren, privateFixtureFiles, runFixtureChildAsync, runFixtureExecFile, startFixtureChild } from './fixture-child.js';
 import { createTransport, runGate, shellWord } from '../packages/transport/index.js';
 
 after(cleanupFixtureChildren);
@@ -30,9 +30,11 @@ test('clause 1: the per-gate runner-controller is replaced by the shared channel
       shards: ['s0', 's1'].map(shard => ({ shard, command: `while [ ! -f ${shellWord(release)} ]; do sleep 0.05; done; printf '${index}-${shard}'` })),
     }));
 
+    for (const gate of gates) gate.catch(() => {}); // a failed assertion closes the channels; Promise.all below still sees it
+    // Watch from a separate shell: a wait on the shared channel would queue ahead of the gates' own shard starts.
     for (const runner of runners) {
-      const reply = await transport.connect(runner).run(`i=0; while [ "$(ls ${shellWord(runner.root)}/transport/jobs/*/*/started 2>/dev/null | wc -l | tr -d ' ')" -lt 6 ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done; ls ${shellWord(runner.root)}/transport/jobs/*/*/started | wc -l`);
-      assert.equal(reply.output.toString().trim(), '6', `three gates of two shards each are running on ${runner.host}`);
+      const reply = await runFixtureChildAsync('sh', ['-c', `i=0; while [ "$(ls ${shellWord(runner.root)}/transport/jobs/*/*/started 2>/dev/null | wc -l | tr -d ' ')" -lt 6 ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done; ls ${shellWord(runner.root)}/transport/jobs/*/*/started | wc -l`]);
+      assert.equal(reply.stdout.trim(), '6', `three gates of two shards each are running on ${runner.host}`);
     }
     const table = children();
     assert.equal(table.filter(row => /runner-controller/u.test(row.command)).length, 0, 'no runner-controller process during six gates');
