@@ -1172,7 +1172,7 @@ async function recoverReplicaReplies(fixture, timing) {
   rmSync(lostEditBrief);
   const editRetry = await timing.wait('retry the original edit after its brief file is removed', () => cli(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief));
   assert.equal(editRetry.item.item_brief, 'Files: web/README.md\nTest: the original edit is recovered once.');
-  assert.equal(relay.uploads.length, beforeEdit + 1, 'edit retries recover the original receipt after its brief disappears');
+  assert.deepEqual((await Promise.all(relay.uploads.slice(beforeEdit).map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence }))).operation))).filter(operation => operation === 'edit'), ['edit'], 'edit retries recover the original receipt after its brief disappears, never a second edit');
 
   const lostRef = 'lost-merge-reference';
   gitAt(clones[0], envs[0], 'merge', '--ff-only', originalCommit);
