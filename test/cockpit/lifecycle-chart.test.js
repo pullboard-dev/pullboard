@@ -102,7 +102,8 @@ test('Activity starts on its feed and remembers the plain lifecycle toggle in Ch
       assert.equal(actual.panelBeforeFeed, true, 'chart opens in place above the feed');
       assert.equal(actual.toggleVisible, true);
       assert.equal(actual.overflow, false, width + ': chart does not widen the page');
-      assert.match(actual.text, /1 claimed again while building/u);
+      // Each of the three built items renews its lease at submit and item 5 is claimed twice: four claims while already building.
+      assert.match(actual.text, /4 claimed again while building/u);
       await press(chrome, "document.querySelector('.lifecycle-rare summary')");
       assert.equal(await chrome.stable('document.querySelector(".lifecycle-rare").open'), true, 'rare-route disclosure works');
       await proofShot(chrome, 'lifecycle-chart', width);
