@@ -8,6 +8,8 @@ import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
+import { assertToolTreeRoom } from '../../../../packages/items/index.js';
+import { touchToolTree } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
@@ -60,6 +62,11 @@ function toolsSnapshot(toolRoot, job) {
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
     && realpathSync(top.stdout) === realpathSync(toolRoot)
     && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
+  if (clean && existsSync(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`))) {
+    touchToolTree(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`));
+    return join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  }
+  assertToolTreeRoom();
   if (!clean) {
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copyTools(toolRoot, tools);

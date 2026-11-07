@@ -1,13 +1,18 @@
 /** Prepare a fresh private attempt from captured tools; a crashed job's dirty source and artifacts stay intact [C7,V4]. */
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   cpSync,
   constants,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
+  statSync,
+  statfsSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -42,6 +47,71 @@ export function handoffToolsAllowed(tools, job) {
  */
 export function sharedHandoffTools(tools) { return SHARED_TOOLS.test(basename(tools ?? '')); }
 
+/** The age past which an unowned tool-tree copy in the OS temp dir is garbage [C7]. */
+export const TOOL_TREE_MAX_AGE_MS = 60 * 60_000;
+
+/** The free space a volume needs before another tool-tree copy (56 MB each) may start [C7]. */
+export const TOOL_TREE_MIN_FREE_BYTES = 5 * 1024 ** 3;
+
+const TOOL_TREE_NAME = /^pullboard-(?:handoff|compare)-tools-/u;
+
+/**
+ * Whether any running process names this folder on its command line: the live owner of a tool tree.
+ * Why: a worker is launched from its own copy, so its argv proves it is still using it.
+ *
+ * @param {string} path - A tool-tree folder.
+ * @returns {boolean}
+ */
+export function toolTreeHasLiveOwner(path) {
+  const listing = spawnSync('ps', ['-ax', '-o', 'command='], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  return listing.status === 0 && listing.stdout.includes(path);
+}
+
+/**
+ * Mark a shared tool tree as used now, so the sweep keeps it while submits keep naming it.
+ *
+ * @param {string} path - A tool-tree folder.
+ */
+export function touchToolTree(path) {
+  try { const now = new Date(); utimesSync(path, now, now); } catch { /* A vanished tree is rebuilt by the caller. */ }
+}
+
+/**
+ * Remove pullboard-handoff-tools-* and pullboard-compare-tools-* folders older than the limit that no process owns.
+ * Why: 201 copies of 56 MB filled the coordinator disk when abandoned jobs left their trees behind.
+ *
+ * @param {{ temp?: string, now?: number, maxAgeMs?: number, live?: (path: string) => boolean }} [options] - Test seams.
+ * @returns {string[]} The folders removed.
+ */
+export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, live = toolTreeHasLiveOwner } = {}) {
+  const removed = [];
+  let names;
+  try { names = readdirSync(temp).filter(name => TOOL_TREE_NAME.test(name)); } catch { return removed; }
+  for (const name of names) {
+    const path = join(temp, name);
+    try {
+      if (now - statSync(path).mtimeMs <= maxAgeMs || live(path)) continue;
+      rmSync(path, { recursive: true, force: true });
+      removed.push(path);
+    } catch { /* One unreadable folder must not stop the sweep. */ }
+  }
+  return removed;
+}
+
+/**
+ * Refuse to start another tool-tree copy when the temp volume is nearly full, after one sweep.
+ *
+ * @param {{ temp?: string, minFree?: number }} [options] - Test seams.
+ */
+export function assertToolTreeRoom({ temp = tmpdir(), minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
+  sweepToolTrees({ temp });
+  let free;
+  try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
+  if (free < minFree) {
+    throw new Refused('TOOL_TREE_DISK_LOW', `only ${Math.floor(free / 1024 ** 2)} MB free in ${temp}; the sweep removed every unowned pullboard-handoff-tools-* and pullboard-compare-tools-* older than 60 minutes, so free space or retry once running jobs finish`);
+  }
+}
+
 /** Validate source custody before copying any tools or offering a new native queue identity. */
 export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0 } = {}) {
   if (retries >= limit) return null;
@@ -54,6 +124,7 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
   }
   const id = randomUUID();
   const shared = sharedHandoffTools(request.tools);
+  if (shared) touchToolTree(request.tools); else assertToolTreeRoom();
   const tools = shared ? request.tools : mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${id}-`));
   const target = join(dirname(directory), id);
   try {
