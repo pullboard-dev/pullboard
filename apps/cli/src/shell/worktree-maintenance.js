@@ -226,7 +226,9 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
     if (retired && fresh.seats.some(seat => seat.agent_id === agent && seat.presence === 'live') && !ports.completedTakeover)
       return null;
     const row = { path, agents: [agent], items: [item].filter(id => id !== undefined && id !== null) };
-    const dirty = maintenanceDirtyPaths(path);
+    // An explicit withdrawal or completed takeover archives the work before cleaning; ordinary release keeps dirty trees.
+    const explicit = withdrawn || retired;
+    const dirty = explicit ? [] : maintenanceDirtyPaths(path);
     if (dirty.length) { await keepDirty(ports, row, dirty, {}); return null; }
     const archive = archiveMaintenanceWorktree(path, common, { now: new Date(now).toISOString() });
     await recordArchive(archive, row, ports);
@@ -239,7 +241,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
       || final.items.some(row => row.item_status === 'claimed' && row.item_owner === agent)) return null;
     if (!census()) return null;
     if (!maintenanceArchiveMatches(path, archive)) throw new Error('released work changed after archive; source retained');
-    const late = maintenanceDirtyPaths(path);
+    const late = explicit ? [] : maintenanceDirtyPaths(path);
     if (late.length) { await keepDirty(ports, row, late, {}); return null; }
     maintenanceGit(path, ['reset', '--hard', archive.manifest.head]);
     maintenanceGit(path, ['clean', '-fdx']);
