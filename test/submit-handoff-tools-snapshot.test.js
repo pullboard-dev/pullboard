@@ -1,10 +1,10 @@
 /** The hand-off tools snapshot is named by the tooling trees, and stale unused ones are swept [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { temporaryDirectory } from './board-fixture.js';
 import { sweepToolSnapshots, toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
 
 /** Run git in a folder with no user config. */
@@ -14,7 +14,7 @@ function git(cwd, ...args) {
 
 /** A private temp dir, and a small git repo with tooling folders, routed so tmpdir() lands in the private dir. */
 function sandbox(t) {
-  const temp = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-snapshot-key-')));
+  const temp = realpathSync(temporaryDirectory('pullboard-snapshot-key-'));
   const previous = process.env.TMPDIR;
   process.env.TMPDIR = temp;
   t.after(() => { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; rmSync(temp, { recursive: true, force: true }); });
