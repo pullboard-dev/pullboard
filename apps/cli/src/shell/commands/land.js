@@ -1,4 +1,5 @@
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
+import { landBatch } from '../../../../../packages/land/index.js';
 import { landingFailureObservation } from '../../../../../packages/health/index.js';
 import { PHASE_LINE } from '../../../../../packages/landing/src/shell/landing-phase-timing.js';
 import { scheduleAutomaticLanding } from '../../../../../packages/landing/index.js';
@@ -98,6 +99,22 @@ export async function run(io, { first, second, rest, values }) {
 });
 }
 
+/**
+ * Write a landed batch through the land cell's finish sequence, the one `pullboard merged` also runs, so the landing
+ * job and its tooling pin exist for every landing. The batch is already recorded, so a failure here is reported and
+ * never changes the landing's result.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {object} io
+ * @param {{ batch?: object }} result - The batch engine's result.
+ * @returns {Promise<void>}
+ */
+async function recordBatchLanding(ctx, board, io, result) {
+  try { await landBatch(board.db, { repo: ctx.info.root, batch: result?.batch, owner: `land:${agentSessionDigest() ?? `pid-${process.pid}`}` }); }
+  catch (error) { io.err?.(`landing job deferred: ${error.code ?? 'ERROR'} ${error.message}`); }
+}
+
 /** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
 export async function executeBoardLanding(ctx, board, io, values = {}) {
   if (!values['dry-run'] && codeIsFromMain()) {
@@ -114,6 +131,7 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     throw error;
   }
   if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
+  if (!values['dry-run']) await recordBatchLanding(ctx, board, io, result);
   io.result?.(result);
   for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
   if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');

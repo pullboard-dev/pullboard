@@ -5,6 +5,7 @@ import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Give the fixture bare remote a receive hook that refuses every push, as a protected origin does. */
 function refusingRemote(box) {
@@ -40,7 +41,7 @@ test('with a marker origin never accepted, other commands warn and write local-o
   writeFileSync(join(box.repo, '.git', 'pullboard', 'git-sync.json'), JSON.stringify({ version: 1, remote: 'origin',
     ref: 'refs/pullboard/board', writer: { command: 'sync', pid: 99999999, at: '2026-11-04T19:36:00.000Z' } }) + '\n');
   for (const title of ['First local write', 'Second local write']) {
-    const added = box.run(box.repo, 'add', 'web', title, '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', title, '--json');
     assert.equal(added.code, 0, `${title}: ${added.out}\n${added.err}`);
     assert.doesNotMatch(added.out + added.err, /GIT_SYNC_LOCK_BUSY|GIT_SYNC_REMOTE|run pullboard sync/u);
     assert.match(added.out + added.err, /runs local-only/u, 'the command warns, in its diagnostics, that it runs local-only');

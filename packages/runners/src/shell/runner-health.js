@@ -1,5 +1,5 @@
 /** Probe a runner's pinned worker health and hand the canonical runner operations to the gate [C7]. */
-import { validateRunner } from '../../../gate/index.js';
+import { validateRunner } from '../../../config/index.js';
 import { runOnRunner } from './runner-dispatch.js';
 import { runOnRunnerAsync } from './runner-dispatch.js';
 import { ownedTransportCompletion } from './runner-dispatch.js';
