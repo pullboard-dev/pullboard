@@ -5,23 +5,22 @@ import { mkdirSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from './board-fixture.js';
+import { temporaryRepository } from './board-submit-fixture.js';
 import { sweepToolSnapshots, toolsSnapshot } from '../apps/cli/src/shell/submit-handoff.js';
 
 /** Run git in a folder with no user config. */
 function git(cwd, ...args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } }).trim();
+  return execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } }).trim();
 }
 
-/** A private temp dir, and a small git repo with tooling folders, routed so tmpdir() lands in the private dir. */
+/** A private temp dir that tmpdir() resolves to, and a small kit git repo with tooling folders. */
 function sandbox(t) {
   const temp = realpathSync(temporaryDirectory('pullboard-snapshot-key-'));
   const previous = process.env.TMPDIR;
   process.env.TMPDIR = temp;
   t.after(() => { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; rmSync(temp, { recursive: true, force: true }); });
-  const repo = join(temp, 'repo');
+  const repo = temporaryRepository(t, 'pullboard-snapshot-repo-');
   for (const dir of ['bin', 'apps', 'packages', 'src', 'test']) mkdirSync(join(repo, dir), { recursive: true });
-  const create = ['init', '-q', repo];
-  git(temp, ...create);
   for (const dir of ['bin', 'apps', 'packages', 'src']) writeFileSync(join(repo, dir, 'a.js'), `export const ${dir} = 1;\n`);
   writeFileSync(join(repo, 'package.json'), '{}\n');
   writeFileSync(join(repo, 'test', 'a.test.js'), '// one\n');
