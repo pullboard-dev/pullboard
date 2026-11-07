@@ -106,5 +106,5 @@ export function refuseSelfSession(info, item, digest, authors = [], { commitOnly
   const recorded = currentAuthorSessions === undefined ? ledgerDigests(info, item.item_id, commitOnly).has(digest) : currentAuthorSessions.includes(digest);
   if (!recorded && !builders.some((builder) => seats.has(builder))) return;
   throw new Refused('SELF_SESSION_VERIFY', `this agent session built or submitted #${item.item_id}, so its verdict would be its own work under another seat's name`,
-    'ask another agent session to verify it: pullboard next --verify from that session\'s own worktree');
+    'start the review in a separate process or session: run pullboard next --verify from a different agent session\'s own worktree');
 }
