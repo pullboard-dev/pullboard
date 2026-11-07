@@ -349,6 +349,23 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
+| `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
+| `job` | `job_kind` | `TEXT` | `NOT NULL` |
+| `job` | `job_item` | `INTEGER` | `nullable` |
+| `job` | `job_candidate` | `TEXT` | `nullable` |
+| `job` | `job_base` | `TEXT` | `nullable` |
+| `job` | `job_step` | `TEXT` | `NOT NULL`; `DEFAULT 'queued'` |
+| `job` | `job_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_lease_owner` | `TEXT` | `nullable` |
+| `job` | `job_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `job` | `job_created` | `INTEGER` | `NOT NULL` |
+| `job` | `job_updated` | `INTEGER` | `NOT NULL` |
+| `job_step` | `job_step_id` | `INTEGER` | `PRIMARY KEY` |
+| `job_step` | `job_step_job` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_name` | `TEXT` | `NOT NULL`; `UNIQUE` |
+| `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
+| `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |

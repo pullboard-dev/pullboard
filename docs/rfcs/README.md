@@ -10,5 +10,7 @@ An RFC is one file here, numbered next: what changes, why, what it costs, and wh
 | [0002](0002-relay-and-api.md) | The relay and API v1 | accepted |
 | [0003](0003-procedures.md) | Procedures, resources and proposals | accepted |
 | [0004](0004-encrypted-relay.md) | An encrypted relay, and what it keeps | accepted |
-| [0005](0005-commit-metadata.md) | Commit messages carry their item and rows | draft, for the person's review (not proposed yet) |
+| [0005](0005-commit-metadata.md) | Commit messages carry their item and rows | accepted |
 | [0006](0006-cells.md) | Cells, the structure of a codebase many agents build at once | accepted |
+| [0007](0007-sealed-cells-and-proof-that-travels.md) | Sealed cells and proof that travels | accepted |
+| [0008](0008-durable-jobs-and-runner-protocol.md) | Durable jobs and the runner protocol | accepted |
