@@ -310,9 +310,11 @@ test('shipped engine records and the legacy replay retain their first committed 
 
 installRegistryMergeCase();
 
-/** Proves the seven formerly unregistered refusal codes each carry a non-empty recovery step [C7]. */
-test('clause 1: seven refusal codes each have a recovery next step [C7]', () => {
-  for (const code of ['BAD_IDLE_SKIPS', 'WRONG_BRANCH', 'ITEM_FOLDER_DIRTY', 'SUBMIT_HANDOFF_NOT_LAUNCHED', 'LAND_STALLED', 'RUNNER_RESULT_SIGNATURE', 'RUNNER_RESULT_SOURCE']) {
+/** Proves every refusal code a registered move declares carries a non-empty recovery step, with no fixed count [C7]. */
+test('clause 1: every refusal a registered move raises has a recovery next step [C7]', () => {
+  const codes = new Set(Object.values(MOVE_REGISTRY).flatMap(declaration => Object.keys(declaration.nextSteps ?? {})));
+  assert.ok(codes.size > 0, 'the registry declares refusal codes to check');
+  for (const code of codes) {
     assert.equal(typeof NEXT_STEPS[code], 'string', code);
     assert.notEqual(NEXT_STEPS[code].trim(), '', code);
   }
