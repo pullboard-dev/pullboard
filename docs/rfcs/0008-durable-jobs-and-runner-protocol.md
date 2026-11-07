@@ -1,6 +1,6 @@
 # RFC 0008: Durable jobs and the runner protocol
 
-- Status: accepted, 7 November 2026
+- Status: proposed, 7 November 2026. Accepted once the durable build lands (#3422 cuts the old paths).
 - Proposed: 7 November 2026, by Corey Olson, from the durable-gate design of 6 November and its two approved addenda (7 November: no process is load-bearing; hosted sandbox runners).
 - Serves spec row P7 (draft). The receipt, its key and its reuse rule are RFC 0007's; this RFC produces receipts and never redefines them.
 - Rule ids in brackets (DJ1…) are this RFC's design ids; on approval each becomes a row with a new id.
