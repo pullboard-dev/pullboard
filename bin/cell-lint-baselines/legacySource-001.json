@@ -283,7 +283,6 @@
     "src/documentation/events/edit.json": 1,
     "src/documentation/events/escalate.json": 1,
     "src/documentation/events/fact.json": 1,
-    "src/documentation/events/family.json": 1,
     "src/documentation/events/flake-observation.json": 1,
     "src/documentation/events/flake-repair.json": 1,
     "src/documentation/events/guards.json": 1,

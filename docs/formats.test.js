@@ -298,7 +298,7 @@ function recordEventContract() {
   const coordinator = ensureCoordinator(board, '/coordinator');
   // Synthetic format fixture; cryptographic authority is exercised by relay-membership.test.js.
   setBoardMembers(board, { agentId: coordinator, document: { body: { v: 1, board: boardId(board), repository: 'fixture/repository', revision: 1, members: ['bob'] }, by: 'alice', signature: '-----BEGIN SSH SIGNATURE-----\nsynthetic format fixture\n' } });
-  // A strict builder must declare its vendor family when it joins, so the family event comes from a seat that joins without one.
+  // A strict builder declares its vendor family when it joins; a seat that joins first without one and later names it records the family on the seat, with no separate family event.
   const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
   register(board, { lane: 'tests', path: '/family-seat' });

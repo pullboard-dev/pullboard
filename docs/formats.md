@@ -466,7 +466,6 @@ Automatic milestone placement records its chosen release, order position, rule a
 | Kind | Actor | Detail fields |
 | --- | --- | --- |
 | `join` | joining agent | `lane`, `route`, optional `grantEngine`, optional `family` (the family the registration named, recorded from the family-declaration engine) |
-| `family` | agent | `family` |
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
@@ -537,6 +536,8 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `submit-handoff` | queued builder | Queue `state` (queued, running, green, submitted, red or incomplete) and captured source `commit`; submitted retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
 | `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
 <!-- events:end -->
+
+The current engine records a seat's vendor family on its `join` event and no longer writes a separate `family` event; boards from older engines may still carry `family` events with one `family` field.
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
 
