@@ -22,6 +22,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 
@@ -35,7 +36,7 @@ function cache(box) {
 
 /** Register a real item through the coordinator CLI. */
 function item(box, title) {
-  const result = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--json');
+  const result = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--json');
   assert.equal(result.code, 0, result.err || result.out);
   return String(JSON.parse(result.out).item.item_id);
 }

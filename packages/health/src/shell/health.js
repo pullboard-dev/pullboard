@@ -262,7 +262,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
         }));
       }
       const wait = reviewWait(board, item, { reviewHolder });
-      if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 10) * 60_000) {
+      if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 5) * 60_000) {
         const exclusions = [...seats().values()].map(agent => ({ agent: agent.agent_id,
           problem: eligibilityProblem(board, item, agent, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }) }));
         const eligible = exclusions.filter(entry => !entry.problem).map(entry => entry.agent);

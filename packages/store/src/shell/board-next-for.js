@@ -116,7 +116,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -169,7 +169,7 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -190,7 +190,7 @@ export function nextFor(board, options) {
     if (familyPolicy === 'prefer') reviewable.sort((first, second) => Number(hasDifferentFamily(second)) - Number(hasDifferentFamily(first)));
     const candidates = reviewable.map((entry) => ({
       entry,
-      holder: reviewHolder(board, entry),
+      holder: reviewHolder(board, entry, reviewHeartbeats),
       problem: failures.get(entry)?.problem,
       cooldown: reviewReleaseCooldown(board, entry.item_id, agentId),
     }));
@@ -201,7 +201,7 @@ export function nextFor(board, options) {
     const milestonePriority = milestonePriorities(board);
     const rank = milestoneRanks(board, milestonePriority, { milestones });
     const scarcity = lineOrderEnabled(board) ? reviewerScarcity(board, candidates.map(candidate => candidate.entry), (entry, reviewer) =>
-      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy })).every(guard => !guard(entry)), { listAgents }) : null;
+      Object.values(reviewerChecks(board, { agentId: reviewer, policy, familyPolicy, reviewHeartbeats })).every(guard => !guard(entry)), { listAgents }) : null;
     const lineCompare = scarcity ? buildOrder(board, { agentId }) : null;
     const previousOrder = (first, second) => scarcity ? scarcity.get(first.item_id) - scarcity.get(second.item_id)
       || lineCompare(first, second) : milestonePriority(first) - milestonePriority(second)

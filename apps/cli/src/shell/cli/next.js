@@ -6,6 +6,7 @@ import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
+import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { sessionSeatReaders } from './seat-ports.js';
@@ -93,8 +94,9 @@ export async function nextOnce(ctx, values) {
     return nextReview(ctx, board, whoAmI(ctx, board), values, {
       ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
-      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
-      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+      nextFor: reviewPreview,
+      idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
+      mainRedReviewItems, agentSessionDigest,
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values));
@@ -136,6 +138,12 @@ export async function nextOnce(ctx, values) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
+function reviewPreview(board, selection) {
+  const reviewHeartbeats = new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
+  return store.nextFor(board, { ...selection, reviewHeartbeats });
 }
 
 /** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
@@ -187,7 +195,7 @@ function nextPick(ctx, board, values) {
       return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
     })()
     : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 5, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
@@ -238,6 +246,8 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
+  const coverPause = !held && reviewFamilyBuildPause(ctx.info, board, ctx.config, me);
+  if (coverPause) return { reasons: [...(reasons ?? []), coverPause], idleReason: 'review-family' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
