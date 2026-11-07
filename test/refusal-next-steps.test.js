@@ -100,7 +100,8 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   assert.match(mainError.next, /reviewer.*(?:did not|not).*build/iu, 'the step requires an independent reviewer');
   const reviewer = join(repo, '.claude', 'worktrees', 'reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
-  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model'));
+  // Item #1 was filed on the strong route, so its reviewer joins strong to be offered the review [V4].
+  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model', '--route', 'strong'));
   const selected = succeeded(box.run(reviewer, 'next', '--verify', String(id), '--json'));
   assert.equal(JSON.parse(selected.out).item.item_id, id, 'the recovery reaches review without SELF_VERIFY');
 
