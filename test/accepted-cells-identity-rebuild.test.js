@@ -4,18 +4,16 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import {
   dirname,
   join,
 } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import {
@@ -26,15 +24,17 @@ import {
 } from '../packages/gate/index.js';
 import { acceptedInventoryKey } from '../packages/codemap/index.js';
 import { git } from './cells-plan-fixture.js';
+import { temporaryDirectory } from './board-fixture.js';
+import { temporaryRepository } from './board-submit-fixture.js';
 
-const REPO = new URL('..', import.meta.url).pathname;
+const REPO = fileURLToPath(new URL('..', import.meta.url));
 
 /** Isolate the machine cache for one test and restore the caller's setting. */
 function isolateMachine(t) {
   const previous = process.env.PULLBOARD_MACHINE_HOME, options = process.env.NODE_OPTIONS;
   // The runner's own preloads are foreign to the inventory fingerprint; the producer must see a plain Node.
   delete process.env.NODE_OPTIONS;
-  const directory = mkdtempSync(join(tmpdir(), 'accepted-identity-machine-'));
+  const directory = temporaryDirectory('accepted-identity-machine-');
   process.env.PULLBOARD_MACHINE_HOME = directory;
   t.after(() => {
     if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
@@ -46,8 +46,7 @@ function isolateMachine(t) {
 
 /** Build a real repository holding this checkout's tooling plus a cells plan, committed on main. */
 function toolingRepo(t) {
-  const root = mkdtempSync(join(tmpdir(), 'accepted-identity-repo-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const root = temporaryRepository(t, 'accepted-identity-repo-');
   const files = execFileSync('git', ['-C', REPO, 'ls-files', '-z', 'bin', 'packages', 'src', 'apps', 'package.json'], { encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const file of files) {
     if (!existsSync(join(REPO, file))) continue;
@@ -55,7 +54,6 @@ function toolingRepo(t) {
     cpSync(join(REPO, file), join(root, file));
   }
   writeFileSync(join(root, 'bin/cells-plan.json'), '{}\n');
-  git(root, 'init', '-q', '-b', 'main');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture');
   return { root, commit: git(root, 'rev-parse', 'HEAD').trim() };
@@ -85,7 +83,7 @@ test('clause 1: nudgeAcceptedCells treats a ready record whose checker differs f
 test('clause 2: a producer nudged from a modified tooling copy records the pinned commit\'s checker and preloads [C7]', { timeout: 590_000 }, async t => {
   isolateMachine(t);
   const { root, commit } = toolingRepo(t);
-  const copy = mkdtempSync(join(tmpdir(), 'accepted-identity-copy-'));
+  const copy = temporaryDirectory('accepted-identity-copy-');
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   for (const dir of ['bin', 'packages', 'src', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
   writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
