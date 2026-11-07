@@ -24,6 +24,7 @@ import { cellLintGrowth } from '../packages/codemap/index.js';
 import { mainCellLintReport } from '../packages/codemap/index.js';
 import { buildCellsPlan } from '../packages/codemap/index.js';
 import { inPlanScope } from '../packages/codemap/index.js';
+import { engineLeafPlacement } from '../packages/codemap/index.js';
 import { readPathMap } from './cells-snapshot-git.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from './cells-snapshot-git.js';
@@ -251,7 +252,7 @@ export function unplanned(root, plan, inventory) {
   for (const row of plan.stays) known.add(row.path);
   const listed = tryGit(root, ['ls-files']);
   if (listed.status !== 0) throw new Refused('CELLS_PLAN_GIT', 'run the plan check inside a Git checkout');
-  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file));
+  return listed.stdout.split('\n').filter(file => inPlanScope(file) && !known.has(file) && !engineLeafPlacement(file));
 }
 
 /**
