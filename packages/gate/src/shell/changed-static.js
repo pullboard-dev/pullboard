@@ -9,6 +9,7 @@ import { fileSizeProblems } from '../../../../bin/checks/file-size.js';
 import { testInputProblems } from '../../../../bin/checks/test-inputs.js';
 import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
+import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { gitSpawnSync } from '../../../git/index.js';
@@ -70,6 +71,8 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
       failures.push(...current.slice(baseline.length).map(row => `${row.path}:${row.line}: ${row.text}`));
     }
   }
+  // A new cross-cell import or deep import past a cell's index needs a plan declaration (bin/checks/cells-edges.js).
+  failures.push(...cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text }).map(row => `${row.path}:${row.line}: ${row.text}`));
   const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
   for (const file of files) {
     if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) {

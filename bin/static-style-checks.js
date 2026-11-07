@@ -18,6 +18,7 @@ import { testWaitReport } from './checks/test-waits.js';
 import { testWaitGrowth } from './checks/test-waits.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
 import { relayBoundaryProblems } from './checks/relay-boundary.js';
+import { cellsEdgeProblems } from './checks/cells-edges.js';
 import { changedStaticFailures } from './checks/changed-static.js';
 
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
@@ -38,6 +39,10 @@ const sources = styleSources(root);
 const relaySources = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name)).map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
 for (const row of relayBoundaryProblems([...sources, ...relaySources])) {
   console.error(`${row.file}:${row.line}: ${row.text}`);
+  failed = true;
+}
+for (const row of cellsEdgeProblems(root)) {
+  console.error(`${row.path}:${row.line}: ${row.text}`);
   failed = true;
 }
 for (const row of importStyleViolations(sources)) {
