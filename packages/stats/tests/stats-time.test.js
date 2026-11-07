@@ -17,6 +17,7 @@ import { recordTimeCheckpoint } from '../index.js';
 import { retainedReceipts } from '../../gate/index.js';
 import { events } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
 const MIN = 60000;
@@ -64,7 +65,7 @@ test('native measurement facts split tool and thinking from building [R1,R2,C7]'
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  const added = box.run(box.repo, 'add', 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const item = JSON.parse(added.out).item.item_id;
   const text = JSON.stringify({ kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN });
