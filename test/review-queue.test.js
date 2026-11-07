@@ -29,6 +29,8 @@ import {
   exportBoard,
   importBoard,
 } from '../packages/store/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const HOUR = 60 * 60 * 1000;
 const REVIEW_LEASE = 1_000;
@@ -179,7 +181,7 @@ function staleHeadFixture(t) {
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
   /** Add, claim, build and submit one web item from a web seat's worktree. */
   const build = (title, path, text, seat = box.web) => {
-    const id = json(box.run(box.repo, 'add', 'web', title, '--criterion', `${path} exists`, '--json')).item.item_id;
+    const id = json(fixtureAdd(box.run, box.repo, 'web', title, '--criterion', `${path} exists`, '--json')).item.item_id;
     json(box.run(seat, 'claim', String(id), '--json'));
     mkdirSync(join(seat, 'web'), { recursive: true });
     writeFileSync(join(seat, path), text);
@@ -196,7 +198,7 @@ function staleHeadFixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'feat(web): main lands its own list [G1]');
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', reviewer, '-b', 'api/review');
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   return { box, json, build, conflicted, reviewer };
 }
 
@@ -222,7 +224,7 @@ test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
-  json(box.run(second, 'join', 'web', '--json'));
+  json(fixtureJoin(box.run, second, 'web', '--json'));
   const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   const next = json(box.run(reviewer, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
@@ -271,7 +273,7 @@ test('a fresh same-lane seat cannot reopen submitted conflicts under its grant [
   const { box, json, conflicted } = staleHeadFixture(t);
   const fresh = join(box.dir, 'fresh-web-conflict-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
-  const actor = json(box.run(fresh, 'join', 'web', '--json')).agent;
+  const actor = json(fixtureJoin(box.run, fresh, 'web', '--json')).agent;
   const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let snapshot;
   try { snapshot = exportBoard(source); } finally { store.closeBoard(source); }
@@ -418,7 +420,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   assert.equal(store.getItem(recordedCopies[0], conflicted).item_status, 'open');
   const second = join(box.dir, 'clean-computed-return');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/clean-return', 'main');
-  json(box.run(second, 'join', 'web', '--json'));
+  json(fixtureJoin(box.run, second, 'web', '--json'));
   const clean = build('Keep a clean footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   assert.throws(() => prepareEngineMove(source, 'reopen', [clean, { agentId: actor, automaticConflict: true }]),
     error => error.code === 'NOT_CONFLICTING', 'a clean submitted head cannot acquire computed conflict evidence');

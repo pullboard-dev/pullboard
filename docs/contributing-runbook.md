@@ -21,7 +21,7 @@ This is the internal runbook. Contributors read CONTRIBUTING.md; this file is fo
    - the browser tests when the change touches the view or relay;
    - outside code never runs on a machine holding credentials.
 5. **Sensitive paths need the owner's approval** on top of the verifier's accept.
-6. **Confirm the [CLA](../CLA.md) before merge:** the contributor accepts it through the CLA bot on their first pull request. **Then land through the merge train.** Never use GitHub's merge button. The contributor stays the commit author; if we changed their commit, they're credited with `Co-authored-by`. Keep their `Signed-off-by` line.
+6. **Confirm the [CLA](../CLA.md) before merge:** the contributor accepts it by posting "I have read CLA.md and I agree to it." as a comment on their pull request, the first time they contribute. **Then land through the merge train.** Never use GitHub's merge button. The contributor stays the commit author; if we changed their commit, they're credited with `Co-authored-by`. Keep their `Signed-off-by` line.
 7. **Close the loop.** The PR shows as merged, or we close it with a link to the landed commit. Thank them, and link the receipt.
 8. **If it fails,** comment with the verifier's note in plain words ("fails on Node 22.13: ..."). When they update, the item is verified again at the new commit.
 9. **Declining:** close with a clear, kind reason. Merging is always the project's call.
@@ -31,7 +31,7 @@ This is the internal runbook. Contributors read CONTRIBUTING.md; this file is fo
 - GitHub and npm accounts use 2FA. Releases are published only by the owner's release process.
 - `main` is protected: only the coordinator's landing updates it.
 - CODEOWNERS requests the owner's review on sensitive paths.
-- Inbound contributions are MIT, with the DCO sign-off and a lightweight one-click CLA (decided 22 Oct). Make no public promise about future licensing.
+- Inbound contributions are MIT, with the DCO sign-off and a lightweight CLA agreed with one pull request comment (decided 22 Oct). Make no public promise about future licensing.
 
 ## Changelog acknowledgements
 

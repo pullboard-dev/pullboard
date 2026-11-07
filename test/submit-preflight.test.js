@@ -10,6 +10,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -30,7 +32,7 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
@@ -40,7 +42,7 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   // An outside reviewer rejects that exact head.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   // Resubmit the same head with the check armed to run for minutes.
