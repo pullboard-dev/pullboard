@@ -10,6 +10,7 @@ import { jobView, jobsOf } from '../packages/jobs/index.js';
 import { closeBoard, getItem } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { captureCommandInProcess } from './cli-in-process-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 import { main } from './native-cli-fixture.js';
 
 const childProcess = createRequire(import.meta.url)('node:child_process');
@@ -34,7 +35,14 @@ async function recordingSpawns(work) {
 /** Add, submit and independently accept one item in a private repository with a native board. */
 async function acceptedItem(t) {
   const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
+  let board;
+  // Close the board, then remove the tree with re-walking async retries: a background process the commands started
+  // (a scheduled main audit, for one) can still write under the repository, and the synchronous cleanup never
+  // re-walks, so it slept in its retry backoff past the 30 s file-exit ceiling (#3495).
+  t.after(async () => {
+    if (board) closeBoard(board);
+    await removeSandboxes(helpers);
+  });
   const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }));
   /** The public CLI keeps its authorization, composition, proof writing and hooks. */
   const cli = (cwd, ...args) => captureCommandInProcess(main, args, { cwd, env: box.env });
@@ -59,8 +67,7 @@ async function acceptedItem(t) {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): drive-cell landing source [G1]');
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
-  t.after(() => closeBoard(board));
+  board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   const reviewer = join(box.dir, 'drive-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
   // The board may route this item strong, and a strong verifier covers every route.

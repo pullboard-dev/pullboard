@@ -11,6 +11,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 
 /** Require authentic command success before interpreting any native result. */
 function document(result) {
@@ -67,7 +69,10 @@ function fixture(t) {
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
-    helpers.cleanup();
+    // The driver and dispatcher still write for a moment after the job ends, and the synchronous cleanup never
+    // re-walks a tree written behind it: remove the tree only once they are done, with async retries (#3495).
+    await gateSettled(helpers, box, state(box, id).job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, started };
 }

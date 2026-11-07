@@ -237,6 +237,17 @@ export function handoffTicketWaiting(job) {
   return waitingTickets().some(name => name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') === job);
 }
 
+/**
+ * Whether any place in line waits, reserved or filled, for any repository on this machine.
+ * Why: a dispatcher that freed its board row after its last ticket check must look once more, because a submit that
+ * saw the row still held queued its ticket without launching a dispatcher (#3495).
+ *
+ * @returns {boolean}
+ */
+export function handoffTicketsWaiting() {
+  return waitingTickets().length > 0;
+}
+
 /** A reservation whose submitting process died gives up its place. */
 function reservationAbandoned(name, startOf) {
   const file = join(handoffQueueDirectory(), name);
@@ -372,7 +383,8 @@ function endUnstarted(file, name, launch, error, admission = NO_ADMISSION) {
  *   how often a drain that stays busy runs that sweep again (sweepEveryMs), the admission that records each gate's
  *   driver on its board (the drive cell's, from bin/handoff-worker-dispatcher.js), and onPass, run once a pass to renew
  *   the dispatcher's job row.
- * @returns {Promise<{ started: string[] }>} Jobs this dispatcher started, in order.
+ * @returns {Promise<{ started: string[], deferred?: true }>} Jobs this dispatcher started, in order; deferred when another
+ *   dispatcher held the machine, which then drains every repository's tickets.
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {} } = {}) {
   const started = [];
@@ -393,7 +405,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'handoff-dispatcher', loopHeartbeat: true,
         onWait() { throw new Refused('HANDOFF_DISPATCHER_RUNNING', 'another dispatcher is starting the queued workers'); } });
     } catch (error) {
-      if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
+      if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started, deferred: true };
       // A locked slot database must not end a dispatcher that has tickets to start: wait a pass and take the lock again [C7,#3326].
       if (RETRIED_SLOT_ERRORS.has(error.code)) { logDispatcher(`dispatcher lock not taken: ${error.code}; retrying on the next pass`); await new Promise(done => setTimeout(done, pollMs)); if (!waitingTickets().length) return { started }; continue; }
       throw error;

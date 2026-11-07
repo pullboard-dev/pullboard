@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { releaseLease } from '../../../jobs/index.js';
+import { takeJob } from '../../../jobs/index.js';
 import { DISPATCHER_JOB } from './dispatcher.js';
 import { renewDispatcher } from './dispatcher.js';
 import { admitGateDrive } from './gate-drive.js';
@@ -81,7 +82,7 @@ export function createGateAdmission(opener) {
  * @param {{ openBoard: Function, closeBoard: Function }} opener - The native board opener.
  * @param {string} commonDir - The launching repository's common directory, the dispatcher's working directory.
  * @param {string | undefined} owner - The lease owner the launching submit took the row for.
- * @returns {{ renew: () => void, release: () => void }}
+ * @returns {{ renew: () => void, release: () => void, retake: () => boolean }}
  */
 export function gateDispatcherRow(opener, commonDir, owner) {
   let renewedAt = 0;
@@ -93,6 +94,16 @@ export function gateDispatcherRow(opener, commonDir, owner) {
     },
     release() {
       if (owner) onBoard(opener, commonDir, board => releaseLease(board.db, DISPATCHER_JOB, owner));
+    },
+    /**
+     * Take the freed row back under the same owner; false when another submit took it first and launched its own.
+     * Why: the row decides who dispatches, so only one of this loop and a fresh launch drains a late ticket.
+     */
+    retake() {
+      if (!owner) return false;
+      const taken = onBoard(opener, commonDir, board => takeJob(board.db, DISPATCHER_JOB, owner).taken) === true;
+      if (taken) renewedAt = Date.now();
+      return taken;
     },
   };
 }
