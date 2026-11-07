@@ -1,3 +1,4 @@
+import { allItemsNeedingRescope } from '../../../store/index.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './rank-inversion-history.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
@@ -180,6 +181,17 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
   const byId = new Map(items.map((item) => [item.item_id, item]));
+  for (const entry of allItemsNeedingRescope(board)) {
+    const item = byId.get(entry.id);
+    report.stuck.push(finding('NEEDS_RESCOPE', item, {
+      key: `NEEDS_RESCOPE:item:${entry.id}:${entry.lane}:${entry.route}`,
+      since: entry.since, now: at, title: 'needs re-scope',
+      why: `${entry.lane} at the ${entry.route} route cannot build it as scoped: ${entry.reasons.join('; ')}`.slice(0, 8192),
+      next: `edit, refreeze or re-route #${entry.id}, or land its named blockers`,
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: entry,
+    }));
+  }
+
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
