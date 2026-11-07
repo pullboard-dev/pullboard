@@ -1,6 +1,6 @@
 /** A submit hands a runner its commit through one ticket; the hand-off stages run there, with their lines in its log [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -18,13 +18,17 @@ import { execFileSync } from 'node:child_process';
 import { queueRunnerHandoffTicket, runnerHandoffWanted } from '../apps/cli/src/shell/submit-runner-ticket.js';
 import { HANDOFF_STAGES, runHandoffStages } from '../apps/runner/src/shell/runner-handoff-stages.js';
 import { runFixtureGit } from './fixture-child.js';
+import { fileFixtureItem } from './testkit-fixture.js';
 
 const IDENTITY = ['-c', 'user.name=Ticket Test', '-c', 'user.email=ticket@example.test', '-c', 'commit.gpgsign=false'];
 const JOB = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 
+const shared = createE2eHelpers();
+
 /** A real repository with one commit, and a private machine home for the queue. */
 function fixture(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-ship-commit-'));
+  const sandbox = shared.sandbox();
+  const dir = sandbox.dir;
   const home = join(dir, 'home');
   mkdirSync(home);
   const previous = process.env.PULLBOARD_MACHINE_HOME;
@@ -32,12 +36,12 @@ function fixture(t) {
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; rmSync(dir, { recursive: true, force: true }); });
   const root = join(dir, 'repo');
   mkdirSync(root);
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
+  sandbox.git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'a.txt'), 'a\n');
-  runFixtureGit(['add', '-A'], { cwd: root });
-  runFixtureGit([...IDENTITY, 'commit', '-q', '-m', 'one'], { cwd: root });
-  const commit = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root }).trim();
-  const tree = runFixtureGit(['rev-parse', 'HEAD^{tree}'], { cwd: root }).trim();
+  sandbox.git(root, 'add', '-A');
+  sandbox.git(root, ...IDENTITY, 'commit', '-q', '-m', 'one');
+  const commit = sandbox.git(root, 'rev-parse', 'HEAD').trim();
+  const tree = sandbox.git(root, 'rev-parse', 'HEAD^{tree}').trim();
   return { dir, root, commit, tree, commonDir: join(root, '.git') };
 }
 
@@ -100,9 +104,7 @@ async function submitted(t, handoffSetting) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Ship the commit', '--specs', 'G1', '--criterion', 'The commit ships.', '--wait', '--json');
-  assert.equal(added.code, 0, added.err);
-  const id = JSON.parse(added.out).item.item_id;
+  const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Ship the commit', criterion: 'The commit ships.', args: ['--specs', 'G1'], wait: true }).item_id;
   assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/ship.txt', 'ship\n', 'feat(web): ship candidate [G1]').status, 0);
   const lock = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'test-dispatcher' });
