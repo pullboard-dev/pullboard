@@ -224,7 +224,8 @@ test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two', 'main');
-  json(joinFixtureSeat(box, second, 'web'));
+  // The reviewer seat routes mid, so the second builder joins mid and its head is one the reviewer may take.
+  json(joinFixtureSeat(box, second, 'web', { route: 'mid' }));
   const clean = build('Show the footer', 'web/footer.html', '<footer>clean</footer>\n', second);
   const next = json(box.run(reviewer, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, clean, 'the reviewer gets the head that merges, though the conflicting one is older');
