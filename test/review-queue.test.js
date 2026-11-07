@@ -219,7 +219,7 @@ test('a submitted head that no longer merges is returned to its builder [C7,V4]'
   json(box.run(box.web, 'claim', String(conflicted), '--json'));
 });
 
-test('clause 1: next --verify skips a head that does not merge [C7,V4]', (t) => {
+test('next --verify skips a head that does not merge [C7,V4]', (t) => {
   const { box, json, build, conflicted, reviewer } = staleHeadFixture(t);
   // A second web seat on a fresh branch from main builds work that merges cleanly.
   const second = join(box.dir, 'web-2');
