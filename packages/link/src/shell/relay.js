@@ -955,13 +955,13 @@ export async function relayPersonCoordinator(root, session, io) {
   });
 }
 
-/** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
+/** Keep a recovered outcome until its caller repeats the interrupted operation (or replays the recovered move's own engine-derived args) to receive it. */
 function recoveredMove(root, state, operation, args, command, io) {
   if (!state.recovered) return null;
   const recovered = state.recovered;
   const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
-  const matches = recovered.commandIntent === undefined
-    ? intent === operationIntent(operation, args)
+  const requested = operationIntent(operation, args), matches = recovered.commandIntent === undefined
+    ? intent === requested || requested === operationIntent(recovered.move.operation, recovered.move.args)
     : recovered.move.operation === operation && recovered.commandIntent === operationIntent('cli:' + command?.cliOperation, command);
   if (!matches) {
     throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
