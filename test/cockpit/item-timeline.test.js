@@ -56,7 +56,8 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
   try {
     const state = await boardOf(view, demo.repo), item = state.items.find(row => row.id === 1);
     assert.ok(item.thread.some(row => row.type === 'fact' && row.kind === 'measurement'));
-    const apiFacts = item.thread.filter(row => row.type === 'fact');
+    // The history leaves out verifier review-comparison receipts and usage records (landed in 7772461bba), so they are not visible facts.
+    const apiFacts = item.thread.filter(row => row.type === 'fact' && !['usage', 'shared-usage'].includes(row.kind) && !String(row.text ?? '').startsWith('Review comparison: '));
     const fixtureFactEvents = fixtureFacts.map(fact => item.thread.find(row => row.type === 'fact' && row.id === fact.id));
     assert.deepEqual(fixtureFactEvents.map(fact => fact?.kind), ['note', 'measurement', 'capture'], 'each fixture fact remains in the native item thread');
     /** Map the native fact kind to the timeline's supported visible tint category. */
