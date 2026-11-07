@@ -1708,6 +1708,14 @@
     {
       "path": "src/move-history/244.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/item-patch-auto-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
