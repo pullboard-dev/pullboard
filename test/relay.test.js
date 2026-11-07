@@ -1249,18 +1249,18 @@ test('offline linked reads use the local board, moves refuse, and the same relay
 test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(box.env.PATH, 'pullboard'));
-  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(staged.status, 0, staged.stderr);
-  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(seeded.status, 0, seeded.stderr);
+  const laneAdded = fixtureCli(box)(box.root, 'lane', 'add', 'fixture', '--owns', 'fixture/', '--json'); // the review lane owns no folder
+  assert.equal(laneAdded.status, 0, laneAdded.stdout + laneAdded.stderr);
+  for (const args of [['add', '-A'], ['commit', '-m', 'chore(test): seed fixture']]) {
+    const step = spawnSync('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(step.status, 0, step.stderr);
+  }
   const agentRoot = join(box.root, '..', 'strong-route-agent');
-  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-strong-route-agent', agentRoot, 'HEAD'], {
-    cwd: box.root, env: box.env, encoding: 'utf8',
-  });
+  const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-strong-route-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(worktree.status, 0, worktree.stderr);
   const run = fixtureCli(box);
-  const item = fileFixtureItem({ run }, box.root, { lane: box.lane, title: 'strong route claim fixture' });
-  assert.equal(joinFixtureSeat({ run }, agentRoot, box.lane).code, 0, 'the fixture seat joins on the strong route');
+  const item = fileFixtureItem({ run }, box.root, { lane: 'fixture', title: 'strong route claim fixture' });
+  assert.equal(joinFixtureSeat({ run }, agentRoot, 'fixture').code, 0, 'the fixture seat joins on the strong route');
   const claimed = run(agentRoot, 'claim', String(item.item_id), '--no-next', '--json');
   assert.doesNotMatch(`${claimed.stdout}${claimed.stderr}`, /"ROUTE"|\[ROUTE\]|ROUTE:/, 'the claim is not refused ROUTE');
 });
