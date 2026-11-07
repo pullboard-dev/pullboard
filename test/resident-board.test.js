@@ -54,6 +54,8 @@ function copyCode(code, env) {
     cpSync(join(REPO, file), join(code, file));
   }
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: code, env });
+  // The copied code is committed, so the resident process names it by its code trees [#3249].
+  runFixtureGit(['add', '-A'], { cwd: code, env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code one'], { cwd: code, env });
 }
 
@@ -129,6 +131,12 @@ before(() => {
     const loaded = modules ? [...new Set(readFileSync(env.RESIDENT_MODULE_LOG, 'utf8').split('\n').filter(Boolean))] : null;
     return { status: result.status, stdout: result.stdout, stderr: result.stderr, ms, loaded };
   };
+  /** Run the copied CLI under bash's `time` and return its user plus system CPU seconds (last stderr line). */
+  const cpuSecondsIn = (cwd, args) => {
+    const result = runFixtureChild('bash', ['-c', 'TIMEFORMAT="%U %S"; time "$@" >/dev/null', 'bash', process.execPath, bin, ...args], { cwd, env, encoding: 'utf8' });
+    const [user, sys] = result.stderr.trim().split('\n').pop().split(' ').map(Number);
+    return { status: result.status, cpu: user + sys, stderr: result.stderr };
+  };
   /** The resident process's pid, from the pid file it writes once it listens; null when none is running. */
   const residentPid = () => {
     const place = residentSocket(repo, bin);
@@ -162,10 +170,11 @@ before(() => {
   }
   const worktree = join(dir, 'core-1');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/one', worktree], { cwd: repo, env });
-  const joined = runIn(worktree, ['join', 'core', '--model', 'test-model']);
+  // A known strong model, so the seat's route covers the strong items the fixture claims; an unknown label joins on mid and claim is refused ROUTE.
+  const joined = runIn(worktree, ['join', 'core', '--model', 'claude-opus-5-5']);
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   seedBoardScale(join(repo, '.git', 'pullboard', 'board.sqlite'));
-  fx = { dir, code, repo, worktree, env, runIn, residentPid, alive, awaitResident,
+  fx = { dir, code, repo, worktree, env, runIn, cpuSecondsIn, residentPid, alive, awaitResident,
     board: join(repo, '.git', 'pullboard', 'board.sqlite'), traceFile: env.PULLBOARD_RESIDENT_TRACE };
 });
 
@@ -202,6 +211,32 @@ test('clause 1: on a board our size, show, inbox, claim and next run through a w
   }
   const shown = fx.runIn(fx.repo, ['show', '1']);
   assert.match(shown.stdout, /#1 {2}claimed core-1/u, 'the claim made through the resident process is on the board');
+});
+
+test('clause 1: pullboard heartbeat on a warm board costs under 0.2 s wall and under 0.1 s CPU, from a client of under 20 modules [C7,#3250]', () => {
+  fx.awaitResident();
+  const warm = fx.runIn(fx.worktree, ['heartbeat'], { modules: true });
+  assert.equal(warm.status, 0, `${warm.stdout}${warm.stderr}`);
+  assert.ok(warm.loaded.length < 20, `heartbeat loaded ${warm.loaded.length} modules in the client: ${warm.loaded.join(', ')}`);
+  const cpus = [0, 1, 2, 3, 4].map(() => {
+    const run = fx.cpuSecondsIn(fx.worktree, ['heartbeat']);
+    assert.equal(run.status, 0, run.stderr);
+    return run.cpu;
+  }).sort((a, b) => a - b);
+  assert.ok(cpus[0] < 0.1, `heartbeat cost ${cpus[0]} s of client CPU (user plus system) through the warm resident process`); // budget: frozen bar, under 0.1 s CPU
+  const ms = median(fx.worktree, ['heartbeat']);
+  assert.ok(ms < BUDGET_MS, `heartbeat took a median ${Math.round(ms)} ms through the warm resident process`); // budget: approved row H24 bar, every warm board command under 200 ms
+});
+
+test('clause 2: hook pre-commit does not load the gate run, runner, landing-service or flake graphs [C7,#3250]', () => {
+  const hook = readFileSync(join(fx.code, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
+  const topLevel = hook.split('\n').filter(line => !line.startsWith(' ') || /^ {2}\w+,$/u.test(line)).join('\n');
+  for (const heavy of ['packages/runners/index.js', 'packages/flakes/index.js']) {
+    assert.ok(!topLevel.includes(heavy), `${heavy} is imported only inside the pre-push branch`);
+  }
+  for (const name of ['runGate', 'gateReport', 'runnerExecutionServices', 'landingExecutionServices', 'quarantineWaivers']) {
+    assert.ok(!new RegExp(`^(?:import \\{ ${name}\\b|  ${name},$)`, 'mu').test(hook), `${name} is not a static import of the hook module`);
+  }
 });
 
 test('the resident process holds the board open: reads reuse its connection, and concurrent commands each own one [H24]', async () => {
@@ -244,6 +279,7 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   const data = JSON.parse(readFileSync(packageFile, 'utf8'));
   data.version = '0.0.0-resident-new';
   writeFileSync(packageFile, JSON.stringify(data, null, 2) + '\n');
+  runFixtureGit(['add', 'package.json'], { cwd: fx.code, env: fx.env });
   runFixtureGit(['commit', '-q', '--allow-empty', '-m', 'code two'], { cwd: fx.code, env: fx.env });
   const next = fx.runIn(fx.repo, ['version']);
   const release = (result) => result.stdout.split('\n')[0];
@@ -253,6 +289,19 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(release(warm), '0.0.0-resident-new', 'the new resident process serves the new code');
   assert.notEqual(fx.residentPid(), old);
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
+});
+
+test('clause 1: after main moves with no code change, the next show is served by the same resident pid [C7,#3249]', () => {
+  fx.awaitResident();
+  const old = fx.residentPid();
+  writeFileSync(join(fx.code, 'landed-note.txt'), 'a landing that touches no code path\n');
+  runFixtureGit(['add', 'landed-note.txt'], { cwd: fx.code, env: fx.env });
+  runFixtureGit(['commit', '-q', '-m', 'docs only'], { cwd: fx.code, env: fx.env });
+  const shown = fx.runIn(fx.repo, ['show', '1'], { modules: true });
+  assert.equal(shown.status, 0, `${shown.stdout}${shown.stderr}`);
+  assert.ok(shown.loaded.length < 20, `the show ran in the resident process, not cold: ${shown.loaded.length} modules in the client`);
+  assert.equal(fx.residentPid(), old, 'the same resident process served it');
+  assert.equal(fx.alive(old), true, 'the resident process did not retire');
 });
 
 /**
@@ -268,11 +317,21 @@ function stopResidents(socket) {
   for (let round = 0; round < 400; round++) {
     const live = holders();
     quiet = live.length ? 0 : quiet + 1;
-    if (quiet >= 40) return;
+    if (quiet >= 10) return;
     for (const pid of live) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
   }
   assert.fail(`processes still hold ${socket}: ${holders().join(', ')}`);
+}
+
+/**
+ * Reject with a named error when a promise has not settled in time. Why: an await that never settles on a loaded
+ * runner otherwise runs to the file timeout, which kills the whole file and hides which step stalled.
+ */
+function within(promise, ms, what) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} did not settle within ${ms} ms`)), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 
 /** Ask a resident process to run its idle check now, and return its answer. */
@@ -288,7 +347,7 @@ function tick(socket) {
   });
 }
 
-test('an idle resident process closes its board connections and exits [H24]', async () => {
+test('clause 1: an idle resident process closes its board connections and exits [H24]', async () => {
   // One resident process, started directly at the board's socket on a clock the test moves; no wall-clock wait.
   const bin = join(fx.code, 'bin', 'pullboard.js');
   const place = residentSocket(fx.repo, bin);
@@ -305,18 +364,18 @@ test('an idle resident process closes its board connections and exits [H24]', as
   let stderr = '';
   daemon.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
   const exited = new Promise(resolve => daemon.once('exit', code => resolve(code)));
-  await new Promise((resolve, reject) => {
+  await within(new Promise((resolve, reject) => {
     let stdout = '';
     daemon.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; if (stdout.includes('listening\n')) resolve(); });
     daemon.once('exit', code => reject(new Error(`the resident process exited ${code} before listening: ${stderr}`)));
-  });
+  }), 10_000, `the resident process listening (stderr: ${stderr})`);
   const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });
   assert.equal(served.status, 0, served.stderr);
   assert.ok(served.loaded.length < 20, 'the read ran in the resident process, on a connection it holds');
-  assert.equal(await tick(place.socket), 'busy', 'within the idle limit it keeps serving');
+  assert.equal(await within(tick(place.socket), 5_000, 'the first idle check'), 'busy', 'within the idle limit it keeps serving');
   writeFileSync(clockFile, String(start + 60_001));
-  assert.equal(await tick(place.socket), 'retired', 'past the idle limit it retires');
-  assert.equal(await exited, 0, stderr);
+  assert.equal(await within(tick(place.socket), 5_000, 'the second idle check'), 'retired', 'past the idle limit it retires');
+  assert.equal(await within(exited, 10_000, `the retired resident process exiting (stderr: ${stderr})`), 0, stderr);
   const own = traceLines().filter(line => line.pid === daemon.pid);
   assert.ok(own.some(line => line.event === 'retire:idle'), JSON.stringify(own));
   assert.ok(own.some(line => line.event === 'close' && line.file.endsWith(join('.git', 'pullboard', 'board.sqlite'))), 'it closed the board connection it held');

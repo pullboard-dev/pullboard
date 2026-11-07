@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Require both documents in the exact landed, clean tip of a real private project's complete lifecycle. */
 export function assertBadgeLanding(e2e) {
   const box = e2e.project('node --test web/badge.test.cjs');
-  const builder = box.run(box.web, 'join', 'web', '--model', 'Badge fixture', '--parent', 'badge-parent-P');
+  const builder = fixtureJoin(box.run, box.web, 'web', '--model', 'Badge fixture', '--parent', 'badge-parent-P');
   assert.equal(builder.code, 0, builder.err);
-  const reviewer = box.run(box.repo, 'join', 'coordinator', '--model', 'Badge fixture', '--parent', 'badge-parent-Q');
+  const reviewer = fixtureJoin(box.run, box.repo, 'coordinator', '--model', 'Badge fixture', '--parent', 'badge-parent-Q');
   assert.equal(reviewer.code, 0, reviewer.err);
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
@@ -17,7 +19,7 @@ export function assertBadgeLanding(e2e) {
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private badge landing');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Badge landing', '--criterion', 'The native probe passes.', '--check', 'node --test web/badge.test.cjs', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Badge landing', '--criterion', 'The native probe passes.', '--check', 'node --test web/badge.test.cjs', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = box.run(box.web, 'claim', String(id));
