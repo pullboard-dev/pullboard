@@ -31,3 +31,16 @@ test('clause 1: a bar naming a coordinator-owned path is refused with the split 
   const clean = add(box, box.web, 'web', 'It works [test].', 'Files:\n- web/a.js\nTest:\n- web/a.test.js');
   assert.equal(clean.code, 0, JSON.stringify(clean.doc));
 });
+
+test('clause 1: claim of a lane item whose criterion alone names a coordinator-owned path is refused with the split as next step [C7,#2650]', () => {
+  const box = fixture();
+  const filed = add(box, box.repo, 'web', 'The hook .githooks/pre-commit refuses it [test].', 'Files:\n- web/a.js\nTest:\n- web/a.test.js');
+  assert.equal(filed.code, 0, `the coordinator may file any path: ${JSON.stringify(filed.doc)}`);
+  const id = filed.doc.item?.item_id ?? filed.doc.item_id;
+  const result = box.run(box.web, 'claim', String(id), '--json');
+  assert.notEqual(result.code, 0, result.out + result.err);
+  const refused = JSON.parse(result.out).error;
+  assert.equal(refused.code, 'CROSS_OWNERSHIP');
+  assert.match(refused.message, /\.githooks\/pre-commit/u);
+  assert.match(refused.next ?? refused.nextStep ?? JSON.stringify(refused), /add coordinator .* --after <lane item id>/u);
+});

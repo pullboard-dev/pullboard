@@ -35,7 +35,7 @@ export async function run(io, { first }) {
   cleanItemFolders(ctx, board, me);
   const filed = getItem(board, id);
   if (filed) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
-    check: filed.item_check, brief: filed.item_brief }, { prose: false });
+    check: filed.item_check, brief: filed.item_brief });
   let result;
   for (;;) {
     try {
