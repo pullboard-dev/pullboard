@@ -55,3 +55,46 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   assert.equal(JSON.parse(resubmit.stdout).error?.code, 'HEAD_NOT_NEW', resubmit.stdout + resubmit.stderr);
   assert.equal(existsSync(ran), false, `no check or test ran before the refusal: ${existsSync(ran) ? readFileSync(ran, 'utf8') : ''}`);
 });
+
+test('clause 1: submit --preflight runs every registered check in parallel and one run reports three different static failures [C7]', { timeout: 120_000 }, async () => {
+  const { mkdtempSync, mkdirSync: mk, writeFileSync: write } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { runPreflight, reportPreflight } = await import('../apps/cli/src/shell/submit-preflight.js');
+  const { STATIC_CHECKS } = await import('../packages/gate/index.js');
+  const root = mkdtempSync(join(tmpdir(), 'preflight-'));
+  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  mk(join(root, 'bin/checks'), { recursive: true });
+  write(join(root, 'bin/checks/test-waits-baseline.json'), '{}');
+  mk(join(root, 'packages/x/src'), { recursive: true });
+  write(join(root, 'packages/x/src/a.js'), 'export const a = 1;\n');
+  git('add', '-A'); git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'base');
+  // Three different classes: an empty catch, a multi-binding import and a fixed wait in a test.
+  write(join(root, 'packages/x/src/a.js'), "import { b, c } from './b.js';\nexport function a() { try { b(); } catch {}\n}\n");
+  mk(join(root, 'test'), { recursive: true });
+  write(join(root, 'test/w.test.js'), "await new Promise(resolve => setTimeout(resolve, 500));\n");
+  const report = await runPreflight(root, ['packages/x/src/a.js', 'test/w.test.js']);
+  const named = report.results.filter(row => row.failures.length).map(row => row.name);
+  assert.ok(named.includes('import-style') && named.includes('empty-catch') && named.includes('test-waits'), `all three classes reported in one run: ${named.join(',')}`);
+  assert.equal(report.results.length, STATIC_CHECKS.length, 'every registered check ran');
+  const lines = [];
+  assert.equal(reportPreflight(report, line => lines.push(line)), 1);
+  assert.match(lines.at(-1), /^preflight red: \d+ of \d+ checks failed/u);
+});
+
+test('clause 2: a clean change passes preflight and it finishes under 15 seconds [C7]', { timeout: 120_000 }, async () => {
+  const { mkdtempSync, mkdirSync: mk, writeFileSync: write } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { runPreflight } = await import('../apps/cli/src/shell/submit-preflight.js');
+  const root = mkdtempSync(join(tmpdir(), 'preflight-clean-'));
+  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  mk(join(root, 'bin/checks'), { recursive: true });
+  write(join(root, 'bin/checks/test-waits-baseline.json'), '{}');
+  mk(join(root, 'packages/x/src'), { recursive: true });
+  write(join(root, 'packages/x/src/a.js'), 'export const a = 1;\n');
+  git('add', '-A'); git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'base');
+  const report = await runPreflight(root, ['packages/x/src/a.js']);
+  assert.equal(report.ok, true, JSON.stringify(report.results.filter(row => row.failures.length)));
+  assert.ok(report.ms < 15000, `preflight took ${Math.round(report.ms)} ms`); // budget: the criterion requires under 15 s.
+});

@@ -616,6 +616,10 @@
       "cells": 2,
       "deep": 0
     },
+    "apps/cli/src/shell/submit-preflight.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/src/shell/submit-neighbour-reds.js": {
       "cells": 1,
       "deep": 0

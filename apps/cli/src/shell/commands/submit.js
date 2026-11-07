@@ -226,6 +226,8 @@ import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
+import { runPreflight } from '../submit-preflight.js';
+import { reportPreflight } from '../submit-preflight.js';
 
 /** Report wall time without sharing the execution closures of unrelated submit stages. */
 function reportSubmitStage(ctx, name, start) {
@@ -993,11 +995,20 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }
 
+/** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */
+async function preflightHere(ctx) {
+  const { root } = ctx.info;
+  const changed = tryGit(root, ['diff', '--name-only', '-z', 'refs/heads/main...HEAD']);
+  const files = changed.status === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
+  return reportPreflight(await runPreflight(root, files), line => ctx.io.say(line));
+}
+
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
   if (companionInput && (!companionInput.file || !companionInput.key || !companionInput.author)) {
     throw new Refused('USAGE', 'use pullboard submit <id> --companion <patch-file> --key <key> --author <owning-seat>');
