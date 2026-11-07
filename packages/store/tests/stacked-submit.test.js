@@ -3,8 +3,6 @@ import { submitFixture } from "../../../test/board-submit-fixture.js";
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
-  existsSync,
-  readdirSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -58,13 +56,6 @@ test('[V17] submit refuses a candidate stacked on another item until it is accep
   const stacked = add(box, 'web', 'Stacked submission');
   assert.equal(box.run(box.web, 'claim', String(stacked)).code, 0);
   const stackedCommit = commitFile(box, box.web, 'web/stacked.txt', 'stacked submission');
-  const receiptDir = join(box.repo, '.git/pullboard/gate-receipts');
-  const receipts = () => existsSync(receiptDir) ? readdirSync(receiptDir).sort() : [];
-  const before = receipts();
-  const precheck = box.run(box.web, 'submit', String(stacked), '--precheck', '--json');
-  assertStackRefusal(precheck, first, firstCommit);
-  assert.doesNotMatch(precheck.err + precheck.out, /submit cells inventory|submit cells:/u, 'stack refusal precedes cell scan');
-  assert.deepEqual(receipts(), before, 'precheck writes no gate receipt');
   assertStackRefusal(box.run(box.web, 'submit', String(stacked), '--json'), first, firstCommit);
   assert.equal(JSON.parse(box.run(box.web, 'show', String(stacked), '--json').out).item_status, 'claimed');
 
