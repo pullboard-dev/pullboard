@@ -23,6 +23,8 @@ const HOSTED = 'https://app.pullboard.dev';
 /** Navigate to the real Items pane after the hosted page is ready, where its board rows are rendered. */
 async function showItemChain(chrome, ready, title, timeout = 30_000) {
   await chrome.waitFor(ready, timeout);
+  // A fresh board opens on the first-run Dashboard; set it aside so the Items tab under test renders.
+  await chrome.stable("(() => { try { keep('pb.firstrun.' + view.root, 'hidden'); render(); } catch {} return true; })()");
   await press(chrome, "document.querySelector('[data-tab=items]')");
   await chrome.waitFor(`document.querySelector('[data-tab=items].on') && document.querySelector('#chain')?.textContent.includes(${JSON.stringify(title)})`, timeout);
 }
