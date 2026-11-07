@@ -15,6 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { copyCommittedPackageFiles } from '../../../test/package-copy-fixture.js';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { isolateTestMachine } from '../../../packages/gate/index.js';
 import { processCensus } from '../../runner/index.js';
@@ -171,7 +172,7 @@ export function registerMaintenanceSchedulerTests() {
   });
 
   test('clause 1: scheduling a timer asks Git for no worktree list when the common directory is the primary .git [C7]', async t => {
-    const ctx = project(t, true), shim = fs.mkdtempSync(join(tmpdir(), 'pullboard-git-shim-')), log = join(shim, 'calls.log');
+    const ctx = project(t, true), shim = privateFixtureFiles('pullboard-git-shim-').root, log = join(shim, 'calls.log');
     t.after(() => fs.rmSync(shim, { recursive: true, force: true }));
     const real = cp.execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
     fs.writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "$@" >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
