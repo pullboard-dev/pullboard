@@ -137,16 +137,11 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   assert.equal(afterMove.item.item_status, 'claimed');
   assert.equal(afterMove.item.item_owner, joinedDocument.agent);
 
-  for (const [result, exact] of [[read, true], [move, false]]) {
+  for (const result of [read, move]) {
     const output = [result.stdout, result.stderr].join('\n');
-    const columns = output.match(/item_branch_probe/gu)?.length ?? 0;
-    const triggers = output.match(/machine_item_move/gu)?.length ?? 0;
-    // A claim also opens its item folder, which may open the board once more; a read opens it once.
-    if (exact) {
-      assert.equal(columns, 1, 'one diagnostic per invocation names the uninstalled column exactly once');
-      assert.equal(triggers, 1, 'the same diagnostic names the changed machine trigger exactly once');
-    } else {
-      assert.ok(columns >= 1 && triggers >= 1, 'the claim names the uninstalled column and the changed trigger');
-    }
+    assert.equal(output.match(/item_branch_probe/gu)?.length ?? 0, 1,
+      `one diagnostic per invocation names the uninstalled column exactly once:\n${output}`);
+    assert.equal(output.match(/machine_item_move/gu)?.length ?? 0, 1,
+      `the same diagnostic names the changed machine trigger exactly once:\n${output}`);
   }
 }
