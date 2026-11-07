@@ -176,7 +176,7 @@ test('cumulative usage preserves priced totals but leaves collapsed lifecycle at
   assert.match(costTabHtml(model, 77), /Usage by agent, model and phase/u, 'aggregate rows are not described as native sessions');
 });
 
-test('the private view shows its last twenty native landings; a public export keeps Cost hidden [N26]', { timeout: 360_000 }, async () => {
+test('clause 1: the private view shows its last twenty native landings; a public export keeps Cost hidden [N26]', { timeout: 360_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the private Cost view journey.');
   const box = machine(), alpha = project(box, 'cost-tab', SPEC);
