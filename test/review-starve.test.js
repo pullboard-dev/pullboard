@@ -21,7 +21,7 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   box.advance(11 * 60_000);
   const before = store.events(box.board);
   const finding = health(box).stuck.find(entry => entry.cause === 'REVIEW_STARVED' && entry.item === waiting);
-  assert.ok(finding, 'the default ten-minute threshold includes strict reviews');
+  assert.ok(finding, 'the default five-minute threshold includes strict reviews');
   assert.equal(finding.detail.ageMs, 11 * 60_000);
   assert.ok(finding.detail.eligible.includes(box.seats.outside.id));
   assert.deepEqual(store.events(box.board), before, 'health never writes board state');
@@ -33,6 +33,22 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   const builder = await cli(box, box.seats.builder.path, ['next']);
   assert.equal(builder.code, 0, builder.out + builder.err);
   assert.equal(builder.document.item.item_id, build, 'canonical self-review exclusion is preserved');
+});
+
+test('clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
+  const box = await fixture(t);
+  const oldest = box.add('Oldest review waiting two minutes');
+  box.submit(oldest);
+  box.advance(60_000);
+  const newer = box.add('Newer review');
+  box.submit(newer);
+  const build = box.add('Open build while reviews wait', { brief: 'Files: web/other.js\nTest: the unrelated build remains open.' });
+  box.advance(60_000);
+  const offered = await cli(box, box.seats.outside.path, ['next']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, oldest);
+  assert.equal(offered.document.review, true);
+  assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
 test('health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', async t => {
@@ -49,7 +65,7 @@ test('health names the exact native check when every joined seat is excluded fro
   assert.match(finding.why, /COORDINATOR_VERIFIES/u, 'the report names the failing native check rather than inventing a reviewer');
 });
 
-test('configured starvation waits select the oldest eligible review after a reservation expires [C7,N2,V1]', async t => {
+test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', async t => {
   const box = await fixture(t);
   const oldest = box.add('Oldest strict review', { reviewFamily: 'Family Beta' });
   box.submit(oldest);
@@ -57,6 +73,8 @@ test('configured starvation waits select the oldest eligible review after a rese
   box.advance(11 * 60_000);
   const newer = box.add('Newer strict review', { reviewFamily: 'Family Beta' });
   box.submit(newer);
+  const held = box.add('Held build uses the configured urgent threshold', { lane: 'review' });
+  box.claim(held, box.seats.outside);
   const who = { agentId: box.seats.outside.id, lane: 'review', ratio: 99, starveMinutes: 20 };
   assert.equal(store.reviewOffer(box.board, who), null, 'configured twenty-minute wait has not elapsed');
   box.advance(10 * 60_000);
@@ -67,7 +85,7 @@ test('configured starvation waits select the oldest eligible review after a rese
   const other = store.reviewOffer(box.board, { ...who, agentId: box.seats.sibling.id, starveMinutes: 10 });
   assert.notEqual(other?.item.item_id, oldest, 'a live reservation stays exclusive');
   const configured = defaults();
-  assert.equal(configured.review.starveMinutes, 10);
+  assert.equal(configured.review.starveMinutes, 5);
   configured.review.starveMinutes = -1;
   assert.ok(configProblems(configured).some(problem => problem.includes('review.starveMinutes')));
 });
