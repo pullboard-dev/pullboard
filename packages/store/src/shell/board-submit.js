@@ -21,6 +21,7 @@ import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../src/known-main-runni
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
 import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
+import { startItemPatchObjectionWindow } from "../../../items/index.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { submissionItemValues } from "./submission-record.js";
@@ -166,7 +167,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit) }) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))) }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -220,6 +221,7 @@ export function submit(board, id, options) {
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+    startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
       if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');

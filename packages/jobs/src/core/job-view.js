@@ -3,7 +3,7 @@
 /**
  * Shape one job row and its step rows into the job view.
  *
- * Why: the current step is the last step written, so `show`, `status` and a resumed driver all read one answer.
+ * Why: the current step is the last step written (or `done`, the terminal mark a finished driver puts on the row), so `show`, `status` and a resumed driver all read one answer.
  *
  * @param {Record<string, any>} job - A `job` table row.
  * @param {Record<string, any>[]} steps - Its `job_step` rows, oldest first.
@@ -16,7 +16,7 @@ export function viewOf(job, steps) {
     item: job.job_item ?? null,
     candidate: job.job_candidate ?? null,
     base: job.job_base ?? null,
-    step: steps.length ? steps[steps.length - 1].job_step_name : job.job_step,
+    step: job.job_step === 'done' ? 'done' : steps.length ? steps[steps.length - 1].job_step_name : job.job_step,
     attempt: job.job_attempt,
     leaseOwner: job.job_lease_owner ?? null,
     leaseUntil: job.job_lease_until,
