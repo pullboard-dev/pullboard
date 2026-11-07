@@ -6,6 +6,8 @@ import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 
+const SYNTHETIC_MODEL = 'Synthetic fixture model';
+
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const freeze = () => ({ text: '{}', digest: 'synthetic-head-family-bar' });
 const REVIEW = { policy: 'any', familyPolicy: 'require' };
@@ -20,7 +22,7 @@ function fixture(t) {
   const seats = [['coordinator', 'coordinator', undefined, 'f'], ['core-1', 'core', 'openai', 'a'], ['core-2', 'core', 'claude', 'b'],
     ['core-3', 'core', 'openai', 'c'], ['core-4', 'core', 'claude', 'd'], ['core-6', 'core', 'gemini', 'e']];
   for (const [id, lane, family, parent] of seats) {
-    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), session: parent.repeat(64), model: 'Synthetic fixture model' });
+    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), session: parent.repeat(64), model: SYNTHETIC_MODEL });
     heartbeatSeat(board, id);
   }
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Head family fixture', sensitive: true });
