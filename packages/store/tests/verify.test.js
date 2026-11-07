@@ -97,17 +97,29 @@ function submitUnsealed(box) {
   }
 }
 
-/** Move only a private fixture's main during a real frozen check, then inspect the exact checked source. */
+/**
+ * Move only a private fixture's main during a real frozen check, then inspect the exact checked source. Since #2501
+ * (61b93a7c77) verify retries only when its frozen check is red and main fails the same red (knownMain): an unrelated
+ * green move keeps the verdict. So the retry modes also run web/known.test.js, red identically on main and owned by an
+ * open Main red repair, which makes the retry path the one these cases observe [V4,V8].
+ */
 function movingReview(t, mode) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  delete box.env.NODE_TEST_CONTEXT; // Main's comparison run must print its own TAP, not report to this runner.
   // Private check environments deliberately discard inherited author settings.
   box.git(box.repo, 'config', 'user.name', 'Review fixture');
   box.git(box.repo, 'config', 'user.email', 'review@example.invalid');
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/feature.js'), 'original\n');
-  box.git(box.repo, 'add', 'web/feature.js');
+  const knownRed = mode !== 'conflict';
+  if (knownRed) {
+    writeFileSync(join(box.repo, 'web/known.test.js'), "const assert = require('node:assert/strict');\nconst { test } = require('node:test');\ntest('known main red [G1]', () => assert.equal(1, 2));\n");
+    const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+    writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }, null, 2));
+  }
+  box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: initial feature [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const armed = join(box.dir, 'armed');
@@ -130,9 +142,16 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
     git('add', file); git('commit', '-q', '-m', 'feat: move main during review [G1]');
   }
   if (runs.length === 2 && ${JSON.stringify(mode)} === 'once') assert.equal(fs.readFileSync('docs/arrived.txt', 'utf8'), 'main 1\\n');
+  if (${JSON.stringify(knownRed)}) {
+    const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+    const red = cp.spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'web/known.test.js'], { encoding: 'utf8', env });
+    process.stdout.write(red.stdout ?? ''); process.stderr.write(red.stderr ?? '');
+    process.exitCode = red.status ?? 1;
+  }
 }
 `);
   document(fixtureAdd(box.run, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  if (knownRed) document(fixtureAdd(box.run, box.repo, 'web', 'Main red: web/known.test.js', '--criterion', 'known main red [G1] passes on main', '--specs', 'G1', '--check', 'node --test web/known.test.js', '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
   submitUnsealed(box);

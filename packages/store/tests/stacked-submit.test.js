@@ -2,9 +2,13 @@
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 import assert from 'node:assert/strict';
 import {
+  existsSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   after,
@@ -18,7 +22,35 @@ import { fixtureAdd } from '../../../test/testkit-fixture.js';
 import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+
+/**
+ * Whether any fixture repository still has a queued submit worker at work: its job folder still holds the worker's
+ * source checkout, or the tool snapshot its request names. Each real submit here queues one such detached worker.
+ */
+function submitWorkersBusy() {
+  return e2e.sandboxes.some(dir => {
+    const jobs = join(dir, 'repo', '.git', 'pullboard', 'submit-handoffs');
+    if (!existsSync(jobs)) return false;
+    return readdirSync(jobs).some(job => {
+      const request = join(jobs, job, 'request.json');
+      let tools = null;
+      try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { /* A request still being written names nothing yet. */ }
+      return existsSync(join(jobs, job, 'source')) || Boolean(tools && existsSync(tools));
+    });
+  });
+}
+
+/**
+ * Let the queued submit workers finish, then delete the fixtures asynchronously. Why: a synchronous rmSync retrying
+ * ENOTEMPTY while a worker still writes its job folder blocked the main thread past the 30 s file-exit timeout, and
+ * the runner killed the file with a live Socket handle [C7].
+ */
+after(async () => {
+  try {
+    await e2e.waitFor(() => !submitWorkersBusy(), 'queued submit worker cleanup', 25_000); // budget: hang ceiling for owned worker cleanup; no elapsed-time assertion.
+  } catch { /* A worker still running past the ceiling is removed with its fixture below. */ }
+  await Promise.all(e2e.sandboxes.map(dir => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })));
+});
 
 /** Add a work item through the fixture's real CLI. */
 function add(box, lane, title) {
