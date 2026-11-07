@@ -30,7 +30,7 @@ function gateHeads(box) {
   return box.readGateCalls().trim().split('\n').map(line => JSON.parse(line).head);
 }
 
-test("publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3]", async t => {
+test("clause 1: publish opens one pull request with each item's receipt and records the person's merge as the release [B3,R3,C7]", async t => {
   const box = bridgeProject(t);
   const entries = landBridgeItems(box);
   const provider = await bridgeProvider(t, box);
