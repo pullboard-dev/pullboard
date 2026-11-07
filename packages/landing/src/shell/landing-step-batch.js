@@ -79,6 +79,8 @@ function requireParallelGateAdmission(root, config) {
  * runs; false when it returned the adding items to their builders with the path [C7,#3210].
  */
 export async function placedMerge(state, items) {
+  // A project without a committed cells plan has no placement to check; only repos that carry one are held to it.
+  if (!existsSync(join(state.batch.root, 'bin/cells-plan.json'))) return true;
   const { unplanned, readPlan } = await import('../../../../bin/cells-plan.js');
   const { addedPlacementProblems } = await import('../../../../bin/cells-plan-cuts.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
