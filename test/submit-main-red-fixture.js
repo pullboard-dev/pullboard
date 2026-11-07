@@ -80,7 +80,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
   ].join('\n') + '\n');
   box.main = commit(box, root);
   box.item = fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
-    check, route: 'mid', brief: 'Files: change.txt, test/\nTest: inherited failure accounting', args: ['--specs', 'G1'],
+    check, route: 'mid', brief: 'Files: change.txt test/inherited.test.js\nChange: add change.txt\nTest: inherited failure accounting', args: ['--specs', 'G1'],
     run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
   result = createFixtureWorktree(box, root, 'core', { route: 'mid', run: (cwd, ...args) => cli(box, cwd, ...args) });
   assert.equal(result.code, 0, result.out + result.err);
@@ -98,7 +98,7 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
 export function fileMainRed(box, { wait = false } = {}) {
   return fileFixtureItem(box, box.root, { lane: 'core', title: 'Main red: inherited assertion needs repair', args: ['--specs', 'G1'],
     criterion: 'The inherited assertion passes on main.', check: 'node test/runner.js test/inherited.test.js',
-    brief: 'Files: test/inherited.test.js\nTest: inherited assertion', wait,
+    brief: 'Files: test/inherited.test.js\nChange: repair the assertion\nTest: inherited assertion', wait,
     run: (cwd, ...args) => cli(box, cwd, ...args) }).item_id;
 }
 
