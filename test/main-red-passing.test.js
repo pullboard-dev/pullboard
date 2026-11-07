@@ -23,7 +23,8 @@ test('clause 2: an item whose named case still fails on current main is offered 
   const named = { item_check_baseline: { testEvidence: { failedCases: [{ file, name: 'x case' }] } } };
   assert.deepEqual(passingMainReds([item(1, named), item(2)], main, entries), []);
   const fixed = { [main]: { [file]: { result: 'red', failures: [{ name: 'other case' }] } } };
-  assert.deepEqual(passingMainReds([item(1, named)], main, fixed).map(row => row.item), [1]);
+  // Stale since the item closes only on a green file: a red file stays open on different cases (#3382).
+  assert.deepEqual(passingMainReds([item(1, named)], main, fixed), []);
 });
 
 test('clause 3: the check reads only recorded runs for the current main and adds none of its own [C7,H24]', () => {

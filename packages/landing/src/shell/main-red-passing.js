@@ -9,8 +9,7 @@ const TITLE = /^Main red: (\S+\.(?:js|mjs|cjs))$/u;
 /**
  * Open Main red items whose recorded test file passed on `main`, by a run already recorded for that exact main commit.
  * The cache is keyed by main commit, so an entry is always newer than any claim made on an older main. An item whose
- * file is red is kept, unless the run names its failing cases and none of the item's recorded failing cases is among
- * them. A file with no recorded run is never closed: the check adds no test run of its own.
+ * file has any red case on that main is kept, whichever cases they are. A file with no recorded run is never closed: the check adds no test run of its own.
  *
  * @param {object[]} items
  * @param {string} main - The current main commit.
@@ -26,9 +25,8 @@ export function passingMainReds(items, main, entries, lineage = []) {
     const file = item.item_status === 'open' ? TITLE.exec(item.item_title ?? '')?.[1] : null;
     const outcome = file ? current[file] : null;
     if (!outcome) continue;
-    const named = (item.item_check_baseline?.testEvidence?.failedCases ?? []).filter(row => row.file === file).map(row => row.name);
-    const stillFailing = outcome.result === 'red' && (!Array.isArray(outcome.failures) || !named.length
-      || outcome.failures.some(row => named.includes(row.name)));
+    // Any red case keeps the item open, whichever cases they are: the file is the item, not its first failures.
+    const stillFailing = outcome.result === 'red' && (!Array.isArray(outcome.failures) || outcome.failures.length > 0);
     if (outcome.result === 'green' || !stillFailing) found.push({ item: item.item_id, file, receiptId: outcome.receiptId ?? 'recorded main run', main,
       turnedGreen: turnedGreenAt(entries, main, file, lineage) });
   }

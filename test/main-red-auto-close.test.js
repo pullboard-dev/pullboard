@@ -222,3 +222,12 @@ test('clause 2: a Main red item whose file is still red on main stays open [C7]'
   assert.deepEqual(passingMainReds([item], a, { [a]: { [file]: { result: 'red', failures: [{ name: 'x case' }] } } }), []);
   assert.deepEqual(passingMainReds([item], a, {}), []);
 });
+
+test('clause 2: a file red only on cases other than the item\'s named failures keeps the item open [C7]', () => {
+  const a = 'a'.repeat(40);
+  const file = 'test/x.test.js';
+  const item = { item_id: 7, item_status: 'open', item_title: `Main red: ${file}`,
+    item_check_baseline: { testEvidence: { failedCases: [{ file, name: 'old case' }] } } };
+  const entries = { [a]: { [file]: { result: 'red', failures: [{ name: 'different case' }] } } };
+  assert.deepEqual(passingMainReds([item], a, entries), []);
+});
