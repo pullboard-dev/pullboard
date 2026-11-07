@@ -68,8 +68,9 @@ const ran = compareOnRunner();
 test('clause 1: a main comparison writes no working tree and the runner job records the exact main commit and tree [C7]', { timeout: 180_000 }, async () => {
   const { out, seen, main, tree, scratch, requests, stderrLog } = await ran;
   assert.equal(out.unavailable, undefined, out.unavailable);
-  assert.ok(seen.folders > 0, 'the comparison prepared a temporary folder');
-  assert.equal(seen.files, 0, 'no file besides .git was ever written to a pullboard-main-red folder');
+  // A runner comparison reads main from the object store in place, so it prepares no temporary folder at all (#3323).
+  assert.equal(seen.folders, 0, 'no pullboard-main-red folder was prepared');
+  assert.equal(seen.files, 0, 'no file was ever written to a pullboard-main-red folder');
   assert.deepEqual(readdirSync(scratch).filter(name => name.startsWith('pullboard-main-red-')), [], 'the temporary folder is removed');
   const log = (existsSync(requests) ? readFileSync(requests, 'utf8') : '') + (existsSync(stderrLog) ? readFileSync(stderrLog, 'utf8') : '');
   assert.doesNotMatch(log, /SPEC_REFUSED/u, log);
