@@ -44,7 +44,8 @@ import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell
 import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
 import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
-import { testRunPhaseClock } from '../packages/gate/index.js';
+// The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
+import { testRunPhaseClock } from '../packages/gate/src/shell/test-run-phases.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
