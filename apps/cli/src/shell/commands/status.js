@@ -17,7 +17,11 @@ import { foreignBlockers } from '../../../../../packages/items/index.js';
 import { readReceivedBoardState } from '../../../../../packages/store/index.js';
 import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../../../../packages/store/index.js';
+import { submitHandoff } from '../../../../../packages/store/index.js';
+import { handoffWorkerAlive } from '../handoff-worker-alive.js';
+import { stalledGates } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/src/core/land-why.js';
 import { landingLine } from '../../../../../packages/landing/src/core/land-why.js';
@@ -69,6 +73,8 @@ export async function run(io, { values }) {
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  const reclaim = await fallbackReclaim(ctx, 'status');
   let landing = null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -91,13 +97,14 @@ export async function run(io, { values }) {
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
-    return { needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    return { stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(ctx.info.commonDir, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
     const exclusion = (await import('../../../../../packages/link/index.js')).relayExclusion(ctx.info.root);
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
+  summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
@@ -126,6 +133,7 @@ export async function run(io, { values }) {
     io.say(entry.health === 'waiting' ? `waiting: #${entry.id} (${entry.actor}) waits on ${entry.waitingOn.map(id => `#${id}`).join(', ')} to land; the claim is released and the item returns when it lands`
       : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 40m`);
   }
+  for (const gate of summary.stalledGates) io.say(`gate job ${gate.id}${gate.item ? ` (#${gate.item})` : ''}: ${gate.text}`);
   for (const warning of summary.runnerUtilization.warnings) io.say(warning);
   io.say(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
   io.say(`capacity: ${summary.capacity.liveAgents} live, ${summary.capacity.idleAgents} idle, ${summary.capacity.readyItems} ready item${summary.capacity.readyItems === 1 ? '' : 's'}`);
