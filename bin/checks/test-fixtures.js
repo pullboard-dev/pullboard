@@ -23,12 +23,19 @@ const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|existsSync|
 const ANCHOR = /import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 
+/** The shared fixture helpers the messages point at; a test asserts each path exists. */
+export const FIXTURE_HELPERS = {
+  tempdir: 'test/fixture-child.js',
+  'raw-cli': 'test/testkit-fixture.js',
+  model: 'test/testkit-fixture.js',
+};
+
 const MESSAGES = {
-  tempdir: 'creates a temporary directory or repository outside test/kit; build the fixture with the kit',
-  'raw-cli': 'adds an item or joins a seat with a raw CLI call; use the kit item and persona helpers',
-  model: 'passes a literal model string; join by kit persona name',
+  tempdir: `creates a temporary directory or repository outside the shared helpers; use privateFixtureFiles in ${FIXTURE_HELPERS.tempdir}`,
+  'raw-cli': `adds an item or joins a seat with a raw CLI call; use fileFixtureItem or joinFixtureSeat in ${FIXTURE_HELPERS['raw-cli']}`,
+  model: `passes a literal model string; use a model constant or joinFixtureSeat from ${FIXTURE_HELPERS.model}`,
   'repo-read': 'reads a repository file from the test own directory outside a world-pin comment; declare @pullboard-world-pin or use a fixture',
-  hex64: 'holds a 64-character hex literal; take it from the kit or list it as a world pin',
+  hex64: 'holds a 64-character hex literal; keep it in a shared fixture helper or list it as a world pin',
 };
 
 /** Return the matching closing bracket offset in masked code, or the end of the code. */
