@@ -88,7 +88,7 @@ test('after 3 retries a runner that keeps dropping ends as an infrastructure sto
   assert.ok(result.calls <= 8, `bounded: ${result.calls} runs`);
 });
 
-for (const kind of ['transport', 'cleanup', 'deadline']) {
+for (const kind of ['transport', 'cleanup']) {
   test(`a runner that keeps failing (${kind}) is avoided: the same candidate completes on the healthy second runner, no red [C7]`, t => {
     const box = fixture(t, { second: true });
     const result = scenario(box, [], undefined, { brokenFirstHost: kind });
@@ -104,6 +104,14 @@ for (const kind of ['transport', 'cleanup', 'deadline']) {
   });
 }
 
+test('a runner that keeps hitting its wait deadline stops GATE_INFRA_EXHAUSTED for the coordinator, never a red to the builder [C7]', t => {
+  const box = fixture(t, { second: true });
+  const result = scenario(box, [], undefined, { brokenFirstHost: 'deadline' });
+  assert.equal(result.refused, 'GATE_INFRA_EXHAUSTED', `a wait deadline is infrastructure and the bounded retries end as such: ${JSON.stringify(result)}`);
+  assert.equal(result.calls, 4, 'the first attempt and exactly 3 retries');
+  assert.ok(result.said.every(line => /RUNNER_UNAVAILABLE.*requeueing the same candidate/u.test(line)), result.said.join('\n'));
+});
+
 test('a test failure goes red on its first attempt and is never requeued [C7]', t => {
   const box = fixture(t);
   const thrown = scenario(box, ['red']);
@@ -116,13 +124,13 @@ test('a test failure goes red on its first attempt and is never requeued [C7]', 
   assert.deepEqual(red.attempts, []);
 });
 
-test('infrastructure failures are named by code, a dropped runner or a locked board; real failures are not [C7]', async () => {
-  for (const code of ['RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'BOARD_BUSY', 'SLOT_DB_LOCKED', 'MERGE_CHECK_FAILED']) {
+test('infrastructure failures are named by code, a dropped runner, an invalid runner result (#3303) or a locked board; real failures are not [C7]', async () => {
+  for (const code of ['RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'BOARD_BUSY', 'SLOT_DB_LOCKED', 'MERGE_CHECK_FAILED', 'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST']) {
     assert.equal(infrastructureFailure(new Refused(code, 'fixture')), code);
   }
   assert.equal(infrastructureFailure(Object.assign(new Error('runner x disconnected'), { name: 'RunnerDropped' })), 'TRANSPORT_LOST');
   assert.equal(infrastructureFailure(Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' })), 'DATABASE_LOCKED');
-  for (const code of ['GATE_RED', 'CHECK_RED', 'RUNNER_SECRET', 'RUNNER_RESULT_INVALID', 'HEAD_NOT_NEW']) {
+  for (const code of ['GATE_RED', 'CHECK_RED', 'RUNNER_SECRET', 'HEAD_NOT_NEW']) {
     assert.equal(infrastructureFailure(new Refused(code, 'database is locked in the test output')), null, code);
   }
   // With no healthy executor the candidate waits in the queue rather than going red, then runs once one answers.
