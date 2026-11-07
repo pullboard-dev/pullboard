@@ -90,13 +90,15 @@ export async function splitBaseRed(state, failures, compare = compareMainFailure
     if (row) rows.set(file, row);
   }));
   if (!rows.size) return null;
-  const known = [], own = [...absent];
+  const known = [], own = [...absent], unattributed = [];
   for (const failure of present) {
     const row = rows.get(failure.file);
     // Red on base with no named cases cannot be told apart from the batch's own red, so that case stays own [C7,#2945].
+    // It is also listed apart: a lone item is charged only for reds main passes, never for these [C7,#3346].
+    if (row?.result === 'red' && !(row.failures ?? []).length) unattributed.push(failure);
     (row?.result === 'red' && (row.failures ?? []).some(main => main.name === failure.name) ? known : own).push(failure);
   }
-  return { known, own };
+  return { known, own, unattributed };
 }
 
 /** Run each failing file once alone, with the same queued machine capacity as other checks. */
@@ -150,7 +152,8 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
   failures = unwaivedFailures(state.board, failures, state.landingPorts);
   // Cases base main already fails the same way are set aside; only the batch's own reds split it [C7,#2941].
   const split = await splitBaseRed(state, failures, compare);
-  if (!split) {
+  // A lone item is never charged for a file main fails without naming a case: nothing shows the red is the item's [C7,#3346].
+  if (!split || (items.length === 1 && split.unattributed?.length)) {
     await save(state, { state: 'blocked', failures, refusal: { code: 'LAND_DIAGNOSTIC',
       message: 'a failing file could not be compared on base main', at: state.board.clock.now().toISOString() } });
     state.flaky = true;
