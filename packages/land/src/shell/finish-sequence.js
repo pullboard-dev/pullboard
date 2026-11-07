@@ -2,6 +2,7 @@
 import { Refused } from '../../../kernel/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
+import { finishJob } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { isObjectId } from '../../../pin/index.js';
@@ -117,7 +118,8 @@ async function runStep(name, steps, context, { repo, receipts }) {
  * Finish a landing batch: select → compose → prove (reuse a receipt, or run) → merge → record → publish, each written
  * as a job step before the next starts. A resumed landing skips every step its log holds and hands the later steps
  * the payloads written earlier. A red or infra proof stops before merge; a landing whose live lease another driver
- * holds is left alone.
+ * holds is left alone. After publish the job is marked done and its lease released, so it never reads as stalled; the
+ * returned `job` is the log as the steps wrote it.
  *
  * Why: the job row, not the process, holds the landing's progress, so any driver continues after any other died,
  * and a repeated step is a no-op in the job store (RFC 0008 DJ3, DJ11).
@@ -138,7 +140,10 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     const prove = writtenSteps(view).prove;
     return prove && prove.verdict !== 'green' && !('merge' in writtenSteps(view)) ? prove : null;
   };
-  if (nextFinishStep(view) === null) return { done: true, ran, job: view };
+  if (nextFinishStep(view) === null) {
+    if (view.step !== 'done' && holdLease(db, view, owner, now())) finishJob(db, job, owner, { now: now() });
+    return { done: true, ran, job: view };
+  }
   if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
   if (!holdLease(db, view, owner, now())) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
   for (let name = nextFinishStep(view); name !== null; name = nextFinishStep(view)) {
@@ -149,5 +154,6 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     view = jobView(db, job);
     if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
   }
+  finishJob(db, job, owner, { now: now() });
   return { done: true, ran, job: view };
 }
