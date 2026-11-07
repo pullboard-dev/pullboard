@@ -1,18 +1,19 @@
 /** A landing worker that dies mid-batch is replaced by the health sweep and the adoption is recorded [C7]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
 import { startServeSentinel, LANDING_LIVENESS_INTERVAL_MS } from '../packages/sentinels/src/shell/serve-sentinel.js';
-import { runFixtureGit } from './fixture-child.js';
+import { runFixtureGit, privateFixtureFiles } from './fixture-child.js';
+
+const GIT_START = ['init', '-q'];
 
 /** An isolated real Git repository gives each private pending record its actual common directory. */
 function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-automatic-wake-'));
+  const { root } = privateFixtureFiles('pullboard-automatic-wake-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  runFixtureGit(['init', '-q'], { cwd: root });
+  runFixtureGit(GIT_START, { cwd: root });
   return root;
 }
 
