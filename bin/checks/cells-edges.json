@@ -289,7 +289,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/commands/land.js": {
-      "cells": 15,
+      "cells": 17,
       "deep": 4
     },
     "apps/cli/src/shell/commands/lane.js": {

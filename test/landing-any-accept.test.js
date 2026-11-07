@@ -125,8 +125,11 @@ test('an accept from a reviewer worktree session lands on main with no command i
   assertLanded(box, items, binding);
 });
 
-test('two accepts at once from two sessions land both in one landing [B35,B3,R3]', async t => {
+test('two accepts at once from two sessions land both, each in a batch of one [B35,B3,R3,C7]', async t => {
   const { box, items, binding } = fixture(t, ['web', 'api']);
+  // The board's own batch size (Corey 5 Nov). An accept's landing starts at once, with no 10 s wait to gather accepts.
+  onBoard(box, board => store.setLineSetting(board, { agentId: 'coordinator', key: 'landingBatchSize', value: 1,
+    reason: 'Batch size stays one', window: { windowMinutes: 60, activeReviewers: 2, reviewWaitMedianMinutes: 40 } }));
   const before = onBoard(box, board => store.landingBatches(board).length);
   const results = await Promise.all(items.map(item => accept(box, item)));
   for (const result of results) {
@@ -135,5 +138,6 @@ test('two accepts at once from two sessions land both in one landing [B35,B3,R3]
   }
   await landed(box, items);
   assertLanded(box, items, binding);
-  assert.equal(onBoard(box, board => store.landingBatches(board).length) - before, 1, 'concurrent accepts coalesce into one landing');
+  const batches = onBoard(box, board => store.landingBatches(board)).slice(before).filter(batch => batch.state === 'landed');
+  assert.deepEqual(batches.map(batch => (batch.items ?? []).length), [1, 1], 'concurrent accepts land one item per batch');
 });
