@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { fixture } from './next-take-fixture.js';
 
-test('next --take offers an item whose files overlap another claim, with an overlap note [C7]', async t => {
+test('clause 1: next --take offers an item whose files overlap another claim, with an overlap note [C7]', async t => {
   const box = await fixture(t);
   const held = box.add('Held by the builder');
   box.claim(held);
@@ -14,7 +14,7 @@ test('next --take offers an item whose files overlap another claim, with an over
   assert.match(pick.reasons.join('\n'), /overlap/);
 });
 
-test('next never returns nothing-eligible while an unheld item claim would accept exists [C7]', async t => {
+test('clause 2: next never returns nothing-eligible while an unheld item claim would accept exists [C7]', async t => {
   const box = await fixture(t);
   box.claim(box.add('First held'));
   const open = box.add('Still claimable');
