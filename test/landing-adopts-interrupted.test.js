@@ -7,13 +7,20 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { test, afterEach, after } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import { json } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { landingHost } from '../packages/landing/index.js';
 import { landingProcessLive } from '../packages/landing/index.js';
+
+// DIAGNOSTIC (remove): per-case stderr lines and a live-handle dump at the end.
+afterEach((t) => { process.stderr.write(`DIAG case done: ${t.name} ${t.passed === false ? 'FAILED' : 'ok'}\n`); });
+after(() => {
+  const handles = process._getActiveHandles().map((h) => `${h.constructor?.name} ${h.remoteAddress ?? ''}:${h.remotePort ?? ''} fd=${h._handle?.fd ?? ''} spawnfile=${h.spawnfile ?? ''} pid=${h.pid ?? ''}`);
+  process.stderr.write(`DIAG handles at end: ${JSON.stringify(handles)}\n`);
+});
 
 /** Commit fixture source through the installed ordinary hooks. */
 function commit(box, root, message) {
