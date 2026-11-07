@@ -14,6 +14,8 @@ import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
+import { deadWorker } from './handoff-worker-alive.js';
+import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -129,16 +131,6 @@ async function launchCapturedWorker(directory, tools, commonDir, job, relaunches
   await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
 }
 
-/** An absent process, a different exact incarnation or a worker the dispatcher could not start proves death; unavailable identity never does. */
-function deadWorker(worker, job) {
-  if (worker?.job === job.id && worker.unstarted && worker.pid === null) return true;
-  if (worker?.job !== job.id || !Number.isSafeInteger(worker.pid) || worker.pid < 1) return false;
-  try { process.kill(worker.pid, 0); }
-  catch (error) { return error.code === 'ESRCH'; }
-  const observed = exactStart(worker.pid);
-  return Boolean(worker.started && observed && observed !== worker.started);
-}
-
 /** How long a hand-off may have no place in line and no live worker before the board requeues it as worker-gone. */
 export const WORKER_GONE_GRACE_MS = 10 * 60_000;
 
@@ -167,12 +159,6 @@ export const LOST_LAUNCH_GRACE_MS = 2 * 60_000;
 export function lostQueuedLaunch(job, { now = Date.now(), waiting = handoffTicketWaiting } = {}) {
   const at = Date.parse(job?.at ?? '');
   return job?.state === 'queued' && Number.isFinite(at) && now - at > LOST_LAUNCH_GRACE_MS && !waiting(job.id);
-}
-
-/** The job's worker record, or null while none is written. */
-function readWorkerRecord(directory) {
-  try { return JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch { return null; }
 }
 
 /**
