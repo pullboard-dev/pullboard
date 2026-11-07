@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
+import { submitHandoffRecord } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { writeBoardCommand } from '../packages/store/index.js';
 import { completeSubmitHandoff } from '../packages/store/index.js';
@@ -15,7 +16,6 @@ import { endedSubmitHandoff } from '../packages/store/index.js';
 import { adoptLegacyHandoffs } from '../packages/store/index.js';
 import { missingJobTables } from '../packages/store/index.js';
 import { jobView } from '../packages/jobs/index.js';
-import { submitHandoffRecord } from '../packages/jobs/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
 
 /** Build a project with a claimed item and one committed candidate, ready to queue. */

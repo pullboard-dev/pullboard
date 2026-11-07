@@ -1,7 +1,6 @@
 /** The submit hand-off record, owned by the gate job's rows: every save is a step carrying the whole record [C7]. */
 import { createJob } from "./job-store.js";
 import { writeStep } from "./job-store.js";
-import { handoffRecord } from "../../../store/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /**
@@ -36,14 +35,3 @@ export function shadowSubmitHandoff(db, item, handoff, { now = Date.now() } = {}
 /** The job cell's name for the writer: saving a hand-off record onto its gate job. */
 export const recordSubmitHandoff = shadowSubmitHandoff;
 
-/**
- * The item's current submit hand-off record: the record on the latest step of its gate jobs, as the store reads it.
- * Undefined when no gate job step carries a record [C7].
- *
- * @param {import('node:sqlite').DatabaseSync} db
- * @param {number} item
- * @returns {Record<string, any> | undefined}
- */
-export function submitHandoffRecord(db, item) {
-  return handoffRecord(db, item);
-}
