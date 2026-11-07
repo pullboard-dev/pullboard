@@ -7,6 +7,7 @@ import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -109,4 +110,68 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
     appendFileSync(join(dir, `${at.toISOString().slice(0, 10)}.jsonl`), `${JSON.stringify(line)}\n`);
     return line;
   } catch { return null; }
+}
+
+/** Unit lengths in milliseconds for a --since value such as 90m, 2h or 1d. */
+const SINCE_UNITS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+
+/** The epoch milliseconds a --since value reaches back to from `now`, or null when the value is not <number><s|m|h|d>. */
+export function sinceCutoff(value, now = Date.now()) {
+  const match = /^([1-9][0-9]*)([smhd])$/u.exec(String(value));
+  return match ? now - Number(match[1]) * SINCE_UNITS[match[2]] : null;
+}
+
+/** Every parsed trace line under the shared trace folder of a git common dir, oldest file first; unreadable lines are skipped. */
+export function readTraceLines(commonDir) {
+  const dir = join(commonDir, 'pullboard', 'trace');
+  let names;
+  try { names = readdirSync(dir).filter(name => name.endsWith('.jsonl')).sort(); } catch { return []; }
+  const lines = [];
+  for (const name of names) {
+    for (const text of readFileSync(join(dir, name), 'utf8').split('\n')) {
+      if (!text) continue;
+      try { lines.push(JSON.parse(text)); } catch { /* A torn line is skipped; the rest of the day still reads. */ }
+    }
+  }
+  return lines;
+}
+
+/** The first non-empty string among the named keys of a board event's detail, or '' (the event's stated why). */
+function eventWhy(detail) {
+  for (const key of ['reason', 'note', 'text', 'message', 'title']) if (typeof detail?.[key] === 'string' && detail[key]) return detail[key];
+  return '';
+}
+
+/**
+ * One timeline from trace lines and board event rows, in time order, one entry per call or event: time, source
+ * (call or event), agent, command, item, outcome (ok, the refusal code, or error), duration in ms (null for an event)
+ * and why (the refusal message, or the event's reason or note). A subject that is an item id keeps every agent's
+ * entries on that item; any other subject keeps that agent's entries only.
+ */
+export function traceTimeline({ lines, events, subject, since = null }) {
+  const item = /^#?([1-9][0-9]*)$/u.exec(String(subject))?.[1];
+  const wanted = item ? Number(item) : null;
+  const entries = [];
+  for (const line of lines) {
+    if (wanted !== null ? line.item !== wanted : line.agent !== subject) continue;
+    entries.push({
+      time: line.at, source: 'call', agent: line.agent, command: line.command, item: line.item ?? null,
+      outcome: line.refusal?.code ?? (line.error ? 'error' : line.exit === 0 ? 'ok' : `exit ${line.exit}`),
+      ms: line.ms ?? null, why: line.refusal?.message ?? line.error ?? '',
+    });
+  }
+  for (const row of events) {
+    if (wanted !== null ? row.item_id !== wanted : row.event_by !== subject) continue;
+    let detail = {};
+    try { detail = JSON.parse(row.event_detail); } catch { /* A detail that is not JSON has no stated why. */ }
+    entries.push({ time: row.event_at, source: 'event', agent: row.event_by, command: row.event_kind, item: row.item_id ?? null, outcome: 'ok', ms: null, why: eventWhy(detail) });
+  }
+  const kept = since === null ? entries : entries.filter(entry => Date.parse(entry.time) >= since);
+  return kept.sort((left, right) => Date.parse(left.time) - Date.parse(right.time));
+}
+
+/** One printable line for a timeline entry: time, command, item, outcome, duration and why. */
+export function traceLine(entry) {
+  const duration = entry.ms === null ? '-' : `${entry.ms}ms`;
+  return [entry.time, entry.command, entry.item === null ? '-' : `#${entry.item}`, entry.outcome, duration, String(entry.why).replace(/\s+/gu, ' ').trim() || '-'].join('  ');
 }
