@@ -210,13 +210,16 @@ export function verificationCriterionDigest(freeze, item) {
 }
 
 /**
- * Render a failed private check's own diagnostics: its output digest, sanitized tail and private full-output path.
+ * Render a failed private check's diagnostics: its report when no structured test counts are available, sanitized tail and full-output path.
  *
- * The test-output summary reads test counts and failing cases, which a plain shell check or install has none of,
- * so a refusal must still carry the digest, tail and path the check recorded [V18,V2].
+ * A parsed test summary replaces the duplicate report; plain shell checks and installs keep that report because
+ * they have no structured test counts or failures [V18,V2].
+ * @param {any} check
+ * @param {{ hasStructuredCounts?: boolean }} [options]
+ * @returns {string}
  */
-function privateCheckEvidence(check) {
-  const digest = check.report ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
+function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
+  const digest = check.report && !hasStructuredCounts ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
   const tail = check.checked
     ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map(line => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
     : '';
@@ -378,7 +381,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
-        const evidence = privateCheckEvidence(check) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
+        const hasStructuredCounts = check.state === 'red'
+          && verificationOutput?.counts.passed != null && verificationOutput?.counts.failed != null;
+        const evidence = privateCheckEvidence(check, { hasStructuredCounts }) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,

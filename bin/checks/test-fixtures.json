@@ -1,10 +1,6 @@
 {
   "apps/cli/tests/exit-rules.test.js": {
-    "model": 5,
-    "raw-cli": 2
-  },
-  "apps/cli/tests/submit-no-plan.test.js": {
-    "raw-cli": 1
+    "model": 5
   },
   "apps/cli/tests/worktree-maintenance-archive.fixture.js": {
     "tempdir": 2
@@ -12,9 +8,6 @@
   "apps/cli/tests/worktree-maintenance-scheduler.fixture.js": {
     "tempdir": 1,
     "model": 1
-  },
-  "apps/lib/tests/submit-handoff-worker.test.js": {
-    "raw-cli": 3
   },
   "docs/api.test.js": {
     "repo-read": 3
@@ -64,31 +57,22 @@
     "repo-read": 2,
     "hex64": 1
   },
-  "packages/api/tests/shout-item-cli.test.js": {
-    "raw-cli": 3
-  },
   "packages/blueprints/tests/blueprint.test.js": {
     "repo-read": 4,
-    "raw-cli": 20,
     "model": 2,
     "tempdir": 3
   },
   "packages/codemap/tests/root-allowlist.test.js": {
     "tempdir": 2
   },
-  "packages/codemap/tests/shim-import-ratchet.test.js": {
-    "raw-cli": 1
-  },
   "packages/commits/tests/landing-message.test.js": {
-    "raw-cli": 1,
     "model": 1
   },
   "packages/commits/tests/merge-hooks.test.js": {
     "tempdir": 4
   },
   "packages/config/tests/lanes.test.js": {
-    "tempdir": 4,
-    "raw-cli": 3
+    "tempdir": 4
   },
   "packages/config/tests/registry.test.js": {
     "tempdir": 3
@@ -96,12 +80,6 @@
   "packages/config/tests/submit-infra.test.js": {
     "tempdir": 2,
     "model": 1
-  },
-  "packages/config/tests/submit-registry-guards.test.js": {
-    "raw-cli": 1
-  },
-  "packages/config/tests/submit-size.test.js": {
-    "raw-cli": 1
   },
   "packages/config/tests/watch.test.js": {
     "tempdir": 2,
@@ -125,12 +103,10 @@
   },
   "packages/gate/tests/gate-resource.test.js": {
     "tempdir": 3,
-    "model": 2,
-    "raw-cli": 3
+    "model": 2
   },
   "packages/gate/tests/gate-timing-output.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "packages/gate/tests/gui-admission.test.js": {
     "tempdir": 3
@@ -148,8 +124,7 @@
     "tempdir": 2
   },
   "packages/gate/tests/resources.test.js": {
-    "tempdir": 1,
-    "raw-cli": 2
+    "tempdir": 1
   },
   "packages/gate/tests/runner-closure.test.js": {
     "repo-read": 1
@@ -173,9 +148,6 @@
   },
   "packages/items/tests/item-offer.test.js": {
     "tempdir": 2
-  },
-  "packages/items/tests/item-size.test.js": {
-    "raw-cli": 3
   },
   "packages/kernel/tests/seal.test.js": {
     "tempdir": 2,
@@ -248,9 +220,6 @@
   "packages/resources/tests/resource-inheritance.test.js": {
     "tempdir": 1
   },
-  "packages/resources/tests/submit-lease.test.js": {
-    "raw-cli": 1
-  },
   "packages/runners/tests/cleanup-diagnostics.test.js": {
     "tempdir": 2
   },
@@ -258,12 +227,10 @@
     "tempdir": 2
   },
   "packages/runners/tests/runner-slots-measured.test.js": {
-    "tempdir": 1,
-    "raw-cli": 5
+    "tempdir": 1
   },
   "packages/sandbox/tests/lane-bypass.test.js": {
-    "tempdir": 1,
-    "raw-cli": 2
+    "tempdir": 1
   },
   "packages/sandbox/tests/owns-new-file.test.js": {
     "tempdir": 2
@@ -273,18 +240,13 @@
     "repo-read": 1
   },
   "packages/sandbox/tests/trunk.test.js": {
-    "tempdir": 1,
-    "raw-cli": 6
+    "tempdir": 1
   },
   "packages/sandbox/tests/trusted-policy-ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/sandbox/tests/trusted-policy.test.js": {
-    "raw-cli": 1
-  },
   "packages/spec/tests/doctrine-rulings.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "packages/spec/tests/signoff.test.js": {
     "tempdir": 2
@@ -301,9 +263,6 @@
   "packages/state/tests/exchange.test.js": {
     "tempdir": 2,
     "model": 1
-  },
-  "packages/state/tests/flow-submit-size.test.js": {
-    "raw-cli": 1
   },
   "packages/state/tests/implies.test.js": {
     "tempdir": 2
@@ -335,9 +294,6 @@
     "tempdir": 4,
     "model": 1
   },
-  "packages/state/tests/review-queue-replay.test.js": {
-    "tempdir": 1
-  },
   "packages/state/tests/settings.test.js": {
     "tempdir": 2,
     "model": 1
@@ -356,7 +312,6 @@
     "tempdir": 2
   },
   "packages/stats/tests/cost-dollars.test.js": {
-    "raw-cli": 1,
     "model": 1
   },
   "packages/stats/tests/flow-report.test.js": {
@@ -372,7 +327,6 @@
     "tempdir": 2
   },
   "packages/stats/tests/stats-time.test.js": {
-    "raw-cli": 2,
     "tempdir": 2,
     "model": 1
   },
@@ -388,26 +342,16 @@
   "packages/store/tests/claim-reopen-clock.test.js": {
     "tempdir": 1
   },
-  "packages/store/tests/commit-metadata.test.js": {
-    "raw-cli": 4
-  },
   "packages/store/tests/infra-release.test.js": {
     "tempdir": 1
   },
   "packages/store/tests/item-notes.test.js": {
     "model": 2
   },
-  "packages/store/tests/stacked-submit.test.js": {
-    "raw-cli": 4
-  },
   "packages/store/tests/verdict-check.test.js": {
     "tempdir": 1,
     "model": 2,
-    "raw-cli": 1,
     "hex64": 135
-  },
-  "packages/store/tests/verify.test.js": {
-    "raw-cli": 6
   },
   "packages/sync/tests/local-fetch.test.js": {
     "tempdir": 1
@@ -419,24 +363,17 @@
     "model": 1
   },
   "test/accept-reuses-receipt.test.js": {
-    "model": 2,
-    "raw-cli": 1
+    "model": 2
   },
   "test/accepted-green-relands.test.js": {
-    "model": 1,
-    "raw-cli": 1
-  },
-  "test/activity-feed.test.js": {
-    "raw-cli": 1
+    "model": 1
   },
   "test/add-default-route-brief.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/add-lane-check.test.js": {
     "tempdir": 2,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/affected-graph-cache.test.js": {
     "tempdir": 2
@@ -456,7 +393,6 @@
   },
   "test/api-catalog.test.js": {
     "tempdir": 2,
-    "raw-cli": 2,
     "model": 1
   },
   "test/api-events.test.js": {
@@ -478,8 +414,7 @@
   },
   "test/api.test.js": {
     "model": 5,
-    "tempdir": 1,
-    "raw-cli": 2
+    "tempdir": 1
   },
   "test/attach-submit-eligibility.test.js": {
     "model": 1
@@ -491,38 +426,20 @@
     "tempdir": 2
   },
   "test/badge-fixture.js": {
-    "model": 2,
-    "raw-cli": 3
-  },
-  "test/bar-check.test.js": {
-    "raw-cli": 3
+    "model": 2
   },
   "test/bar-coverage.test.js": {
     "tempdir": 2
   },
   "test/bar-no-full-suite.test.js": {
-    "model": 2,
-    "raw-cli": 4
-  },
-  "test/baseline-keeps-failures.test.js": {
-    "raw-cli": 1
-  },
-  "test/blocks.test.js": {
-    "raw-cli": 2
-  },
-  "test/blueprint-architecture-coverage.js": {
-    "raw-cli": 1
+    "model": 2
   },
   "test/blueprint-web-defaults.test.js": {
     "tempdir": 2
   },
   "test/board-busy-retry.test.js": {
     "tempdir": 1,
-    "model": 4,
-    "raw-cli": 2
-  },
-  "test/board-busy.test.js": {
-    "raw-cli": 3
+    "model": 4
   },
   "test/board-composition-root.test.js": {
     "tempdir": 9
@@ -544,9 +461,6 @@
   },
   "test/board-read-cantopen-retry.test.js": {
     "tempdir": 1
-  },
-  "test/board-read-lock.test.js": {
-    "raw-cli": 1
   },
   "test/board-scale-1000-seats.test.js": {
     "tempdir": 1
@@ -574,9 +488,6 @@
   "test/branch-worktree-isolation.js": {
     "tempdir": 2,
     "model": 1
-  },
-  "test/brief-quoted-check-path.test.js": {
-    "raw-cli": 1
   },
   "test/browser-admission-runners.test.js": {
     "tempdir": 3
@@ -606,9 +517,6 @@
   "test/cell-lints.test.js": {
     "tempdir": 2
   },
-  "test/cells-checks-advisory.test.js": {
-    "raw-cli": 1
-  },
   "test/cells-data-reads.test.js": {
     "tempdir": 2
   },
@@ -637,8 +545,7 @@
     "repo-read": 1
   },
   "test/cells-remove-shims.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/cells-shards.test.js": {
     "tempdir": 2
@@ -654,26 +561,17 @@
   },
   "test/check-accept.test.js": {
     "tempdir": 1,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/check-baseline.test.js": {
-    "tempdir": 1,
-    "raw-cli": 1
+    "tempdir": 1
   },
   "test/check-receipts.test.js": {
-    "raw-cli": 2,
     "model": 1,
     "tempdir": 4
   },
-  "test/check-timing-admission.test.js": {
-    "raw-cli": 2
-  },
   "test/check-widen-self.test.js": {
     "tempdir": 2
-  },
-  "test/checked-composition-resume.test.js": {
-    "raw-cli": 2
   },
   "test/checks-test-fixtures.test.js": {
     "tempdir": 1
@@ -695,16 +593,11 @@
     "tempdir": 2
   },
   "test/claim-hygiene.test.js": {
-    "tempdir": 2,
-    "raw-cli": 2
-  },
-  "test/claim-no-foreign-git.test.js": {
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/claim-overlap.test.js": {
     "tempdir": 4,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/claim-reopen.test.js": {
     "tempdir": 1
@@ -732,8 +625,7 @@
   },
   "test/cli-startup.test.js": {
     "tempdir": 2,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/cockpit/activity-data.js": {
     "model": 1
@@ -1131,15 +1023,6 @@
   "test/cockpit/window-compare.test.js": {
     "raw-cli": 1
   },
-  "test/code-map.test.js": {
-    "raw-cli": 2
-  },
-  "test/command-time-budget.test.js": {
-    "raw-cli": 1
-  },
-  "test/commit-hook-stale-claims.test.js": {
-    "raw-cli": 1
-  },
   "test/companion-three-way.test.js": {
     "tempdir": 8
   },
@@ -1150,31 +1033,22 @@
     "tempdir": 1
   },
   "test/coordinator-resume.test.js": {
-    "tempdir": 2,
-    "raw-cli": 2
+    "tempdir": 2
   },
   "test/cost-analytics.test.js": {
     "model": 7,
     "tempdir": 1
   },
   "test/cost.test.js": {
-    "raw-cli": 7,
     "model": 16
   },
   "test/cross-lane-import-edits.test.js": {
     "tempdir": 2,
     "model": 1
   },
-  "test/dead-handoff-ends.test.js": {
-    "raw-cli": 1
-  },
-  "test/dead-running-handoff.test.js": {
-    "raw-cli": 1
-  },
   "test/default-route-mid.test.js": {
     "tempdir": 1,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/digest.test.js": {
     "tempdir": 2
@@ -1185,9 +1059,6 @@
   },
   "test/doctor.test.js": {
     "tempdir": 2
-  },
-  "test/doctrine-checks.test.js": {
-    "raw-cli": 3
   },
   "test/doctrine-count-follows-moves.test.js": {
     "tempdir": 2
@@ -1202,47 +1073,25 @@
     "tempdir": 3
   },
   "test/doctrine-name.test.js": {
-    "tempdir": 1,
-    "raw-cli": 2
+    "tempdir": 1
   },
   "test/doctrine.test.js": {
     "tempdir": 1,
     "repo-read": 2
-  },
-  "test/e2e-cli.test.js": {
-    "raw-cli": 13
   },
   "test/e2e-helpers.js": {
     "repo-read": 1,
     "tempdir": 1,
     "model": 3
   },
-  "test/e2e-items.test.js": {
-    "raw-cli": 10
-  },
   "test/e2e-model-names.test.js": {
-    "model": 10,
-    "raw-cli": 7
-  },
-  "test/e2e-policy.test.js": {
-    "raw-cli": 16
-  },
-  "test/e2e-private-checks.test.js": {
-    "raw-cli": 1
-  },
-  "test/e2e-runner.test.js": {
-    "raw-cli": 16
+    "model": 10
   },
   "test/e2e-view.test.js": {
-    "model": 1,
-    "raw-cli": 2
+    "model": 1
   },
   "test/e2e.test.js": {
-    "repo-read": 1,
-    "raw-cli": 10
-  },
-  "test/empty-submit.test.js": {
-    "raw-cli": 1
+    "repo-read": 1
   },
   "test/engine-folder.test.js": {
     "tempdir": 3
@@ -1269,9 +1118,6 @@
   },
   "test/fixture-env-isolated.test.js": {
     "model": 1
-  },
-  "test/fixture-machine-isolation.test.js": {
-    "raw-cli": 1
   },
   "test/fixture-source-edits.test.js": {
     "tempdir": 1
@@ -1304,8 +1150,7 @@
     "tempdir": 2
   },
   "test/gate-profile.test.js": {
-    "tempdir": 1,
-    "raw-cli": 6
+    "tempdir": 1
   },
   "test/gate-records-test-account.test.js": {
     "model": 1
@@ -1319,12 +1164,10 @@
   "test/gate.test.js": {
     "tempdir": 11,
     "repo-read": 2,
-    "model": 1,
-    "raw-cli": 2
+    "model": 1
   },
   "test/generated-doc-handoff-fixture.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/generated-doc-review-default-fixture.js": {
     "model": 1
@@ -1338,9 +1181,6 @@
   },
   "test/git-calls.test.js": {
     "tempdir": 2
-  },
-  "test/git-sync-enable-after-ack.test.js": {
-    "raw-cli": 1
   },
   "test/git-sync-lock.test.js": {
     "tempdir": 1
@@ -1366,28 +1206,24 @@
     "tempdir": 1
   },
   "test/handoff-dispatcher-session.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/handoff-dispatcher-slot-reuse.test.js": {
     "tempdir": 1
   },
   "test/handoff-drops-orphan.test.js": {
     "tempdir": 1,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/handoff-folder-prune.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
   "test/handoff-missing-tools.test.js": {
-    "tempdir": 1,
-    "raw-cli": 1
+    "tempdir": 1
   },
   "test/handoff-tools-shared-snapshot.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/handoff-urgent-first.test.js": {
     "tempdir": 1
@@ -1421,30 +1257,17 @@
   "test/help-examples.test.js": {
     "model": 1
   },
-  "test/hook-no-slot.test.js": {
-    "raw-cli": 1
-  },
   "test/hooks.test.js": {
-    "raw-cli": 3,
     "tempdir": 2
   },
   "test/hosted-shapes.test.js": {
     "repo-read": 3
   },
-  "test/hotfix-post-hoc-review.test.js": {
-    "raw-cli": 1
-  },
   "test/http-fixture.test.js": {
     "tempdir": 2
   },
-  "test/idle-seat.test.js": {
-    "raw-cli": 2
-  },
   "test/import-style-helpers.js": {
     "tempdir": 1
-  },
-  "test/init-gate.test.js": {
-    "raw-cli": 3
   },
   "test/init-ignore.test.js": {
     "tempdir": 2,
@@ -1460,11 +1283,7 @@
     "model": 1
   },
   "test/inspection-clause-evidence.test.js": {
-    "model": 1,
-    "raw-cli": 2
-  },
-  "test/inspection-clauses.test.js": {
-    "raw-cli": 1
+    "model": 1
   },
   "test/inspection-submit-ticks.test.js": {
     "model": 2
@@ -1475,38 +1294,21 @@
   "test/item-folder-seat-once.test.js": {
     "tempdir": 3
   },
-  "test/item-folder.test.js": {
-    "raw-cli": 5
-  },
   "test/item-patch-compose.test.js": {
     "tempdir": 1
   },
-  "test/item-patch-journey.test.js": {
-    "raw-cli": 1
-  },
-  "test/item-patches-presubmit.test.js": {
-    "raw-cli": 1
-  },
-  "test/item-patches.test.js": {
-    "raw-cli": 2
-  },
   "test/item-session-port.test.js": {
     "tempdir": 1
-  },
-  "test/item-size-budget.test.js": {
-    "raw-cli": 1
   },
   "test/item-slice-create.test.js": {
     "model": 1
   },
   "test/join-fast.test.js": {
     "tempdir": 4,
-    "model": 1,
-    "raw-cli": 2
+    "model": 1
   },
   "test/join-idempotent.test.js": {
-    "model": 7,
-    "raw-cli": 8
+    "model": 7
   },
   "test/journeys.test.js": {
     "tempdir": 3,
@@ -1535,15 +1337,8 @@
   "test/land-engine-numbers.test.js": {
     "tempdir": 1
   },
-  "test/land-next.test.js": {
-    "raw-cli": 2
-  },
   "test/land-no-remote-fixture.js": {
-    "raw-cli": 2,
     "model": 1
-  },
-  "test/land.test.js": {
-    "raw-cli": 2
   },
   "test/landing-adopts-interrupted.test.js": {
     "model": 1
@@ -1552,7 +1347,6 @@
     "model": 1
   },
   "test/landing-any-accept.test.js": {
-    "raw-cli": 1,
     "model": 1
   },
   "test/landing-base-split-cached.test.js": {
@@ -1570,9 +1364,6 @@
   "test/landing-controller-placement.test.js": {
     "tempdir": 1,
     "repo-read": 2
-  },
-  "test/landing-first.test.js": {
-    "raw-cli": 2
   },
   "test/landing-history-plan.test.js": {
     "tempdir": 2
@@ -1612,8 +1403,7 @@
     "model": 2
   },
   "test/landing-policy-keeps-gates.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/landing-refresh-detached.test.js": {
     "tempdir": 2
@@ -1667,8 +1457,7 @@
     "tempdir": 1
   },
   "test/lane-add.test.js": {
-    "tempdir": 2,
-    "raw-cli": 8
+    "tempdir": 2
   },
   "test/lane-generated-tier-row.test.js": {
     "tempdir": 2,
@@ -1676,9 +1465,6 @@
   },
   "test/lane-lead.test.js": {
     "tempdir": 1
-  },
-  "test/lease-holds-during-gate.test.js": {
-    "raw-cli": 2
   },
   "test/legacy-watchdog.test.js": {
     "tempdir": 1
@@ -1693,11 +1479,7 @@
     "tempdir": 2
   },
   "test/lock-hold-budget-command.fixture.js": {
-    "model": 1,
-    "raw-cli": 1
-  },
-  "test/lost-handoff-ticket.test.js": {
-    "raw-cli": 2
+    "model": 1
   },
   "test/machine-generator.test.js": {
     "repo-read": 1
@@ -1710,8 +1492,7 @@
   },
   "test/machine.test.js": {
     "repo-read": 2,
-    "tempdir": 4,
-    "raw-cli": 2
+    "tempdir": 4
   },
   "test/main-audit-attribution.test.js": {
     "tempdir": 2
@@ -1731,14 +1512,8 @@
   "test/main-compare-knows-main.test.js": {
     "tempdir": 2
   },
-  "test/main-facts-cache.test.js": {
-    "raw-cli": 1
-  },
   "test/main-moved-fixture.js": {
     "tempdir": 2
-  },
-  "test/main-moved-warning.test.js": {
-    "raw-cli": 1
   },
   "test/main-red-auto-close.test.js": {
     "tempdir": 1
@@ -1772,12 +1547,10 @@
     "tempdir": 6
   },
   "test/mixed-mode-drill-fixture.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/model-tier-route.test.js": {
-    "model": 4,
-    "raw-cli": 5
+    "model": 4
   },
   "test/module-import-cache.test.js": {
     "tempdir": 1
@@ -1792,9 +1565,6 @@
   "test/moves-move-closure.test.js": {
     "tempdir": 2
   },
-  "test/multiple-claims-cli.test.js": {
-    "raw-cli": 1
-  },
   "test/native-flakes.test.js": {
     "tempdir": 2
   },
@@ -1805,30 +1575,20 @@
     "tempdir": 2,
     "model": 1
   },
-  "test/next-constant-in-claims.test.js": {
-    "raw-cli": 1
-  },
   "test/next-diagnose-offer.test.js": {
-    "model": 2,
-    "raw-cli": 2
+    "model": 2
   },
   "test/next-item-folders.test.js": {
-    "raw-cli": 2,
     "model": 1
   },
   "test/next-order.test.js": {
-    "raw-cli": 3,
     "model": 6
-  },
-  "test/next-progress-monitor-eval.test.js": {
-    "raw-cli": 1
   },
   "test/next-take-fixture.js": {
     "tempdir": 2
   },
   "test/next-verify.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/no-eligible-reviewer.test.js": {
     "model": 4
@@ -1841,8 +1601,7 @@
     "model": 2
   },
   "test/no-wait-refusals.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/node-version.test.js": {
     "tempdir": 3
@@ -1864,7 +1623,6 @@
     "tempdir": 4
   },
   "test/pending-refreeze.test.js": {
-    "raw-cli": 3,
     "tempdir": 2
   },
   "test/per-file-timeout-report.test.js": {
@@ -1888,8 +1646,7 @@
     "tempdir": 2
   },
   "test/pinned-tool-build.test.js": {
-    "repo-read": 1,
-    "raw-cli": 2
+    "repo-read": 1
   },
   "test/pinned-tool-policy-once.test.js": {
     "tempdir": 1
@@ -1897,17 +1654,8 @@
   "test/plan-drift-gate.test.js": {
     "model": 2
   },
-  "test/pr-bridge-fixture.js": {
-    "raw-cli": 3
-  },
-  "test/pr-bridge.test.js": {
-    "raw-cli": 2
-  },
   "test/practice.test.js": {
     "tempdir": 5
-  },
-  "test/precommit-composes-companions.test.js": {
-    "raw-cli": 2
   },
   "test/precommit-fixes-import-bindings.test.js": {
     "tempdir": 2
@@ -1917,7 +1665,6 @@
     "model": 1
   },
   "test/presence.test.js": {
-    "raw-cli": 2,
     "tempdir": 5,
     "model": 1
   },
@@ -1935,7 +1682,6 @@
     "tempdir": 2
   },
   "test/project-git-timeout-fixture.js": {
-    "raw-cli": 2,
     "model": 1
   },
   "test/project-meta.test.js": {
@@ -1964,9 +1710,6 @@
   "test/queued-item-lease-busy.test.js": {
     "tempdir": 2
   },
-  "test/queued-red-returns-to-builder.test.js": {
-    "raw-cli": 1
-  },
   "test/ratchet-against-main.test.js": {
     "tempdir": 3
   },
@@ -1977,9 +1720,6 @@
     "tempdir": 1,
     "repo-read": 1
   },
-  "test/read-filters.test.js": {
-    "raw-cli": 1
-  },
   "test/readme.test.js": {
     "repo-read": 17
   },
@@ -1989,24 +1729,15 @@
   "test/red-return-idle-lapse.test.js": {
     "tempdir": 2
   },
-  "test/references.test.js": {
-    "raw-cli": 5
-  },
   "test/refreeze.test.js": {
     "tempdir": 2,
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/refusal-next-steps.test.js": {
-    "raw-cli": 4,
     "model": 5
   },
   "test/refusal-report-only.test.js": {
-    "tempdir": 1,
-    "raw-cli": 1
-  },
-  "test/reject-clause.test.js": {
-    "raw-cli": 2
+    "tempdir": 1
   },
   "test/reject-reopens-to-any.test.js": {
     "model": 1
@@ -2039,8 +1770,7 @@
     "model": 3
   },
   "test/relay-client-fixture.js": {
-    "tempdir": 3,
-    "raw-cli": 1
+    "tempdir": 3
   },
   "test/relay-client.test.js": {
     "tempdir": 5,
@@ -2063,16 +1793,11 @@
     "tempdir": 1
   },
   "test/relay-local-first-verdict.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/relay-local-first.test.js": {
     "model": 4,
-    "raw-cli": 1,
     "tempdir": 1
-  },
-  "test/relay-local-origin.test.js": {
-    "raw-cli": 2
   },
   "test/relay-machine-auth.test.js": {
     "tempdir": 2
@@ -2148,8 +1873,7 @@
     "tempdir": 1
   },
   "test/release-clears-claim.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/release-producer-cases.js": {
     "tempdir": 2
@@ -2176,7 +1900,6 @@
   },
   "test/reopen-conflict.test.js": {
     "model": 1,
-    "raw-cli": 1,
     "tempdir": 1
   },
   "test/requeue-restriction-valid.test.js": {
@@ -2199,24 +1922,18 @@
     "tempdir": 1
   },
   "test/resources-runner-only-fixture.js": {
-    "tempdir": 1,
-    "raw-cli": 3
+    "tempdir": 1
   },
   "test/resources-verify-fixture.js": {
-    "model": 1,
-    "raw-cli": 2
+    "model": 1
   },
   "test/resume-flow.test.js": {
     "tempdir": 4,
     "repo-read": 1,
-    "model": 4,
-    "raw-cli": 4
+    "model": 4
   },
   "test/review-capacity-wake.test.js": {
     "model": 1
-  },
-  "test/review-companions.test.js": {
-    "raw-cli": 1
   },
   "test/review-eligibility.test.js": {
     "model": 29
@@ -2231,7 +1948,6 @@
     "tempdir": 2
   },
   "test/review-queue.test.js": {
-    "raw-cli": 5,
     "tempdir": 1
   },
   "test/review-reservation.test.js": {
@@ -2265,27 +1981,20 @@
   },
   "test/rigor.test.js": {
     "tempdir": 3,
-    "model": 7,
-    "raw-cli": 1
+    "model": 7
   },
   "test/roadmap.test.js": {
     "tempdir": 4,
-    "model": 2,
-    "raw-cli": 5
+    "model": 2
   },
   "test/route-calibration.test.js": {
-    "model": 1,
-    "raw-cli": 3
+    "model": 1
   },
   "test/route-capacity.test.js": {
     "tempdir": 2
   },
-  "test/route-wakes-idle-seat.test.js": {
-    "raw-cli": 2
-  },
   "test/routing-rules.test.js": {
-    "model": 4,
-    "raw-cli": 1
+    "model": 4
   },
   "test/row-decisions-replay.test.js": {
     "tempdir": 1
@@ -2298,9 +2007,6 @@
   },
   "test/run-tests-fixture.js": {
     "tempdir": 1
-  },
-  "test/run-tests-lazy-graph.test.js": {
-    "repo-read": 3
   },
   "test/run-tests-options.test.js": {
     "tempdir": 3
@@ -2344,14 +2050,8 @@
   "test/runner-cleanup-recovery.test.js": {
     "model": 1
   },
-  "test/runner-controller-idle-cpu.test.js": {
-    "raw-cli": 1
-  },
   "test/runner-controller-machine-fixture.js": {
     "repo-read": 1
-  },
-  "test/runner-controller-orphan.test.js": {
-    "raw-cli": 1
   },
   "test/runner-controller.test.js": {
     "tempdir": 1
@@ -2373,9 +2073,6 @@
   },
   "test/runner-fetches-trunk.test.js": {
     "tempdir": 3
-  },
-  "test/runner-first-fixture.js": {
-    "raw-cli": 1
   },
   "test/runner-fixture-state.test.js": {
     "tempdir": 2
@@ -2415,9 +2112,6 @@
   },
   "test/runner-policy.test.js": {
     "tempdir": 1
-  },
-  "test/runner-private-check-fixture.js": {
-    "raw-cli": 4
   },
   "test/runner-quarantine-recovers.test.js": {
     "tempdir": 3
@@ -2541,20 +2235,10 @@
     "tempdir": 4,
     "repo-read": 1
   },
-  "test/ship-command.test.js": {
-    "raw-cli": 1
-  },
-  "test/shout-report-refusal.test.js": {
-    "raw-cli": 2
-  },
-  "test/shout.test.js": {
-    "raw-cli": 1
-  },
   "test/show-check.test.js": {
     "tempdir": 1
   },
   "test/show.test.js": {
-    "raw-cli": 1,
     "tempdir": 2
   },
   "test/skills.test.js": {
@@ -2563,15 +2247,11 @@
     "hex64": 4
   },
   "test/spec-apply-busy-board.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/spec-approval.test.js": {
     "model": 2,
     "tempdir": 1
-  },
-  "test/spec-behind-main.test.js": {
-    "raw-cli": 1
   },
   "test/spec.test.js": {
     "tempdir": 6,
@@ -2579,9 +2259,6 @@
   },
   "test/split-repoints-checks.test.js": {
     "tempdir": 1
-  },
-  "test/stacked-history.test.js": {
-    "raw-cli": 5
   },
   "test/stale-cli-reclaim.test.js": {
     "tempdir": 1
@@ -2605,8 +2282,7 @@
     "tempdir": 1
   },
   "test/stats-moves.test.js": {
-    "tempdir": 2,
-    "raw-cli": 1
+    "tempdir": 2
   },
   "test/stats-pipeline.test.js": {
     "tempdir": 2
@@ -2619,8 +2295,7 @@
     "tempdir": 1
   },
   "test/submit-auto-merge.test.js": {
-    "tempdir": 2,
-    "raw-cli": 4
+    "tempdir": 2
   },
   "test/submit-cells-incremental.test.js": {
     "tempdir": 2
@@ -2636,12 +2311,10 @@
     "model": 2
   },
   "test/submit-derived-family.test.js": {
-    "model": 11,
-    "raw-cli": 6
+    "model": 11
   },
   "test/submit-foreground-main-move.test.js": {
-    "model": 1,
-    "raw-cli": 2
+    "model": 1
   },
   "test/submit-gate-fixture.js": {
     "tempdir": 2,
@@ -2651,14 +2324,10 @@
     "repo-read": 1
   },
   "test/submit-handoff-main-move.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/submit-handoff-worker-exit.test.js": {
     "tempdir": 1
-  },
-  "test/submit-handoff.test.js": {
-    "raw-cli": 9
   },
   "test/submit-main-moved-unrelated.test.js": {
     "tempdir": 2
@@ -2674,26 +2343,15 @@
     "tempdir": 2,
     "model": 1
   },
-  "test/submit-pin-main.test.js": {
-    "raw-cli": 1
-  },
-  "test/submit-preflight.test.js": {
-    "raw-cli": 2
-  },
   "test/submit-proof-reuse.test.js": {
     "model": 2,
-    "raw-cli": 2,
     "tempdir": 1
   },
   "test/submit-red-loop.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/submit-remote-gate.test.js": {
     "tempdir": 2
-  },
-  "test/submit-replaces-gate.test.js": {
-    "raw-cli": 1
   },
   "test/submit-runner-plan.test.js": {
     "tempdir": 2
@@ -2701,31 +2359,20 @@
   "test/submit-spec-row-proof.test.js": {
     "model": 1
   },
-  "test/submit-test-tree-cases.js": {
-    "raw-cli": 1
-  },
   "test/submit-tooling-retry.test.js": {
     "repo-read": 1
-  },
-  "test/submit-wait.test.js": {
-    "raw-cli": 2
   },
   "test/submit-wrong-branch.test.js": {
     "tempdir": 2
   },
   "test/sync.test.js": {
-    "model": 1,
-    "raw-cli": 7
+    "model": 1
   },
   "test/team-device-link.test.js": {
     "model": 1
   },
-  "test/team-people.test.js": {
-    "raw-cli": 1
-  },
   "test/team-private-board.test.js": {
-    "model": 2,
-    "raw-cli": 3
+    "model": 2
   },
   "test/team-session-access.test.js": {
     "model": 1
@@ -2746,7 +2393,6 @@
     "repo-read": 1
   },
   "test/test-output-summary.test.js": {
-    "raw-cli": 2,
     "model": 1
   },
   "test/test-resources.test.js": {
@@ -2755,9 +2401,6 @@
   },
   "test/test-result-fleet-fixture.js": {
     "tempdir": 2
-  },
-  "test/test-run-item-binding.test.js": {
-    "raw-cli": 1
   },
   "test/test-runner.test.js": {
     "tempdir": 8
@@ -2770,9 +2413,6 @@
   },
   "test/test-value.test.js": {
     "tempdir": 2
-  },
-  "test/testkit-fixture.js": {
-    "raw-cli": 1
   },
   "test/testkit-fixture.test.js": {
     "repo-read": 2
@@ -2787,12 +2427,8 @@
   "test/train-post-land-suite.test.js": {
     "tempdir": 1
   },
-  "test/trunk-conflict.test.js": {
-    "raw-cli": 3
-  },
   "test/two-tier-diagnosis.test.js": {
-    "model": 2,
-    "raw-cli": 2
+    "model": 2
   },
   "test/typed-requests.test.js": {
     "tempdir": 1
@@ -2802,8 +2438,7 @@
     "repo-read": 2
   },
   "test/usage-cache-split.test.js": {
-    "model": 3,
-    "raw-cli": 2
+    "model": 3
   },
   "test/usage-checkpoint-offpath.test.js": {
     "model": 2
@@ -2817,25 +2452,14 @@
   "test/verdict-composes-unchanged.test.js": {
     "tempdir": 2
   },
-  "test/verdict-trunk-moved.test.js": {
-    "raw-cli": 2
-  },
   "test/verdict-trunk-off-main.test.js": {
     "tempdir": 4
   },
-  "test/verdict-trunk.test.js": {
-    "raw-cli": 2
-  },
   "test/verdict-withdraw-engine.test.js": {
-    "raw-cli": 2,
     "tempdir": 1
   },
-  "test/verify-admission.test.js": {
-    "raw-cli": 2
-  },
   "test/verify-compare.test.js": {
-    "model": 2,
-    "raw-cli": 2
+    "model": 2
   },
   "test/verify-known-main.test.js": {
     "tempdir": 2
@@ -2844,7 +2468,6 @@
     "repo-read": 1
   },
   "test/verify-trunk-moved.test.js": {
-    "raw-cli": 2,
     "model": 1
   },
   "test/view-port.test.js": {
@@ -2854,7 +2477,6 @@
     "tempdir": 1
   },
   "test/view-services.test.js": {
-    "raw-cli": 1,
     "tempdir": 1
   },
   "test/view-state-size.test.js": {
@@ -2865,8 +2487,7 @@
   },
   "test/view.test.js": {
     "tempdir": 1,
-    "model": 4,
-    "raw-cli": 1
+    "model": 4
   },
   "test/wall-clock-budgets.test.js": {
     "tempdir": 7
@@ -2878,8 +2499,7 @@
     "tempdir": 1
   },
   "test/withdraw-note.test.js": {
-    "model": 1,
-    "raw-cli": 1
+    "model": 1
   },
   "test/worker-git-witness.fixture.js": {
     "repo-read": 1
@@ -2897,12 +2517,6 @@
     "repo-read": 2,
     "tempdir": 1
   },
-  "test/worktree-maintenance-cli-lifecycle.fixture.js": {
-    "raw-cli": 2
-  },
-  "test/worktree-maintenance-cli.fixture.js": {
-    "raw-cli": 2
-  },
   "test/worktree-runs-current-cli.test.js": {
     "tempdir": 2
   },
@@ -2910,7 +2524,6 @@
     "model": 7
   },
   "test/worktree-start.test.js": {
-    "model": 8,
-    "raw-cli": 6
+    "model": 8
   }
 }
