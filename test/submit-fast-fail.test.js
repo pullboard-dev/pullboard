@@ -1,7 +1,6 @@
 /** Submit refuses main conflicts and static failures while independent gate stages run [V4,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -18,11 +17,11 @@ const MARK = path => `node test/mark.mjs ${path}`;
 const GATE_FRONT_DOOR = fileURLToPath(new URL('../packages/gate/index.js', import.meta.url));
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
-function project(t, { staticFails = false, staticLint = false } = {}) {
+function project(t, { staticFails = false, staticLint = false, staticWaitsForDoctrine = false } = {}) {
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules bin/static-style-checks.js' : staticFails ? 'node test/static-problem.mjs' : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules bin/static-style-checks.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine}` : 'true'}`,
     shared: ['pullboard.json'] }));
   if (staticLint) {
     put(box.root, 'bin/checks/test-waits-baseline.json', '{}\n');
@@ -36,6 +35,8 @@ if (failures.length) process.exitCode = 1;
   }
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
+  // Exits 0 only once the named file exists, so a static check that finishes proves the doctrine rule was running beside it, whatever the load.
+  put(box.root, 'test/wait-for.mjs', "import { existsSync } from 'node:fs';\nconst deadline = Date.now() + 60_000;\nwhile (!existsSync(process.argv[2])) {\n  if (Date.now() > deadline) { console.error('the doctrine rule never started beside the static check'); process.exit(1); }\n  await new Promise(resolve => setTimeout(resolve, 20));\n}\n");
   put(box.root, 'test/static-problem.mjs', "console.error('src/a.js:1: a static problem');\nprocess.exit(1);\n");
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Fail fast\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
@@ -74,7 +75,7 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   assert.match(refused.err + refused.out, /a static problem/u);
   assert.equal(existsSync(failing.markers.staticCheck), true, 'the static check ran');
 
-  const clean = project(t);
+  const clean = project(t, { staticWaitsForDoctrine: true });
   put(clean.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(clean.box, 'feat(core): change the source [G1]');
   const accepted = clean.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
@@ -82,8 +83,7 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
   assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
   assert.equal(existsSync(clean.markers.item), true, 'the item check ran');
-  const when = path => statSync(path).mtimeMs;
-  assert.ok(Math.abs(when(clean.markers.staticCheck) - when(clean.markers.doctrine)) < 5000, 'static and doctrine start independently');
+  // The static check only passes after the doctrine marker exists, so a green submit proves the two stages overlapped.
 });
 
 
