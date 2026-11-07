@@ -13,6 +13,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
@@ -129,6 +130,29 @@ function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   } catch { return []; }
 }
 
+/** Whether a test file's source imports the module at `target` (a repo path) by a relative specifier. */
+function importsModule(file, source, target) {
+  if (!source) return false;
+  for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+)\1/gu)) {
+    if (posix.join(posix.dirname(file), match[2]) === target) return true;
+  }
+  return false;
+}
+
+/**
+ * Attribute each outcome to a test file the receipt ran. Why: Node records a case at the file that called test(), so a
+ * case a test file loads from a .fixture.js module carries the fixture's path, and the packet matched none of those
+ * cases to a clause; #3222's 35 green cases mapped to nothing [V4,C7]. The owner is the ran file that imports the
+ * module, else the only file the receipt ran; `source` keeps the defining file.
+ */
+function ownedOutcomes(rows, ranFiles, sources) {
+  return rows.map(row => {
+    if (ranFiles.includes(row.file)) return row;
+    const owner = ranFiles.find(file => importsModule(file, sources.get(file), row.file)) ?? (ranFiles.length === 1 ? ranFiles[0] : null);
+    return owner ? { ...row, file: owner, source: row.file } : row;
+  });
+}
+
 /** Test-like paths named in a shell command or clause, in order. */
 function namedTestFiles(text) {
   return [...new Set([...String(text).matchAll(/[\w./-]+\.(?:test|spec)\.[cm]?js\b/gu)].map(match => match[0].replace(/^\.\//u, '')))];
@@ -213,11 +237,16 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
   const clauses = packetClauses(item);
   // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
   const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
+  // A case defined in a fixture module counts for the ran test file that loads it (#3441).
+  const sources = new Map([...readBlobs(root, candidates.map(file => `${head}:${file}`))].map(([spec, text]) => [spec.slice(head.length + 1), text]));
+  const outcomesOf = (receipt, index, options) => ownedOutcomes(receiptOutcomes(commonDir, receipt, head, options),
+    receiptFiles(receipt, index, { checkFiles, proofFiles }), sources).filter(row => candidates.includes(row.file));
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
-  const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
-    .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
+  const executed = receipts.flatMap((receipt, index) => outcomesOf(receipt, index)
+    .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name,
+      ...(row.source ? { source: row.source } : {}) })));
   // Every declared case, skipped ones included: a clause with a case written for it is judged by that case alone.
-  const declared = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head, { declared: true }).filter(row => candidates.includes(row.file)).map(row => row.name));
+  const declared = receipts.flatMap((receipt, index) => outcomesOf(receipt, index, { declared: true }).map(row => row.name));
   const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
