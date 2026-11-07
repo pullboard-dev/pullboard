@@ -113,7 +113,7 @@ test('clause 1: a plain test run loads no gate board or machine modules through 
   for (const file of HEAVY) assert.ok(!urls.includes(pathToFileURL(join(ROOT, file)).href), `${file} must remain lazy in an ordinary run`);
 });
 
-test('clause 1: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
+test('clause 2: a plain run retains lazy modules with current-release-first queue policy enabled [C7,V4]', { timeout: 90_000 }, // budget: one actual private policy-enabled admission and child; hang ceiling only.
 () => {
   const box = fixture({ currentReleaseFirst: true });
   const { child, urls } = observed(box, [RUNNER, '--test-reporter=tap', 'web/plain.test.js']);
