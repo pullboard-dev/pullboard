@@ -1,34 +1,31 @@
 /** A landing batch turns a red submit static check on the merged tree into a named refusal that charges only the changing items [C7,#3345]. */
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { Refused } from '../packages/kernel/index.js';
 import { itemRefusalText } from '../packages/landing/src/core/item-refusal.js';
 import { entriesTouching } from '../packages/landing/src/shell/landing-static-checks.js';
 import { landingStaticRefusal } from '../packages/landing/src/shell/landing-static-checks.js';
-import { privateRepo } from './submit-gate-fixture.js';
+import { fixture } from './cells-plan-fixture.js';
+import { git } from './cells-plan-fixture.js';
 
-/** A private repository with main plus two branches, each adding one file, and the merge of both checked out. */
+/** A cells-plan fixture repository (identity set, no hooks) plus two branches each adding one file, and the merge of both. */
 function repository(t) {
-  const { root, git } = privateRepo(t);
-  const put = (file, text) => { mkdirSync(join(root, 'web'), { recursive: true }); writeFileSync(join(root, file), text); };
+  const { root, put } = fixture(t);
   put('web/main.txt', 'main\n');
-  git('add', '-A');
-  git('commit', '-q', '-m', 'chore: base');
-  const base = git('rev-parse', 'HEAD');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'chore: base');
+  const base = git(root, 'rev-parse', 'HEAD');
   const branch = (name, file) => {
-    git('checkout', '-q', '-b', name, base);
+    git(root, 'checkout', '-q', '-b', name, base);
     put(file, `${name}\n`);
-    git('add', '-A');
-    git('commit', '-q', '-m', `feat: ${name}`);
-    return git('rev-parse', 'HEAD');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', `feat: ${name}`);
+    return git(root, 'rev-parse', 'HEAD');
   };
   const first = branch('first', 'web/a.txt');
   const second = branch('second', 'web/b.txt');
-  git('checkout', '-q', '-b', 'merged', base);
-  git('merge', '-q', '--no-edit', first, second);
+  git(root, 'checkout', '-q', '-b', 'merged', base);
+  git(root, 'merge', '-q', '--no-edit', first, second);
   return { root, base, first, second };
 }
 
