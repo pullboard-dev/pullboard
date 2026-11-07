@@ -11,6 +11,7 @@ import { laneOf } from '../packages/seats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureBoard } from './board-fixture.js';
 import { onBoard } from './land-board-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('clause 1: an item with no route and no diagnosis defaults to mid, small or large [C7,B13]', () => {
   assert.equal(defaultItemRoute('the handler returns the canonical result [test]'), 'mid');
@@ -46,7 +47,7 @@ test('clause 3: add --check with no --route succeeds and files mid work [C7,B13]
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_MODEL = 'Default route fixture';
   const box = helpers.project('true', isolated);
-  const added = box.run(box.repo, 'add', 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', 'true',
     '--brief', 'Files: web/handler.js\nTest: test/handler.test.js asserts the canonical result', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;

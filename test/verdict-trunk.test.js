@@ -7,6 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /**
  * A board whose web item's check runs test/page.test.js, which imports web/lib.js and web/shared.js; a second test
@@ -60,7 +62,7 @@ test('page is built', () => {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Demand real command success and its versioned result. */
   const json = (result) => { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
-  json(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
+  json(fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node bin/run-tests.js test/page.test.js', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   writeFileSync(join(box.web, 'web/lib.js'), "export const page = 'built';\n");
   box.git(box.web, 'add', 'web/lib.js');
@@ -68,7 +70,7 @@ test('page is built', () => {
   json(box.run(box.web, 'submit', '1', '--json'));
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(box.run(reviewer, 'join', 'api', '--json'));
+  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
   assert.ok(existsSync(landed), 'main really moved while the review ran: ' + verdict.out + verdict.err);

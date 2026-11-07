@@ -18,6 +18,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../packages/verify/index.js';
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { fixtureAddArgv } from './testkit-fixture.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -217,7 +218,7 @@ test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', 
   const box = project({ content: 'committed' });
   const held = heldCheck(box, 'add-checkout-release');
   box.env.CODEX_THREAD_ID = 'baseline-add-wait-fixture';
-  const child = startFixtureChild(process.execPath, [BIN, 'add', 'web', 'Wait without checkout lock', '--check', held.command, '--wait', '--json'],
+  const child = startFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'web', 'Wait without checkout lock', '--check', held.command, '--wait', '--json'],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; child.stdout.on('data', chunk => { stdout += chunk; });
   const done = new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
