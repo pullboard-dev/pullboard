@@ -140,7 +140,6 @@ test('[A2,V2] HTTP add and edit preserve explicit blocking baseline requests', a
   const check = completedCheck(firstMarker);
   const added = await box.call(box.path + '/moves', { verb: 'add', args: {
     lane: 'app', title: 'Blocking API check', check, wait: true,
-    brief: 'Files: app/blocking.js\nTest: the blocking check observation is returned.',
   } });
   assert.equal(added.status, 200, JSON.stringify(added.document));
   const item = added.document.result.item;
