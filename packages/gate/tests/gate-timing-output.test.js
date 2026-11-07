@@ -17,6 +17,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { gateReport } from '../src/shell/gate.js';
 import { runProfiledShell } from '../src/shell/gate.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const TEMP = [];
 const savedContext = process.env.NODE_TEST_CONTEXT;
@@ -160,7 +161,7 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { browserFreeChecks: true } }));
-  assert.equal(box.run(box.repo, 'add', 'web', 'Timed check', '--criterion', 'the check runs', '--check', 'node bin/run-tests.js test/quick.test.js', '--route', 'strong').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Timed check', '--criterion', 'the check runs', '--check', 'node bin/run-tests.js test/quick.test.js', '--route', 'strong').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   // A stand-in holds the only slot for HOLD_MS, then lets the check in.
   const HOLD_MS = 3000; // budget: long enough that the wait cannot be confused with the 200 ms test.

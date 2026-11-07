@@ -29,6 +29,8 @@ import {
   mainPolicy,
   requireTrunkMerge,
 } from '../src/shell/trusted-policy.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -106,7 +108,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const head = box.git(box.repo, 'rev-parse', 'HEAD');
     assert.equal(mainPolicy(box.repo).commit, head, 'trusted policy resolves the primary checkout rather than a fixed branch name');
-    const added = box.run(box.repo, 'add', 'web', `baseline on ${branch}`, '--specs', 'G1', '--criterion', 'a real check baseline is recorded', '--check', 'node -e "process.exit(1)"', '--wait', '--json');
+    const added = fixtureAdd(box.run, box.repo, 'web', `baseline on ${branch}`, '--specs', 'G1', '--criterion', 'a real check baseline is recorded', '--check', 'node -e "process.exit(1)"', '--wait', '--json');
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);
@@ -120,7 +122,7 @@ for (const branch of ['master', 'trunk']) {
     const box = project(branch);
     const web = join(box.dir, 'web-worktree');
     box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/agent');
-    assert.equal(box.run(web, 'join', 'web').code, 0);
+    assert.equal(fixtureJoin(box.run, web, 'web').code, 0);
     writeFileSync(join(web, 'web', 'result.txt'), `resolved by web lane from ${branch}\n`);
     box.git(web, 'add', 'web/result.txt');
     box.git(web, 'commit', '-q', '-m', 'feat(web): update owned fixture [G1]');
@@ -151,7 +153,7 @@ for (const branch of ['master', 'trunk']) {
 test('[B34,P2] add --check reports an unavailable baseline for a detached coordinator', () => {
   const box = project('master');
   box.git(box.repo, 'checkout', '--detach', '-q', 'HEAD');
-  const added = box.run(box.repo, 'add', 'web', 'detached baseline', '--specs', 'G1', '--criterion', 'detached baseline is unavailable', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'detached baseline', '--specs', 'G1', '--criterion', 'detached baseline is unavailable', '--check', 'true', '--json');
   assert.equal(added.code, 0, `${added.out}${added.err}`);
   const item = JSON.parse(added.out).item;
   assert.deepEqual(item.item_check_baseline, {
@@ -164,8 +166,8 @@ function mergeCandidate(branch = 'trunk') {
   const box = project(branch);
   const web = join(box.dir, 'merge-web');
   box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/merge-candidate');
-  assert.equal(box.run(web, 'join', 'web', '--family', 'builder-fixture').code, 0);
-  const added = box.run(box.repo, 'add', 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
+  assert.equal(fixtureJoin(box.run, web, 'web', '--family', 'builder-fixture').code, 0);
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Merge candidate', '--specs', 'G1', '--criterion', 'merges without touching a checkout', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(web, 'claim', String(id)).code, 0);
@@ -199,7 +201,7 @@ function advanceMergeTrunk(box, conflict) {
 function mergeReviewer(box) {
   const review = join(box.dir, 'merge-review');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
-  assert.equal(box.run(review, 'join', 'review', '--family', 'reviewer-fixture').code, 0);
+  assert.equal(fixtureJoin(box.run, review, 'review', '--family', 'reviewer-fixture').code, 0);
   return review;
 }
 
