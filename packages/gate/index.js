@@ -62,7 +62,7 @@ export { testValueReport } from "./src/shell/test-value.js";
 export { runTimedShell } from "./src/shell/timed-shell-worker.js";
 export { timingRunner, timingFromOutput, logLines, timingFromLog, runnerPhaseFields, runnerPhaseLine, startRunnerPhases } from "./src/shell/timing.js";
 export { timingSource, sameTimingSource, suiteTimingFields, formatSuiteTiming, suiteTimingFromOutput, timingAccountingOutput, timingAccountingStages, observedRunTiming, beginSuiteTiming, TIMING_RUN_ID_ENV, SUITE_TIMING_PREFIX } from "./src/shell/run-timing.js";
-export { testOutputSummary, retainTestOutput, renderTestSummary, summaryProfile, withTestOutput } from "./src/shell/test-output-summary.js";
+export { failedAssertionLines, retainedGateAssertions, testOutputSummary, retainTestOutput, renderTestSummary, summaryProfile, withTestOutput } from "./src/shell/test-output-summary.js";
 export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
