@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
+import { joinFixtureSeat } from '../testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../../bin/pullboard.js');
 const scratch = [];
@@ -129,7 +130,7 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false } =
   const branch = `web/${name.replace(/[^a-z]/g, '')}`;
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
-  box.run(web, 'join', 'web');
+  joinFixtureSeat(box, web, 'web');
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 

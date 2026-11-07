@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { joinFixtureSeat } from '../testkit-fixture.js';
 import { openShoutConversation, SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
 
@@ -275,7 +276,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   box.run(alpha.repo, 'milestone', 'add', '2.0: the rest', '--note', 'After the first cut', '--items', '2,3,4');
   const second = join(box.dir, 'glance-web-2');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/glance2');
-  box.run(second, 'join', 'web');
+  joinFixtureSeat(box, second, 'web');
   box.run(second, 'shout', 'all', 'Free when you need me.');
   box.run(alpha.repo, 'shout', 'web', 'Pages first, then the footer.');
   box.run(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
