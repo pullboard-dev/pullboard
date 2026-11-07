@@ -1,7 +1,7 @@
 import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { runFixtureChild } from './fixture-child.js';
 import { join, resolve } from 'node:path';
@@ -100,11 +100,50 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
       const current = state(box, id).job;
       return current && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id, 'source'));
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
-    helpers.cleanup();
+    if (job) await workerGone(box, job.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, second, third, commit, source, secondFolder, release, releases, started, finished };
 }
 
+
+/**
+ * Wait for the job's own supervisor to exit before removing its tree, without blocking the event loop.
+ * Why: node:test runs a test's after hooks once run-tests arms its 30 s file-exit ceiling, so teardown that
+ * races a still-exiting supervisor must wait for it asynchronously and stay well under that ceiling.
+ */
+async function workerGone(box, job) {
+  const record = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job, 'worker.json');
+  let pid;
+  try { pid = JSON.parse(readFileSync(record, 'utf8')).pid; } catch { return; /* No launched supervisor to wait for. */ }
+  if (!Number.isSafeInteger(pid) || pid <= 0) return;
+  await box.helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
+    try { process.kill(pid, 0); return false; }
+    catch (error) { return error.code === 'ESRCH'; }
+  }, `queued submit supervisor ${pid} exit before fixture removal`, 10_000);
+}
+
+/**
+ * Remove this fixture's sandboxes with asynchronous retries and a bound under the file-exit ceiling.
+ * Why: the shared helper's synchronous rmSync retries for up to 30 s, so a late writer froze the main thread
+ * until run-tests killed the whole file (#2934); a named failure here says which entries kept appearing.
+ */
+async function removeSandboxes(helpers) {
+  for (const dir of helpers.sandboxes) {
+    let last;
+    /** One removal attempt; a late writer's transient refusal is retried, any other error surfaces at once. */
+    const removed = () => {
+      try { rmSync(dir, { recursive: true, force: true }); return true; }
+      catch (error) { if (!['ENOTEMPTY', 'EBUSY', 'EPERM'].includes(error.code)) throw error; last = error; return false; }
+    };
+    try { await helpers.waitFor(removed, `fixture removal of ${dir}`, 15_000); } // budget: late-writer ceiling below the 30 s file-exit timeout, not a timing assertion.
+    catch (error) {
+      let left = [];
+      try { left = readdirSync(dir, { recursive: true }).slice(0, 20); } catch { /* The directory may already be gone. */ }
+      throw new Error(`${error.message} kept failing (${last?.code}); entries still present: ${left.join(', ')}`, { cause: last ?? error });
+    }
+  }
+}
 
 /** Retain a bounded native failure witness before cleanup can hide a failed worker result. */
 function workerDiagnostic(box, id) {
@@ -672,7 +711,9 @@ function mainAdvanceFixture(t) {
       const job = state(box, id).job;
       return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
     }, `moving-main worker cleanup: ${workerDiagnostic(box, id)}`);
-    helpers.cleanup();
+    const job = state(box, id).job;
+    if (job) await workerGone({ ...box, helpers }, job.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, id, helpers, release, started };
 }
