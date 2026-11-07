@@ -537,7 +537,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/handoff-worker-alive.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "apps/cli/src/shell/init-finish.js": {
@@ -593,7 +593,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/submit-gate-wait.js": {
-      "cells": 3,
+      "cells": 4,
       "deep": 0
     },
     "apps/cli/src/shell/submit-handoff-origin.js": {
@@ -609,7 +609,7 @@
       "deep": 0
     },
     "apps/cli/src/shell/submit-handoff.js": {
-      "cells": 9,
+      "cells": 11,
       "deep": 0
     },
     "apps/cli/src/shell/submit-main-receipt.js": {
@@ -690,6 +690,10 @@
     },
     "apps/lib/src/shell/relay-sender-main.js": {
       "cells": 2,
+      "deep": 0
+    },
+    "apps/lib/src/shell/submit-handoff-record.js": {
+      "cells": 1,
       "deep": 0
     },
     "apps/lib/src/shell/submit-handoff-worker.js": {
@@ -1036,9 +1040,17 @@
       "cells": 2,
       "deep": 0
     },
+    "bin/checks/static-tree-registry.js": {
+      "cells": 6,
+      "deep": 0
+    },
     "bin/drive-worker.js": {
       "cells": 4,
       "deep": 0
+    },
+    "bin/gate-drive-worker.js": {
+      "cells": 1,
+      "deep": 2
     },
     "bin/gate-slot-services.js": {
       "cells": 4,
@@ -1049,14 +1061,10 @@
       "deep": 0
     },
     "bin/handoff-worker-dispatcher.js": {
-      "cells": 4,
+      "cells": 6,
       "deep": 0
     },
     "bin/landing-candidate.js": {
-      "cells": 6,
-      "deep": 1
-    },
-    "bin/landing-worker.js": {
       "cells": 6,
       "deep": 1
     },
@@ -1094,10 +1102,6 @@
     },
     "bin/source-advance.js": {
       "cells": 7,
-      "deep": 0
-    },
-    "bin/static-style-checks.js": {
-      "cells": 6,
       "deep": 0
     },
     "bin/timed-shell.js": {
@@ -1324,6 +1328,10 @@
       "cells": 2,
       "deep": 0
     },
+    "packages/drive/src/shell/drive-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/drive/src/shell/drive-once.js": {
       "cells": 5,
       "deep": 0
@@ -1334,6 +1342,14 @@
     },
     "packages/drive/src/shell/flake-diagnose.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "packages/drive/src/shell/gate-admission.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/drive/src/shell/gate-drive.js": {
+      "cells": 2,
       "deep": 0
     },
     "packages/drive/src/shell/keyed-result.js": {
@@ -1413,7 +1429,7 @@
       "deep": 0
     },
     "packages/gate/src/shell/changed-static.js": {
-      "cells": 2,
+      "cells": 1,
       "deep": 0
     },
     "packages/gate/src/shell/check-baseline-worker.js": {
@@ -1521,6 +1537,10 @@
       "deep": 0
     },
     "packages/gate/src/shell/shell-run.js": {
+      "cells": 2,
+      "deep": 0
+    },
+    "packages/gate/src/shell/static-check-registry.js": {
       "cells": 2,
       "deep": 0
     },
@@ -1916,6 +1936,10 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/jobs/src/shell/job-shadow.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/jobs/src/shell/job-store.js": {
       "cells": 1,
       "deep": 0
@@ -2036,6 +2060,10 @@
       "cells": 3,
       "deep": 2
     },
+    "packages/landing/src/shell/landing-in-process.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/landing/src/shell/landing-known-main.js": {
       "cells": 3,
       "deep": 0
@@ -2097,7 +2125,7 @@
       "deep": 0
     },
     "packages/landing/src/shell/landing-worker.js": {
-      "cells": 1,
+      "cells": 2,
       "deep": 0
     },
     "packages/landing/src/shell/main-failure-matches.js": {
@@ -4899,7 +4927,7 @@
     },
     "<-kernel": {
       "imports": [],
-      "deepImporters": 48
+      "deepImporters": 47
     },
     "apps/lib": {
       "imports": [
@@ -4929,7 +4957,6 @@
         "state",
         "stats",
         "store",
-        "transport",
         "verify"
       ],
       "deepImporters": 0
@@ -5049,6 +5076,10 @@
     "<-codemap": {
       "imports": [],
       "deepImporters": 2
+    },
+    "<-apps/lib": {
+      "imports": [],
+      "deepImporters": 1
     },
     "<-apps/cli": {
       "imports": [],
