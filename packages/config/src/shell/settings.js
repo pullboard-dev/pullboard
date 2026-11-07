@@ -307,7 +307,11 @@ export function addRunner(value) {
     else runners[index] = runner;
     writeMachineSettings({ ...current, runners });
     return runner;
-  });
+  }, { allowWhenHeld: () => {
+    // Only an increase applies to a busy runner; a decrease waits for its active runs.
+    const prior = (loadMachineSettings().runners ?? []).find(entry => entry.host === runner.host);
+    return Boolean(prior) && runner.slots >= prior.slots && runner.browser >= prior.browser;
+  } });
 }
 
 /** Store measured facts on the latest registered host without changing fixed policy or clearing recovery fences. */

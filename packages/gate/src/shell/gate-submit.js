@@ -66,9 +66,15 @@ import {
   pinRunMain,
   recordRun,
   refuseSandboxBlocked,
+  runProfiledShardsAsync,
   runProfiledShellAsync,
   safeLog,
 } from './gate-execution.js';
+import { SHARD_ADMIT_MS } from './proof-shards.js';
+import { freeRunnerSlots } from './proof-shards.js';
+import { mergeShardRuns } from './proof-shards.js';
+import { runProofShards } from './proof-shards.js';
+import { readFileTimes } from './test-value-timing.js';
 import {
   commandWord,
   runStaticChecks,
@@ -179,7 +185,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   const { browser, gui } = admission ?? await planners.admission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
-  return await withGateSlot(root, async (lease) => {
+  const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission };
+  /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
+  const diagnostics = [];
+  const gateResult = await withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
     await onStart?.();
@@ -209,11 +218,33 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const prove = async () => {
       if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
-      const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
-      const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal }), isCached: false, log: proofLog };
+      const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
+      const command = filesCommand(proofFiles);
+      const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
+      // On a runner the files fan out across free slots; the one receipt still names the whole command [C7].
+      const run = { ...await (lease.runner && proofFiles.length > 1
+        ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
+        : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
       if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
+    };
+    /**
+     * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's
+     * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
+     * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
+     * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
+     */
+    const proveShards = async (execution, filesCommand) => {
+      const runners = execution.gateLease.executionServices.runners;
+      const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
+      const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
+        runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
+        metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
+      const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
+        { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
+      const shards = await runProofShards(proofFiles, { freeSlots: (planners.freeSlots ?? freeRunnerSlots)(), times: readFileTimes(root), root, runFirst, runOther });
+      return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */
@@ -267,13 +298,13 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };
     };
-    if (!criterion.isGreen && onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease });
+    if (!criterion.isGreen && onFailure) diagnostics.push([{ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease }]);
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
-    if (!proof.isGreen && onFailure) await onFailure(proof, { root,
-      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease });
+    if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
+      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease }]);
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
     const result = finish(proof);
@@ -288,6 +319,36 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
-  }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, signal, ...runnerAdmission });
+  }, slotOptions);
+  if (diagnostics.length) await diagnoseAfterResult(root, onFailure, diagnostics, slotOptions);
+  return gateResult;
+}
+
+/**
+ * Run a red gate's flake diagnostics after its result is made and its gate slot is released, in a slot of their own.
+ * Each diagnostic keeps the proof context of the phase it observes, so its probes stay bound to the admitted submit.
+ *
+ * Why: diagnostics used to run inside the gate's runner lease, holding the worker for minutes after the result was
+ * known (#3324); they never change that result, so a failure here is reported and the gate's result stands.
+ *
+ * @param {string} root
+ * @param {(run: object, context: { root: string, command: string, lease: object }) => Promise<void>} onFailure
+ * @param {[object, { root: string, command: string, lease: object }][]} diagnostics - Each red run and its phase context.
+ * @param {object} slotOptions - The gate's own slot options.
+ * @returns {Promise<void>}
+ */
+async function diagnoseAfterResult(root, onFailure, diagnostics, slotOptions) {
+  try {
+    await withGateSlot(root, async (lease) => {
+      for (const [run, context] of diagnostics) {
+        const phase = context.lease;
+        Object.assign(lease, { timingOperation: 'submit', proof: phase.proof, runMetadata: phase.runMetadata, quarantines: phase.quarantines ?? [],
+          pinnedMain: phase.pinnedMain ?? null, testTiers: phase.testTiers, tracker: startReceipt(), proofReceiptIds: [] });
+        await onFailure(run, { ...context, lease });
+      }
+    }, slotOptions);
+  } catch (error) {
+    process.stderr.write(`flake diagnostics could not run after the gate (${error?.code ?? 'FLAKE_DIAGNOSTIC_FAILED'}); the gate's result stands\n`);
+  }
 }
 

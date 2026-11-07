@@ -1,6 +1,9 @@
 import { committedRunnerController } from './committed-tooling.js';
+
+/** How often a waiting controller re-reads its runner's lease before the job is READY. */
+const LEASE_WATCH_MS = 5_000;
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
-import { RunnerDropped } from '../../../gate/index.js';
+import { RunnerDropped } from '../../../gate/src/core/gate-policy-load.js';
 import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
@@ -242,7 +245,9 @@ async function runInController(root, command, options, ports) {
     const half = 4 * 1024 ** 2;
     const abort = () => { error ??= new Error('runner transport canceled'); transport.stop(); };
     let heartbeatAt = null, probing = false;
-    // Until READY, watch this runner's lease once a second; the job itself then runs on heartbeat deadlines alone.
+    // Until READY, watch this runner's lease every five seconds; the job itself then runs on heartbeat deadlines alone.
+    // Why: at one second, 21 waiting controllers cost the coordinator Mac 2.6 cores and a lock on resources.sqlite
+    // each tick (SLOT_DB_LOCKED, load 100+ on 6 Nov); a five-second notice of an unavailable runner is still prompt.
     jobWatch = setInterval(async () => {
       if (request.phase !== 'ready' && !error && !options.signal?.aborted) {
         try {
@@ -255,7 +260,7 @@ async function runInController(root, command, options, ports) {
           }
         } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
       }
-    }, 1_000);
+    }, LEASE_WATCH_MS);
     // Budget: an exact 5-second worker heartbeat earns 20 seconds of silence before one bounded status observation.
     const silence = () => { clearTimeout(heartbeatWatch); if (!error && !jobCancellation.signal.aborted) heartbeatWatch = setTimeout(probeJob, Math.max(0, heartbeatAt + 20_000 - Date.now())); };
     /** Ask the runner whether the exact job still has its owner, once the worker has been silent for 20 seconds. */
