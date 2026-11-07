@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { unpackRelease } from '../../../test/release-archive.js';
+import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
 const RENEW_AT = '2026-10-08T12:00:30.000Z';
@@ -37,8 +38,9 @@ const REVIEW_SKIPPED = {
 };
 
 /** Create one seed board and two independent in-memory replicas with different ambient clocks. */
-function memoryCopies(t, historicalSeats = false) {
+function memoryCopies(t, historicalSeats = false, historicalSetup = false) {
   const source = openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
+  if (historicalSetup) source.executionEngineVersion = 4;
   /** Engine-1 claim history starts with real engine-1 joins, not a newer seat's activated grant. */
   const register = who => historicalSeats
     ? replayHistoricalSeatMove(source, 1, 'register', [who])
@@ -51,6 +53,7 @@ function memoryCopies(t, historicalSeats = false) {
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${String(index + 8).padStart(2, '0')}:00:00.000Z`) };
     const board = openBoard(':memory:', clock);
+    // Import under the live engine: an engine-4 context skips the family projection that importBoard warms.
     importBoard(board, snapshot);
     return board;
   });
@@ -106,35 +109,18 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
   assert.deepEqual(exportBoard(one), before, 'future-engine refusal preserves all rows and the replay cursor');
 });
 
-test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', async (t) => {
-  // An actual released writer seeds this pre-release state; modern submit/reserve would activate newer review policy.
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-v5-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  unpackRelease('v0.8.2', directory);
-  const released = await import(pathToFileURL(join(directory, 'src/board.js')).href);
-  const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
-  assert.equal(machine.ENGINE_VERSION, 5);
-  const seedFile = join(directory, 'seed.sqlite');
-  const seed = released.openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
-  for (const [lane, path] of [['coordinator', '/fixture'], ['web', '/fixture/web-1'], ['web', '/fixture/web-2']])
-    released.register(seed, { lane, path });
-  const item = released.addItem(seed, { by: 'coordinator', lane: 'web', title: 'Review queue fixture' });
-  released.claim(seed, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
-    freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
-  released.submit(seed, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
-  released.reserveReview(seed, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
-  released.closeBoard(seed);
-  // Upgrade the genuine released database through the normal opener before exporting its current schema.
-  const migrated = openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
-  let snapshot;
-  try { snapshot = exportBoard(migrated); }
-  finally { store.closeBoard(migrated); }
-  const [legacyBoard, currentBoard] = [0, 1].map(() => {
-    const board = openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
-    importBoard(board, snapshot);
-    t.after(() => store.closeBoard(board));
-    return board;
-  });
+test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
+  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t, false, true);
+  for (const board of [legacyBoard, currentBoard]) {
+    if (board === legacyBoard) board.executionEngineVersion = 4;
+    store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
+      freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
+    submitFixture(board, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
+    store.reserveReview(board, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
+    if (board === legacyBoard) delete board.executionEngineVersion;
+  }
+  // The v4 replica cannot carry the current engine's review-default activation witness.
+  legacyBoard.db.prepare("DELETE FROM board_meta WHERE meta_key='review_default:active' OR meta_key LIKE 'review_default:normalized:%'").run();
   assert.throws(() => prepareEngineMove(currentBoard, 'release', [item, 'web-2']), (error) => error.code === 'NOTE_REQUIRED');
 
   const legacy = { version: 1, engine: 4, id: 'legacy-review-release', operation: 'release', args: [item, 'web-2', 'ignored by engine 4'] };
