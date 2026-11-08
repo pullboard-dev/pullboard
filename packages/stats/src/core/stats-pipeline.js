@@ -157,3 +157,65 @@ export function pipelineLines(report) {
   lines.push(report.evidence);
   return lines;
 }
+
+const HOUR = 60 * 60_000;
+/** A lapsed lease is the only recorded structure for a stale claim; its release reason is the board's own words [C7]. */
+const STALE_RELEASE = /no heartbeat|lease lapsed|lease expired/iu;
+
+/** Name a reviewer's family from what the board recorded: a declared family, else the model's maker, else unknown. */
+function familyName(declared, event, detail) {
+  const named = typeof detail.family === 'string' && detail.family.trim() ? detail.family : declared.get(event.event_by);
+  if (named) return named.toLowerCase();
+  const model = typeof detail.model === 'string' ? detail.model.toLowerCase() : '';
+  if (/^(claude|anthropic)/u.test(model)) return 'anthropic';
+  if (/^(gpt|codex|o\d|openai)/u.test(model)) return 'openai';
+  return model ? model.split('-')[0] : 'unknown';
+}
+
+/** A share, or null when nothing was attempted, so an empty hour never reads as 0% bounced. */
+const share = (count, of) => of > 0 ? count / of : null;
+
+/**
+ * The pipeline over the last `windowMinutes`, scaled to one hour: green submits, verdicts by reviewer family, items
+ * landed, and the share bounced at each stage (red gate, reject, landing reopen, stale claim) [C7].
+ */
+export function pipelinePerHour(history, { now = Date.now(), windowMinutes = 60 } = {}) {
+  if (!(windowMinutes > 0) || !Number.isFinite(windowMinutes)) throw new Refused('USAGE', 'choose a positive window, for example pullboard stats --window 1h');
+  const from = now - windowMinutes * 60_000, scale = HOUR / (windowMinutes * 60_000);
+  const count = { green: 0, red: 0, accept: 0, reject: 0, landed: 0, reopen: 0, stale: 0, claims: 0 };
+  const verdicts = new Map(), declared = new Map();
+  for (const event of [...history].sort((a, b) => a.event_id - b.event_id)) {
+    const detail = proofEventDetail(event);
+    if (typeof detail.family === 'string' && detail.family.trim()) declared.set(event.event_by, detail.family);
+    const at = Date.parse(event.event_at);
+    if (!(at > from && at <= now)) continue;
+    const kind = event.event_kind;
+    if (kind === 'gate-run' && detail.run?.kind === 'submit') count[detail.run.green === true ? 'green' : 'red'] += 1;
+    else if (kind === 'accept' || kind === 'reject') {
+      count[kind] += 1;
+      const name = familyName(declared, event, detail), row = verdicts.get(name) ?? { family: name, accept: 0, reject: 0 };
+      row[kind] += 1; verdicts.set(name, row);
+    } else if (kind === 'merged') count.landed += 1;
+    else if (kind === 'reopen') count.reopen += 1;
+    else if (kind === 'claim') count.claims += 1;
+    else if (kind === 'release' && STALE_RELEASE.test(String(detail.reason ?? ''))) count.stale += 1;
+  }
+  const perHour = value => Math.round(value * scale * 100) / 100;
+  return { version: 1, windowMinutes, greenSubmitsPerHour: perHour(count.green), landedPerHour: perHour(count.landed),
+    verdictsPerHour: [...verdicts.values()].sort((a, b) => a.family.localeCompare(b.family))
+      .map(row => ({ family: row.family, accept: perHour(row.accept), reject: perHour(row.reject) })),
+    bounced: {
+      red: { count: count.red, of: count.green + count.red, share: share(count.red, count.green + count.red) },
+      reject: { count: count.reject, of: count.accept + count.reject, share: share(count.reject, count.accept + count.reject) },
+      reopen: { count: count.reopen, of: count.accept, share: share(count.reopen, count.accept) },
+      stale: { count: count.stale, of: count.claims, share: share(count.stale, count.claims) },
+    }, evidence: 'Recorded native events in the window, scaled to one hour; a stage nothing entered reads unmeasured, never 0%.' };
+}
+
+/** Render the per-hour pipeline for people. */
+export function pipelinePerHourLines(report) {
+  const text = row => row.share === null ? 'unmeasured' : `${(row.share * 100).toFixed(1)}% (${row.count} of ${row.of})`;
+  return [`pipeline per hour (window ${report.windowMinutes} min): ${report.greenSubmitsPerHour} green submits · ${report.landedPerHour} items landed`,
+    `verdicts per hour by reviewer family: ${report.verdictsPerHour.map(row => `${row.family} ${row.accept} accept / ${row.reject} reject`).join('; ') || 'none'}`,
+    `bounced: red ${text(report.bounced.red)} · reject ${text(report.bounced.reject)} · reopen ${text(report.bounced.reopen)} · stale ${text(report.bounced.stale)}`];
+}

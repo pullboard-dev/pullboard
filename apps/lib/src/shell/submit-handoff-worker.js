@@ -172,11 +172,14 @@ export function handoffRefusedResult(error) {
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere }} options
+ * `healthy` and `wait` replace the rerun's runner probe and pause, as submitUntilSettled takes them; a fixture passes them.
+ *
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
  */
-export async function handoffGate(ctx, request, { waitInventory, submit = submitHere }) {
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait }) {
   ctx.submissionResult = {};
-  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory });
+  const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
+    ...(healthy ? { healthy } : {}), ...(wait ? { wait } : {}) });
   return handoffGreenResult(ctx, lockWaits);
 }
 
@@ -186,22 +189,28 @@ export async function handoffGate(ctx, request, { waitInventory, submit = submit
  * refused, so a gate driven by driveOnce runs the worker's sections in its order and records the same result [C7].
  *
  * With `stop`, a stopped driver's gate never settles: its stages are stopped through their own signals and nothing
- * more is written to the drive job, which stays resumable at its last saved step.
+ * more is written to the drive job, which stays resumable at its last saved step. The drive cell's `run.signal` ends
+ * one run the same way when it stalls, so that run starts no new stage and no rerun while the cell reruns the same
+ * candidate (#3661).
  *
  * @param {any} ctx - The worker's context, bound to the native job.
  * @param {{ item: number, infra?: string }} request
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>> }} options
- * @returns {(observe: (stages: object[]) => object[]) => Promise<object>}
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, stop?: AbortSignal, inflight?: Set<Promise<unknown>>,
+ *   healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
+ * @returns {(observe: (stages: object[]) => object[], run?: { signal?: AbortSignal }) => Promise<object>}
  */
 export function drivenHandoffGate(ctx, request, { stop, inflight = new Set(), ...options }) {
-  return async observe => {
-    ctx.runGateStages = (stages, settings) => runGateStages(observe(stop ? stoppableStages(stages, stop, inflight) : stages), settings);
+  return async (observe, { signal: ended } = {}) => {
+    const halt = stop && ended ? AbortSignal.any([stop, ended]) : stop ?? ended;
+    const runStages = (stages, settings) => runGateStages(observe(halt ? stoppableStages(stages, halt, inflight) : stages), settings);
+    ctx.runGateStages = runStages;
     try { return await handoffGate(ctx, request, options); }
     catch (error) {
-      if (stop?.aborted) return new Promise(() => {});
+      if (halt?.aborted) return new Promise(() => {});
       return handoffRefusedResult(error);
     }
-    finally { delete ctx.runGateStages; }
+    // A stalled run that settles late must not remove the observer of the run that replaced it.
+    finally { if (ctx.runGateStages === runStages) delete ctx.runGateStages; }
   };
 }
 
@@ -266,7 +275,9 @@ async function settledWithin(running, ms) {
  *
  * @param {string} requestFile - The hand-off's captured request.json.
  * @param {{ nativeBoard: any, owner: string }} options - The board module, and the driver id the dispatcher admitted.
- * @returns {Promise<void>}
+ * @returns {Promise<{ stalled?: boolean, stopped?: boolean } | undefined>} `stopped` when a stop signal ended the driver,
+ *   whose handler frees the lease and exits the process; otherwise the result is recorded (`stalled` when a stalled run
+ *   was ended on the way) and the entry ends the process, so a leaked handle never holds its slot (#3108, #3661).
  */
 export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   if (typeof owner !== 'string' || !owner) throw new Refused('DRIVE_OWNER', 'a gate driver needs the owner the dispatcher admitted it under');
@@ -308,6 +319,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   };
   process.once('SIGTERM', terminate('SIGTERM'));
   process.once('SIGINT', terminate('SIGINT'));
+  let stalled = false;
   try {
     // A killed driver can leave this job's own disposable checkout behind; the admitted driver replaces it.
     if (existsSync(root)) jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
@@ -331,9 +343,11 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     const board = nativeBoard.openBoard(ctx.file);
     let result;
     try {
-      const last = await drainLoop(board.db, drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS });
+      // A run with no step for 20 minutes is ended and rerun once by the drive cell, then recorded as this refusal (#3661).
+      const last = await drainLoop(board.db, drive, { owner, repo: root, gate, intervalMs: GATE_DRIVE_POLL_MS, stalled: handoffRefusedResult });
       if (last.code) throw new Refused(last.code, `gate ${request.job} is driven by another driver; this driver stops`);
       result = last.job.steps.find(step => step.name === 'collected')?.payload.result;
+      stalled = last.job.steps.some(step => step.name === 'gate.stalled');
     } finally { store.closeBoard(board); }
     if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
     // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
@@ -341,13 +355,15 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result);
     else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
     withBoard(ctx, board => finishJob(board.db, drive, owner));
+    return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
-    if (stopper.signal.aborted) return;
+    if (stopper.signal.aborted) return { stopped: true };
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }
+  return stopper.signal.aborted ? 'stopped' : 'settled';
 }
