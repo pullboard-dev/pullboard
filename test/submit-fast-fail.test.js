@@ -43,7 +43,7 @@ if (failures.length) process.exitCode = 1;
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Fail fast\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
-  assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item)).code, 0);
+  assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--criterion', 'the fixture change is submitted or refused', '--check', MARK(markers.item)).code, 0);
   assert.equal(builder.run('claim', '1').code, 0);
   // Adding the item ran its check once to baseline it; only runs after this point count.
   for (const path of Object.values(markers)) rmSync(path, { force: true });
@@ -72,7 +72,7 @@ test('submit precheck refuses a candidate stacked on an unverified item without 
   assert.equal(first.code, 0, first.out + first.err);
   const firstCommit = JSON.parse(box.run('show', '1', '--json').out).item_commit;
   assert.match(firstCommit, /^[0-9a-f]{40}$/u);
-  assert.equal(box.coordinator('add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--brief', 'Files: src/b.js\nTest: precheck refuses the stack', '--check', MARK(markers.item)).code, 0);
+  assert.equal(box.coordinator('add', 'build', 'Stacked fixture', '--criterion', 'the stacked change is refused cheaply', '--check', MARK(markers.item)).code, 0);
   assert.equal(box.run('claim', '2').code, 0);
   put(box.root, 'src/b.js', 'export const other = 1;\n');
   commitAll(box, 'feat(core): the stacked item adds a source [G1]');
