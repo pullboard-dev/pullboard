@@ -176,7 +176,7 @@ test('lock stops wait without spending runner retries, bounded on their own, and
   let calls = 0;
   const { result, attempts, lockWaits } = await submitUntilSettled(async () => {
     calls += 1;
-    if (calls <= 4) throw new Refused(calls % 2 ? 'DATABASE_LOCKED' : 'BOARD_BUSY', 'fixture');
+    if (calls <= 4) throw new Refused(calls % 2 ? 'SLOT_DB_LOCKED' : 'BOARD_BUSY', 'fixture');
     return 'GREEN';
   }, { healthy: async () => true, wait: async () => {} });
   assert.equal(result, 'GREEN', 'four lock failures, more than the 3 runner retries, still end green');
