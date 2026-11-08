@@ -12,6 +12,7 @@ import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { gateVerdictOf } from './main-red-receipt.js';
 import { toolingFor } from '../../../pin/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -252,6 +253,12 @@ function landingTooling(root, commit) {
   try { return toolingFor(root, commit).tooling; } catch { return null; }
 }
 
+/** The paths that differ between two trees, or null when Git cannot say. */
+function changedPathsBetween(root, from, to) {
+  const result = tryGit(root, ['diff-tree', '-r', '--name-only', '-z', '--no-commit-id', from, to]);
+  return result.status === 0 ? result.stdout.split('\0').filter(Boolean) : null;
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
@@ -270,10 +277,13 @@ async function runGateGroup(state, label, options) {
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   // The submit's green receipt already proved this exact candidate on this exact base: landing records the reuse and runs nothing [C7, RFC 0007].
   const treeOf = rev => { const result = tryGit(state.batch.root, ['rev-parse', `${rev}^{tree}`]); return result.status === 0 ? result.stdout.trim() : null; };
-  const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf });
+  const reuse = landingReceiptReuse({ items: state.batch.items, readEvents: id => store.events(state.board, { itemId: id }), tree, base: state.batch.base, tooling: landingTooling(state.batch.root, commit), full: config[VALUE_GATE] !== true, files, treeOf,
+    generated: state.landingWrites ?? [], changedPaths: (from, to) => changedPathsBetween(state.batch.root, from, to), verdictOf: (item, candidate) => gateVerdictOf(state.board, item, candidate) });
   if (reuse.reuse) {
     state.say(`gate ${label}: reused #${reuse.item}'s submit receipt for tree ${tree.slice(0, 12)}; no test run started`);
-    const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit } };
+    // A verdict recorded green by the main-owned rule keeps its cases owned by main, never charged to the item [C7,#3534,#3685].
+    if (reuse.mainOwned) state.say(`gate ${label}: #${reuse.item}'s submit verdict is green with main-owned case(s): ${reuse.mainOwned.map(row => `${row.file} :: ${row.name}`).join('; ')}`);
+    const reused = { isGreen: true, failures: [], accounted: [], complete: true, requiresGreen: false, tree, logPath: null, affectedGate, reusedReceipt: { item: reuse.item, commit: reuse.commit, ...(reuse.mainOwned ? { mainOwned: reuse.mainOwned } : {}) } };
     state.gates.set(tree, reused);
     return reused;
   }

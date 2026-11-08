@@ -133,8 +133,12 @@ export async function mergeGroup(state, items) {
     const first = firstContainingCommit(batch.root, checked);
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
   }
+  // The paths the landing itself writes after the item merges (badge counts, lowered doctrine counts): data the board
+  // derives, never an item's change, so a submit receipt still answers for a tree that differs only there [C7,#3685].
+  const landingWrites = new Set();
   if (merged.length) {
     const changed = state.landingPorts.writeBadges(batch.root, state.landingPorts.badgeCounts(state.board));
+    for (const file of changed) landingWrites.add(file);
     if (changed.length) {
       git(batch.root, ['add', '--', ...changed]);
       const tip = headCommit(batch.root);
@@ -151,6 +155,7 @@ export async function mergeGroup(state, items) {
     }
   }
   let doctrineCounts = [];
+  const beforeDoctrine = headCommit(batch.root);
   try {
     if (merged.length) doctrineCounts = await tightenLandingDoctrine(batch.root, state.config, { onWait: state.onWait });
   } catch (error) {
@@ -159,6 +164,8 @@ export async function mergeGroup(state, items) {
   }
   for (const change of doctrineCounts) state.say(`doctrine ${change.id}: ${change.before} -> ${change.count}`);
   const tip = headCommit(batch.root);
+  if (tip !== beforeDoctrine) for (const file of git(batch.root, ['diff', '--name-only', '-z', beforeDoctrine, tip]).split('\0').filter(Boolean)) landingWrites.add(file);
+  state.landingWrites = [...landingWrites].sort();
   requireLandingCompanions(batch.root, state.board, merged, tip);
   await requireLandingModuleResolution(batch.root, batch.base, tip);
   return { items: merged, conflicts, resolutions, tip, doctrineCounts };
