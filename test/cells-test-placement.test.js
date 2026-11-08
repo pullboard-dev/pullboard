@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyTestFiles } from '../bin/cells-test-placement.js';
+import { placeTests } from '../bin/cells-test-placement.js';
+import { runFixtureChild } from './fixture-child.js';
 
 const plan = { cells: [
   { name: 'kernel', root: 'packages/kernel', paths: [['src/a.js', 'packages/kernel/a.js']] },
@@ -42,4 +44,42 @@ test('the repository census accounts for every tracked test and docs check [C7,C
   assert.equal(rows.length, expected.length);
   assert.deepEqual(rows.map(row => row.file), [...expected].sort());
   assert.ok(rows.every(row => row.kind === 'cell' ? !!row.cell : row.kind === 'journey' ? row.cells.length > 1 : !!row.reason));
+});
+
+test('clause 3: the fixture report shows a cell, a journey and an unknown reason, with per-cell counts [C7,CD64]', () => {
+  const lines = placeTests([...files.keys()], inventory, plan);
+  assert.deepEqual(lines, [
+    'docs/guide.test.js\tcell store',
+    'test/asset.txt\tunknown not a JavaScript module',
+    'test/helper.js\tcell kernel',
+    'test/journey.test.js\tjourney kernel,store',
+    'test/missing.test.js\tunknown computed import',
+    'test/one.test.js\tcell kernel',
+    'files for cell kernel: 2',
+    'files for cell store: 1',
+    'journeys: 1',
+    'unknown: 2',
+    'total: 6',
+  ]);
+});
+
+test('clause 1: node bin/cells-plan.js --place-tests prints every tracked test file and docs check with its home; clause 2: a repeated run prints identical output [C7,CD64]', async () => {
+  const { fileURLToPath } = await import('node:url');
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const run = () => runFixtureChild(process.execPath, ['bin/cells-plan.js', '--place-tests'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const first = run();
+  assert.equal(first.failure, null, first.context);
+  const second = run();
+  assert.equal(second.failure, null, second.context);
+  assert.equal(second.stdout, first.stdout, 'a repeated --place-tests run prints identical output');
+  const tracked = runFixtureChild('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout.split('\0').filter(Boolean);
+  const expected = tracked.filter(path => path.startsWith('test/') || /^docs\/.*\.test\.[cm]?js$/u.test(path)).sort();
+  const lines = first.stdout.trimEnd().split('\n');
+  const rows = lines.filter(line => line.includes('\t'));
+  assert.deepEqual(rows.map(line => line.split('\t')[0]), expected);
+  assert.ok(rows.every(line => /\t(cell \S+|journey \S+,\S+|unknown .+)$/u.test(line)), 'every file names a cell, a journey or an unknown reason');
+  const counts = lines.filter(line => line.startsWith('files for cell '));
+  const { readPlan } = await import('../bin/cells-plan.js');
+  assert.equal(counts.length, readPlan(root).cells.length, 'every plan cell reports how many test files it gets');
+  assert.equal(lines.at(-1), `total: ${expected.length}`);
 });
