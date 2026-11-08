@@ -45,6 +45,7 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 ]));
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
 
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
@@ -218,7 +219,10 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;
-    if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+    const toBoard = options.returnToBoard === true && (board.executionEngineVersion ?? ENGINE_VERSION) >= CONVEYOR_RETURN_ENGINE;
+    if (state === 'red' && toBoard && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+      returnToBoard(board, id, job, result.error);
+    } else if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       returnToBuilder(board, id, job, result.error);
     } else if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       const reservation = reopenFirstRefusalMinutes > 0
@@ -256,6 +260,23 @@ function returnToBuilder(board, id, job, error) {
   logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
+}
+
+/**
+ * Give a red or refused queued item back to the board: release the builder's claim and record the return with no
+ * builder first refusal, so next offers it to any free seat of its lane and route.
+ * Why: work belongs to the board, not to an agent; a red sat claimed by a seat whose agent was gone until its
+ * two-hour lease lapsed, and the lapse then reserved it for that same seat (#3541).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {any} job the queued job whose gate was refused
+ * @param {{ code: string }} error the retained refusal
+ */
+function returnToBoard(board, id, job, error) {
+  release(board, id, job.agentId, `the queued gate was refused (${error.code}); returned to the board for any free seat`, undefined, 'OTHER');
+  logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, returnedToBoard: true });
+  insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it went back to the board for any free seat. pullboard show ${id} prints the refusal.`, lanes: [] });
 }
 
 /** End a crashed incarnation before atomically deriving a bounded successor from its immutable candidate [C7,V4]. */

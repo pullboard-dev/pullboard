@@ -8,6 +8,7 @@ import { compareMainFailures } from '../../../../../packages/landing/index.js';
 import { withMainCheckout } from '../../../../../packages/landing/index.js';
 import { runTestFiles } from '../../../../../packages/gate/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
+import { recordClauseTicks } from './submit.js';
 import {
   context,
   resourceAgent,
@@ -42,6 +43,7 @@ export async function run(io, { first, second, rest, values }) {
   for (const notice of [...result.mainFailures, ...result.mainFileFailures]) io.say(notice.message);
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
+  if (result.green && item !== undefined) await recordClauseTicks(io, item, files);
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
