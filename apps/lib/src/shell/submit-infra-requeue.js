@@ -27,6 +27,8 @@ const HEALTH_WAITS = 20;
  * Why: on 4 Nov 51 of 80 gates ended GATE_INFRA_EXHAUSTED after four lock stops alone (#3087); a lock always frees.
  */
 export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED']));
+/** Lock waits one candidate may spend before the stop is an infrastructure stop, never a red (#3101). */
+export const LOCK_WAIT_LIMIT = 60;
 const LOCK_PAUSE_MS = 1_000;
 const LOCK_MAX_PAUSE_MS = 30_000;
 /** Inventory waits that spend no retry; each main move may need one, and the bound keeps the loop finite. */
@@ -85,10 +87,10 @@ function pause(ms) {
  * other (#3316).
  *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, waitInventory?: (commit: string) => Promise<unknown>, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @param {{ onInfrastructure?: (rerun: { attempt: number, code: string, hosts: string[], message: string }) => Promise<void>, say?: (line: string) => void, waitInventory?: (commit: string) => Promise<unknown>, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number, lockWaitLimit?: number }} [options]
  * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, waitInventory = null, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, waitInventory = null, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, onInfrastructure = async () => {}, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS, lockWaitLimit = LOCK_WAIT_LIMIT } = {}) {
   const attempts = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
@@ -102,6 +104,10 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
       const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
       if (LOCK_CODES.has(code)) {
+        if (lockWaits.count >= lockWaitLimit) {
+          attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts: [] });
+          throw exhausted(attempts, error);
+        }
         const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs);
         lockWaits.count += 1;
         lockWaits.totalMs += ms;
@@ -122,9 +128,13 @@ export async function submitUntilSettled(run, { say = () => {}, waitInventory = 
       }
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
+      // A spent gate retry window (30 min across runners) is the whole retry: stop now, and the board shouts once (#3365).
+      if (error.infrastructureWindowSpent === true) throw Object.assign(exhausted(attempts, error), { windowSpent: true });
       if (attempts.length > retries) throw exhausted(attempts, error);
       // Only the last attempt's failed hosts are avoided: an earlier host that recovered re-enters the pool.
       avoided = new Set(hosts);
+      // The board hears each rerun's code once, before the rerun is admitted, so a cause is never left to the log (#3071).
+      await onInfrastructure({ attempt, code, hosts, message: String(error.message ?? '').slice(0, 500) });
       const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
       say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}${hosts.length ? ` on ${hosts.join(', ')}` : ''}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
       let waits = 0;

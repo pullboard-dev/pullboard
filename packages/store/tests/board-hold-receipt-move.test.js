@@ -16,7 +16,7 @@ test('clause 1: a hold row carries the move and the slowest named step with its 
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'move-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../../src/board.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     import { measureBoardWritePhase } from ${JSON.stringify(new URL('../src/shell/board-write-lock.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-move', seat: 'web-1', item: 7 } });
@@ -46,7 +46,7 @@ test('clause 1: a write with no named move body still carries a move on every ho
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'unnamed-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const source = `
-    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../../src/board.js', import.meta.url).href)};
+    import { closeBoard, atomic } from ${JSON.stringify(new URL('../../store/index.js', import.meta.url).href)};
     import { openBoard } from ${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)};
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-bare', seat: 'web-1', item: 7 } });
     try { atomic(board, () => {}); } finally { closeBoard(board); }

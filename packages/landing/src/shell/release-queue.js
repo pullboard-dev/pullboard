@@ -1,18 +1,11 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
-import { createRequire } from 'node:module';
 import { runnerBoardFile } from '../../../resources/index.js';
-
-/**
- * The few store readers a rank needs, loaded on the first board read and never at import.
- * Why: the store front door pulls the whole machine in, and an ordinary test run must stay light. The event log loads first
- * so the store's import cycle starts where the front door starts it; entering at board-query leaves PERSON uninitialized.
- */
-function store() {
-  const load = createRequire(import.meta.url);
-  load('../../../store/src/shell/board-event-log.js');
-  const query = load('../../../store/src/shell/board-query.js');
-  return { openBoardReadOnly: query.openBoardReadOnly, boardId: query.boardId, listItems: query.listItems, milestones: load('../../../store/src/core/board-milestones-read.js').milestones };
-}
+// The event log is imported first so the store's import cycle starts where the front door starts it; entering at board-query leaves PERSON uninitialized.
+import '../../../store/src/shell/board-event-log.js';
+import { openBoardReadOnly } from '../../../store/src/shell/board-query.js';
+import { boardId } from '../../../store/src/shell/board-query.js';
+import { listItems } from '../../../store/src/shell/board-query.js';
+import { milestones } from '../../../store/src/core/board-milestones-read.js';
 
 /**
  * Capture the item's roadmap rank once, without opening or migrating a board for writing.
@@ -29,7 +22,6 @@ export function captureReleaseQueue(root, item) {
   if (item === undefined || item === null || item === '') return undefined;
   const file = runnerBoardFile(root);
   if (!file) return undefined;
-  const { openBoardReadOnly, boardId } = store();
   const db = openBoardReadOnly(file);
   try {
     const board = { db, clock: { now: () => new Date() } };
@@ -42,7 +34,6 @@ export function captureReleaseQueue(root, item) {
  * withdrawn local items, retains missing ids, and never resolves external references for queue rank.
  */
 function releaseRankInputs(board) {
-  const { listItems, milestones } = store();
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   return milestones(board).map(milestone => ({ items: milestone.items.map(id => ({
     id, status: typeof id === 'number' ? items.get(id)?.item_status ?? 'missing' : 'unavailable',
