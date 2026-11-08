@@ -66,10 +66,7 @@ test('clause 1: a lane seat files the coordinator piece --after its own claimed 
   const laneId = lane.doc.item?.item_id ?? lane.doc.item_id;
   assert.equal(box.run(box.web, 'claim', String(laneId)).code, 0);
   const piece = (...extra) => fixtureAdd(box.run, box.web, 'coordinator', 'Cross item: coordinator piece', '--route', 'strong', '--specs', 'G1',
-    '--criterion', HOOK, '--brief', 'Files:
-- .githooks/pre-commit
-Test:
-- web/a.test.js', ...extra, '--json');
+    '--criterion', HOOK, '--brief', 'Files:\n- .githooks/pre-commit\nTest:\n- web/a.test.js', ...extra, '--json');
   const plain = piece();
   assert.notEqual(plain.code, 0, 'a plain add into the coordinator lane is refused');
   assert.equal(JSON.parse(plain.out).error.code, 'AGENT_GRANT_LANE');
