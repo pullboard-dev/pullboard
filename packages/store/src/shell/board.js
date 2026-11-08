@@ -49,6 +49,7 @@ import { STATES } from "../../../state/index.js";
 import { UNKNOWN_MOVE } from "../../../state/index.js";
 import { effectiveGuards } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { pendingGateAtHead } from "./submit-handoff-read.js";
 import { itemAuthorProblem } from "../../../items/index.js";
 import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
@@ -331,6 +332,9 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
     },
+    gateReceipt: (found) => pendingGateAtHead(board, found)
+      ? new Refused('GATE_PENDING', `the gate for #${found.item_id} has not finished at ${String(found.item_commit).slice(0, 12)}, so there is no proof receipt to review; it becomes reviewable when its gate result exists: pullboard next --verify`)
+      : null,
   };
 }
 
