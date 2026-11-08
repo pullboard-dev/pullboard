@@ -3,6 +3,7 @@ import { requireLandingModuleResolution } from './landing-composition-guards.js'
 import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
+import { placeLandingNewFiles } from './landing-history-plan.js';
 import { placeLandingHistory } from './landing-history-plan.js';
 import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../merge/index.js';
@@ -184,8 +185,11 @@ export function amendLandingEngines(root, hooks = []) {
     git(root, ['add', '--', ...engines.files]);
     const placed = placeLandingHistory(root, engines.files);
     if (placed.length) git(root, ['add', '--', ...placed]);
-    git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   }
+  // Any other new file the plan lacks is placed by rule in this same merge, so main's cells-plan check never goes red (#3443).
+  const newFiles = placeLandingNewFiles(root);
+  if (newFiles.length) git(root, ['add', '--', ...newFiles]);
+  if (engines.files.length || newFiles.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   return engines;
 }
 
