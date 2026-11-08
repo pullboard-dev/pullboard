@@ -150,7 +150,7 @@ test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   assert.ok(remoteCoordinator, 'the linked snapshot retains the remote coordinator row');
   assert.equal(remoteCoordinator.agent_path, relay.root, 'the snapshot names the coordinator checkout on the source device');
   assert.equal(before.document.tables.board_meta.find(row => row.meta_key === 'agent_model:coordinator')?.meta_value, 'Remote Coordinator');
-  /** Count real sealed moves sent to the relay, excluding checkpoint and token requests. */
+  /** Count real sealed moves sent to the relay, excluding checkpoint and token requests (checkpoint uploads follow 013609a3d5). */
   const remoteMoves = () => relay.calls.filter(call => call.method === 'POST' && /\/moves$/u.test(call.path)).length;
   const relayCalls = remoteMoves();
   const linkedInit = await paired.cli('init');
