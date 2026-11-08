@@ -23,6 +23,7 @@ test('next parks a claimed item whose new wait is unmet and offers other work in
   assert.notEqual(again.item?.item_id, work, 'it stays parked while the wait is unmet');
 });
 
+/** A withdrawn prerequisite stands in for a landed one: both end the wait, and the fixture kit has no cheap way to verify an item. */
 test('once the wait is satisfied the parked item is offered first to the seat that built it [N2,B5,B10]', t => {
   const box = crossLaneFixture(t);
   joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL, run: (root, ...args) => box.runAs(box.session, root, ...args) });
@@ -34,7 +35,7 @@ test('once the wait is satisfied the parked item is offered first to the seat th
   assert.equal(parked.item?.item_id, blocker, 'only the prerequisite is free while the wait is unmet');
   box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
   const later = box.add('web', 'Later work');
-  box.json(box.run(box.repo, 'withdraw', String(blocker), '--reason', 'Prerequisite done elsewhere', '--json'));
+  box.json(box.run(box.repo, 'withdraw', String(blocker), '--note', 'Prerequisite done elsewhere', '--json'));
   const offered = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(offered.item?.item_id, work, `the parked item comes back to its builder before #${later}`);
 });
