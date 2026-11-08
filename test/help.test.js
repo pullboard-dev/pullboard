@@ -1,4 +1,4 @@
-/** Help stays page-safe and its command inventory follows its printed usages [N26]. */
+/** Help stays page-safe and its command inventory follows its printed usages [N26]. @pullboard-world-pin: the edit help case reads edit.js itself to check every option is listed. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
