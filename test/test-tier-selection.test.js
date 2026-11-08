@@ -197,7 +197,7 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
   const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
   assert.ok(logs.length > 1, 'the original batch and split trees have actual gate results');
-  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')));
+  assert.ok(logs.every(log => log.includes('T3_JOURNEY') && !log.includes('T1_alpha') && !log.includes('T1_beta')), logs.join('\n--- next gate log ---\n'));
   assert.ok(json(box, box.repo, 'show', String(good.id)).item_merged_commit);
   assert.equal(json(box, box.repo, 'show', String(bad.id)).item_status, 'open');
 });
