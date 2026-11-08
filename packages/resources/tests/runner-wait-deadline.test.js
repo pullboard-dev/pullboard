@@ -49,7 +49,7 @@ after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
 /** Build the real loopback SSH transport in an isolated machine, with a short private deadline. */
-function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false } = {}) {
+function fixture({ hold = '', runnerWaitMs = 60, dropFirst = !hold, healthDown = false, transportDown = healthDown } = {}) {
   const box = e2e.project('true');
   const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
   for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
@@ -63,7 +63,7 @@ cp.spawnSync=function(command,...args){ if(command!=='/bin/launchctl') return or
   return {status:113,signal:null,stderr:'Could not find domain for fixture\\n'}; };
 require('node:module').syncBuiltinESMExports();\n`);
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome,
-    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown, workerHealthDown: healthDown, stderrLog,
+    machineHome: paths.remoteMachine, requests, starts, hold, dropFirst, healthDown: transportDown, workerHealthDown: healthDown, stderrLog,
     registrationNodeOptions: `--require=${noDesktop}` });
   box.env.PATH = paths.bin + ':' + box.env.PATH;
   const added = cli(box.repo, box.env, 'runner', 'add', HOST + '-drop', '--slots', '1', '--browser', '1');
@@ -150,7 +150,8 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
 });
 
 test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
-  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
+  // A runner that never answers fails its SSH and Node confirming probe too; only that failure quarantines it (#3738).
+  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, transportDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
