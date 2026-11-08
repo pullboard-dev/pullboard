@@ -18,6 +18,8 @@ import { writeItemMarker } from './item-folder-identity.js';
 export { itemFolderIdentity, itemFolderPath } from './item-folder-identity.js';
 import { itemFolderPath } from './item-folder-identity.js';
 import { seatRoot } from './item-folder-identity.js';
+import { itemFolderRunner } from './commands/runner.js';
+import { openHostedItemFolder } from './commands/runner.js';
 
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
@@ -174,9 +176,15 @@ function sameDirectory(first, second) {
   try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
 }
 
-/** Open or reuse this item's branch, starting a new branch at the current primary main. */
+/** Open or reuse this item's branch, starting a new branch at the current primary main; a runner-hosted seat's folder lives only on its runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
+  const runner = itemFolderRunner();
+  if (runner) {
+    const hooks = tryGit(ctx.info.root, ['config', '--get', 'core.hooksPath']);
+    return openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
+      hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
+  }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
