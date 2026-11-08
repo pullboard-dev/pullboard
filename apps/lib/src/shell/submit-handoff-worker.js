@@ -177,11 +177,14 @@ export function handoffRefusedResult(error) {
  * @param {{ item: number, infra?: string }} request
  * `healthy` and `wait` replace the rerun's runner probe and pause, as submitUntilSettled takes them; a fixture passes them.
  *
- * @param {{ waitInventory: (commit: string) => Promise<unknown>, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
+ * @param {{ waitInventory: (commit: string) => Promise<unknown>, agentId?: string, submit?: typeof submitHere, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void> }} options
  */
-export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait }) {
+export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
+    onInfrastructure: rerun => withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
+      text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]))
+      .catch(error => process.stderr.write(`infrastructure rerun not recorded: ${error.message}\n`)),
     ...(healthy ? { healthy } : {}), ...(wait ? { wait } : {}) });
   return handoffGreenResult(ctx, lockWaits);
 }
@@ -349,7 +352,7 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
       createJob(board.db, { id: drive, kind: GATE_DRIVE_KIND, item: request.item, candidate: request.commit });
       nameJob(board.db, drive, { item: request.item, candidate: request.commit });
     });
-    const gate = drivenHandoffGate(ctx, request, { waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
+    const gate = drivenHandoffGate(ctx, request, { agentId: job.agentId, waitInventory: commit => inventoryFromJob(nativeBoard, ctx, root, commit, request.job),
       stop: stopper.signal, inflight });
     const board = nativeBoard.openBoard(ctx.file);
     let result;
