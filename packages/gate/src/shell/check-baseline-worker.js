@@ -119,7 +119,12 @@ function mainSource(root, commit) {
  */
 async function measureBaseline(root, id, expected, services) {
   const executionServices = await services.gateExecutionServices?.();
-  if (!executionServices || !runnersRegistered(executionServices)) return checkBaseline(root, expected.command, { main: expected.main });
+  if (!executionServices) return checkBaseline(root, expected.command, { main: expected.main });
+  if (!runnersRegistered(executionServices)) {
+    // No runner exists: queue in this machine's gate queue (memory and slot admission) like any gate run, never start it unqueued.
+    return withGateSlot(root, () => checkBaseline(root, expected.command, { main: expected.main }), { executionServices, remote: false,
+      agent: 'coordinator', item: String(id), kind: 'check-baseline' });
+  }
   const source = mainSource(root, expected.main);
   if (!source) return { command: expected.command, main: expected.main, result: 'unavailable', reason: 'the captured main commit could not be read for a runner' };
   return withGateSlot(root, async lease => {
