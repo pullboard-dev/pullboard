@@ -1,7 +1,7 @@
 /** One reused channel per runner through a runner adapter; gates run there as result files, health is a probe-renewed lease [C7]. */
 export { createTransport, sharedTransport, connect, probe, startShard, fetchResult } from './src/shell/transport.js';
 export { runGate } from './src/shell/gate-run.js';
-export { sshAdapter } from './src/shell/ssh.js';
+export { sshAdapter, spawnSsh, sshControlPath } from './src/shell/ssh.js';
 export { pullAdapter, pullStatement } from './src/shell/pull.js';
 export { pullServer, pullRunner } from './src/shell/pull-http.js';
 export { mintJobToken, readJobToken } from './src/core/pull-token.js';

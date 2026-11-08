@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "allowedEdges": [
+    "runners->transport"
+  ],
   "item": 1473,
   "rfc": "docs/rfcs/0006-cells.md",
   "base": "b068c560b665790d78507a0db598cf9d130e9232",
