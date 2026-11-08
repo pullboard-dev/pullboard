@@ -1,45 +1,30 @@
-/** Classify whether selected tests may launch Chrome; uncertainty keeps browser coverage enabled. */
+/**
+ * Browser admission reads one declaration: a test file needs a browser only when its first line is
+ * `// pullboard: browser` [C7]. Nothing here parses imports or guesses from source; a frozen check is parsed
+ * only to name the explicit test files it runs, and an opaque command keeps browser capacity.
+ */
 import {
   accessSync,
   constants,
 } from 'node:fs';
 import {
   lstat,
+  readFile,
   realpath,
 } from 'node:fs/promises';
 import {
-  posix,
   relative,
   resolve,
   sep,
 } from 'node:path';
-import {
-  commonJsIn,
-  importsIn,
-  moduleCompiles,
-} from './module-imports.js';
-import { withImportParseCache } from './module-import-cache.js';
 import {
   cleanGitEnvironment,
   git,
 } from '../../../../src/git.js';
 import { literalShellWords } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
-import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
-import { browserModuleReach } from '../core/browser-module-reach.js';
-import { browserSourceFiles } from './browser-source-files.js';
-import { BROWSER_RULE_VERSION } from './browser-scan-cache.js';
-import { browserScanCacheFile } from './browser-scan-cache.js';
-import { cachedVerdictHolds } from './browser-scan-cache.js';
-import { changedPaths } from './browser-scan-cache.js';
-import { currentTree } from './browser-scan-cache.js';
-import { readBrowserScanCache } from './browser-scan-cache.js';
-import { writeBrowserScanCache } from './browser-scan-cache.js';
+import { declaresBrowser } from '../core/browser-declaration.js';
 
-const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
-const CHROME_FIXTURE = 'test/chrome-fixture.js';
-const FIXTURE_CHILD = 'test/fixture-child.js';
-const JOURNEYS_TEST = 'test/journeys.test.js';
 const TEST_RUNNER = 'bin/run-tests.js';
 /** Fixed source-only entry points belong to this tool's repository, never to a project's labels. */
 const SOURCE_CHECKS = [
@@ -54,74 +39,10 @@ const SOURCE_CHECKS = [
   { args: ['bin/checks/view-pure.js'], file: 'bin/checks/view-pure.js' },
 ];
 const DOCTRINE_CHECKS = new Set(['bin/checks/file-size.js', 'bin/checks/empty-catch.js', 'bin/checks/test-names.js', 'bin/checks/test-inputs.js']);
-/**
- * Chrome fixture exports that neither start a browser nor yield a browser path or launch arguments; any
- * other binding, findChromeExecutable and a new export included, counts as a launch. These six only work
- * over an existing DevTools connection, or refuse.
- */
-const LAUNCH_FREE_CHROME_EXPORTS = new Set(['requireBrowserSlot', 'waitForTargetAbsent', 'createWaiter', 'createSender',
-  'createEvaluator', 'createPageStepEvaluator']);
-/** Imports that let a module start another process or module, which by launch counts only with a Chrome reference. */
-const PROCESS_STARTERS = new Set(['node:child_process', 'node:worker_threads', 'node:cluster', 'node:module', 'node:vm']);
 const VALUE_OPTIONS = new Set(['--test-concurrency', '--test-name-pattern', '--test-shard', '--test-skip-pattern', '--test-timeout']);
-/** What module-imports reports for a dynamic import whose target is not one plain string. */
-const COMPUTED_IMPORT = '(computed)';
 const FLAG_OPTIONS = new Set(['--test-only']);
-/** Path-scoped child-process exceptions with a short reason for each reviewed non-Chrome helper. */
-const SAFE_CHILD_PROCESS_MODULES = new Map([
-  ['test/fixture-child.js', 'shared fixture runner for explicit fixture commands'],
-  ['src/git.js', 'runs Git commands for repository inspection'],
-  ['packages/gate/src/shell/module-imports.js', 'runs the Node parser in an isolated child'],
-  ['packages/resources/index.js', 'reads process identity with /bin/ps'],
-]);
-/** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
-const REVIEWED_EXECUTORS = new Map([
-  ['packages/gate/src/shell/browser-slot-guard.js', [
-    { function: 'guardedChildProcess', site: 'original.apply(this, input)',
-      body: 'const browser = browserInCall(method, input); if (browser) throw browserSlotRefusal(browser); return original.apply(this, input);',
-      reason: 'the installed wrapper checks browserInCall before forwarding the original process operation' },
-    { function: 'guardedPromisified', site: 'custom.apply(this, input)',
-      body: 'const browser = browserInCall(method, input); if (browser) return Promise.reject(browserSlotRefusal(browser)); return custom.apply(this, input);',
-      reason: 'the installed promise wrapper checks browserInCall before forwarding the original process operation' },
-  ]],
-  ['apps/cli/src/shell/cli/sweep.js', [{ function: 'sweepHere',
-    site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
-    reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
-  ['packages/sentinels/src/shell/sentinel-runner.js', [{ function: 'executeSentinel',
-    site: "spawn(row.check, { cwd: directory, env: environment, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })",
-    reason: 'the Windows sentinel executor runs an approved check only when explicitly invoked' }]],
-  ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',
-    site: "spawn(runner?.executable ?? '/bin/sh', runner?.args ?? ['-c', check], { cwd: tree, env: environment, detached: true, stdio: ['ignore', 'pipe', 'pipe'], })",
-    reason: 'prepareCauseProof validates the named runner executable against the real process.execPath' }]],
-  ['packages/seats/src/shell/seat-wake.js', [{ function: 'wakeRoutedSeat',
-    site: "spawn(registration.command, [String(item)], { cwd: registration.root, shell: false, stdio: 'ignore' })",
-    reason: 'the wake runs only the executable the seat itself registered, when routing commits; importing the module starts nothing' }]],
-  ['packages/resources/src/shell/holder-liveness.js', [{ function: 'dispatchRelaunch',
-    site: "spawn(relaunch.argv[0], relaunch.argv.slice(1), { cwd: relaunch.cwd || undefined, detached: true, stdio: 'ignore', env: { ...process.env, [LIVENESS_RELAUNCH_ENV]: '1' }, })",
-    reason: 'the re-dispatch runs only the command a holder captured when it took its slot; importing the module starts nothing' }]],
-  ['packages/doctrine/src/shell/doctrine-checks.js', [
-    { function: 'runRuleCheck',
-    site: "spawnSync(step.value.command, step.value.options)",
-    reason: 'running the check the caller selected; importing the module starts nothing' },
-    { function: 'runRuleCheckAsync',
-    site: "spawnCaptured(step.value.command, [], step.value.options)",
-    reason: 'running the check the caller selected; importing the module starts nothing' },
-  ]],
-  ['packages/gate/src/shell/shell-run.js', [
-    { function: 'runShell',
-    site: "spawnSync(step.value.command, step.value.args, step.value.options)",
-    reason: 'running the check the caller selected; importing the module starts nothing' },
-    { function: 'runShellAsync',
-    site: "spawnCaptured(step.value.command, step.value.args, { ...step.value.options, signal: options?.signal })",
-    reason: 'running the check the caller selected; importing the module starts nothing' },
-  ]],
-  ['test/cli-startup.test.js', [{ function: 'fixture',
-    site: "runFixtureChild(env.PULLBOARD_REAL_GIT, args, { cwd, env, encoding: 'utf8' })",
-    reason: 'this private fixture binds PULLBOARD_REAL_GIT to realGitPath before installing its counting shim' }]],
-  ['test/git-calls.test.js', [{ function: 'advanceHead',
-    site: "execFileSync(box.env.PULLBOARD_REAL_GIT, ['commit-tree', tree, '-p', parent], { cwd: box.repo, env: box.env, input: label, encoding: 'utf8', })",
-    reason: 'the private fixture binds this exact plumbing call to its realGit executable' }]],
-]);
+
+export { BROWSER_MARKER } from '../core/browser-declaration.js';
 
 export { literalShellWords } from '../../../kernel/index.js';
 
@@ -251,87 +172,6 @@ function committedSource(root, files, path) {
   } catch { return null; }
 }
 
-/** Resolve a module edge against a committed tree without following symlinks. */
-function committedTarget(files, importer, request) {
-  if (typeof request !== 'string' || !request.startsWith('.')) return null;
-  const raw = request.split(/[?#]/u)[0];
-  const base = posix.normalize(posix.join(posix.dirname(importer), raw));
-  if (base === '..' || base.startsWith('../') || base.startsWith('/')) return null;
-  const candidates = posix.extname(base) ? [base] : [base, ...MODULE_SUFFIXES.map(suffix => base + suffix), ...MODULE_SUFFIXES.map(suffix => posix.join(base, `index${suffix}`))];
-  const found = candidates.filter(candidate => files.has(candidate));
-  return found.length === 1 && ['100644', '100755'].includes(files.get(found[0]).mode) ? found[0] : null;
-}
-
-/** Allow only a side-effect fixture import or the fixed-Git helper; generic command helpers keep browser admission.
- * @param {string} source
- * @param {string} request
- * @returns {boolean}
- */
-function safeFixtureChildImport(source, request) {
-  const escaped = request.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  const sideEffect = new RegExp(`^[ \\t]*import[ \\t]*(['"])${escaped}\\1[ \\t]*;?[ \\t]*$`, 'u');
-  const fixedGit = new RegExp(`^[ \\t]*import[ \\t]*\\{[ \\t]*runFixtureGit(?:[ \\t]+as[ \\t]+[A-Za-z_$][\\w$]*)?[ \\t]*\\}[ \\t]*from[ \\t]*(['"])${escaped}\\1[ \\t]*;?[ \\t]*$`, 'u');
-  let removedSafeImport = false;
-  const remaining = source.split(/\r?\n/u).filter(line => {
-    if (!line.includes(request)) return true;
-    if (!sideEffect.test(line) && !fixedGit.test(line)) return true;
-    removedSafeImport = true;
-    return false;
-  }).join('\n');
-  if (!removedSafeImport) return false;
-  try { return !importsIn([remaining])[0].includes(request); } catch { return false; }
-}
-
-/** By launch, a Chrome fixture import is launch-free only as single-line named imports of launch-free exports.
- * Anything else (a launch export, a namespace, default or dynamic import, a re-export of everything) is a launch.
- * @param {string} source
- * @param {string} request
- * @returns {boolean}
- */
-function launchFreeChromeImport(source, request) {
-  const escaped = request.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  const named = new RegExp(`^[ \\t]*(?:import|export)[ \\t]*\\{([^}\\r\\n]*)\\}[ \\t]*from[ \\t]*(['"])${escaped}\\2[ \\t]*;?[ \\t]*$`, 'u');
-  let removed = false;
-  const remaining = source.split(/\r?\n/u).filter(line => {
-    const match = named.exec(line);
-    if (!match) return true;
-    const names = match[1].split(',').map(part => part.trim()).filter(Boolean).map(part => part.split(/\s+as\s+/u)[0].trim());
-    if (!names.length || !names.every(name => LAUNCH_FREE_CHROME_EXPORTS.has(name))) return true;
-    removed = true;
-    return false;
-  }).join('\n');
-  if (!removed) return false;
-  try { return !importsIn([remaining])[0].includes(request); } catch { return false; }
-}
-
-/** Detect direct literal Chrome launchers without treating help text or refusal messages as launches. */
-function namesChromeLauncher(source, path, chromeOnly = false) {
-  return sourceLaunchesBrowser(source, REVIEWED_EXECUTORS.get(path), { chromeOnly });
-}
-
-/** Detect dynamic process builtin access, which can load launch-capable modules.
- * @param {string} source
- * @returns {boolean}
- */
-function usesDynamicBuiltinLoader(source) {
-  const loaderName = ['getBuiltin', 'Module'].join('');
-  if (source.includes(loaderName) || /getBuiltin\\u(?:004d|\{4d\})odule/iu.test(source)) return true;
-  if (/\bprocess\s*(?:\?\.)?\s*\[\s*(?!(['"])env\1\s*\])/u.test(source)) return true;
-  const aliases = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*process\b/gu)].map(match => match[1]);
-  return aliases.some(alias => {
-    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    const computedAlias = new RegExp(`\\b${escapedAlias}\\s*(?:\\?\\.)?\\[\\s*(?!(['"])env\\1\\s*\\])`, 'u');
-    return computedAlias.test(source);
-  });
-}
-
-/**
- * Read gate.browserByLaunch; an unreadable settings file keeps today's broad classification, the safe side.
- * Loaded on demand: callers that pass byLaunch (the runner's per-file admission) never open settings.
- */
-async function browserByLaunchSetting() {
-  try { return (await import('../../../config/src/shell/settings.js')).browserByLaunchEnabled(); } catch { return false; }
-}
 
 /** Report a one-line explanation when uncertainty reserves browser capacity.
  * @param {(decision:{file:string,reason:string})=>void|undefined} onFallback
@@ -415,8 +255,8 @@ async function ownSourceCheck(root, words, { commit, env }) {
   }
 }
 
-/** Parse the frozen check and classify its explicit test files, failing closed on unknown shell. */
-export async function checkNeedsBrowser(root, command, { commit, env = process.env, onFallback, byLaunch } = {}) {
+/** Parse the frozen check and read its explicit test files' declarations, failing closed on unknown shell. */
+export async function checkNeedsBrowser(root, command, { commit, env = process.env, onFallback } = {}) {
   if (foreignNodeOptions(env.NODE_OPTIONS, env)) return browserFallback(onFallback, '<frozen check>', 'NODE_OPTIONS may load an unclassified module');
   let words = literalShellWords(command);
   if (words && await ownSourceCheck(root, words, { commit, env })) return false;
@@ -434,19 +274,18 @@ export async function checkNeedsBrowser(root, command, { commit, env = process.e
   if (runner !== resolve(root, TEST_RUNNER)) return browserFallback(onFallback, '<frozen check>', 'runner is not bin/run-tests.js in this repository');
   const files = explicitRunnerFiles(words.slice(2));
   if (!files) return browserFallback(onFallback, '<frozen check>', 'runner options or test selection are not statically understood');
-  if (files.some(file => file === JOURNEYS_TEST || file === 'test/cockpit' || file.startsWith('test/cockpit/'))) return true;
   if (commit) {
     const committed = committedFiles(root, commit);
     const runnerEntry = committed?.get(TEST_RUNNER);
     if (!runnerEntry || runnerEntry.type !== 'blob' || !['100644', '100755'].includes(runnerEntry.mode)) return browserFallback(onFallback, TEST_RUNNER, 'committed runner is missing or is not a regular file');
-    return testsNeedBrowser(root, files, { commit, onFallback, byLaunch });
+    return testsNeedBrowser(root, files, { commit, onFallback });
   }
   if (await realpath(runner).catch(() => '') !== await realpath(resolve(root, TEST_RUNNER)).catch(() => '')) return browserFallback(onFallback, TEST_RUNNER, 'runner resolves outside the expected repository path');
   const runnerInfo = await lstat(runner).catch(() => null);
   let runnerInside = false;
   try { runnerInside = await staysInside(root, runner); } catch { /* Missing or unresolved runner is uncertain. */ }
   if (!runnerInfo?.isFile() || runnerInfo.isSymbolicLink() || !runnerInside) return browserFallback(onFallback, TEST_RUNNER, 'runner is not a regular in-repository file');
-  return testsNeedBrowser(root, files, { onFallback, byLaunch });
+  return testsNeedBrowser(root, files, { onFallback });
 }
 
 /**
@@ -503,284 +342,65 @@ function repositoryPath(root, file) {
 }
 
 /** Check that a resolved path stays inside the real repository, including through symlinks. */
-async function staysInside(root, absolute, sourceOnly = false) {
-  const files = sourceOnly ? browserSourceFiles() : { realpath };
-  const [realRoot, realTarget] = await Promise.all([files.realpath(root), files.realpath(absolute)]);
+async function staysInside(root, absolute) {
+  const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(absolute)]);
   return realTarget.startsWith(realRoot + sep);
 }
 
-/** Resolve one literal relative module request using file metadata, returning null when ambiguous. */
-async function localTarget(root, importer, request) {
-  if (typeof request !== 'string' || !request.startsWith('.')) return null;
-  const raw = request.split(/[?#]/u)[0];
-  const base = posix.normalize(posix.join(posix.dirname(importer), raw));
-  if (base === '..' || base.startsWith('../') || base.startsWith('/')) return null;
-  const candidates = posix.extname(base)
-    ? [base]
-    : [base, ...MODULE_SUFFIXES.map((suffix) => base + suffix), ...MODULE_SUFFIXES.map((suffix) => posix.join(base, `index${suffix}`))];
-  const found = [];
-  for (const candidate of candidates) {
-    const absolute = resolve(root, ...candidate.split('/'));
-    try {
-      if (!(await staysInside(root, absolute, true))) return null;
-      if ((await browserSourceFiles().stat(absolute)).isFile()) found.push(candidate);
-    } catch (error) {
-      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
-    }
-  }
-  return found.length === 1 ? found[0] : null;
-}
-
 /**
- * Parse each source's CommonJS use and imports once, in one child per batch, reusing earlier parses.
- * A source that loads CommonJS is never import-parsed, since the caller refuses it first.
- *
- * @param {string[]} sources
- * @param {Map<string, {commonJs:boolean, imports:string[]}>} memo
- * @returns {{commonJs:boolean, imports:string[]}[]}
- */
-function parsedSources(sources, memo) {
-  const fresh = [...new Set(sources.filter(source => !memo.has(source)))];
-  if (fresh.length) {
-    const commonJs = commonJsIn(fresh);
-    const plain = fresh.filter((_, index) => !commonJs[index]);
-    const imports = plain.length ? importsIn(plain) : [];
-    fresh.forEach((source, index) => memo.set(source, { commonJs: commonJs[index], imports: [] }));
-    plain.forEach((source, index) => { memo.get(source).imports = imports[index]; });
-  }
-  return sources.map(source => memo.get(source));
-}
-
-/**
- * Classify test imports from either the current checkout or one immutable committed tree.
- *
- * By default any path to the Chrome fixture, or any process or module starter the walk cannot follow,
- * reserves the browser. With byLaunch (machine setting gate.browserByLaunch) a file is browser-bound
- * only when its graph reaches a real launch: a Chrome fixture binding that starts Chrome, or a process
- * starter beside a Chrome executable reference. Cockpit files keep the browser until their own
- * fixture carries the BROWSER_SLOT_REQUIRED guard, and the guard at test/chrome-fixture.js's launch
- * point fails any launch the narrower walk misses.
+ * Read one test file's source from the working tree or, with a committed tree, from that commit; null when
+ * the path is not a regular in-repository file there.
  *
  * @param {string} root
- * @param {string[]} files
+ * @param {string} file
  * @param {Map<string, {mode:string,type:string,object:string}> | null} committed
- * @param {((decision:{file:string,reason:string})=>void) | undefined} onFallback
- * @param {boolean} [byLaunch] - unset reads gate.browserByLaunch from this machine's settings
- * @param {Map<string, {commonJs:boolean, imports:string[]}>} [memo] - parses shared across one census of many files
- * @param {Map<string, boolean>} [launchFree] - Chrome fixture import verdicts shared the same way
- * @param {Map<string, boolean>} [safeChildImports] - exact-byte fixed-Git import parses within this census only
- * @param {Map<string, string>} [sourceMemo] - one source read per file within this census
- * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
- * @returns {Promise<boolean>}
+ * @returns {Promise<string | null>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), walked = null, verdict = null) {
-  /** Record why a file is bound: the import path from the selected file to the module that launches. */
-  const bind = (why) => { if (verdict) verdict.reason = why; return true; };
-  const parents = new Map();
-  /** The first reaching path: the selected file, then each importer down to the module named. */
-  const chain = (path) => { const out = [path]; while (parents.has(out[0]) && out.length < 40) out.unshift(parents.get(out[0])); return out.join(' > '); };
-  byLaunch ??= await browserByLaunchSetting();
-  if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
-  const normalized = files.map((file) => repositoryPath(root, file));
-  if (normalized.some((file) => file === null)) return browserFallback(onFallback, '<test selection>', 'a selected path is outside the repository');
-  if (normalized.some((file) => file === JOURNEYS_TEST || file === 'test/cockpit' || file.startsWith('test/cockpit/'))) return bind('cockpit or journeys selection keeps the browser');
-
-  let frontier = [...new Set(normalized)];
-  const demands = new Map(frontier.map(path => [path, { names: null, narrow: false }]));
-  const processed = new Map();
-  /** A second import can expose another export or a broader legacy path; revisit only when demand grows. */
-  function demand(path, names, narrow, next) {
-    const before = demands.get(path);
-    const value = before ? { names: before.names === null || names === null ? null : new Set([...before.names, ...names]),
-      narrow: before.narrow && narrow } : { names, narrow };
-    const key = JSON.stringify([value.narrow, value.names === null ? null : [...value.names].sort()]);
-    demands.set(path, value);
-    if (processed.get(path) !== key) next.add(path);
-  }
-  try {
-    while (frontier.length) {
-      const paths = [];
-      const sources = [];
-      for (const path of frontier) {
-        const value = demands.get(path);
-        const key = JSON.stringify([value.narrow, value.names === null ? null : [...value.names].sort()]);
-        if (processed.get(path) === key) continue;
-        processed.set(path, key);
-        walked?.add(path);
-        if (path === CHROME_FIXTURE && !byLaunch) return bind(`reaches ${chain(path)}`);
-        if (path.endsWith('.json')) continue;
-        if (/\.(?:cjs|cts)$/u.test(path)) return browserFallback(onFallback, path, 'CommonJS loader behavior is not statically classified');
-        paths.push(path);
-        if (sourceMemo.has(path)) { sources.push(sourceMemo.get(path)); continue; }
-        if (committed) {
-          const source = committedSource(root, committed, path);
-          if (source === null) return browserFallback(onFallback, path, 'committed source is missing or not a regular file');
-          sources.push(source);
-        } else {
-          const absolute = resolve(root, ...path.split('/'));
-          if (!(await staysInside(root, absolute, true))) return browserFallback(onFallback, path, 'live source resolves outside the repository');
-          sources.push(await browserSourceFiles().readFile(absolute, 'utf8'));
-        }
-        sourceMemo.set(path, sources.at(-1));
-      }
-      if (!sources.length) break;
-      const reachKeys = [];
-      const reaches = sources.map((source, index) => {
-        if (!byLaunch) return { source, requests: new Map(), barrel: false };
-        const cache = process.env.NODE_OPTIONS ? undefined : reachMemo.get(source);
-        const initial = cache?.get('all') ?? browserModuleReach(source);
-        const value = demands.get(paths[index]);
-        const selected = value.narrow || initial.barrel ? value.names : null;
-        const key = selected === null ? 'all' : JSON.stringify([...selected].sort());
-        reachKeys[index] = key;
-        return cache?.get(key) ?? (selected === null ? initial : browserModuleReach(source, selected));
-      });
-      const probes = reaches.flatMap(row => row.proofs ?? []);
-      const uncertain = reaches.findIndex(row => row.uncertain);
-      if (uncertain >= 0) return browserFallback(onFallback, paths[uncertain], 'callable source has an unproven lexical structure');
-      const compiled = probes.length ? moduleCompiles(probes.map(row => row.source)) : [];
-      let probe = 0;
-      for (let index = 0; index < reaches.length; index++) {
-        const proofs = reaches[index].proofs ?? [];
-        const proven = proofs.map(row => compiled[probe++] === row.compiles).every(Boolean);
-        if (!proven) {
-          return browserFallback(onFallback, paths[index], 'callable declarations could not be proven safely');
-        }
-        if (byLaunch) {
-          const { proofs: _proofs, ...provenReach } = reaches[index];
-          reaches[index] = provenReach;
-          if (!process.env.NODE_OPTIONS) {
-            const cache = reachMemo.get(sources[index]) ?? new Map();
-            cache.set(reachKeys[index], provenReach);
-            reachMemo.set(sources[index], cache);
-          }
-        }
-      }
-      const originalSources = [...sources];
-      if (byLaunch) sources.splice(0, sources.length, ...reaches.map(row => row.source));
-      const browserCalls = sources.map((source, index) => namesChromeLauncher(source, paths[index], byLaunch));
-      if (paths.some((path, index) => (path.startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(path))
-        && browserCalls[index])) return bind(`launch call site in ${chain(paths[browserCalls.findIndex((call, at) => call && (paths[at].startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(paths[at])))])}`);
-      // By launch, a process or module starter launches a browser only beside a Chrome executable reference.
-      const starts = sources.map(source => byLaunch && usesDynamicBuiltinLoader(source));
-      const dynamicLoaderIndex = byLaunch ? -1 : sources.findIndex(usesDynamicBuiltinLoader);
-      if (dynamicLoaderIndex >= 0) return browserFallback(onFallback, paths[dynamicLoaderIndex], 'dynamic process builtin loading can load an unclassified module');
-      const commonJsIndex = parsedSources(originalSources, memo).findIndex(parsed => parsed.commonJs);
-      if (commonJsIndex >= 0) return browserFallback(onFallback, paths[commonJsIndex], 'CommonJS loading is not statically classified');
-      const imports = parsedSources(sources, memo).map(parsed => parsed.imports);
-      const next = new Set();
-      for (let index = 0; index < imports.length; index += 1) {
-        for (const request of imports[index]) {
-          if (byLaunch && PROCESS_STARTERS.has(request)) { starts[index] = true; continue; }
-          if (request === 'node:child_process') {
-            const policy = SAFE_CHILD_PROCESS_MODULES.get(paths[index]);
-            if (!policy) return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
-            continue;
-          }
-          if (request === 'node:module') return browserFallback(onFallback, paths[index], 'node:module can create a dynamic loader');
-          if (request === 'node:worker_threads' || request === 'node:cluster') {
-            return browserFallback(onFallback, paths[index], `${request} can launch an unclassified module`);
-          }
-          if (request === 'node:vm' && paths[index] !== 'packages/gate/src/shell/module-imports.js') {
-            return browserFallback(onFallback, paths[index], 'node:vm can evaluate an unclassified module');
-          }
-          if (request.startsWith('node:')) continue;
-          if (byLaunch && request === COMPUTED_IMPORT) { starts[index] = true; continue; }
-          if (!request.startsWith('.')) return browserFallback(onFallback, paths[index], `non-local import ${request} is not classified`);
-          const target = committed
-            ? committedTarget(committed, paths[index], request)
-            : await localTarget(root, paths[index], request);
-          if (!target) return browserFallback(onFallback, paths[index], `import ${request} is missing or ambiguous`);
-          if (target === FIXTURE_CHILD) {
-            const key = `${request}\0${sources[index]}`;
-            if (!safeChildImports.has(key)) safeChildImports.set(key, safeFixtureChildImport(sources[index], request));
-            if (!safeChildImports.get(key)) {
-              if (byLaunch) starts[index] = true;
-              else return browserFallback(onFallback, paths[index], 'fixture-child import exposes a generic caller-selected process target');
-            }
-          }
-          if (target === CHROME_FIXTURE) {
-            if (!byLaunch) return bind(`reaches ${chain(target)} from ${paths[index]}`);
-            const key = `${request}\0${sources[index]}`;
-            if (!launchFree.has(key)) launchFree.set(key, launchFreeChromeImport(sources[index], request));
-            if (!launchFree.get(key)) return bind(`launching Chrome fixture export reached ${chain(paths[index])} > ${target}`);
-            continue;
-          }
-          if (!target.endsWith('.json')) {
-            const value = demands.get(paths[index]);
-            const names = byLaunch ? reaches[index].requests.has(request) ? reaches[index].requests.get(request) : null : null;
-            if (!parents.has(target) && !demands.has(target)) parents.set(target, paths[index]);
-            demand(target, names, byLaunch && (value.narrow || reaches[index].barrel || names !== null), next);
-          }
-        }
-        if (starts[index] && browserCalls[index]) return bind(`process starter beside a Chrome reference in ${chain(paths[index])}`);
-      }
-      frontier = [...next];
-    }
-    return false;
-  } catch {
-    return browserFallback(onFallback, '<test selection>', 'source graph could not be inspected safely');
-  }
+async function testSource(root, file, committed) {
+  const path = repositoryPath(root, file);
+  if (!path) return null;
+  if (committed) return committedSource(root, committed, path);
+  const absolute = resolve(root, path);
+  const info = await lstat(absolute).catch(() => null);
+  if (!info?.isFile() || info.isSymbolicLink() || !await staysInside(root, absolute).catch(() => false)) return null;
+  return readFile(absolute, 'utf8').catch(() => null);
 }
 
 /**
- * Return true for full or uncertain selections, cockpit tests, or imports reaching the Chrome fixture;
- * with byLaunch, only for cockpit tests, uncertain graphs and graphs that reach a real Chrome launch.
+ * Whether a selection of test files needs a browser: true when any named file declares it on its first line.
+ * A full or empty selection, or a name that is not a regular in-repository file, keeps browser capacity,
+ * since no declaration can be read for it.
  *
  * @param {string} root
- * @param {string[]} files
- * @param {{commit?:string, onFallback?:(decision:{file:string,reason:string})=>void, byLaunch?:boolean}} [options] - unset byLaunch reads gate.browserByLaunch
+ * @param {string[] | undefined} files
+ * @param {{commit?:string, onFallback?:(decision:{file:string,reason:string})=>void}} [options] - commit reads that tree
  * @returns {Promise<boolean>}
  */
-export async function testsNeedBrowser(root, files, { commit, onFallback, byLaunch } = {}) {
+export async function testsNeedBrowser(root, files, { commit, onFallback } = {}) {
+  if (!Array.isArray(files) || !files.length) return browserFallback(onFallback, '<test selection>', 'a full selection names no file to read a declaration from');
   const committed = commit ? committedFiles(root, commit) : null;
   if (commit && !committed) return browserFallback(onFallback, '<test selection>', 'committed tree is unavailable');
-  return testsNeedBrowserInTree(root, files, committed, onFallback, byLaunch);
+  for (const file of files) {
+    const source = await testSource(root, file, committed);
+    if (source === null) return browserFallback(onFallback, file, 'not a regular in-repository test file, so no declaration can be read');
+    if (declaresBrowser(source)) return true;
+  }
+  return false;
 }
 
 /**
- * Classify each file on its own, as the runner admits each test file, sharing parses across the set.
- * This is the census behind gate.browserByLaunch: the files it returns are the ones that take a slot.
+ * The files of a set that declare a browser on their first line; each is read on its own, as the runner
+ * admits each test file. A file that cannot be read declares nothing.
  *
  * @param {string} root
  * @param {string[]} files
- * @param {{byLaunch?:boolean}} [options] - unset reads gate.browserByLaunch
  * @returns {Promise<string[]>}
  */
-export async function browserBoundFiles(root, files, { byLaunch, stats = null, reasons = null } = {}) {
-  return withImportParseCache(async () => {
-    byLaunch ??= await browserByLaunchSetting();
-    const memo = new Map();
-    const launchFree = new Map();
-    const safeChildImports = new Map();
-    const sourceMemo = new Map(), reachMemo = new Map();
-    const bound = [];
-    // Verdicts persist across runs with the closure each was computed from: a file whose closure did not change
-    // since its cached tree keeps its verdict, and only the rest are walked [C7].
-    const cacheFile = process.env.NODE_OPTIONS ? null : browserScanCacheFile(root);
-    const tree = cacheFile ? currentTree(root) : null;
-    const cache = cacheFile ? readBrowserScanCache(cacheFile) : { version: 1, entries: {} };
-    const diffs = new Map();
-    const changed = fromTree => changedPaths(root, fromTree, tree, diffs);
-    let dirty = false;
-    for (const file of files) {
-      const path = repositoryPath(root, file) ?? file;
-      const entry = cache.entries[path];
-      if (tree && cachedVerdictHolds(entry, { byLaunch, tree, changed, ruleVersion: BROWSER_RULE_VERSION })) {
-        if (entry.bound) bound.push(file);
-        if (entry.reason && reasons) reasons.set(file, entry.reason);
-        if (stats) stats.reused = (stats.reused ?? 0) + 1;
-        continue;
-      }
-      const walked = new Set();
-      const why = {};
-      const verdict = await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, walked, why);
-      if (verdict) bound.push(file);
-      if (verdict && reasons) reasons.set(file, why.reason ?? 'uncertain graph keeps the browser');
-      if (stats) stats.scanned = (stats.scanned ?? 0) + 1;
-      if (tree) { cache.entries[path] = { bound: verdict, byLaunch, tree, closure: [...walked], ruleVersion: BROWSER_RULE_VERSION, reason: verdict ? (why.reason ?? 'uncertain graph keeps the browser') : '' }; dirty = true; }
-    }
-    if (dirty && cacheFile) { try { writeBrowserScanCache(cacheFile, cache); } catch { /* a cache that cannot be written only costs the next scan */ } }
-    return bound;
-  });
+export async function browserBoundFiles(root, files) {
+  const bound = [];
+  for (const file of files) {
+    const source = await testSource(root, file, null);
+    if (source !== null && declaresBrowser(source)) bound.push(file);
+  }
+  return bound;
 }
