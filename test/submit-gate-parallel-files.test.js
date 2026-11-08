@@ -39,7 +39,7 @@ function receiptProof(run) {
 
 test('clause 1: prove fans proof files across free slots into one receipt: N files on N free slots start together and finish near the slowest file [C7]', { timeout: 10_000 }, async () => {
   const runners = clockedRunners(FILES.length);
-  const proof = runProofShards(FILES, { freeSlots: FILES.length - 1, runFirst: runners.runFirst, runOther: runners.runOther });
+  const proof = runProofShards(FILES, { freeSlots: FILES.length - 1, batchFiles: 1, runFirst: runners.runFirst, takeSlot: lane => lane(runners.runOther) });
   // Every shard is called before any is released; one-after-another calls would never reach this count.
   await runners.started;
   assert.deepEqual(runners.calls.map(call => call.startedAt), FILES.map(() => 0), 'all N runs start together');
@@ -54,7 +54,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: N fil
 test('clause 1: prove fans proof files across free slots into one receipt: the merged run is one receipt holding each shard\'s files [C7]', async () => {
   const red = async files => ({ isGreen: false, exitCode: 1, output: `not ok ${files[0]}`, executionRunner: 'runner-red', remoteWallMs: 5 });
   const green = async files => ({ isGreen: true, exitCode: 0, output: `ok ${files[0]}`, executionRunner: 'runner-green', remoteWallMs: 7 });
-  const merged = mergeShardRuns(await runProofShards(FILES.slice(0, 2), { freeSlots: 1, runFirst: green, runOther: red }));
+  const merged = mergeShardRuns(await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, runFirst: green, takeSlot: lane => lane(red) }));
   assert.equal(merged.isGreen, false, 'one red shard makes the whole proof red');
   assert.equal(merged.exitCode, 1);
   assert.match(merged.output, /ok test\/a\.test\.js[\s\S]*not ok test\/b\.test\.js/u, 'one output holds every shard');
@@ -69,15 +69,15 @@ test('clause 1: prove fans proof files across free slots into one receipt: the m
   assert.ok(!Object.hasOwn(proofFields(unsharded), 'shards'), 'a receipt without shards reads as before');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: one free slot behaves as today, and a shard with no slot runs on the gate lease [C7]', async () => {
+test('clause 1: prove fans proof files across free slots into one receipt: one batch behaves as today, and batches no slot takes run on the gate lease [C7]', async () => {
   const calls = [];
   const record = label => async files => { calls.push({ label, files }); return { isGreen: true, exitCode: 0, output: '' }; };
-  assert.equal(await runProofShards(FILES, { freeSlots: 0, runFirst: record('gate'), runOther: record('other') }), null,
-    'no free slot beyond the gate\'s own gives one shard, so the caller runs the single command');
-  assert.deepEqual(calls, [], 'nothing ran as shards');
+  assert.equal(await runProofShards(FILES, { freeSlots: 3, batchFiles: FILES.length, runFirst: record('gate'), takeSlot: lane => lane(record('other')) }), null,
+    'files that make one batch give no queue, so the caller runs the single command');
+  assert.deepEqual(calls, [], 'nothing ran as batches');
   const refused = async () => { throw Object.assign(new Error('no runner'), { code: 'RUNNER_UNAVAILABLE' }); };
-  const shards = await runProofShards(FILES.slice(0, 2), { freeSlots: 1, runFirst: record('gate'), runOther: refused });
-  assert.deepEqual(calls.map(call => call.label), ['gate', 'gate'], 'a shard that found no slot runs on the gate lease after the first');
+  const shards = await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, retryMs: 10, runFirst: record('gate'), takeSlot: refused });
+  assert.deepEqual(calls.map(call => call.label), ['gate', 'gate'], 'a batch no slot took runs on the gate lease after the first');
   assert.deepEqual(shards.map(shard => shard.files), [['test/a.test.js'], ['test/b.test.js']]);
 });
 
