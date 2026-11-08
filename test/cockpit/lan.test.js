@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A private board is usable through its actual LAN address, with explicit pairing authority [H19]. */
 import assert from 'node:assert/strict';

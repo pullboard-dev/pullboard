@@ -1,4 +1,5 @@
 import { mainCheckout } from '../../../../src/git.js';
+import { probe as transportProbe } from '../../../transport/index.js';
 import { sourcePreparationFields } from '../../core.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from '../../../kernel/index.js';
@@ -10,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  confirmRunnerProbe,
   inheritedGateSlot,
   memoryAdmission,
   readMachineMemory,
@@ -251,12 +253,15 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     timing,
     infrastructureRetry: retryInfrastructure,
     allowIdleCapacityUpdate: true,
+    allowCapacityGrowth: true,
     remote: remote && Boolean(source),
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => preferOtherRunners(effectiveRunners(loadMachineSettings()), avoided),
     runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(settingsProvider()),
     runnerHealthProbe: probeRunnerHealth,
+    /** A cleanup or transport doubt is settled by the transport cell's probe: one good answer returns the runner (#3432). */
+    runnerTransportProbe: transportProbe,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
     /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
@@ -335,7 +340,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A separate Node process cannot prove that a worker which missed READY can accept a job.
         const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
           || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
-        const health = cleanup || admissionDeadline || setup ? null : await probeRunnerTransport(lease.runner);
+        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7].
+        const health = cleanup || admissionDeadline || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
         if (health?.healthy && healthyTransportRetry) {

@@ -8,6 +8,7 @@ import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
@@ -21,10 +22,13 @@ import { counterProofStats } from '../packages/verify/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
+import { itemById } from '../packages/store/index.js';
 import { work } from '../packages/seats/src/core/agent-hook-work.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
@@ -81,7 +85,11 @@ function fixture(t) {
   const health = id => staleStateSnapshot(board, {}, { now: new Date(at), items: [store.getItem(board, id)], claimsOnly: true,
     workObservation: () => ({ available: true, at: null }) }).claims[0]?.health;
   return { board, git, repo, base, worktrees, first, second, helper, seat, add, claim, maintain, touch, health,
-    now: () => at, advance: minutes => { at += minutes * 60_000; } };
+    now: () => at, advance: minutes => {
+      at += minutes * 60_000;
+      // A live seat keeps heartbeating while the clock moves; silence would read as a gone seat and release at once.
+      for (const id of Object.keys(worktrees)) heartbeatSeat(board, id);
+    } };
 }
 
 /** Events of one kind on one item. */
@@ -216,7 +224,7 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   assert.equal(released.item_status, 'open');
   const next = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', next, 'main');
-  ok(fixtureJoin(box.run, next, 'web', '--json'));
+  ok(joinFixtureSeat(box, next, 'web', { model: FIXTURE_MODEL }));
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');
@@ -299,6 +307,8 @@ test('three rejected submits return the claim to another seat, including after a
     store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs the edge case.' });
     if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
   }
+  // A red gate return holds a re-claimed item for 40 minutes from the reject; the builder takes it back after that.
+  f.advance(41);
   f.claim(id, f.first);
   f.advance(31);
   f.maintain();
@@ -373,6 +383,8 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   const head = f.git(f.worktrees[f.first], 'rev-parse', 'HEAD');
   submitFixture(f.board, id, { agentId: f.first, commit: head, tree: head });
   store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs work.' });
+  // The reject above is a red return, which holds a re-claimed item for 40 minutes; the builder takes it back after that.
+  f.advance(41);
   f.claim(id, f.first);
   for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
   f.advance(31);
@@ -384,4 +396,54 @@ test('a returned claim is offered to another builder, never to its reviewer, and
   assert.equal(store.nextFor(f.board, { agentId: f.helper, lane: 'core' }).item?.item_id, id, 'a different builder is offered it first');
   f.claim(id, f.first);
   assert.equal(store.getItem(f.board, id).item_owner, f.first, 'the original builder re-claims at once when no other seat took it');
+});
+
+/** Claim an item, then let its two-hour lease lapse by 41 minutes while the holder's seat keeps heartbeating. Status reads use the stored row: getItem shows a lapsed lease as open. */
+function lapsedWhileHeartbeating(f) {
+  const id = f.add();
+  f.claim(id, f.first);
+  f.advance(161);
+  assert.equal(heartbeatSeat(f.board, f.first), true, 'the holder has a presence heartbeat');
+  return id;
+}
+
+/** Commit in the holder's worktree, stamping HEAD's reflog at the board clock as a real commit would be. */
+function commitAtBoardTime(f, agent) {
+  const root = f.worktrees[agent];
+  f.git(root, 'commit', '--allow-empty', '-qm', 'fix: fresh work');
+  const log = resolve(root, f.git(root, 'rev-parse', '--git-path', 'logs/HEAD'));
+  utimesSync(log, new Date(f.now()), new Date(f.now()));
+}
+
+test('clause 1: a claim 41 minutes past its lease with no move, commit or proof run for 40 minutes returns although its seat heartbeats [B4,B5,C7]', t => {
+  const f = fixture(t);
+  const id = lapsedWhileHeartbeating(f);
+  const snapshot = f.maintain();
+  const row = snapshot.claims.find(entry => entry.id === id);
+  assert.equal(row?.idle, 'release', 'presence is not progress: the idle release takes the lapsed claim');
+  assert.ok(row.idleMs >= 40 * 60_000, 'no non-renewal move, commit or proof run for 40 minutes');
+  assert.equal(itemById(f.board, id).item_status, 'open');
+  assert.equal(JSON.parse(kinds(f, id, 'release').at(-1).event_detail).idleClaim.kind, 'release');
+});
+
+test('clause 2: a lapsed claim whose holder moved on it, committed or ran a proof in the last 40 minutes is kept, and returns 40 quiet minutes later [B4,B5,C7]', t => {
+  const work = {
+    move: (f, id) => store.appendFact(f.board, id, { agentId: f.first, kind: 'note', text: 'Work remaining: one case.', factId: 'lapsed-note' }),
+    commit: f => commitAtBoardTime(f, f.first),
+    proof: (f, id) => store.logEvent(f.board, f.first, 'proof-run', id, { receipt: { id: 'lapsed-proof', at: new Date(f.now()).toISOString() } }),
+  };
+  for (const [name, act] of Object.entries(work)) {
+    const f = fixture(t);
+    const id = lapsedWhileHeartbeating(f);
+    act(f, id);
+    f.advance(39);
+    heartbeatSeat(f.board, f.first);
+    const kept = f.maintain();
+    assert.equal(kept?.claims.find(entry => entry.id === id), undefined, `${name}: 39 minutes after it nothing returns the claim`);
+    assert.equal(itemById(f.board, id).item_status, 'claimed', `${name}: recent work keeps the lapsed claim`);
+    f.advance(2);
+    heartbeatSeat(f.board, f.first);
+    f.maintain();
+    assert.equal(itemById(f.board, id).item_status, 'open', `${name}: 41 quiet minutes later the heartbeat alone does not keep it`);
+  }
 });

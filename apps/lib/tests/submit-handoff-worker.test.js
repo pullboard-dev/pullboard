@@ -6,13 +6,14 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { driverRecord } from '../../../test/gate-driver-fixture.js';
+import { gateSettled } from '../../../test/submit-handoff-fixture.js';
+import { removeSandboxes } from '../../../test/submit-handoff-fixture.js';
 import { test } from 'node:test';
 import { openBoard } from '../index.js';
 import { HOOK_WORKER } from '../index.js';
-import { submitHandoffWorkerEntrypoint } from '../index.js';
-import { retryBusyHandoffWrite } from '../index.js';
-import { submitUntilSettled } from '../src/shell/submit-infra-requeue.js';
-import { Refused } from '../../../packages/kernel/index.js';
+import { gateDriveWorkerEntry } from '../../../bin/gate-drive-worker.js';
+import { admitGateDrive } from '../../../packages/drive/index.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
 import { writeBoardCommand } from '../../../packages/store/index.js';
@@ -26,85 +27,7 @@ function document(result) {
   return JSON.parse(result.out);
 }
 
-test('queued handoff retries an injected busy board write and records the pinned write wait [C7]', async () => {
-  let calls = 0;
-  const waits = [];
-  const board = { async write(candidate) {
-    assert.equal(candidate, 'pinned-candidate');
-    calls += 1;
-    if (calls === 1) throw new Refused('BOARD_BUSY', 'fixture board is busy');
-    return 'written';
-  } };
-  const out = await retryBusyHandoffWrite(() => board.write('pinned-candidate'), {
-    wait: async ms => waits.push(ms), busyBudgetMs: 10_000,
-  });
-  assert.equal(out.result, 'written');
-  assert.equal(calls, 2);
-  assert.deepEqual(waits, [5_000]);
-  assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 5 }]);
-});
-
-test('queued handoff retries an explicitly named locked database refusal [C7]', async () => {
-  let calls = 0;
-  const out = await retryBusyHandoffWrite(async () => {
-    calls += 1;
-    if (calls === 1) throw new Refused('DATABASE_LOCKED', 'fixture lock');
-    return 'written';
-  }, { wait: async () => {}, busyBudgetMs: 10_000 });
-  assert.equal(out.result, 'written');
-  assert.deepEqual(out.busyWaits, [{ code: 'DATABASE_LOCKED', seconds: 5 }]);
-});
-
-test('clause 3: queued handoff retries each busy storage code on the same pinned write and records every wait [C7]', async () => {
-  const failures = [
-    new Refused('BOARD_BUSY', 'fixture board is busy'),
-    Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR' }),
-    new Refused('SLOT_DB_LOCKED', 'fixture slot database is busy'),
-  ];
-  const candidates = [];
-  const waits = [];
-  const out = await retryBusyHandoffWrite(async () => {
-    candidates.push('pinned-candidate');
-    const failure = failures.shift();
-    if (failure) throw failure;
-    return 'written';
-  }, { wait: async ms => waits.push(ms), busyBudgetMs: 60_000 });
-  assert.equal(out.result, 'written');
-  assert.deepEqual(candidates, Array(4).fill('pinned-candidate'));
-  assert.deepEqual(waits, [5_000, 10_000, 20_000]);
-  assert.deepEqual(out.busyWaits, [
-    { code: 'BOARD_BUSY', seconds: 5 },
-    { code: 'DATABASE_LOCKED', seconds: 10 },
-    { code: 'SLOT_DB_LOCKED', seconds: 20 },
-  ]);
-});
-
-test('clause 1: a queued submit stops waiting on a busy board at the lease end and then counts an infrastructure attempt [C7]', async () => {
-  const waits = [];
-  const run = async () => { throw new Refused('BOARD_BUSY', 'fixture board is busy'); };
-  await assert.rejects(submitUntilSettled(run, { wait: async ms => waits.push(ms), healthy: async () => true, busyBudgetMs: 4_000, retries: 1, lockPauseMs: 1_000, lockMaxPauseMs: 2_000, pauseMs: 1 }),
-    error => error.code === 'GATE_INFRA_EXHAUSTED' && error.attempts.length === 2);
-  const busy = waits.slice(0, 3);
-  assert.deepEqual(busy, [1_000, 2_000, 1_000], 'busy waits sum to exactly the lease budget');
-  assert.equal(busy.reduce((sum, ms) => sum + ms, 0), 4_000);
-});
-
-test('clause 2: only runner or gate failures count toward GATE_INFRA_EXHAUSTED, busy codes never do [C7]', async () => {
-  let calls = 0;
-  const run = async () => {
-    calls += 1;
-    if (calls <= 3) throw new Refused(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED'][calls - 1], 'fixture storage is busy');
-    return 'green';
-  };
-  const out = await submitUntilSettled(run, { wait: async () => {}, healthy: async () => true, retries: 1, lockPauseMs: 1 });
-  assert.equal(out.result, 'green');
-  assert.deepEqual(out.attempts, [], 'three busy stops counted no infrastructure attempt');
-  let runnerCalls = 0;
-  await assert.rejects(submitUntilSettled(async () => { runnerCalls += 1; throw new Refused('RUNNER_UNAVAILABLE', 'fixture runner is gone'); },
-    { wait: async () => {}, healthy: async () => true, retries: 1 }), error => error.code === 'GATE_INFRA_EXHAUSTED' && runnerCalls === 2);
-});
-
-test('launched submit worker completes a native queued request without unsettled await [V4,H16,E18]', async t => {
+test('launched gate driver completes a native queued request without unsettled await [V4,H16,E18,C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
@@ -138,8 +61,11 @@ test('launched submit worker completes a native queued request without unsettled
   mkdirSync(directory, { recursive: true });
   const request = join(directory, 'request.json');
   writeFileSync(request, JSON.stringify({ item: id, job: queued.job.id, commonDir, commit }));
+  // The dispatcher admits the gate to a driver id on the board, then starts the gate driver under it [C7].
+  const owner = `test-driver:${queued.job.id}`;
+  admitGateDrive(board.db, queued.job.id, { owner });
   // budget: the existing owned-worker hang ceiling; assertions concern exit and native results, not elapsed time.
-  const result = await runFixtureChildAsync(process.execPath, [submitHandoffWorkerEntrypoint(), request],
+  const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
     { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
   assert.notEqual(result.status, 13, result.context);
   assert.equal(result.status, 0, result.context);
@@ -153,10 +79,16 @@ test('launched submit worker completes a native queued request without unsettled
 
 test('resubmitting an orphaned queue without request or worker launches a fresh captured job [V4,H16,E18]', async t => {
   const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
+  let box;
+  let fresh;
+  t.after(async () => {
+    // The fresh driver and its dispatcher still write for a moment after the job ends; remove the tree once they are done.
+    try { if (box) await gateSettled(helpers, box, fresh); }
+    finally { await removeSandboxes(helpers); }
+  });
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
-  const box = helpers.project('true', isolated);
+  box = helpers.project('true', isolated);
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true } }));
@@ -191,14 +123,15 @@ test('resubmitting an orphaned queue without request or worker launches a fresh 
   let current;
   try { current = submitHandoff(currentBoard, id); }
   finally { currentBoard.db.close(); }
+  fresh = current.id;
   assert.notEqual(current.id, orphan.id, 'the dead queue is closed before the same candidate gets a new identity');
   // The replacement's detached worker starts at once, so by the time this read runs the job may already be running or finished.
   assert.ok(['queued', 'running', 'green'].includes(current.state), `the replacement is a live job: ${current.state}`);
   const refusal = JSON.parse(readFileSync(join(orphanDirectory, 'refusal.json'), 'utf8'));
   assert.equal(refusal.error.code, 'SUBMIT_HANDOFF_NOT_LAUNCHED');
-  assert.match(refusal.error.message, /request\.json and worker\.json are missing/u);
+  assert.match(refusal.error.message, /request\.json and its driver record are missing/u);
   const freshDirectory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id);
-  await helpers.waitFor(() => existsSync(join(freshDirectory, 'worker.json')), 'fresh detached worker owner record', 30000); // budget: owned worker launch ceiling, no timing claim.
+  await helpers.waitFor(() => driverRecord(boardPath, current.id)?.pid > 0, 'fresh gate driver record', 30000); // budget: owned driver launch ceiling, no timing claim.
   const request = JSON.parse(readFileSync(join(freshDirectory, 'request.json'), 'utf8'));
   assert.equal(request.job, current.id);
   assert.equal(request.commit, current.commit);

@@ -71,6 +71,36 @@ test('clause 2: a test file one over its ceiling is refused [C7]', () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test('clause 1: env-spread, hand-policy and raw-board are each reported with their kind and line, and a clean file reports nothing [C7]', () => {
+  const rows = source => fixtureSites(source, 'test/example.test.js').map(row => `${row.kind}:${row.line}`);
+  assert.deepEqual(rows("const BIN = 'bin/pullboard.js';\nspawnSync(process.execPath, [BIN], { env: { ...process.env, PULLBOARD_HOME: home } });"), ['env-spread:2']);
+  assert.deepEqual(rows("const BIN = 'bin/pullboard.js';\nspawnSync(process.execPath, [BIN], { env: { ...process.env } });"), [], 'no PULLBOARD_ key beside the spread');
+  assert.deepEqual(rows("spawnSync('node', ['x.js'], { env: { ...process.env, PULLBOARD_HOME: home } });"), [], 'a file that does not name the CLI entry');
+  assert.deepEqual(rows("const a = 1;\nwriteFileSync(join(dir, 'pullboard.json'), '{}');"), ['hand-policy:2']);
+  for (const name of ['SPEC.md', 'bin/cells-plan.json', 'settings.json']) assert.deepEqual(rows(`writeFileSync(join(dir, '${name}'), 'x');`), ['hand-policy:1'], name);
+  assert.deepEqual(rows("writeFileSync(join(dir, 'a.txt'), 'pullboard.json');"), [], 'the policy name only in the content');
+  assert.deepEqual(rows("const x = 1;\nconst board = openBoard(':memory:');"), ['raw-board:2']);
+  assert.deepEqual(rows("store.addItem(board, {});\nstore.register(board, {});\nstore.submit(board, 1);"), ['raw-board:1', 'raw-board:2', 'raw-board:3']);
+  assert.deepEqual(rows("// fixture-subject: addItem\nconst board = openBoard(':memory:');\nstore.addItem(board, {});"), [], 'a store unit test of addItem itself');
+  assert.deepEqual(rows("assert.equal(typeof openBoard(':memory:'), 'object');"), [], 'an assertion argument');
+  assert.deepEqual(fixtureSites("writeFileSync(join(dir, 'pullboard.json'), '{}'); openBoard(':memory:');", 'test/kit/world.js'), [], 'the kit holds the raw seam');
+  assert.deepEqual(rows("const note = 'openBoard( writeFileSync(x, \"pullboard.json\")';\n// store.addItem(board)\nexport const clean = true;"), []);
+});
+
+test('clause 2: growth in any of the three new kinds past its ceiling is refused [C7]', () => {
+  const fixture = privateFixtureFiles('pullboard-new-kinds-');
+  const ceilings = join(fixture.root, 'ceilings.json');
+  const one = "const BIN = 'bin/pullboard.js';\nspawnSync(BIN, [], { env: { ...process.env, PULLBOARD_HOME: h } });\nwriteFileSync(join(d, 'pullboard.json'), '{}');\nopenBoard(':memory:');\n";
+  fixture.write('test/a.test.js', one);
+  fixture.write('ceilings.json', JSON.stringify({ 'test/a.test.js': { 'env-spread': 1, 'hand-policy': 1, 'raw-board': 1 } }));
+  assert.deepEqual(fixtureProblems(fixture.root, ceilings, { base: null }), []);
+  for (const [kind, extra] of [['env-spread', "spawnSync(BIN, [], { env: { ...process.env, PULLBOARD_X: 1 } });\n"], ['hand-policy', "writeFileSync(join(d, 'settings.json'), '{}');\n"], ['raw-board', "openBoard(':memory:');\n"]]) {
+    fixture.write('test/a.test.js', one + extra);
+    const refused = fixtureProblems(fixture.root, ceilings, { base: null });
+    assert.deepEqual(refused.map(row => row.text.split(':')[0]), [kind], `${kind} growth is refused`);
+  }
+});
+
 /** The repository root this test file lives in. */
 const REPO = fileURLToPath(new URL('..', import.meta.url));
 

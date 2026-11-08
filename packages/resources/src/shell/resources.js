@@ -1,9 +1,14 @@
 import { repoRoot } from './seat-test-admission.js';
 import { holdingTestSeats } from './seat-test-admission.js';
 import { isSeatTest } from './seat-test-admission.js';
+import { overdueSeatTestsFirst } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { enqueueResourceWrite } from './resource-write-queue.js';
+import { enterResourceQueue } from './resource-write-queue.js';
+import { beatingProbes } from './waiter-heartbeat.js';
+import { retainConnection } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
@@ -18,16 +23,8 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import {
-  execFile,
-  execFileSync,
-} from 'node:child_process';
-import {
-  readFile,
-  readlink,
-} from 'node:fs/promises';
-import {
-  basename,
   dirname,
   join,
   resolve,
@@ -52,6 +49,7 @@ import {
   recoverUnavailableRunners,
   runnerRecoveryStatus,
   cleanupCharges,
+  runnerExcluded,
 } from './resource-recovery.js';
 import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
@@ -83,6 +81,7 @@ const HEARTBEAT_MS = 3_000;
 const POLL_MS = 40;
 const PROCESS_IDENTITY_CACHE_MS = 3_000;
 const processIdentities = new Map();
+const queueFiles = new WeakMap(); // Each open queue database's file: every write joins that file's ordered write queue [C7,#3084].
 const SLOT_DB_BUSY_MS = 10_000;
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
 export const SLOT_DB_LOCK_DEADLINE_MS = 300_000;
@@ -114,7 +113,6 @@ export function gateSlotEnvironment(lease) {
     [BROWSER_SLOT_HELD_ENV]: lease.browser ? '1' : '',
   };
 }
-
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
@@ -145,18 +143,18 @@ function canonicalResourceFile(file) {
   }
 }
 
-/** Open and initialize the small durable queue database. */
-function open(file, machine = false) {
-  return machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file);
-}
+/** Open and initialize the small durable queue database, or hand back the process's one retained connection when reuse is on [C7,#3338]. */
+function open(file, machine = false) { return retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file)); }
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer [C7].
-  let transaction = false;
+  queueFiles.set(db, file);
+  let transaction = false, leave;
   try {
+    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
@@ -241,12 +239,12 @@ function openQueue(file) {
       ON CONFLICT(name) DO NOTHING;
       UPDATE holder SET name = 'runner:' || runner WHERE name = 'gate' AND runner <> '';`);
     db.exec('COMMIT');
-    transaction = false;
+    transaction = false; leave();
   } catch (error) {
     if (transaction) {
       try { db.exec('ROLLBACK'); } catch { /* Preserve the migration error. */ }
     }
-    db.close();
+    leave?.(); db.close();
     throw resourceWriteError(error, file);
   }
   return db;
@@ -356,8 +354,17 @@ function custodyProcessMatches(pid, started) {
   return !identity || !identity.zombie && !differentStart(identity, started);
 }
 
-/** Run a short serialized database update and discard dead or expired leases. */
+/** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action) {
+  const leave = enterResourceQueue(queueFiles.get(db), { apply: queuedWrites(db), deadlineMs: slotLockDeadlineMs() });
+  try { return transact(db, action); } finally { leave(); }
+}
+/** Apply queued writes that need no answer; a release, deleting its holder, is the only one. */
+function queuedWrites(db) {
+  return entry => transact(db, () => { if (entry.op === 'release') { db.prepare('DELETE FROM holder WHERE token = ?').run(entry.token); removeEmptyViewPortResource(db, entry.name); } });
+}
+/** Run one short transaction and discard dead or expired leases. */
+function transact(db, action) {
   beginResourceWrite(db, { timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
   try {
     pruneControllerOrphans(db, { sameProcess: custodyProcessMatches, recordRunnerFailure });
@@ -530,10 +537,9 @@ function validatedRunners(value) {
  * @returns {{host:string,slots:number,browser:number}|null}
  */
 function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirst = false, order = ARRIVAL_ORDER, now = Date.now(), memoryHeld = false, loadPolicy = {}) {
-  const waiters = orderedWaiters(queuedWaiters(db, 'gate'), now, order), testSeats = holdingTestSeats(db);
+  const { line: waiters, overdue } = overdueSeatTestsFirst(orderedWaiters(queuedWaiters(db, 'gate'), now, order), now), testSeats = holdingTestSeats(db);
   const holders = db.prepare("SELECT pid, landing, browser, short_slot AS shortSlot, timing FROM holder WHERE name = 'gate'").all();
-  let localUsed = holders.filter(holder => holder.shortSlot !== 1).length;
-  let localShortUsed = holders.filter(holder => holder.shortSlot === 1).length;
+  let localUsed = holders.filter(holder => holder.shortSlot !== 1).length, localShortUsed = holders.filter(holder => holder.shortSlot === 1).length;
   let localBrowsers = holders.filter(holder => holder.browser === 1).length;
   const browserCapacity = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get()?.capacity ?? 1;
   const usage = new Map(runners.map(runner => {
@@ -558,7 +564,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   /** Find a currently free compatible slot without reserving it for later queue entries. */
   function available(waiter) {
     if (blockedByLanding(waiter)) return null;
-    const seatTest = isSeatTest(waiter.kind);
+    const seatTest = isSeatTest(waiter.kind), reserve = seatTest && !overdue.has(waiter.token); // an overdue test may take the spare slot
     if (seatTest && testSeats.has(JSON.stringify([waiter.repo, waiter.agent]))) return null;
     /** Pick an eligible runner in durable round-robin order when the machine opts in. */
     function runnerSlot() {
@@ -566,14 +572,14 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const cursor = runnersFirst ? db.prepare("SELECT next_host FROM runner_rotation WHERE pool = 'gate'").get()?.next_host : '';
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
-      const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
-        if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
-        if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
-        const used = usage.get(runner.host);
-        return !used.timing && (waiter.timing !== 1 || used.slots === 0)
-          && used.slots < runner.slots - Number(seatTest && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
-      });
+      /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
+      const fits = (runner, lendingTo) => {
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
+        return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
+          && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
+      };
+      const free = ordered.filter(runner => fits(runner)), compatible = free.length ? free : ordered.filter(runner => fits(runner, waiters));
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
       if (restriction?.kind === 'ssh' && restriction.hosts) {
@@ -601,7 +607,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     function localSlot() {
       if (memoryHeld || waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).kind === 'ssh') return null;
       if (!holders.some(holder => holder.timing === 1) && (waiter.timing !== 1 || holders.length === 0)
-        && localUsed < capacity - Number(seatTest && capacity > 1) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
+        && localUsed < capacity - Number(reserve && capacity > 1) && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
         return { host: '', slots: capacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: false };
       }
       return null;
@@ -619,7 +625,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
     const earlierLanding = waiters.some(other => other.landing === 1 && other.ticket < waiter.ticket);
     if ((!waiter.requiredExecutor || JSON.parse(waiter.requiredExecutor).kind === 'local') && !memoryHeld && waiter.timing !== 1 && !holders.some(holder => holder.timing === 1)
-      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(seatTest && shortCapacity > 1)
+      && waiter.shortEligible === 1 && !earlierLanding && localShortUsed < shortCapacity - Number(reserve && shortCapacity > 1)
       && (waiter.browser !== 1 || localBrowsers < browserCapacity)) {
       return { host: '', slots: shortCapacity, browser: waiter.browser === 1 ? 1 : 0, shortSlot: true };
     }
@@ -725,12 +731,12 @@ function timingDrainEvents(db) {
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
-function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, leakProbe) {
+function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, leakProbe, transportProbe) {
   if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
   let recovery;
   try { recovery = open(file); }
   catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
-  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe, leakProbe }).finally(() => recovery.close())
+  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe, leakProbe, transportProbe }).finally(() => recovery.close())
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
@@ -738,10 +744,9 @@ function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, 
 function unavailableRunnerHosts(db, now, runners = []) {
   const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
+    // A cleanup or transport doubt excludes the runner only once its transport probes quarantine it [C7,P7].
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => row.detail !== 'CLEANUP_UNVERIFIED'
-        || row.healing === 1 && row.probe_until > now
-        || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
+      .filter(row => runnerExcluded(db, row, { charges, slots, now })).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
@@ -801,7 +806,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false, allowWhenHeld = null } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -810,7 +815,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
     return update(db, () => {
       const resourceName = runnerResourceName(host);
       const held = db.prepare('SELECT COUNT(*) AS count FROM holder WHERE name = ?').get(resourceName).count;
-      if (held && !drain && !observation) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
+      if (held && !drain && !observation && !(typeof allowWhenHeld === 'function' && allowWhenHeld())) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist({ held });
@@ -832,142 +837,6 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
       return result;
     });
   } finally { db.close(); }
-}
-
-const MEMORY_CACHE_MS = 2_000;
-const MEMORY_COMMAND_TIMEOUT_MS = 2_000;
-const LINUX_CRITICAL_FULL_AVG10 = 10;
-const LINUX_WARN_SOME_AVG10 = 10;
-const memoryCache = new Map();
-
-/** Run a small OS utility asynchronously; a slow or missing tool rejects instead of blocking a run. */
-function readCommand(file, args) {
-  return new Promise((resolveOutput, rejectOutput) => {
-    execFile(file, args, { encoding: 'utf8', timeout: MEMORY_COMMAND_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C', LANG: 'C' } },
-      (error, stdout) => (error ? rejectOutput(error) : resolveOutput(stdout)));
-  });
-}
-
-/** Read macOS pressure level, free percentage and size from one sysctl call. */
-async function readDarwinMemory(run) {
-  const [level, freePercent, total] = (await run('/usr/sbin/sysctl', ['-n', 'kern.memorystatus_vm_pressure_level', 'kern.memorystatus_level', 'hw.memsize'])).trim().split(/\s+/u).map(Number);
-  if (![level, freePercent, total].every(Number.isFinite) || total <= 0) throw new Error('sysctl did not report memory pressure');
-  // The kernel's levels are 1 normal, 2 warn and 4 critical; the free percentage is the one Activity Monitor uses.
-  const pressure = level >= 4 ? 'critical' : level >= 2 ? 'warn' : 'normal';
-  return { pressure, availableBytes: Math.round(total * freePercent / 100), totalBytes: total };
-}
-
-/** Read Linux MemAvailable and, where the kernel has it, pressure stall information. */
-async function readLinuxMemory(readText) {
-  const meminfo = await readText('/proc/meminfo');
-  const field = (name) => Number(new RegExp(`^${name}:\\s+(\\d+) kB`, 'mu').exec(meminfo)?.[1]) * 1024;
-  const availableBytes = field('MemAvailable');
-  const totalBytes = field('MemTotal');
-  if (!Number.isFinite(availableBytes) || !Number.isFinite(totalBytes)) throw new Error('/proc/meminfo has no MemAvailable');
-  let pressure = 'unknown';
-  try {
-    const psi = await readText('/proc/pressure/memory');
-    const avg10 = (kind) => Number(new RegExp(`^${kind} avg10=([\\d.]+)`, 'mu').exec(psi)?.[1]);
-    const full = avg10('full');
-    const some = avg10('some');
-    if (Number.isFinite(full) || Number.isFinite(some)) {
-      pressure = full >= LINUX_CRITICAL_FULL_AVG10 ? 'critical' : some >= LINUX_WARN_SOME_AVG10 ? 'warn' : 'normal';
-    }
-  } catch { /* Kernels without PSI still report MemAvailable, which the floor checks. */ }
-  return { pressure, availableBytes, totalBytes };
-}
-
-/** Name the biggest processes by resident memory, with their working directories where the OS allows. */
-async function readBiggestProcesses(platform, run, readLink, count = 3) {
-  const listed = (await run('/bin/ps', ['-e', '-o', 'pid=', '-o', 'rss=', '-o', 'comm='])).split('\n').map((line) => {
-    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line);
-    // Only the executable's own name is kept: arguments can carry secrets.
-    return match ? { pid: Number(match[1]), bytes: Number(match[2]) * 1024, name: basename(match[3].trim()) } : null;
-  }).filter(Boolean).sort((left, right) => right.bytes - left.bytes).slice(0, count);
-  return Promise.all(listed.map(async (entry) => {
-    let cwd = '', cwdFailure = '';
-    try {
-      if (platform === 'linux') cwd = await readLink(`/proc/${entry.pid}/cwd`);
-      else cwd = /^n(.*)$/mu.exec(await run('/usr/sbin/lsof', ['-b', '-a', '-d', 'cwd', '-p', String(entry.pid), '-Fn']))?.[1] ?? '';
-    } catch (error) {
-      const code = typeof error.code === 'string' && /^[A-Z0-9_]+$/u.test(error.code) ? error.code : 'unavailable';
-      cwdFailure = `an unreadable directory for pid ${entry.pid} (${platform === 'linux' ? 'readlink' : 'lsof'} ${code})`;
-    }
-    if (!cwd && !cwdFailure) cwdFailure = `an unreadable directory for pid ${entry.pid} (no directory reported)`;
-    return { ...entry, cwd, ...(cwdFailure ? { cwdFailure } : {}) };
-  }));
-}
-
-/**
- * Take one reading of the machine's memory: pressure, free bytes and, when asked, the biggest
- * processes. A platform or tool that cannot answer returns checked: false rather than throwing,
- * so the pool falls back to counting slots.
- *
- * @param {{ platform?: string, processes?: boolean, run?: (file: string, args: string[]) => Promise<string>, readText?: (file: string) => Promise<string>, readLink?: (file: string) => Promise<string> }} [options]
- * @returns {Promise<{ checked: true, pressure: string, availableBytes: number, totalBytes: number, processes?: object[] } | { checked: false, platform: string, reason: string }>}
- */
-export async function readMachineMemory({ platform = process.platform, processes = false, run = readCommand, readText = (file) => readFile(file, 'utf8'), readLink = readlink } = {}) {
-  try {
-    let reading;
-    if (platform === 'darwin') reading = await readDarwinMemory(run);
-    else if (platform === 'linux') reading = await readLinuxMemory(readText);
-    else return { checked: false, platform, reason: 'no memory reader for this platform' };
-    if (!processes) return { checked: true, ...reading };
-    let biggest = [];
-    try { biggest = await readBiggestProcesses(platform, run, readLink); } catch { /* The hold still stands without names. */ }
-    return { checked: true, ...reading, processes: biggest };
-  } catch (error) {
-    return { checked: false, platform, reason: String(error?.message ?? error).split('\n')[0] };
-  }
-}
-
-/** Format a byte count the way a person reads memory: MB under a gigabyte, GB above. */
-function memorySize(bytes) {
-  return bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
-}
-
-/**
- * Decide whether a reading holds the queue and say so in one line. The same line serves a held
- * run and pullboard resources, so a person sees one description of the machine.
- *
- * @param {object} reading - A readMachineMemory result.
- * @param {number|null} floorBytes - Free memory under which the queue is held; null when the hold is off.
- * @returns {{ checked: boolean, held: boolean, line: string, warning?: string }}
- */
-export function memoryVerdict(reading, floorBytes) {
-  if (!reading?.checked) {
-    const warning = `memory: not checked on ${reading?.platform ?? process.platform} (${reading?.reason ?? 'no reading'}); the gate pool admits by slots alone`;
-    return { checked: false, held: false, line: warning, warning };
-  }
-  const off = floorBytes === null;
-  const critical = !off && reading.pressure === 'critical';
-  const low = !off && reading.availableBytes < floorBytes;
-  const held = critical || low;
-  const why = [critical ? 'pressure is critical' : '', low ? 'free memory is under the floor' : ''].filter(Boolean).join(' and ');
-  const pressure = reading.pressure === 'unknown' ? 'pressure not reported' : `pressure ${reading.pressure}`;
-  const state = `${pressure}, ${memorySize(reading.availableBytes)} free of ${memorySize(reading.totalBytes)}${off ? '' : ` (floor ${memorySize(floorBytes)})`}`;
-  const biggest = (reading.processes ?? []).map(({ pid, name, bytes, cwd, cwdFailure }) => `pid ${pid} ${name} ${memorySize(bytes)} in ${cwd || cwdFailure || 'an unreadable directory'}`).join('; ');
-  const verdict = off ? 'hold off (set gate.memoryFloorMB to turn it on)' : held ? `holding local gate runs because ${why}` : 'admitting';
-  return { checked: true, held, line: `memory: ${verdict}: ${state}${biggest ? `; biggest: ${biggest}` : ''}` };
-}
-
-/**
- * Build the gate pool's memory check: a cached reading, then the biggest processes only while the
- * queue is held, so polling stays at one cheap call every couple of seconds.
- *
- * @param {{ floorBytes: () => number, read?: typeof readMachineMemory, cacheMs?: number }} options
- * @returns {() => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>}
- */
-export function memoryAdmission({ floorBytes, read = readMachineMemory, cacheMs = MEMORY_CACHE_MS }) {
-  return async () => {
-    const cached = memoryCache.get(read);
-    if (cached && Date.now() - cached.at < cacheMs) return cached.verdict;
-    const floor = floorBytes();
-    let verdict = memoryVerdict(await read({ processes: false }), floor);
-    if (verdict.held) verdict = memoryVerdict(await read({ processes: true }), floor);
-    memoryCache.set(read, { at: Date.now(), verdict });
-    return verdict;
-  };
 }
 
 /** Pause briefly between durable queue checks. */
@@ -1042,10 +911,9 @@ export async function takeResource(options) {
   const file = databaseFile(scope, root);
   // A queued run waits out a locked database in place; only a lock past the deadline stops it, as never ran.
   const db = await retryLockedSlotDatabase(file, () => open(file, scope === 'machine'));
-  let pool;
-  try { pool = canonicalResourceFile(file); }
+  let pool, awarenessCursor; // A throw before the admission loop owns the connection must close it [C7,#3338].
+  try { pool = canonicalResourceFile(file); awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id; }
   catch (error) { db.close(); throw error; }
-  const awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id;
   const unfenced = new Map();
   const observedRunnerNames = new Set();
   /** Preserve every observed unfenced client throughout this admission and execution. */
@@ -1060,7 +928,7 @@ export async function takeResource(options) {
     for (const client of observations) unfenced.set(`${client.pid}:${client.started}:${client.agent}`, { ...client });
     return { exclusive: unfenced.size === 0, unfencedClients: [...unfenced.values()] };
   };
-  timingEvidence();
+  try { timingEvidence(); } catch (error) { db.close(); throw error; }
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
@@ -1077,7 +945,8 @@ export async function takeResource(options) {
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
-  const repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root);
+  let repo;
+  try { repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root); } catch (error) { db.close(); throw error; }
   let queuedAt = resume?.queuedAt ?? new Date().toISOString();
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
@@ -1126,7 +995,7 @@ export async function takeResource(options) {
         const browserResource = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get();
         if (browserResource && browserResource.capacity !== browserCapacity) {
           const state = snapshot(db, 'browser');
-          if (!allowIdleCapacityUpdate || state.holders.length || state.line.length) {
+          if (!(allowCapacityGrowth && browserCapacity > browserResource.capacity) && (!allowIdleCapacityUpdate || state.holders.length || state.line.length)) {
             throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "browser" already has capacity ${browserResource.capacity}`);
           }
           db.prepare("UPDATE resource SET capacity = ? WHERE name = 'browser'").run(browserCapacity);
@@ -1243,7 +1112,7 @@ export async function takeResource(options) {
       // A missed READY grants one immediate ordered admission, never another queue wait budget.
       if (!acquired.state.rejoined) readinessFailover = false;
       if (acquired.acquired) {
-        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe, options.runnerTransportProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1278,7 +1147,8 @@ export async function takeResource(options) {
         /** Commit deletion before closing; an owner with its own retry loop can request an immediate lock failure. */
         const release = ({ retryMs } = {}) => {
           if (released || transferred) return;
-          writeWhileLocked(() => update(db, () => {
+          if (!cancellationDiagnostic) enqueueResourceWrite(file, { op: 'release', token, name }, { apply: queuedWrites(db) });
+          else writeWhileLocked(() => update(db, () => {
             if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
@@ -1346,7 +1216,7 @@ export async function takeResource(options) {
             throw error;
           }
           if (reason === 'worker-unresponsive' && runnerProvider) {
-            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
+            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe, options.runnerTransportProbe);
           }
           db.close();
           const retryingInfrastructure = infrastructureRetryCount > 0 || quarantine && reason !== 'worker-unresponsive'; // a first missed READY keeps its deadline: one bounded late start [C7,Q1,Q2]
@@ -1372,7 +1242,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe }).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
     }
   } catch (error) {

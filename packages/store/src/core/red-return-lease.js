@@ -3,6 +3,7 @@ import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../src/pinned-claim-lapse-engine.js";
 import { PINNED_CLAIM_RELEASE_MS } from "./pinned-claim.js";
 import { itemPinned } from "./pinned-claim.js";
+import { handoffRecord } from "../shell/submit-handoff-read.js";
 
 /** The idle limit for an unpinned claim, counted from the red return (#2640); kept beside the health reader's copy. */
 const RED_RETURN_IDLE_MS = 40 * 60_000;
@@ -45,8 +46,7 @@ export function redReturnLeaseHolds(board, item, at) {
  */
 export function submitGateInFlight(board, item) {
   if (item?.item_status !== 'claimed' || !item.item_owner) return false;
-  const value = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${item.item_id}`)?.meta_value;
-  let job;
-  try { job = value ? JSON.parse(value) : null; } catch { return false; }
+  // The record lives on the item's gate job, the one place hand-off state is kept [C7].
+  const job = handoffRecord(board.db, item.item_id);
   return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner;
 }

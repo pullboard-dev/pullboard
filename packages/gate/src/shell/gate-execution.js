@@ -8,6 +8,7 @@ import { readStages } from './gate-stages.js';
 import { readPipes } from './gate-stages.js';
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
+import { shadowOfRun } from './tier1-shadow-run.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from '../../core.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
@@ -313,6 +314,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     try { signed = observedFailureSignatures({ version: lease?.signatureCapture?.version,
       failures: !rawRunGreen(run) && run.stages ? lease?.signatureCapture?.derive(run, root) : null }, failures); }
     catch { /* Optional diagnostics cannot erase the raw native receipt. */ }
+    const shadow = shadowOfRun(root, { head: before.head, main, green: rawRunGreen(run), failures });
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
       green: rawRunGreen(run), failures,
@@ -320,6 +322,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
       ...(sourceClean && run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       ...(sourceClean && run.blockingVerdict ? { blockingVerdict: run.blockingVerdict } : {}),
+      ...(shadow ? { shadow } : {}),
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null
           : run.profile?.receipt?.runner?.id ?? lease?.receipt?.runner?.id ?? lease?.localDescriptor?.id ?? null), exitCode: run.exitCode,
@@ -328,7 +331,8 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
         ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}),
         ...(context.submitReuse ? { submitReuse: true, submitReusePlan: context.submitReusePlan } : {}),
-        ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}) } });
+        ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}),
+        ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
     writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
@@ -395,6 +399,24 @@ export async function runProfiledShellAsync(root, command, options) {
       ? await gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions)
       : await runShellAsync(root, command, plan.localOptions);
     return execution.next(run).value;
+  } finally { execution.return(); }
+}
+
+/**
+ * Run one profiled plan whose execution the caller supplies: the plan names the whole command, so its profile, source
+ * checks and one proof receipt are the same as runProfiledShellAsync's, while `execute` may run that command as shards
+ * across several runner slots and hand back their merged run [C7].
+ *
+ * @param {string} root
+ * @param {string} command - The whole command the receipt records.
+ * @param {object} options - runProfiledShellAsync's options.
+ * @param {(plan: object) => Promise<object>} execute - Runs the plan and returns its one run.
+ */
+export async function runProfiledShardsAsync(root, command, options, execute) {
+  const execution = profiledExecution(root, command, options);
+  try {
+    const { value: plan } = execution.next();
+    return execution.next(await execute(plan)).value;
   } finally { execution.return(); }
 }
 

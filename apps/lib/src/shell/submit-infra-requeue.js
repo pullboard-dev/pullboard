@@ -20,8 +20,6 @@ const PAUSE_MS = 5_000;
 const NO_RUNNER_PAUSE_MS = 30_000;
 /** Reruns of the same candidate after its first infrastructure failure. */
 export const INFRA_RETRIES = 3;
-/** A busy board or locked slot database is contention, not a failed gate: it waits and retries before anything counts [C7]. */
-export const BUSY_CODES = Object.freeze(new Set(['BOARD_BUSY', 'DATABASE_LOCKED', 'SLOT_DB_LOCKED']));
 /** Health waits before an attempt counts as exhausted: about 10 minutes with the default pause. */
 const HEALTH_WAITS = 20;
 /**
@@ -31,6 +29,8 @@ const HEALTH_WAITS = 20;
 export const LOCK_CODES = Object.freeze(new Set(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'DATABASE_LOCKED']));
 const LOCK_PAUSE_MS = 1_000;
 const LOCK_MAX_PAUSE_MS = 30_000;
+/** Inventory waits that spend no retry; each main move may need one, and the bound keeps the loop finite. */
+export const INVENTORY_WAITS = 8;
 
 /**
  * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule).
@@ -38,7 +38,7 @@ const LOCK_MAX_PAUSE_MS = 30_000;
  */
 export function infrastructureFailure(error) {
   if (!error || typeof error !== 'object') return null;
-  if (INFRASTRUCTURE_CODES.has(error.code) || BUSY_CODES.has(error.code)) return error.code;
+  if (INFRASTRUCTURE_CODES.has(error.code)) return error.code;
   if (error.name === 'RunnerDropped') return 'TRANSPORT_LOST';
   if ((error.code === undefined || error.code === 'ERR_SQLITE_ERROR') && LOCKED.test(String(error.message ?? ''))) return 'DATABASE_LOCKED';
   return null;
@@ -78,38 +78,47 @@ function pause(ms) {
  * A lock stop (LOCK_CODES) is no attempt: the same candidate waits with doubling backoff, capped at 30 s, until the
  * lock frees, and each wait adds to `lockWaits`, which the result and any thrown error carry for the job record.
  *
+ * A CELLS_INVENTORY_PENDING stop that names its commit (`commit`, or `inventoryCommit` from the cells check) is no
+ * attempt either: `waitInventory(commit)` waits for the producer, and when the inventory turns ready after at least one
+ * poll the same candidate runs again. When it throws (the producer is dead or absent, or the wait ran out), or the
+ * inventory was already ready so waiting cannot help, or INVENTORY_WAITS free waits are spent, the stop counts like any
+ * other (#3316).
+ *
  * @param {(attempt: number, avoided: Set<string>) => Promise<any>} run one complete attempt of the canonical submit
- * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number, busyBudgetMs?: number }} [options]
- * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], busyWaits: Array<{ code: string, seconds: number }>, lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
+ * @param {{ say?: (line: string) => void, waitInventory?: (commit: string) => Promise<unknown>, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number, retries?: number, lockPauseMs?: number, lockMaxPauseMs?: number }} [options]
+ * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[], lockWaits: { count: number, totalMs: number, codes: Record<string, number> } }>}
  */
-export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS, busyBudgetMs = 2 * 60 * 60 * 1000 } = {}) {
+export async function submitUntilSettled(run, { say = () => {}, waitInventory = null, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS, retries = INFRA_RETRIES, lockPauseMs = LOCK_PAUSE_MS, lockMaxPauseMs = LOCK_MAX_PAUSE_MS } = {}) {
   const attempts = [];
-  let busySpent = 0;
-  const busyWaits = [];
   const lockWaits = { count: 0, totalMs: 0, codes: {} };
   let avoided = new Set();
+  let inventoryWaits = 0;
   for (let attempt = 1; ; attempt += 1) {
     try {
       const result = await withAvoidedRunners(avoided, () => run(attempt, avoided));
-      return { result, attempts, avoided: [...avoided], busyWaits, lockWaits };
+      return { result, attempts, avoided: [...avoided], lockWaits };
     } catch (error) {
-      if (lockWaits.count && error && typeof error === 'object' && Object.isExtensible(error)) {
-        error.lockWaits = lockWaits;
-        error.busyWaits = busyWaits;
-      }
+      if (lockWaits.count && error && typeof error === 'object' && Object.isExtensible(error)) error.lockWaits = lockWaits;
       const code = infrastructureFailure(error) ?? (error?.retryable === true ? String(error.code ?? 'RETRYABLE') : null);
       if (!code) throw error;
-      // Busy waits are bounded by one lease period; past it the failure counts as an infrastructure attempt (#3086).
-      if (LOCK_CODES.has(code) && busySpent < busyBudgetMs) {
-        const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs, busyBudgetMs - busySpent);
-        busySpent += ms;
+      if (LOCK_CODES.has(code)) {
+        const ms = Math.min(lockPauseMs * 2 ** Math.min(lockWaits.count, 16), lockMaxPauseMs);
         lockWaits.count += 1;
         lockWaits.totalMs += ms;
         lockWaits.codes[code] = (lockWaits.codes[code] ?? 0) + 1;
-        busyWaits.push({ code, seconds: Math.round(ms / 100) / 10 });
-        say(`queued gate hit ${code}: the board is busy, not a gate failure; waiting ${Math.round(ms / 1000)} s and running the same candidate again (no attempt counted)`);
+        say(`queued gate met a busy lock (${code}); waiting ${Math.round(ms / 1000)} s and continuing the same candidate, not a retry`);
         await wait(ms);
         continue;
+      }
+      const inventoryCommit = typeof error.commit === 'string' ? error.commit : error.inventoryCommit;
+      if (code === 'CELLS_INVENTORY_PENDING' && typeof inventoryCommit === 'string' && waitInventory && inventoryWaits < INVENTORY_WAITS) {
+        inventoryWaits += 1;
+        say(`queued gate is waiting for the accepted cells inventory of ${inventoryCommit.slice(0, 12)}; continuing the same candidate, not a retry`);
+        let ready = null;
+        try { ready = await waitInventory(inventoryCommit); }
+        catch (waitError) { say(`queued gate stopped waiting: ${String(waitError?.message ?? waitError).split('\n')[0]}`); }
+        // Ready on the first poll means waiting changed nothing, so the stop counts and the loop stays finite.
+        if (ready && Number(ready.waited) > 0) { attempt -= 1; continue; }
       }
       const hosts = [...new Set(failedHosts(error))];
       attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
