@@ -47,9 +47,9 @@ export function stopSeatKeepalive() {
 
 /**
  * Observe only the registered local checkout, or its seat's live item folder, after normal session binding;
- * unknown callers gain no identity. A successful beat keeps the seat fresh for the rest of the process.
+ * unknown callers gain no identity. A successful beat keeps the seat fresh for the rest of the process; default next omits overlap text to honor its output bound.
  */
-export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoard, keepaliveMs = KEEPALIVE_MS } = {}) {
+export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoard, keepaliveMs = KEEPALIVE_MS, overlaps = true } = {}) {
   if (recorded.has(io)) return;
   let board;
   try {
@@ -65,7 +65,7 @@ export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoar
       keepSeatAlive(ctx, seat.agent_id, keepaliveMs);
       // Overlap reads the recorded worktree files; it never runs Git in another seat's worktree (#2427).
       const items = listItems(board), agents = listAgents(board);
-      for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      if (overlaps) for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
     }
   } catch (error) {
     if (!['NO_CONFIG', 'NOT_A_REPO'].includes(error.code)) io.err(`presence heartbeat unavailable: ${error.message}`);

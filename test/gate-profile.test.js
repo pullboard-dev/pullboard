@@ -12,6 +12,8 @@ import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../apps/runner/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
@@ -67,7 +69,7 @@ function gateRepo(box, gate) {
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
-  assert.equal(box.run(repo, 'add', 'coordinator', 'Work').status, 0);
+  assert.equal(fixtureAdd(box.run, repo, 'coordinator', 'Work').status, 0);
   assert.equal(box.run(repo, 'claim', '1').status, 0);
   return { repo, ...box };
 }
@@ -85,7 +87,7 @@ function project(box = sandbox()) {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up profile project');
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  assert.match(box.run(web, 'join', 'web').stdout, /joined as web-1/);
+  assert.match(fixtureJoin(box.run, web, 'web').stdout, /joined as web-1/);
   return { ...box, repo, web };
 }
 
@@ -234,7 +236,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   box.git(box.repo, 'add', '.timed');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add timing profile check fixtures');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Profiled check', '--specs', 'G1', '--criterion', 'the runner writes timings', '--check', command).status, 0);
   assert.equal(box.run(box.web, 'claim', '1').status, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/timing.txt'), 'profiled');
@@ -254,7 +256,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(box.run(box.web, 'submit', '1').status, 0);
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
+  assert.match(fixtureJoin(box.run, review, 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
   assert.equal(accepted.status, 0, accepted.stderr);
   assert.match(accepted.stdout, /timing \(node\): wall/);
@@ -268,7 +270,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
 
-  assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
   const shellCheck = box.run(box.web, 'check', '2', '--yes');
   assert.equal(shellCheck.status, 0, shellCheck.stderr);
@@ -500,7 +502,7 @@ test('a submit timing profile records both phases and one queue wait for selecte
     // The copied shipped package is 11MB, past the 8MB staged-diff secret-scan buffer; this synthetic fixture repo skips that hook.
     box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: build isolated submit profile fixture');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    const added = box.run(box.repo, 'add', 'web', `Profile ${scenario.name}`, '--specs', 'G1',
+    const added = fixtureAdd(box.run, box.repo, 'web', `Profile ${scenario.name}`, '--specs', 'G1',
       '--criterion', 'submit profiles both check and proof', '--check', checkCommand, '--wait');
     assert.equal(added.status, 0, added.stderr || added.stdout);
     assert.equal(box.run(box.web, 'claim', '1').status, 0);

@@ -18,7 +18,7 @@ export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protect
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
 export { requestFor } from "./src/shell/runner-request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
-export { pinRunnerTooling, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
+export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
 export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";

@@ -26,6 +26,8 @@ import { readBlueprint } from '../../../../../packages/blueprints/index.js';
 import { repoAnswers } from '../../../../../packages/blueprints/index.js';
 import { blueprintStarterNote } from '../../../../../packages/blueprints/index.js';
 import { sharedRowLines } from '../../../../../packages/blueprints/index.js';
+import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
+import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 
@@ -58,6 +60,18 @@ export async function addBlueprintHere(io, reference, { report = true, blueprint
  * @property {{ name: string, owns: string[] }[]} proposedLanes - Proposed, unwritten lanes new starters were filed in.
  * @property {{ key: string, id: string }[]} shared - Keys that cite a row an earlier blueprint in the same command drafted.
  */
+
+/**
+ * The route a starter is filed on. Once light needs a diagnosis, which only follows the add, a light
+ * starter is filed mid, the route plain add gives it (#3120), so the blueprint add is not refused.
+ *
+ * @param {object} board
+ * @param {string} route
+ * @returns {string}
+ */
+function filedRoute(board, route) {
+  return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
+}
 
 /**
  * Add a blueprint to this board in one step (I1): its rules and questions as draft and pending rows
@@ -94,7 +108,7 @@ export async function addBlueprint(ctx, board, me, blueprint, { report = true, r
   const lanes = plan.items.map((entry) => starterLane(entry.lane, ctx.config, proposals));
   const proposedLanes = proposals.filter((lane) => lanes.some((placed) => placed.proposal === lane));
   const starters = plan.items.map((entry, index) => ({ key: entry.key, afterKeys: entry.after, asked: lanes[index].asked, item: { by: me.id, lane: lanes[index].lane,
-    title: entry.title, criterion: entry.criterion, specIds: entry.specIds, parentId: null, after: [], brief: entry.brief, route: entry.route,
+    title: entry.title, criterion: entry.criterion, specIds: entry.specIds, parentId: null, after: [], brief: entry.brief, route: filedRoute(board, entry.route),
     ...(entry.check === undefined ? {} : { check: starterCheck(blueprint, entry.check, lanes[index], ctx.config) }) } }));
   // Bundled checks are scoped at placement; add stores checks without executing them or starting a baseline.
   // Every bundled starter carries a check (#724), and only the coordinator sets one, so an agent's

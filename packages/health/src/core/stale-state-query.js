@@ -1,3 +1,4 @@
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
@@ -176,7 +177,7 @@ function reviewRow(board, item, limits, now, seats, options) {
 export function staleStateSnapshotWith(withSeatPresence, board, config = {}, { now = board.clock.now(),
   workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats, items: suppliedItems, claimsOnly = false } = {}) {
   const at = now.getTime();
-  const limits = staleStateLimits(config);
+  const limits = staleStateLimits(config, { dependency: (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE });
   const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
   const seats = suppliedSeats === undefined ? observedSeats(withSeatPresence, board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
   const options = { workObservation, blocker };

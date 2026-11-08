@@ -169,6 +169,7 @@ export {
 export {
   originRepository,
 } from './src/core/github-origin.js';
+export { MODEL_TIERS, modelTier } from './src/core/model-tier.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,

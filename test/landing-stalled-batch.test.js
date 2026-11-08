@@ -68,3 +68,13 @@ test('clause 3: new gate log bytes keep a landing alive past its inactivity limi
   assert.equal(stalled, undefined);
   assert.deepEqual(result, { landed: [] });
 });
+
+test('CPU time spent by the worker\'s descendants counts as progress, so a long local scan is not a stall [B3,R3]', () => {
+  const batch = { id: 'b', revision: 3, state: 'gating', logPath: '/nowhere/log' };
+  const before = landingProgressSnapshot(batch, { logBytes: 0, runnerJobs: [], cpuMs: 1000 });
+  const busy = landingProgressSnapshot(batch, { logBytes: 0, runnerJobs: [], cpuMs: 4000 });
+  const idle = landingProgressSnapshot(batch, { logBytes: 0, runnerJobs: [], cpuMs: 4000 });
+  assert.equal(landingProgressed(before, busy), true, 'more descendant CPU time is progress');
+  assert.equal(landingProgressed(busy, idle), false, 'no new bytes, jobs or CPU time is not');
+  assert.equal(landingProgressed(landingProgressSnapshot(batch, { logBytes: 5 }), landingProgressSnapshot(batch, { logBytes: 5 })), false, 'snapshots without cpuMs compare as before');
+});

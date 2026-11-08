@@ -9,6 +9,7 @@ import { HANDOFF_DISPATCHER_RESOURCE, drainHandoffQueue, handoffQueueDirectory, 
 import { openBoard } from '../apps/lib/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** A real worker that records its own start and exits. */
 const WORKER = `const { writeFileSync } = require('node:fs');
@@ -75,7 +76,7 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const added = box.run(box.repo, 'add', 'web', 'Lost tools', '--specs', 'G1', '--criterion', 'A lost gate stops on infrastructure.', '--wait', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Lost tools', '--specs', 'G1', '--criterion', 'A lost gate stops on infrastructure.', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(box.run(box.web, 'claim', String(id), '--json').code, 0);

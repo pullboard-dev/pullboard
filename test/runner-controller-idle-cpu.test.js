@@ -11,6 +11,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Controller CPU seconds as `ps` reports them, `[[dd-]hh:]mm:ss.cc`; null once the process is gone. */
 function cpuSeconds(pid) {
@@ -25,7 +26,7 @@ test('a controller for a 30 s remote job uses under 0.3 s of CPU and still repor
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const added = box.run(box.repo, 'add', 'web', 'Controller idle witness', '--specs', 'G1', '--criterion', 'a waiting controller idles', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Controller idle witness', '--specs', 'G1', '--criterion', 'a waiting controller idles', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const bin = join(box.dir, 'ssh-bin'), worker = join(box.dir, 'worker');
   const home = join(box.dir, 'runner-home'), machineHome = join(home, '.pullboard');

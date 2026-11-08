@@ -322,7 +322,7 @@ function guardLabel(machine, move, id) {
  * @param {Machine} [machine]
  * @returns {string}
  */
-export function lifecycleMarkdown(machine = MACHINE) {
+export function lifecycleMarkdown(machine = MACHINE, { compact = false } = {}) {
   const cell = (text) => String(text).replaceAll('|', '\\|');
   const finals = machine.states.filter((state) => state.final);
   const transitionGuards = Object.entries(machine.exitGuards);
@@ -352,7 +352,7 @@ export function lifecycleMarkdown(machine = MACHINE) {
     '',
     'The coordinator may set `check.install` and `check.timeout` in committed `pullboard.json`; the defaults are no install and `5m`. Accept runs the configured install and the frozen item check in a private clone under one timeout; a configured `landing.timeout` replaces `check.timeout` as that budget, so a long check reports its real result (#1760). It reuses the verifier’s npm cache if present. Installs that download conflict with P2 (offline); configure an offline install or cache the packages.',
     '',
-    "Private commands drain output through pipes, keeping a bounded 8 MiB capture of its beginning and end. Failed or unverified checks stream the full log through secret scanning into an owner-readable artifact; lines over 64 KiB of UTF-8 are replaced with a safe-scan marker. Output beyond the cap does not fail a successful command; dependency files and build artifacts have no capture limit. A timeout kills the command's process group. An unverified check names how to restore and retry; a failing one names rejection or builder rework.",
+    compact ? 'Private checks drain their owned processes and retain bounded output; --detail includes timeout, artifact and recovery policy.' : "Private commands drain output through pipes, keeping a bounded 8 MiB capture of its beginning and end. Failed or unverified checks stream the full log through secret scanning into an owner-readable artifact; lines over 64 KiB of UTF-8 are replaced with a safe-scan marker. Output beyond the cap does not fail a successful command; dependency files and build artifacts have no capture limit. A timeout kills the command's process group. An unverified check names how to restore and retry; a failing one names rejection or builder rework.",
     '',
     '```mermaid',
     'stateDiagram-v2',

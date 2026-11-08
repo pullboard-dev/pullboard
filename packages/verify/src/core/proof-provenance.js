@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { environmentProblem } from '../../../config/src/shell/config.js';
 import { testOutcomeFields } from '../../core.js';
 import { quarantineVerdictFields } from './quarantine-verdict.js';
+import { tier1ShadowFields } from './tier1-shadow.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -132,6 +133,9 @@ function checkedFields(value) {
   if (hasBlockingVerdict && (!blockingVerdict || version === 2 && !proof.sourceClean
     || !testOutcomes || testOutcomes.filter(row => !row.passed && !row.skipped).length !== failures.length
     || failures.some(failure => !testOutcomes.some(row => row.file === failure.file && row.name === failure.name && !row.passed && !row.skipped)))) throw bad();
+  const hasShadow = Object.hasOwn(value, 'shadow');
+  const shadow = hasShadow ? tier1ShadowFields(value.shadow, value.green) : null;
+  if (hasShadow && !shadow) throw bad();
   const load = value.load;
   if (!(version === 2 && load === null) && (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
     || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
@@ -141,6 +145,7 @@ function checkedFields(value) {
     ...(hasTestOutcomes ? { testOutcomes } : {}),
     ...(signed ? { failureSignatures: signed } : {}),
     ...(hasBlockingVerdict ? { blockingVerdict } : {}),
+    ...(hasShadow ? { shadow } : {}),
     ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
     ...(hasTiming ? { full: value.full, timing } : {}) };
 }

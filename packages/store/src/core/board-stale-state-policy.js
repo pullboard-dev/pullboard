@@ -5,7 +5,7 @@ import { Refused } from "../../../kernel/core.js";
 const MINUTE = 60_000;
 
 /** Read configured limits without loading the Git-aware health scanner on the status path. */
-export function staleStateLimits(config = {}) {
+export function staleStateLimits(config = {}, { dependency = false } = {}) {
   const stuck = config.health?.stuck;
   return {
     hold: durationMs(config.health?.holds ?? '1d', 'health.holds'),
@@ -13,6 +13,7 @@ export function staleStateLimits(config = {}) {
     blocker: durationMs(stuck ?? '15m', 'health.stuck'),
     review: 30 * MINUTE,
     warning: 60 * MINUTE,
+    ...(dependency ? { dependency: durationMs(config.health?.dependencyIdle ?? '2h', 'health.dependencyIdle') } : {}),
   };
 }
 

@@ -4,7 +4,7 @@
  * Editing a body that has already moved is ordinary work; only an in-flight move, its shim or the plan is reorg.
  * #2467 deletes this with the rest of the restructure machinery.
  */
-import { readFileSync } from 'node:fs';
+import { cellReadFileSync as readFileSync } from '../packages/codemap/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 

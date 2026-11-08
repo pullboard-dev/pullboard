@@ -26,7 +26,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 
 /** Run `pullboard health` and return its exit code. */
-export async function run(io) {
+export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
   report.runnerTransportLosses = runnerLossHealth(recentReceipts(ctx.info.root, ctx.clock.now().getTime()), ctx.clock.now().getTime());
@@ -63,7 +63,7 @@ export async function run(io) {
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
-  for (const line of blockLines(report.blocks)) io.say(line);
+  for (const line of blockLines(report.blocks, { detail: Boolean(values.detail) })) io.say(line);
   for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'
     ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
     : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
@@ -114,13 +114,13 @@ export function blockReport(blocks, seats = new Map()) {
 }
 
 /** The block report as lines: one per code with its count, then each drafted item; none on a quiet day [C6]. */
-export function blockLines({ codes, drafts }) {
+export function blockLines({ codes, drafts }, { detail = true } = {}) {
   // A quiet day adds nothing, so a clear board still reads as one line.
   if (!codes.length) return [];
   const clears = { person: 'the person', coordinator: 'the coordinator', agent: 'the agent that ran it' };
   return [`blocks in the last day: ${codes.reduce((sum, entry) => sum + entry.count, 0)}`,
     ...codes.map(entry => `  ${entry.code} ${entry.count}x on ${entry.commands.join(', ')}, stopped ${entry.who.join(', ')}; ${clears[entry.audience] ?? 'the agent'} clears it: ${entry.step}`),
-    ...drafts.map(draft => `  repeated, draft an item: ${draft.command}`)];
+    ...drafts.map(draft => detail ? `  repeated, draft an item: ${draft.command}` : `  repeated ${draft.cause}: coordinator item draft available with --detail`)];
 }
 
 /** Read active automatic quarantines without opening a mutable board or exposing private log bytes. */

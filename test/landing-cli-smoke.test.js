@@ -37,7 +37,7 @@ function landBrokenCli({ separate }) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: ship a project CLI');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   const entry = itemWorktree(box, 1);
-  submitItem(box, entry, 'BREAK PASS\n');
+  submitItem(box, entry, '// BREAK PASS\n');
   acceptItem(box, entry);
   const main = box.git(box.repo, 'rev-parse', 'main'), origin = box.git(box.remote, 'rev-parse', 'main');
   const landed = box.run(box.repo, 'land');

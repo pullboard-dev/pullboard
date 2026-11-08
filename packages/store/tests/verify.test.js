@@ -12,6 +12,8 @@ import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../apps/lib/index.js";
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
+import { fixtureJoin } from '../../../test/testkit-fixture.js';
 
 /** Read a successful JSON CLI response; setup failures must not masquerade as eligibility failures. */
 function document(result) {
@@ -42,7 +44,7 @@ test('a reviewer is refused for any item its session ever built [V1,B3,C7]', (t)
   delete box.env.CODEX_THREAD_ID;
   const secondPath = join(box.dir, 'second-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', secondPath, 'main');
-  const second = document(box.run(secondPath, 'join', 'web', '--json')).agent;
+  const second = document(fixtureJoin(box.run, secondPath, 'web', '--json')).agent;
   const id = store.addItem(board, { by:'coordinator', lane:'web', title:'A handed-over item', criterion:'The page is ready.', check:'true', specs:'G1' });
   const freeze = () => ({ text:JSON.stringify({ rows:[] }), digest:'historical-author-1085' });
   const claim = agentId => store.claim(board, id, { agentId, lane:'web', leaseMs:3_600_000, freeze });
@@ -67,7 +69,7 @@ test('a reviewer is refused for any item its session ever built [V1,B3,C7]', (t)
   const review = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, head);
   box.env.CODEX_THREAD_ID = 'historical-author-session-1085';
-  document(box.run(review, 'join', 'web', '--json'));
+  document(fixtureJoin(box.run, review, 'web', '--json'));
   refused(box, board, review, ['next','--verify',String(id)], 'SELF_SESSION_VERIFY');
   refused(box, board, review, ['next','--verify'], 'NOTHING_FREE');
   refused(box, board, review, ['verify',String(id),'reject','--reason','TEST_FAILURE','--note','synthetic review attempt'], 'SELF_SESSION_VERIFY');
@@ -113,14 +115,14 @@ if (fs.existsSync(${JSON.stringify(armed)})) {
   if (runs.length === 2 && ${JSON.stringify(mode)} === 'once') assert.equal(fs.readFileSync('docs/arrived.txt', 'utf8'), 'main 1\\n');
 }
 `);
-  document(box.run(box.repo, 'add', 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(fixtureAdd(box.run, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
   document(box.run(box.web, 'submit', '1', '--json'));
   const before = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, before.item_commit);
-  document(box.run(reviewer, 'join', 'api', '--json'));
+  document(fixtureJoin(box.run, reviewer, 'api', '--json'));
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check at each exact private source.', '--json');
   const after = document(box.run(box.repo, 'show', '1', '--json'));
@@ -187,14 +189,14 @@ console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pa
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure frozen check ceiling');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  document(box.run(box.repo, 'add', 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
+  document(fixtureAdd(box.run, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
   document(box.run(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
   document(box.run(box.web, 'submit', '1', '--json'));
   const submitted = document(box.run(box.repo, 'show', '1', '--json'));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
-  document(box.run(reviewer, 'join', 'api', '--json'));
+  document(fixtureJoin(box.run, reviewer, 'api', '--json'));
   writeFileSync(armed, 'armed');
   const result = box.run(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
   return { box, result };

@@ -3,6 +3,7 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { join } from 'node:path';
@@ -122,12 +123,44 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
     return [...rows.values()].filter(row => descendants.has(row.pid) && row.pid !== child.pid && row.pid !== member?.pid)
       .map(row => `${row.pid}:${row.started}:${row.processSha256}`);
   };
-  /** Block a batch only after its revision, runner processes and active log have all stopped advancing. */
+  /**
+   * CPU milliseconds the worker's descendants have used: one asynchronous ps call at most every 5 s, never blocking
+   * the sampler, so a 5 ms test poll and the 10 s production poll both stay on time. An unreadable sample keeps the
+   * last count [B3,R3].
+   */
+  let cpuSampledAt = -Infinity, cpuSampled = 0, cpuPending = false;
+  const descendantCpuMs = rows => {
+    if (!rows || !child.pid) return 0;
+    if (cpuPending || now() - cpuSampledAt < 5_000) return cpuSampled;
+    const descendants = new Set([child.pid]);
+    let changed;
+    do {
+      changed = false;
+      for (const row of rows.values()) if (descendants.has(row.ppid) && !descendants.has(row.pid)) { descendants.add(row.pid); changed = true; }
+    } while (changed);
+    const pids = [...descendants].filter(pid => pid !== child.pid);
+    if (!pids.length) return cpuSampled;
+    cpuPending = true;
+    cpuSampledAt = now();
+    execFile('/bin/ps', ['-o', 'time=', '-p', pids.join(',')], { encoding: 'utf8', timeout: 5_000 }, (error, out) => {
+      cpuPending = false;
+      if (error) return;
+      cpuSampled = String(out).split('\n').reduce((sum, line) => {
+        const parts = line.trim().split(/[:.]/u).map(Number);
+        if (parts.length < 2 || parts.some(Number.isNaN)) return sum;
+        const [seconds, minutes, hours] = [parts.at(-1), parts.at(-2), parts.length > 2 ? parts.at(-3) : 0];
+        return sum + ((hours * 60 + minutes) * 60 + seconds) * 1000;
+      }, 0);
+    });
+    return cpuSampled;
+  };
+  /** Block a batch only after its revision, runner processes, active log and descendant CPU time have all stopped advancing. */
   const sampleProgress = async () => {
     if (sampling || stalled || !latestBatch || ['blocked', 'landed'].includes(latestBatch.state)) return;
     sampling = true;
     try {
-      const current = landingProgressSnapshot(latestBatch, { logBytes: logBytes(latestBatch), runnerJobs: runnerJobs(read()) });
+      const rows = read();
+      const current = landingProgressSnapshot(latestBatch, { logBytes: logBytes(latestBatch), runnerJobs: runnerJobs(rows), cpuMs: descendantCpuMs(rows) });
       if (landingProgressed(lastSnapshot, current)) {
         lastSnapshot = current;
         lastProgressAt = now();
@@ -187,7 +220,7 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
       if (signal.aborted || failure) throw signal.reason ?? failure;
       if (message.operation === 'check') { await checkLease(); checkLeaseNow(); return null; }
       if (message.operation === 'wait') return await onWait?.(message.args[0]);
-      if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact'].includes(message.operation)) {
+      if (!['recordTrainLanding', 'recordLandingBatch', 'finishLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordFlakeObservation', 'recordGateRun', 'reopen', 'appendFact', 'holdItem', 'releaseItemHold', 'shout'].includes(message.operation)) {
         throw new Refused('LAND_WORKER', 'the landing worker requested an unsupported operation; stop it and inspect pullboard resume');
       }
       const value = await write(message.operation, message.args);
@@ -288,13 +321,22 @@ function guardianMain({ workerFile, parseProcessCensus }) {
   let closed = false;
   let pending = 0;
   let deadline = 0;
-  let expiring = false;
-  /** Fail closed independently of a suspended CLI, using only its last acknowledged authority deadline. */
+  let notified = false;
+  let lastStopAt = 0;
+  /**
+   * Fail closed independently of a suspended CLI, using only its last acknowledged authority deadline.
+   * The stop retries about once a second until the process is gone: a single census failure on a loaded
+   * machine used to skip the group signal and leave the expired guardian alive forever.
+   */
   const expire = () => {
-    if (finished || expiring) return;
-    expiring = true;
-    if (process.connected) process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }, undefined, { parseProcessCensus }));
-    else stop({ pid: process.pid }, undefined, { parseProcessCensus });
+    if (finished) return;
+    const at = Date.now();
+    if (at - lastStopAt < 1000) return;
+    lastStopAt = at;
+    if (!notified && process.connected) {
+      notified = true;
+      process.send({ type: 'failure', code: 'LAND_LEASE_LOST', message: 'the guardian stopped its owned worker before the acknowledged landing lease expired' }, () => stop({ pid: process.pid }, undefined, { parseProcessCensus }));
+    } else stop({ pid: process.pid }, undefined, { parseProcessCensus });
   };
   const watchdog = setInterval(() => { if (deadline && Date.now() >= deadline - 1500) expire(); }, 100);
   /** Flush result and refusal messages before ending this private channel normally. */
