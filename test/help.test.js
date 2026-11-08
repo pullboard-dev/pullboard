@@ -162,7 +162,9 @@ test('full help is assembled from the independently editable command groups [C7,
   const graph = helpGraph();
   let offset = 0;
   for (const section of HELP_SECTIONS) {
-    assert.ok(graph.has(resolve(ROOT, `apps/cli/src/core/help/${section.name}.js`)), `${section.name} has its own declaration module`);
+    // Setup help is owned by the view cell and lifecycle help by the state package; both are in the help graph.
+    const owner = { setup: 'apps/view/src/shell/help/setup.js', lifecycle: 'packages/state/index.js' }[section.name] ?? `apps/cli/src/core/help/${section.name}.js`;
+    assert.ok(graph.has(resolve(ROOT, owner)), `${section.name} has its own declaration module`);
     assert.equal(HELP.all.slice(offset, offset + section.text.length), section.text,
       `${section.name} contributes its unchanged text in declaration order`);
     offset += section.text.length;
