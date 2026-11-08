@@ -57,7 +57,10 @@ function handoffEvents(box, id, jobState) {
 function drainOnce(box, source) {
   const run = spawnSync(process.execPath, [join(source, 'bin/handoff-worker-dispatcher.js')], { cwd: join(box.repo, '.git'), env: box.env, encoding: 'utf8' });
   assert.equal(run.status, 0, `the drain exits 0\n${run.stdout}${run.stderr}`);
-  return `${run.stdout}${run.stderr}`;
+  // The dispatcher logs a failed sweep here, not on its output; quote it so a missed requeue names its cause.
+  let logged = '';
+  try { logged = readFileSync(join(box.dir, 'machine-home', 'handoff-queue', 'dispatcher.log'), 'utf8'); } catch { /* no log: nothing failed */ }
+  return `${run.stdout}${run.stderr}${logged}`;
 }
 
 test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and clause 2: show names the requeue and its reason [C7]', async t => {
