@@ -83,7 +83,7 @@ function landBatch(box, itemId) {
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const [root, itemId] = process.argv.slice(1); const board = openBoard(join(root, ".git", "pullboard", "board.sqlite")); const lines = [];',
-    'try { const write = async (operation, args) => board.enginePorts.store[operation](board, ...args); let error = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); } const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId)); console.log(JSON.stringify({ error, lines, batch, merged: item.item_merged_commit })); } finally { store.closeBoard(board); }',
+    'try { const write = async (operation, args) => board.enginePorts.store[operation](board, ...args); let error = null; let errorMessage = null; try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { error = failure.code ?? String(failure); errorMessage = String(failure.message ?? '').slice(0, 600); } const batch = store.landingBatches(board).at(-1); const item = store.getItem(board, Number(itemId)); console.log(JSON.stringify({ error, errorMessage, lines, batch, merged: item.item_merged_commit })); } finally { store.closeBoard(board); }',
   ].join('\n');
   const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(itemId)], { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
@@ -96,7 +96,7 @@ test('an exact-main failure is fully collected with later selected work before l
   const later = `import { test } from 'node:test'; import { writeFileSync } from 'node:fs'; test('later-passing-case', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));\n`;
   const entry = realNodeItem(box, 1, red, later);
   const landed = landBatch(box, entry.item);
-  assert.equal(landed.error, null, JSON.stringify(landed.lines));
+  assert.equal(landed.error, null, `${landed.errorMessage}\n${JSON.stringify(landed.lines)}`);
   assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.batch));
   assert.ok(landed.merged, 'the batch landed');
   assert.ok(readFileSync(marker, 'utf8'), 'the later selected test body ran');
