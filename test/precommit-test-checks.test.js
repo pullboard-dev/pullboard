@@ -58,7 +58,7 @@ function stagedCheck(box) {
   return spawnSync(process.execPath, [...NODE_FLAGS, join(box.repo, 'bin', 'checks', 'changed-static.js')], { cwd: box.repo, env: box.env, encoding: 'utf8' });
 }
 
-test('the real pre-commit hook refuses a temp dir, a model literal, a raw board and an unnamed test with the gate static stage messages [C7]', () => {
+test('the real pre-commit hook refuses a temp dir, a model literal, a raw board and an unnamed test with the gate static stage messages, clause 1 [C7]', () => {
   const box = hookedProject();
   for (const [file, source] of CASES) writeFileSync(join(box.repo, file), source);
   const gate = [
@@ -87,7 +87,7 @@ test('the staged checker accepts a test file whose names cite rows and whose fix
   assert.equal(done.status, 0, done.stderr);
 });
 
-test('the staged test checks read nothing when no test file is staged [C7]', () => {
+test('the staged test checks read nothing when no test file is staged, clause 2 [C7]', () => {
   const files = Array.from({ length: 20 }, (_, index) => `src/module-${index}.js`);
   const refuse = file => { throw new Error(`read ${file}`); };
   for (const check of STAGED_TEST_CHECKS) {
@@ -96,7 +96,7 @@ test('the staged test checks read nothing when no test file is staged [C7]', () 
   }
 });
 
-test('the staged checker judges a 20-file commit under 2 s [C7]', () => {
+test('the staged checker judges a 20-file commit under 2 s, clause 2 [C7]', () => {
   const box = hookedProject();
   mkdirSync(join(box.repo, 'src'), { recursive: true });
   for (let index = 0; index < 10; index++) {
