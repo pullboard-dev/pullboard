@@ -79,7 +79,7 @@ async function runRelayOnAll(box, signalMode) {
   return box.script(`
     import { relayOnAll } from ${JSON.stringify(relaySetupURL)};
     import { readRelayMachine } from ${JSON.stringify(relayMachineURL)};
-    import { createDeviceKeys, signDeviceEnrollment } from ${JSON.stringify(relayDeviceKeysURL)};
+    import { createDeviceKeys, signDeviceEnrollment } from ${JSON.stringify(relayDeviceKeysURL)}; import { nativeRelayPorts } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
     const controller = new AbortController();
     const originalFetch = globalThis.fetch;
     const mode = ${JSON.stringify(signalMode)};
@@ -170,7 +170,7 @@ async function runRelayOnAll(box, signalMode) {
         return response;
       };
     } else if (mode === 'already-aborted') controller.abort();
-    const output = { personChannel: 'view', cwd: process.cwd(),
+    const output = { ...nativeRelayPorts(), personChannel: 'view', cwd: process.cwd(),
       stderr: { write() {} }, say(value) { messages.push(String(value)); }, err(value) { messages.push(String(value)); } };
     try {
       const result = await relayOnAll(${JSON.stringify(box.origin)}, output, {
