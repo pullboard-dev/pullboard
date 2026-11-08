@@ -5,6 +5,7 @@ import { overdueSeatTestsFirst } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { retainConnection } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
@@ -147,18 +148,16 @@ function canonicalResourceFile(file) {
   }
 }
 
-/** Open and initialize the small durable queue database. */
-function open(file, machine = false) {
-  return machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file);
-}
+/** Open and initialize the small durable queue database, or hand back the process's one retained connection when reuse is on [C7,#3338]. */
+function open(file, machine = false) { return retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file)); }
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer [C7].
   let transaction = false;
   try {
+    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
@@ -567,14 +566,14 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const cursor = runnersFirst ? db.prepare("SELECT next_host FROM runner_rotation WHERE pool = 'gate'").get()?.next_host : '';
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
-      const compatible = ordered.filter(runner => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner)) return false;
-        if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
-        if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
-        const used = usage.get(runner.host);
-        return !used.timing && (waiter.timing !== 1 || used.slots === 0)
+      /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
+      const fits = (runner, lendingTo) => {
+        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
+        return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
-      });
+      };
+      const free = ordered.filter(runner => fits(runner)), compatible = free.length ? free : ordered.filter(runner => fits(runner, waiters));
       const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
       // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
       if (restriction?.kind === 'ssh' && restriction.hosts) {
@@ -801,7 +800,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false, allowWhenHeld = null } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -810,7 +809,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
     return update(db, () => {
       const resourceName = runnerResourceName(host);
       const held = db.prepare('SELECT COUNT(*) AS count FROM holder WHERE name = ?').get(resourceName).count;
-      if (held && !drain && !observation) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
+      if (held && !drain && !observation && !(typeof allowWhenHeld === 'function' && allowWhenHeld())) throw new Refused('RUNNER_BUSY', `runner ${host} has ${held} active slot(s); wait for them to finish before changing its settings`);
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist({ held });
@@ -1042,10 +1041,9 @@ export async function takeResource(options) {
   const file = databaseFile(scope, root);
   // A queued run waits out a locked database in place; only a lock past the deadline stops it, as never ran.
   const db = await retryLockedSlotDatabase(file, () => open(file, scope === 'machine'));
-  let pool;
-  try { pool = canonicalResourceFile(file); }
+  let pool, awarenessCursor; // A throw before the admission loop owns the connection must close it [C7,#3338].
+  try { pool = canonicalResourceFile(file); awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id; }
   catch (error) { db.close(); throw error; }
-  const awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id;
   const unfenced = new Map();
   const observedRunnerNames = new Set();
   /** Preserve every observed unfenced client throughout this admission and execution. */
@@ -1060,7 +1058,7 @@ export async function takeResource(options) {
     for (const client of observations) unfenced.set(`${client.pid}:${client.started}:${client.agent}`, { ...client });
     return { exclusive: unfenced.size === 0, unfencedClients: [...unfenced.values()] };
   };
-  timingEvidence();
+  try { timingEvidence(); } catch (error) { db.close(); throw error; }
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
@@ -1077,7 +1075,8 @@ export async function takeResource(options) {
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
-  const repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root);
+  let repo;
+  try { repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root); } catch (error) { db.close(); throw error; }
   let queuedAt = resume?.queuedAt ?? new Date().toISOString();
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
@@ -1126,7 +1125,7 @@ export async function takeResource(options) {
         const browserResource = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get();
         if (browserResource && browserResource.capacity !== browserCapacity) {
           const state = snapshot(db, 'browser');
-          if (!allowIdleCapacityUpdate || state.holders.length || state.line.length) {
+          if (!(allowCapacityGrowth && browserCapacity > browserResource.capacity) && (!allowIdleCapacityUpdate || state.holders.length || state.line.length)) {
             throw new Refused('RESOURCE_CAPACITY_MISMATCH', `resource "browser" already has capacity ${browserResource.capacity}`);
           }
           db.prepare("UPDATE resource SET capacity = ? WHERE name = 'browser'").run(browserCapacity);

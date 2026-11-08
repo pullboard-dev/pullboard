@@ -8,6 +8,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
+import { withBoardRead } from '../cli-context.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { displayAgentName } from '../../../../../packages/seats/index.js';
@@ -35,7 +36,7 @@ export async function bindWriteSession(io, positionals, values) {
     // Acceptance follows its person-channel path; it does not renew a build claim.
     if (first === 'accept') return;
     const ctx = context(io);
-    const renewsOwnClaim = withBoard(ctx, (board) => {
+    const renewsOwnClaim = withBoardRead(ctx, (board) => {
       const agentId = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id;
       const item = first ? store.getItem(board, idArg(first)) : store.listItems(board)
         .find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
@@ -50,9 +51,9 @@ export async function bindWriteSession(io, positionals, values) {
   if (!info.isMain) {
     const ctx = context(io);
     const ownsLandingRoot = command === 'hook' ? (await import('../../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
-    agent = withBoard(ctx, (board) => seatAt(board, info.root)?.agent_id
+    agent = withBoardRead(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
-    if (!agent && command !== 'join') throw withBoard(ctx, (board) =>
+    if (!agent && command !== 'join') throw withBoardRead(ctx, (board) =>
       (command === 'hook' ? itemFolderRenewalRefusal(board, info.root) : null)
       ?? unjoinedRefusal(info, store.listAgents(board), agentSessionDigest));
   }

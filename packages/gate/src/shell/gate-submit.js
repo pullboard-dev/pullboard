@@ -66,9 +66,15 @@ import {
   pinRunMain,
   recordRun,
   refuseSandboxBlocked,
+  runProfiledShardsAsync,
   runProfiledShellAsync,
   safeLog,
 } from './gate-execution.js';
+import { SHARD_ADMIT_MS } from './proof-shards.js';
+import { freeRunnerSlots } from './proof-shards.js';
+import { mergeShardRuns } from './proof-shards.js';
+import { runProofShards } from './proof-shards.js';
+import { readFileTimes } from './test-value-timing.js';
 import {
   commandWord,
   runStaticChecks,
@@ -212,11 +218,33 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const prove = async () => {
       if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
-      const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
-      const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal }), isCached: false, log: proofLog };
+      const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
+      const command = filesCommand(proofFiles);
+      const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
+      // On a runner the files fan out across free slots; the one receipt still names the whole command [C7].
+      const run = { ...await (lease.runner && proofFiles.length > 1
+        ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
+        : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
       if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
+    };
+    /**
+     * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's
+     * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
+     * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
+     * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
+     */
+    const proveShards = async (execution, filesCommand) => {
+      const runners = execution.gateLease.executionServices.runners;
+      const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
+      const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
+        runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
+        metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
+      const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
+        { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
+      const shards = await runProofShards(proofFiles, { freeSlots: (planners.freeSlots ?? freeRunnerSlots)(), times: readFileTimes(root), root, runFirst, runOther });
+      return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */

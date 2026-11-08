@@ -19,6 +19,7 @@ import {
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
+  retainedGateAssertions,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -126,7 +127,13 @@ async function nextWithProgress(io, values, progress) {
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
-  withBoard(ctx, board => {
+  // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  const hasQueuedReds = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return store.queuedReds(board, me.id).some(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  });
+  if (hasQueuedReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
     const reds = store.queuedReds(board, me.id).filter(red =>
       !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
@@ -233,7 +240,11 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
+        const record = store.returnedRecord(board, item.item_id);
+        return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
+      });
+      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -256,6 +267,14 @@ async function nextWithProgress(io, values, progress) {
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        if (returned) {
+          if (returned.gate) {
+            io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
+          }
+          if (returned.reject) io.say(`rejected ${returned.reject.reason} by ${returned.reject.by} at ${String(returned.reject.commit).slice(0, 12)}: ${returned.reject.note}`);
+          for (const fact of returned.facts) io.say(`  builder fact, ${fact}`);
+        }
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
