@@ -2,10 +2,12 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { replayDeferredNotices } from './deferred-notices.js';
 import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
+import { warnMainMoved } from '../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -35,6 +37,7 @@ import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { relandAcceptedItems } from './accepted-reland.js';
+import { closePassedTestDefects } from './landing-step-selection.js';
 import { landingMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { oneItemBatch } from './landing-step-selection.js';
@@ -43,6 +46,7 @@ import { emptyLanding } from './landing-step-selection.js';
 import { landingOperations } from './landing-step-merge.js';
 import { testHash } from './landing-step-selection.js';
 import { heldTestDefects } from './landing-step-selection.js';
+import { testDefectHoldMessage } from './landing-step-selection.js';
 import { landingEntry } from './landing-step-selection.js';
 import { save } from './landing-step-merge.js';
 import { splitRedBatch } from './landing-step-split.js';
@@ -68,6 +72,7 @@ import { publish } from './landing-step-publish.js';
 import { landsOnTrunk } from './landing-step-publish.js';
 import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
+import { flakeRatchetBeforeGate } from './landing-step-trunk.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { timedPhase } from './landing-phase-timing.js';
 
@@ -135,11 +140,14 @@ export async function land(options) {
   if (trunk.commit && !options.dryRun && !options.adopt) {
     await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
   }
+  let publishHold = null;
   if (trunk.commit) {
     const policy = policyAt(options.root, trunk.commit).config;
     requireParallelGateAdmission(options.root, policy);
-    requirePublishGreen(options.root, options.board, policy, options.landingPorts);
+    publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
+  // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
@@ -153,9 +161,10 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
+    if (publishHold && !selected.ready.length) throw publishHold.refusal;
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
@@ -319,7 +328,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
-  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
+  const publishHold = !dryRun && trunk?.commit ? requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts, { perItem: true }) : null;
   const batches = store.landingBatches(board);
   let unfinished = batches.findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (!unfinished && automatic) unfinished = batches.findLast(batch => retryableLandingBatch(batch, trunk?.commit));
@@ -339,15 +348,17 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   config ??= policyAt(root, trunk.commit).config;
   if (!dryRun) requireParallelGateAdmission(root, config);
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
+  // A main-moved notice that failed on an earlier wake is retried first, so a seat is not left without its stale-verdict notice (#3367).
+  if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
-  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
+  if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', testDefectHoldMessage(testDefects));
   if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
   if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
@@ -355,6 +366,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
+  if (publishHold && !selected.ready.length) throw publishHold.refusal;
   if (dryRun) {
     if (selected.ready.length && !landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
     const conflicts = [];
@@ -418,6 +430,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);
     else {
+      await flakeRatchetBeforeGate(state);
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);

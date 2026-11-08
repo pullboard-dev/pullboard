@@ -2,7 +2,6 @@
 /** A gate's infrastructure stops rotate to another runner with back-off for up to 30 minutes before the gate gives up [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -10,6 +9,7 @@ import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { fixtureMachineSettings } from '../../../test/testkit-fixture.js';
 import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
 
 const HOSTS = [HOST, `${HOST}-drop`, `${HOST}-setup`];
@@ -29,9 +29,9 @@ function fixture(t) {
   installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), starts: join(box.dir, 'starts.jsonl'), dropFirst: false, nodeCommand: process.execPath });
   box.env.PATH = `${bin}:${box.env.PATH}`;
   const runners = HOSTS.map(host => ({ host, slots: 1, browser: 0, node: process.execPath }));
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, {
     gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnerWaitMs: 200 }, runners,
-  }));
+  });
   return box;
 }
 

@@ -28,6 +28,12 @@ import { Refused } from "../../../kernel/index.js";
 /** Requeues of the same candidate after a spent gate infrastructure retry budget. */
 const EXHAUSTED_RETRIES = 2;
 /**
+ * Automatic requeues of one candidate whose gate worker died or whose gate infrastructure was spent, before the stop is
+ * final and the sentinel shouts once. Why three: a stall that kills workers can kill the first
+ * retries too, and none of those gates had a fault in its candidate (#3714).
+ */
+export const INFRASTRUCTURE_RETRY_LIMIT = 3;
+/**
  * Error codes that stop a queued gate for infrastructure reasons, not the builder's source: a Git read that kept
  * failing (#2521), a gate whose bounded infrastructure retries were spent (#2516), and every machinery code the
  * queued worker reruns on. One set serves both sides, so a code the worker treats as infrastructure never reaches
@@ -45,6 +51,9 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 ]));
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { PIPELINE_CAUSE_ENGINE } from "../../../../src/pipeline-cause-engine.js";
+import { pipelineCause } from "../../../kernel/index.js";
+import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
 
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
@@ -147,6 +156,22 @@ export function requireSubmitHandoffHookProof(board, id, job, projection) {
   return projection;
 }
 
+/**
+ * End an item's queued or running hand-off because the item is withdrawn, in the withdrawal's own board write.
+ * Why: a record leaves queued only when a worker writes a result, so a withdrawn item's hand-off stayed queued and could
+ * still be started (#2800 and #3291 on 6 Nov); an ended record makes startSubmitHandoff start nothing [C7].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @returns {Record<string, any> | null} The ended record, or null when the item had no queued or running hand-off.
+ */
+export function endWithdrawnHandoff(board, id) {
+  if (typeof board.enginePorts?.submitHandoffEngines !== 'function' || typeof board.enginePorts?.shadowJob !== 'function') return null;
+  const job = submitHandoff(board, id);
+  if (!job || !['queued', 'running'].includes(job.state)) return null;
+  return record(board, id, { ...job, state: 'ended', reason: 'withdrawn', completedAt: now(board) });
+}
+
 /** Exactly one detached worker enters the existing canonical submit path. */
 export function startSubmitHandoff(board, id, options) {
   return atomic(board, () => {
@@ -218,7 +243,10 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;
-    if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+    const toBoard = options.returnToBoard === true && (board.executionEngineVersion ?? ENGINE_VERSION) >= CONVEYOR_RETURN_ENGINE;
+    if (state === 'red' && toBoard && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+      returnToBoard(board, id, job, result.error);
+    } else if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       returnToBuilder(board, id, job, result.error);
     } else if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       const reservation = reopenFirstRefusalMinutes > 0
@@ -253,9 +281,30 @@ function returnToBuilder(board, id, job, error) {
   const leaseUntil = new Date(board.clock.now().getTime() + job.leaseMs).toISOString();
   setItem(board, id, { item_lease_until: leaseUntil });
   // The fresh deadline is lease evidence like any renewal, so lapsed-claim maintenance can free it once it ends.
-  logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
+  // From the typed-cause engine the same renew event names why the gate came back red: the refusal code and its cause (#3071).
+  const text = String(error.message ?? '').slice(0, 4000);
+  const outcome = (board.executionEngineVersion ?? ENGINE_VERSION) >= PIPELINE_CAUSE_ENGINE && text.trim()
+    ? { submitOutcome: { code: error.code, text, digest: job.digest, pipelineCause: pipelineCause({ code: error.code, note: text }) } } : {};
+  logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true, ...outcome });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
+}
+
+/**
+ * Give a red or refused queued item back to the board: release the builder's claim and record the return with no
+ * builder first refusal, so next offers it to any free seat of its lane and route.
+ * Why: work belongs to the board, not to an agent; a red sat claimed by a seat whose agent was gone until its
+ * two-hour lease lapsed, and the lapse then reserved it for that same seat (#3541).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {any} job the queued job whose gate was refused
+ * @param {{ code: string }} error the retained refusal
+ */
+function returnToBoard(board, id, job, error) {
+  release(board, id, job.agentId, `the queued gate was refused (${error.code}); returned to the board for any free seat`, undefined, 'OTHER');
+  logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, returnedToBoard: true });
+  insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it went back to the board for any free seat. pullboard show ${id} prints the refusal.`, lanes: [] });
 }
 
 /** End a crashed incarnation before atomically deriving a bounded successor from its immutable candidate [C7,V4]. */
@@ -277,9 +326,9 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
 
 /** Persist one infrastructure stop and notify the coordinator once only after the two automatic retries [C7]. */
 function recordInfrastructureStop(board, id, job, error) {
-  const exhausted = (job.infrastructureRetries ?? 0) >= 2;
+  const exhausted = (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
   if (exhausted && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted two healthy-executor recovery retries (${error.code}); restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
   return record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board),
     ...(exhausted ? { infrastructureNotified: true } : {}) });
 }
@@ -289,7 +338,7 @@ function retryStoppedHandoff(board, id, job, retryJob) {
   if (!JOB.test(retryJob) || retryJob === job.id) throw new Refused('BAD_SUBMIT_HANDOFF', 'recovery needs a fresh job identity');
   const item = getItem(board, id);
   if (job.state !== 'infrastructure' || !['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
-    || (job.infrastructureRetries ?? 0) >= 2 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
+    || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
     || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;
   // The stopped record is already the newest step of its own job, where endedSubmitHandoff reads it.
@@ -305,8 +354,8 @@ function retryStoppedHandoff(board, id, job, retryJob) {
  * Why: a missing capsule threw on every healthy sweep, so the job sat stopped with no count and no notice [C7,V4].
  */
 function spendStoppedHandoff(board, id, job, reason) {
-  if (job.state !== 'infrastructure' || (job.infrastructureRetries ?? 0) >= 2 || job.infrastructureNotified) return job;
+  if (job.state !== 'infrastructure' || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT || job.infrastructureNotified) return job;
   insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted two healthy-executor recovery retries (${job.error?.code}); its captured tools cannot be recovered (${String(reason).slice(0, 160)}). Restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
-  return record(board, id, { ...job, infrastructureRetries: 2, infrastructureNotified: true });
+    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${job.error?.code}) at ${String(job.commit).slice(0, 12)}; its captured tools cannot be recovered (${String(reason).slice(0, 160)}). Restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+  return record(board, id, { ...job, infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT, infrastructureNotified: true });
 }
