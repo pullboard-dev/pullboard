@@ -201,6 +201,26 @@ function receiptFiles(receipt, index, { checkFiles, proofFiles }) {
   return criterion ? checkFiles : proofFiles;
 }
 
+/**
+ * A clause's evidence from the test files it names: the named cases each receipt executed in that file, those citing
+ * the clause when any do, else every executed case; a file-level row only for a receipt that recorded no case in it.
+ * Why: #3253's clause named both check files, so its packet showed two file-level passes (test: null) and review
+ * rejected INSUFFICIENT_EVIDENCE although the gate had run the clause 1 case green [C7,V4].
+ *
+ * @param {{n:number}} clause
+ * @param {{receipt:string,file:string}[]} fileRuns - the receipts' file-level rows for files the clause names
+ * @param {{receipt:string,file:string,test:string}[]} executed - every executed case the receipts recorded
+ * @param {(name:string, n:number) => boolean} citesClause
+ */
+function namedFileEvidence(clause, fileRuns, executed, citesClause) {
+  return fileRuns.flatMap(run => {
+    const cases = executed.filter(row => row.receipt === run.receipt && row.file === run.file && row.test.replace(/^\.\//u, '') !== run.file);
+    if (!cases.length) return [{ ...run, test: null, why: 'clause names the file' }];
+    const own = cases.filter(row => citesClause(row.test, clause.n));
+    return (own.length ? own : cases).map(row => ({ ...row, why: own.length ? 'test cites the clause' : 'case in the file the clause names' }));
+  });
+}
+
 /** The result one receipt recorded for one file. */
 function fileResult(receipt, file) {
   if ((receipt.failures ?? []).some(failure => failure.file === file)) return 'fail';
@@ -284,7 +304,7 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
-    let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    let evidence = namedFileEvidence(clause, runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)), executed, citesClause);
     // A frozen spec row is proved by the named, executed cases of the gate test its row names, which submit runs with
     // the proof [V4]. A file-level run proves nothing here: a skipped run has no executed cases, and a zero-case file
     // reports only a pseudo-case named for the file itself.
