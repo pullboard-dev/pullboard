@@ -144,7 +144,7 @@ function parallelCliProject(landProject) {
   return box;
 }
 
-/** Observe a real CLI landing without replacing its configuration, lease or guardian callbacks. */
+/** Observe a real CLI landing without replacing its configuration, lease or in-process landing callbacks. */
 function startParallelCli(box, BIN) {
   const startup = join(box.dir, 'parallel-cli-startup.jsonl');
   const env = { ...box.env, PULLBOARD_STARTUP_TRACE_FILE: startup, PULLBOARD_STARTUP_TRACE_ENTRY: BIN };
@@ -187,7 +187,9 @@ export async function assertParallelCliLease({ landProject, itemWorktree, submit
         quietMs: 120_000 });
       ({ held, batch } = onBoard(box, board => ({ held: store.landingLeaseState(board).holder,
         batch: store.landingBatches(board).at(-1) })));
-      assert.ok(held && Number.isSafeInteger(held.guardianPid) && held.guardianPid > 0, 'the real guardian is bound to an actual lease');
+      // The landing runs as a drive job inside the command's own process (no guardian process), so the grant names that process.
+      assert.ok(held && Number.isSafeInteger(held.pid) && held.pid > 0, 'the landing lease is held by an actual process');
+      assert.doesNotThrow(() => process.kill(held.pid, 0), 'the process holding the grant is still alive');
       assert.equal(held.branch, batch.branch);
       assert.ok(Number.isSafeInteger(held.generation) && held.generation > 0);
       assert.equal(batch.parallelCandidates.length, 2, 'the CLI parsed the committed opt-in and dispatched both prefixes');
