@@ -99,6 +99,9 @@ test('every current operation selects its native actor credential without a seco
       baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
     }];
     if (['recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'finishLandingBatch'].includes(operation)) args = [options];
+    // Closing a trunk defect names its actor in its one argument, like recording one.
+    if (operation === 'closeLandingTestDefect') args = [{ agentId: actor, branch: 'main', test: 'test/credential-fixture.test.js',
+      item: 999999, commit: 'a'.repeat(40) }];
     if (operation === 'recordLandingWaiver') { args = [{ ...options, agentId: 'person', channel: 'terminal' }]; kind = 'person'; }
     if (operation === 'addMilestone') args = [{ agentId: actor, name: 'Credential fixture', items: [] }];
     if (['holdLane', 'releaseLane'].includes(operation)) args = [box.lane, options];
