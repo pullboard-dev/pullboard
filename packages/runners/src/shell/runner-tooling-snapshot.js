@@ -77,7 +77,7 @@ export function captureRunnerTooling(root, { since } = {}) {
   const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
     controllerEntry, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
-  if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), 'src/runners.js',
+  if (since !== undefined && (process.stderr.write('DEBUG1510 since check\n'), true) && changedSince(root, [...Object.keys(loaded.files), 'src/runners.js',
     'bin/runner-controller.js', ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
   return loaded;
