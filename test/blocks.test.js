@@ -254,7 +254,8 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
   fs.writeFileSync(file, [...old, ...recent].join('\n') + '\n');
   assert.ok(fs.statSync(file).size > 20_000_000, 'the ledger is 20 MB');
   const since = new Date(now - 86_400_000), parse = JSON.parse; let parsed = 0, best = Infinity, blocks;
-  JSON.parse = function(...args) { parsed++; return parse.apply(this, args); };
+  let oldParsed = 0;
+  JSON.parse = function(...args) { parsed++; if (/"id":"b\d/u.test(String(args[0]))) oldParsed++; return parse.apply(this, args); };
   try {
     for (let run = 0; run < 5; run++) {
       parsed = 0;
@@ -264,6 +265,7 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
     }
   } finally { JSON.parse = parse; }
   assert.deepEqual(blocks.map(block => block.id), ['br2', 'br3'], 'recent blocks survive and the cleared one is gone');
+  assert.equal(oldParsed, 0, 'no line older than the bound was parsed');
   assert.ok(parsed < 5_000, `only the tail was parsed, not ${parsed} lines`);
   assert.ok(best < 20, `a 20 MB ledger read in ${best.toFixed(1)} ms`);
   assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');

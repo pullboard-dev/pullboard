@@ -74,20 +74,27 @@ function readFrom(file, offset) {
  * @returns {boolean}
  */
 function reachesBefore(text, bound) {
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
-    try {
-      const at = Date.parse(JSON.parse(line)?.at);
-      if (at < bound) return true;
-    } catch { /* A torn or foreign line proves nothing about time. */ }
-  }
+  for (const line of text.split('\n')) if (stampOf(line) < bound) return true;
   return false;
+}
+
+/**
+ * The time a ledger line was recorded, read from its own `"at"` field by a string scan, never a JSON parse, so a line
+ * can be placed before or after a bound without parsing it. NaN for a torn or foreign line, which proves nothing about time.
+ *
+ * @param {string} line
+ * @returns {number}
+ */
+function stampOf(line) {
+  const found = /"at":"([^"]*)"/u.exec(line);
+  return found ? Date.parse(found[1]) : NaN;
 }
 
 /**
  * The blocks recorded at or after `since`, oldest first. A torn last line from a crash is skipped.
  * With `since`, only the tail of the ledger is read, doubling backward until it holds a line older than the
- * bound: a clear always follows the block it clears, so older lines cannot change a block inside the window [C7].
+ * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
+ * cannot change a block inside the window [C7].
  *
  * @param {string} commonDir
  * @param {{ since?: Date }} [options]
@@ -108,6 +115,8 @@ export function readBlocks(commonDir, { since } = {}) {
   let legacy = 0;
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
+    // A line recorded before the bound cannot change a block inside the window, so it is skipped unparsed.
+    if (since && stampOf(line) < from) continue;
     let block;
     try { block = JSON.parse(line); } catch { continue; /* A torn line from an interrupted append carries no block. */ }
     if (block?.kind === 'clear' && Array.isArray(block.ids)) {
