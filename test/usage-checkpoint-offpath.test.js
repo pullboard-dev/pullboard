@@ -138,7 +138,7 @@ function usage(box, id) {
     cacheReadInputTokens: shown.cacheReadInputTokens, cacheWriteInputTokens: shown.cacheWriteInputTokens, models: shown.models, unknownReasons: shown.unknownReasons };
 }
 
-test('50 MB of session logs add under 50 ms of usage work to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
+test('clause 1: 50 MB of session logs add under 50 ms of usage work to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
   const inline = fixture();
   journey(inline.box, inline.id, inline.log, 'inline');
   const expected = usage(inline.box, inline.id);
