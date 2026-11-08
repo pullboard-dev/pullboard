@@ -31,7 +31,7 @@ function idleFolder(box, id) {
   return path;
 }
 
-test('[C7] a claim switches the seat idle clean item folder to the new item branch and creates a worktree only when none is idle', t => {
+test('clause 1: [C7] a claim switches the seat idle clean item folder to the new item branch and creates a worktree only when none is idle', t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
@@ -48,7 +48,7 @@ test('[C7] a claim switches the seat idle clean item folder to the new item bran
   assert.equal(box.git(created, 'branch', '--show-current'), `web/item-${last}`);
 });
 
-test('[C7] a dirty idle folder is never reused or deleted by a claim', t => {
+test('clause 1: [C7] a dirty idle folder is never reused or deleted by a claim', t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
