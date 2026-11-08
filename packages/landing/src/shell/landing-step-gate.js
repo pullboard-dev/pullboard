@@ -83,12 +83,8 @@ function batchAffectedTests(state, readEvents, readItem) {
     const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit }) : { files: submitted };
     if (affected.full && affected.reason !== 'the change reaches every test file') return { full: true, fullGate: true, reason: affected.reason, mandatory, files: [] };
     const named = new Set(affected.files);
-    // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach. The submitted files
-    // are what submit ran, never what the merged tree reaches, so a journey that imports a changed package is added
-    // from the reach of the merged change: a batch failure the journeys alone can show must still run them.
-    const reach = submitted === null || affected.full ? affected : selectAffectedTests(root, { base: state.batch.base, commit });
-    const reached = new Set([...named, ...(reach.full ? [] : reach.files)]);
-    const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => reached.has(file)) }, submittedUnits(state, commit, readEvents));
+    // A5 keeps proved units out; journeys and deferred files still need actual merged-tree reach.
+    const files = landingRunFiles({ ...testTiers, journeys: testTiers.journeys.filter(file => named.has(file)) }, submittedUnits(state, commit, readEvents));
     const deferred = submitted === null ? deferredSelections(state, readEvents).flatMap(row => row.files).filter(file => named.has(file)) : [];
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
     return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
