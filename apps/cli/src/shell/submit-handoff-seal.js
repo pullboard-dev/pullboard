@@ -10,6 +10,7 @@ import {
   headCommit,
   headTree,
   isClean,
+  invalidateGitFacts,
 } from '../../../../packages/git/index.js';
 import { prepareItemPatchSubmit } from '../../../../packages/items/index.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
@@ -22,6 +23,8 @@ export function sealSubmitHandoffQueue(board, id, options, { sourceOnly = false 
   const seatRoot = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
   const candidate = seatRoot && itemFolderPath(seatRoot, id);
   const root = candidate && itemFolderIdentity(board, candidate)?.item === id && headCommit(candidate) === options.commit ? candidate : seatRoot;
+  // Main may have moved since this command first read it; a rewind must refuse here, so read it fresh [V4,H16,E18].
+  invalidateGitFacts({ keepIdentity: true });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
     || !contains(root, options.main, mainPolicy(root).commit) || headCommit(root) !== options.commit || headTree(root) !== options.tree || !isClean(root)) {
