@@ -1,13 +1,11 @@
 /** A main-moved notice that fails during a landing is kept and replayed on the next lander wake until it succeeds [C7]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 import { appendDeferredNotice } from '../src/shell/deferred-notices.js';
 import { deferredNoticesFile } from '../src/shell/deferred-notices.js';
 import { refreshLandedMain } from '../src/shell/deferred-notices.js';
@@ -20,10 +18,10 @@ import { replayDeferredNotices } from '../src/shell/deferred-notices.js';
  * @returns {string}
  */
 function scratch(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-deferred-notices-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root }).status, 0);
-  return root;
+  const fixture = privateFixtureFiles('pullboard-deferred-notices-');
+  t.after(() => fixture.cleanup?.());
+  assert.equal(runFixtureGit(['init', '-q', '-b', 'main'], { cwd: fixture.root }).status, 0);
+  return fixture.root;
 }
 
 /**
