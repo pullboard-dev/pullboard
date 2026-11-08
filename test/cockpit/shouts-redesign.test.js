@@ -55,7 +55,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
           agent:{name:document.querySelector('#agents .agent-row .agent-who b')?.textContent,model:document.querySelector('#agents .agent-model')?.textContent,
             avatars:document.querySelectorAll('#agents .avatar').length,title:document.querySelector('#agents .agent-row')?.title,
             age:document.querySelector('#agents .agent-state time')?.textContent,item:document.querySelector('#agents .agent-doing')?.textContent,
-            state:document.querySelector('#agents .agent-state .chip')?.textContent} };
+            state:document.querySelector('#agents .agent-state .stage-word')?.textContent} };
       })()`);
       console.log('PULLBOARD_SHOUTS_REDESIGN ' + JSON.stringify({ width, list }));
       assert.equal(list.pageWidth, list.viewport, 'the feed and compact composer never widen the viewport');
@@ -74,7 +74,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.match(list.agent.title, /\+1 more item/);
       assert.match(list.agent.age, /^(now|\d+[mhd])$/);
       assert.ok(list.agent.item.includes('#2 '));
-      assert.equal(list.agent.state, 'building');
+      assert.equal(list.agent.state, 'Building');
       if (list.status.visible) {
         assert.equal(list.status.background, list.status.expected, 'the status bar uses the opaque surface token');
         assert.equal(list.status.bottom, 900, 'the measured status surface covers the foot of the viewport');

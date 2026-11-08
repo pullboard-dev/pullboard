@@ -56,7 +56,9 @@ test('long timeline notes expand in place and hashes show twelve characters with
     chrome = await openSnapshotChrome(executable, href.href, join(box.dir, 'timeline-notes-chrome'));
     await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\')');
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
-    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail .tl-note")');
+    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
+    await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
+    await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
     const noteSelector = '#detail .tl-fact[data-timeline-kind="note"] .tl-note';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
