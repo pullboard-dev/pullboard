@@ -45,7 +45,7 @@ test('a paired relay reference explains that committed source is available only 
   const joined = sourceCli('join', 'app');
   assert.equal(joined.status, 0, `the source checkout joins its lane: ${joined.stderr.trim()}`);
   const itemTitle = 'private cleanup fixture item 251';
-  const addedItem = await box.cli('add', 'app', itemTitle);
+  const addedItem = await box.cli('add', 'app', itemTitle, '--route', 'mid', '--criterion', 'the local-only source exists', '--check', 'test -f src/local-only.js', '--brief', 'Files:\n- src/local-only.js\nChange:\n- add the local-only source\nTest:\n- The item check passes'); // the source checkout joined on the mid route
   assert.equal(addedItem.code, 0, `the coordinator adds a fixture item after the setup commit: ${JSON.stringify(addedItem.document.error ?? addedItem.document)}`);
   const latest = await box.cli('export');
   assert.equal(latest.code, 0);
@@ -75,8 +75,13 @@ test('a paired relay reference explains that committed source is available only 
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   })).success, true, 'the private browser receives the paired phone’s authenticated session');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
+  await chrome.waitFor(`data?.project?.items?.some(item => item.title === ${JSON.stringify(itemTitle)})`);
+  await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
   await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+  // Shouts list conversations first; a person opens the one carrying the reference to read its messages in full.
+  await chrome.waitFor(`!!document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])') || !!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
+  if (await chrome.stable(`!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`)) await chrome.click(`document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])')`);
   await chrome.waitFor(`document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
   const beforeOpen = box.calls.length;
   for (const width of [375, 1280]) {
@@ -232,6 +237,7 @@ test('served connection reaches an authenticated API on another origin and path 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('typeof data === "object" && !!data?.project');
     assert.equal(await chrome.stable('data.project.items[0].title'), 'Remote original');
+    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.click(`document.querySelector('#new-item')`); await chrome.stable(`document.querySelector('#add-title').value = 'Remote added'`); await chrome.stable(`document.querySelector('#add-form').requestSubmit()`);
     await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
     assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
