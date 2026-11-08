@@ -136,7 +136,7 @@ const submit = async ctx => {
   } })));
 };
 await worker.driveSubmitHandoff(a.request, { nativeBoard, owner: a.owner, record, submit });
-process.stdout.write(JSON.stringify({ seen }) + '\n');
+process.stdout.write(JSON.stringify({ seen }));
 `;
 
 test('clause 1: a drive run through driveSubmitHandoff holds no board handle: with the board file unreadable to the drive, its step, ticket and verdict rows reach the board through the coordinator-side recorder [C7]', async t => {
@@ -153,8 +153,8 @@ test('clause 1: a drive run through driveSubmitHandoff holds no board handle: wi
   assert.deepEqual(seen, SUBMIT_STAGES.map(name => `${name}:EACCES`), 'every stage ran while the board file was unreadable to the drive');
   const drive = jobView(board.db, gateDriveJobId(job));
   assert.deepEqual(drive.steps.map(step => step.name),
-    ['captured', 'running', ...SUBMIT_STAGES.map(() => 'section.done'), 'collected', 'verdict'],
-    'the recorder wrote every step row the drive emitted, in order');
+    ['admitted', 'captured', 'running', ...SUBMIT_STAGES.map(() => 'section.done'), 'collected', 'verdict'],
+    'after the dispatcher\'s admission, the recorder wrote every step row the drive emitted, in order');
   assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => [step.payload.section, step.payload.outcome]),
     SUBMIT_STAGES.map(name => [name, name === 'tests' ? 'fail' : 'pass']));
   const verdict = drive.steps.find(step => step.name === 'verdict').payload;
@@ -176,8 +176,8 @@ test('clause 2: a real queued gate on a fixture board records its job steps and 
   const collected = drive.steps.find(step => step.name === 'collected').payload;
   assert.ok(collected.order.length > 0, 'the gate ran its sections');
   assert.deepEqual(drive.steps.map(step => step.name),
-    ['captured', 'running', ...collected.order.map(() => 'section.done'), 'collected', 'verdict'],
-    'captured, running, one section step per section, collected, then the verdict');
+    ['admitted', 'captured', 'running', ...collected.order.map(() => 'section.done'), 'collected', 'verdict'],
+    'the dispatcher\'s admission, then captured, running, one section step per section, collected and the verdict');
   assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => step.payload.section), collected.order,
     'section steps follow the gate\'s own section order');
   assert.deepEqual(drive.steps.filter(step => step.name === 'section.done').map(step => step.seq), collected.order.map((_, index) => index));
