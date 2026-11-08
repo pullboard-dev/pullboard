@@ -105,14 +105,20 @@ test('clause 1: the native item timeline reads as sentences with clamped notes a
       assert.ok(result.refs.includes('web/timeline.js:1@' + head));
       assert.deepEqual(result.hashes, [{ text: head.slice(0, 12), title: head }]);
       assert.equal(result.unsafe, false); assert.equal(result.overflow, false); assert.equal(result.times, true);
+      if (await chrome.stable("!document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')")) {
+        await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+        await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
+      }
       await press(chrome, "document.querySelector('#detail [data-timeline-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .tl-note').classList.contains('expanded')"), true);
       assert.equal(await chrome.stable("document.querySelector('#detail [data-timeline-more]').textContent"), 'Show less');
       await press(chrome, "document.querySelector('#detail [data-timeline-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .tl-note').classList.contains('expanded')"), false);
     }
-    await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
-    await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
+    if (await chrome.stable("!document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')")) {
+      await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
+      await chrome.waitFor("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')");
+    }
     const noteRow = "[...document.querySelectorAll('#detail .item-panel-history-list.expanded .tl > li[data-timeline-kind=note]')].find(row => !row.closest('[hidden]') && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().height > 0 && row.querySelector('.tl-body')?.textContent.includes('Line 0: every original word remains in this long note.'))";
     await press(chrome, noteRow + "?.querySelector('[data-timeline-more]')");
     const sourceRef = JSON.stringify('web/timeline.js:1@' + head);
