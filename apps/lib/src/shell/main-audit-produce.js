@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { cellsInventoryJob } from '../../../../packages/drive/index.js';
@@ -8,6 +8,29 @@ import { toolingIsPinned } from '../../../../packages/gate/index.js';
 import { warmAcceptedCells } from '../../../../packages/gate/index.js';
 import { withMainCheckout } from '../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
+
+/**
+ * Run the pinned checkout's main-audit entry without blocking this process's event loop.
+ * Why: the cells-inventory job renews its lease on a timer in this process. The producer runs for minutes, and a
+ * blocking spawn froze that timer, so the 2 minute lease lapsed while the producer was alive, a second driver took
+ * the job and produced a duplicate, and a driver killed mid-run left the job at produce.started (#3529).
+ * @param {string} checkout absolute path of the pinned commit's checkout
+ * @param {string} root absolute repository root
+ * @param {string} token native UUID token the entry was started with
+ * @param {string} commit the pinned commit to produce for
+ * @returns {Promise<{ status: number | null, stderr: string }>} the entry's exit status and its stderr
+ */
+function runPinnedProducer(checkout, root, token, commit) {
+  return new Promise(done => {
+    const child = spawn(process.execPath, [join(checkout, 'bin/main-audit.js'), root, token, '--cells-only', commit],
+      { cwd: checkout, env: { ...process.env, PULLBOARD_CELLS_PINNED: commit }, stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8192); });
+    child.once('error', error => done({ status: null, stderr: String(error.message) }));
+    child.once('close', status => done({ status, stderr }));
+  });
+}
 
 /**
  * Produce the accepted inventory with the pinned commit's own tooling. When this process runs another snapshot of the
@@ -22,9 +45,7 @@ import { withFileLock } from '../../../../packages/outbox/index.js';
 export async function produceAcceptedCells(root, token, commit) {
   if (toolingIsPinned(root, commit)) return warmAcceptedCells(root, commit, { withCheckout: withMainCheckout, withLock: withFileLock });
   if (process.env.PULLBOARD_CELLS_PINNED === commit) throw new Error('the pinned checkout did not carry the pinned tooling');
-  const ran = await withMainCheckout(root, commit, checkout => spawnSync(process.execPath,
-    [join(checkout, 'bin/main-audit.js'), root, token, '--cells-only', commit],
-    { cwd: checkout, env: { ...process.env, PULLBOARD_CELLS_PINNED: commit }, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] }));
+  const ran = await withMainCheckout(root, commit, checkout => runPinnedProducer(checkout, root, token, commit));
   if (ran?.unavailable || ran?.status !== 0) throw new Error(ran?.unavailable ?? `accepted cells producer failed in the pinned checkout: ${String(ran?.stderr ?? '').split('\n').filter(line => /Error/u.test(line)).slice(0, 2).join(' ').slice(0, 600)}`);
   return ran;
 }

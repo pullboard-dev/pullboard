@@ -22,6 +22,7 @@ export * from "./src/shell/landing-replay.js";
 export * from "./src/shell/landing-resource.js";
 export { takeLandingResource } from "./src/shell/landing-resource.js";
 export * from "./src/shell/landing-shards.js";
+export * from "./src/shell/run-shards.js";
 export * from "./src/shell/landing-test-policy.js";
 export * from "./src/core/landing-waivers.js";
 export * from "./src/core/landing-worker-identity.js";

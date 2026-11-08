@@ -4,6 +4,7 @@ import { Refused } from '../../../kernel/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
+import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
@@ -48,6 +49,10 @@ async function produceUnderLease(db, view, { key, owner, produce, now, renewMs }
       saved: savedParts(view),
       save: (name, payload) => writeStep(db, view.id, `${PART_PREFIX}${name}`, payload, { now: now() }).payload,
     });
+  } catch (error) {
+    // A producer that fails frees the job now, so the next driver resumes it instead of waiting out the lease (#3529).
+    releaseLease(db, view.id, owner, { now: now() });
+    throw error;
   } finally {
     clearInterval(heartbeat);
   }
