@@ -2,10 +2,12 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { replayDeferredNotices } from './deferred-notices.js';
 import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
+import { warnMainMoved } from '../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -135,10 +137,11 @@ export async function land(options) {
   if (trunk.commit && !options.dryRun && !options.adopt) {
     await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
   }
+  let publishHold = null;
   if (trunk.commit) {
     const policy = policyAt(options.root, trunk.commit).config;
     requireParallelGateAdmission(options.root, policy);
-    requirePublishGreen(options.root, options.board, policy, options.landingPorts);
+    publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
@@ -153,9 +156,10 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
+    if (publishHold && !selected.ready.length) throw publishHold.refusal;
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
@@ -319,7 +323,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
-  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
+  const publishHold = !dryRun && trunk?.commit ? requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts, { perItem: true }) : null;
   const batches = store.landingBatches(board);
   let unfinished = batches.findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (!unfinished && automatic) unfinished = batches.findLast(batch => retryableLandingBatch(batch, trunk?.commit));
@@ -339,6 +343,8 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   config ??= policyAt(root, trunk.commit).config;
   if (!dryRun) requireParallelGateAdmission(root, config);
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
+  // A main-moved notice that failed on an earlier wake is retried first, so a seat is not left without its stale-verdict notice (#3367).
+  if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
@@ -347,7 +353,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (deferred) return deferred;
   }
   if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
@@ -355,6 +361,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
+  if (publishHold && !selected.ready.length) throw publishHold.refusal;
   if (dryRun) {
     if (selected.ready.length && !landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
     const conflicts = [];
