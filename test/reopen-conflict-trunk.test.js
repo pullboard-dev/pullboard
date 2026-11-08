@@ -4,9 +4,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { requireTrunkConflict, trunkMerge } from '../packages/merge/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { createE2eHelpers, FIXTURE_MODEL } from './e2e-helpers.js';
 
-process.env.PULLBOARD_MODEL ??= 'Test Model';
+process.env.PULLBOARD_MODEL ??= FIXTURE_MODEL;
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
