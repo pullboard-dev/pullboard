@@ -299,6 +299,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
   try { db.exec('PRAGMA defer_foreign_keys = ON'); beginImmediateQueued(db, Date.now(), marker); }
   catch (error) { discardBoardWriteMarker(marker); throw error; }
   const writeRecord = beginBoardWrite(db, board.writeContext, marker);
+  // A snapshot restore is its own move body, so its hold row names it instead of leaving move null (#3336).
+  writeRecord.move = 'restoreDocument';
   let released = false;
   let outcome = 'release-failed';
   try {

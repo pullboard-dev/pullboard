@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
-import { fixtureJoin } from './testkit-fixture.js';
+import { joinFixtureSeat } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 
@@ -42,7 +42,7 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   // An outside reviewer rejects that exact head.
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
-  json(fixtureJoin(box.run, reviewer, 'api', '--json'));
+  assert.equal(joinFixtureSeat(box, reviewer, 'api').code, 0); // the reviewer joins on the strong route, whatever model runs the gate.
   json(box.run(reviewer, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'the page is built', '--note', 'the page is not reachable', '--json'));
   json(box.run(box.web, 'claim', '1', '--json'));
   // Resubmit the same head with the check armed to run for minutes.
@@ -54,4 +54,43 @@ else process.exit(fs.existsSync('web/page.txt') && fs.readFileSync('web/page.txt
   assert.notEqual(resubmit.signal, 'SIGTERM', `the refusal came back before the 60 s limit, not after a check run (${seconds.toFixed(1)} s)`);
   assert.equal(JSON.parse(resubmit.stdout).error?.code, 'HEAD_NOT_NEW', resubmit.stdout + resubmit.stderr);
   assert.equal(existsSync(ran), false, `no check or test ran before the refusal: ${existsSync(ran) ? readFileSync(ran, 'utf8') : ''}`);
+});
+
+/** A committed one-file project the preflight judges; the shared e2e box owns the repository and its cleanup. */
+function preflightProject(t) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  mkdirSync(join(box.repo, 'bin/checks'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/checks/test-waits-baseline.json'), '{}');
+  mkdirSync(join(box.repo, 'packages/x/src'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/x/src/a.js'), 'export const a = 1;\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: base for the preflight');
+  return box;
+}
+
+test('clause 1: submit --preflight runs every registered check in parallel and one run reports three different static failures [C7]', { timeout: 120_000 }, async (t) => {
+  const { runPreflight, reportPreflight } = await import('../apps/cli/src/shell/submit-preflight.js');
+  const { STATIC_CHECKS } = await import('../packages/gate/index.js');
+  const box = preflightProject(t);
+  // Three different classes: an empty catch, a multi-binding import and a fixed wait in a test.
+  writeFileSync(join(box.repo, 'packages/x/src/a.js'), "import { b, c } from './b.js';\nexport function a() { try { b(); } catch {}\n}\n");
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'test/w.test.js'), 'await new Promise(resolve => setTimeout(resolve, 500));\n');
+  const report = await runPreflight(box.repo, ['packages/x/src/a.js', 'test/w.test.js']);
+  const named = report.results.filter(row => row.failures.length).map(row => row.name);
+  assert.ok(named.includes('import-style') && named.includes('empty-catch') && named.includes('test-waits'), `all three classes reported in one run: ${named.join(',')}`);
+  assert.equal(report.results.length, STATIC_CHECKS.length, 'every registered check ran');
+  const lines = [];
+  assert.equal(reportPreflight(report, line => lines.push(line)), 1);
+  assert.match(lines.at(-1), /^preflight red: \d+ of \d+ checks failed/u);
+});
+
+test('clause 2: a clean change passes preflight and it finishes under 15 seconds [C7]', { timeout: 120_000 }, async (t) => {
+  const { runPreflight } = await import('../apps/cli/src/shell/submit-preflight.js');
+  const box = preflightProject(t);
+  const report = await runPreflight(box.repo, ['packages/x/src/a.js']);
+  assert.equal(report.ok, true, JSON.stringify(report.results.filter(row => row.failures.length)));
+  assert.ok(report.ms < 15000, `preflight took ${Math.round(report.ms)} ms`); // budget: the criterion requires under 15 s.
 });

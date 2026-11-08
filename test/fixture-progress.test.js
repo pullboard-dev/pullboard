@@ -19,6 +19,27 @@ test('a progressing fixture may cross the old total deadline [C7]', async () => 
   assert.equal(clock, 60_000);
 });
 
+test('a parallel CLI may spend more than one old wait window before its real gate enters [B3,V4,Q1,Q3]', async () => {
+  let clock = 0;
+  let ready = false;
+  let progress = 0;
+  await waitForFixtureProgress({
+    child: { exitCode: null, signalCode: null },
+    ready: () => ready,
+    progress: () => progress,
+    description: 'the parallel CLI entered its real gate',
+    quietMs: 120_000,
+    now: () => clock,
+    pause: async () => {
+      clock += 10_000;
+      if (clock === 80_000) progress++;
+      if (clock === 150_000) ready = true;
+      assert.ok(clock <= 150_000, 'the wait ends only after the real gate entry');
+    },
+  });
+  assert.equal(clock, 150_000);
+});
+
 test('an alive fixture with no progress fails at the quiet window [C7]', async () => {
   let clock = 0;
   await assert.rejects(waitForFixtureProgress({

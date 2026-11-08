@@ -1,8 +1,6 @@
 /** The cells-plan placement check on a recorded landing commit, the one automatic landing applies [C7]. */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +8,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { ENGINE_CANDIDATE } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
+import { landingPlanProblems } from '../../../../bin/cells-object-snapshots.js';
 
 /** Recognize the canonical placeholder declaration automatic landing numbers, without executing candidate code. */
 function unnumberedEngine(source) {
@@ -20,33 +19,39 @@ function unnumberedEngine(source) {
 }
 
 /**
- * Check out the commit detached in a scratch worktree and run its own `bin/cells-plan.js --check`, so a hand-landed
- * commit meets the same placement, plan-row and numbered-engine rules as an automatic landing. A commit with no plan still checks opted-in engine leaves.
- * Why a checkout: the check reads tracked files, shards and path maps from disk, so only a real tree answers for the commit.
+ * Check a commit against its plan from Git objects alone: the plan comes from `git show <commit>:bin/cells-plan.json`
+ * and its shards, the paths from `git ls-tree -r <commit>`, so the check adds no worktree [C7].
+ * Why objects: a checkout per merged cost a worktree add and remove just to read tracked bytes.
  * @param {string} root A checkout of the repository.
  * @param {string} commit The commit about to be recorded as merged.
- * @returns {void} Nothing; a failing check throws a refusal naming the unplaced or stale paths.
+ * @param {NodeJS.ProcessEnv} env A clean Git environment.
+ * @returns {boolean|null} True when it passed, null when the commit's plan is not a Pullboard cells plan.
  */
-export function requireLandingPlanCheck(root, commit) {
-  const env = cleanGitEnvironment();
-  const listed = gitSpawnSync(['ls-tree', '-r', '-z', '--name-only', commit, '--', 'bin/cells-plan.json', 'src/'], { cwd: root, env, encoding: 'utf8' });
-  if (listed.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not read landing commit ${commit.slice(0, 12)}; restore its Git objects and retry merged`);
-  const paths = listed.stdout.split('\0').filter(Boolean);
-  const hasPlan = paths.includes('bin/cells-plan.json');
-  const candidates = paths.filter(path => path.startsWith('src/') && !path.slice(4).includes('/') && ENGINE_CANDIDATE.test(path.slice(4)));
-  if (!hasPlan && !candidates.length) return;
+function checkFromObjects(root, commit, env) {
+  let result;
+  try { result = landingPlanProblems(root, commit, env); }
+  catch (error) { throw new Refused('LAND_PLAN_CHECK', `could not read landing commit ${commit.slice(0, 12)}: ${String(error?.message ?? error).split('\n')[0]}; restore its Git objects and retry merged`); }
+  if (result === null) return null;
+  const { unplaced, lines } = result;
+  if (!unplaced.length && !lines.length) return true;
+  const detail = unplaced.length ? `unplaced paths: ${unplaced.join(', ')}` : lines.join('; ');
+  throw new Refused('LAND_PLAN_UNPLACED', `${commit.slice(0, 12)} fails the cells-plan check (${detail}); place each path with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), commit it, and record that commit`);
+}
+
+/**
+ * Check a commit whose plan is not a Pullboard cells plan by running that commit's own `bin/cells-plan.js --check`
+ * in a scratch worktree, so a foreign repository keeps meeting its own rules.
+ * @param {string} root A checkout of the repository.
+ * @param {string} commit The commit about to be recorded as merged.
+ * @param {NodeJS.ProcessEnv} env A clean Git environment.
+ * @returns {void}
+ */
+function checkInScratchTree(root, commit, env) {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-landing-plan-'));
   const tree = join(scratch, 'tree');
   try {
     const add = gitSpawnSync(['-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '--detach', tree, commit], { cwd: root, env, encoding: 'utf8' });
     if (add.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not check out ${commit.slice(0, 12)} to run the cells-plan check: ${add.stderr.trim()}; retry merged`);
-    const pending = candidates.filter(path => {
-      const file = join(tree, path);
-      if (!lstatSync(file).isFile()) throw new Refused('LAND_PLAN_CHECK', `engine leaf ${path} must be a regular source file before recording merged`);
-      return unnumberedEngine(readFileSync(file, 'utf8'));
-    });
-    if (pending.length) throw new Refused('LAND_ENGINE_UNNUMBERED', `${commit.slice(0, 12)} leaves unnumbered engines: ${pending.join(', ')}; run amendLandingEngines during landing to assign their numbers, then record the resulting commit`);
-    if (!hasPlan) return;
     const run = spawnSync(process.execPath, ['bin/cells-plan.js', '--check'], { cwd: tree, env, encoding: 'utf8', timeout: 120_000, maxBuffer: 32 * 1024 * 1024 });
     if (run.status === 0) return;
     const lines = `${run.stderr}\n${run.stdout}`.split('\n').filter(line => /^(not in bin\/cells-plan\.json:|stale plan row|.*(CELLS_|retired historical))/u.test(line));
@@ -57,4 +62,32 @@ export function requireLandingPlanCheck(root, commit) {
     gitSpawnSync(['worktree', 'remove', '--force', tree], { cwd: root, env });
     rmSync(scratch, { recursive: true, force: true });
   }
+}
+
+/**
+ * Run the cells-plan check on the recorded commit so a hand-landed commit meets the same placement, plan-row and
+ * numbered-engine rules as an automatic landing. A commit with no plan still checks opted-in engine leaves.
+ * A Pullboard cells plan is checked from Git objects with no worktree; any other plan runs its own tool in a scratch tree.
+ * @param {string} root A checkout of the repository.
+ * @param {string} commit The commit about to be recorded as merged.
+ * @returns {void} Nothing; a failing check throws a refusal naming the unplaced or stale paths.
+ */
+export function requireLandingPlanCheck(root, commit) {
+  const env = cleanGitEnvironment();
+  const listed = gitSpawnSync(['ls-tree', '-r', '-z', commit, '--', 'bin/cells-plan.json', 'src/'], { cwd: root, env, encoding: 'utf8' });
+  if (listed.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not read landing commit ${commit.slice(0, 12)}; restore its Git objects and retry merged`);
+  const rows = listed.stdout.split('\0').filter(Boolean).map(row => /^(\d{6}) \w+ ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(row)).filter(Boolean)
+    .map(match => ({ mode: match[1], object: match[2], path: match[3] }));
+  const hasPlan = rows.some(row => row.path === 'bin/cells-plan.json');
+  const candidates = rows.filter(row => row.path.startsWith('src/') && !row.path.slice(4).includes('/') && ENGINE_CANDIDATE.test(row.path.slice(4)));
+  if (!hasPlan && !candidates.length) return;
+  const pending = candidates.filter(row => {
+    if (!/^100(?:644|755)$/u.test(row.mode)) throw new Refused('LAND_PLAN_CHECK', `engine leaf ${row.path} must be a regular source file before recording merged`);
+    const blob = gitSpawnSync(['cat-file', 'blob', row.object], { cwd: root, env, encoding: 'utf8', maxBuffer: 16 * 1024 ** 2 });
+    if (blob.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not read engine leaf ${row.path} at ${commit.slice(0, 12)}; restore its Git objects and retry merged`);
+    return unnumberedEngine(blob.stdout);
+  }).map(row => row.path);
+  if (pending.length) throw new Refused('LAND_ENGINE_UNNUMBERED', `${commit.slice(0, 12)} leaves unnumbered engines: ${pending.join(', ')}; run amendLandingEngines during landing to assign their numbers, then record the resulting commit`);
+  if (!hasPlan) return;
+  if (checkFromObjects(root, commit, env) === null) checkInScratchTree(root, commit, env);
 }
