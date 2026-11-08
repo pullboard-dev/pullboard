@@ -22,7 +22,7 @@ function regressionSources(box) {
   mkdirSync(join(box.repo, 'test/cockpit'), { recursive: true });
   for (const file of CHECK_FILES) writeFileSync(join(box.repo, file),
     "import { test } from 'node:test';\ntest('private frozen check runs [C7]', () => {});\n");
-  writeFileSync(join(box.repo, PROOF_FILE), "import { test } from 'node:test';\n"
+  writeFileSync(join(box.repo, PROOF_FILE), "// pullboard: browser\nimport { test } from 'node:test';\n"
     + "import assert from 'node:assert/strict';\n"
     + "import { spawnSync } from 'node:child_process';\nconst chrome = 'google-chrome';\n"
     + "test('supplement has its admitted browser lease [C7]', () => { assert.equal(process.env.PULLBOARD_TEST_BROWSER_SLOT, 'held'); if (process.env.PULLBOARD_FIXTURE_NEVER_SET) spawnSync(chrome, ['--version']); });\n");
@@ -51,7 +51,6 @@ test('review file sets from #2576 and #2521 take a browser lease on their first 
   box.env.PATH = `${bin}:${box.env.PATH}`;
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests });
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gate: { browserByLaunch: true } }));
   const added = cli(box.repo, box.env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
   assert.equal(added.status, 0, added.context);
   const gate = pathToFileURL(join(box.repo, 'packages/gate/index.js')).href;
@@ -63,12 +62,12 @@ const commit = ${JSON.stringify(box.git(box.repo, 'rev-parse', 'HEAD'))};
 const proof = 'node bin/run-tests.js ${PROOF_FILE}';
 for (const file of ${JSON.stringify(CHECK_FILES)}) {
   const check = 'node bin/run-tests.js ' + file;
-  const options = { commit, allowBrowserFreeChecks: true, byLaunch: true };
+  const options = { commit, allowBrowserFreeChecks: true };
   assert.equal((await privateCheckAdmission(root, [check], options)).browser, false);
   const admission = await privateCheckAdmission(root, [check, proof], options);
   assert.equal(admission.browser, true);
-  assert.equal(await testsNeedBrowser(root, [file, ${JSON.stringify(PROOF_FILE)}], { commit, byLaunch: true }), admission.browser);
-  assert.equal(await testsNeedBrowser(root, [file, ${JSON.stringify(PROOF_FILE)}], { byLaunch: true }), admission.browser);
+  assert.equal(await testsNeedBrowser(root, [file, ${JSON.stringify(PROOF_FILE)}], { commit }), admission.browser);
+  assert.equal(await testsNeedBrowser(root, [file, ${JSON.stringify(PROOF_FILE)}]), admission.browser);
   const result = await withGateSlot(root, lease => {
     assert.equal(lease.browser, true);
     return runProfiledShell(root, check + ' && ' + proof, { gateLease: lease });

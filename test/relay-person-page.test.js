@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Actual relay cockpit request capability and exported read-only guards [H12,H5]. */
 import assert from 'node:assert/strict';
