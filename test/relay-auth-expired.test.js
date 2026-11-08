@@ -131,6 +131,7 @@ test('moves stay local while the machine credential expires, then replay after s
   const joined = await box.cliAt(agentRoot, 'join', box.lane, '--model', FIXTURE_MODEL); // the later joins name a family, so they register again instead of answering already joined
   assert.equal(joined.code, 0, joined.failure ?? 'a real agent joins before the credentials are revoked');
   await revokeCredential(box, state.agentTokens.coordinator.id);
+  const linkBeforeMark = readFileSync(box.linkFile);
   markRevoked(box, state.agentTokens.coordinator.id); // the board knows this revocation, so the explicit token refuses at once (#2729)
   const before = (await box.cli('export')).document.tables;
   const mintsBeforeExplicit = box.calls.filter(call => call.method === 'POST' && call.path === '/auth/tokens').length;
@@ -150,6 +151,7 @@ test('moves stay local while the machine credential expires, then replay after s
     assert.deepEqual((await box.cli('export')).document.tables, before,
       'an explicit revoked token is preserved as the caller identity and cannot apply a local move');
   } finally { delete box.env.PULLBOARD_RELAY_TOKEN; }
+  writeFileSync(box.linkFile, linkBeforeMark, { mode: 0o600 }); // the mark was only for the explicit-token refusal; the local-first steps below start from the unmarked link
 
   await revokeCredential(box, state.tokenId);
   box.env.PULLBOARD_RELAY_SENDER_BACKGROUND = '0'; // The test runner's supported foreground sender mode exposes the auth diagnostic.
