@@ -3,8 +3,6 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { lex } from '../packages/kernel/index.js';
-import { Refused } from '../packages/kernel/index.js';
 
 /** Build deterministic ownership for old paths, moved bodies, and existing cell roots. */
 function cellFor(file, plan) {
@@ -103,8 +101,11 @@ function specifierFrom(file, target) {
   return relative.startsWith('.') ? relative : `./${relative}`;
 }
 
-/** The plain quoted import, re-export, dynamic import and require specifiers of a module, and whether its code reads its own location. */
-function importLiterals(source) {
+/**
+ * The plain quoted import, re-export, dynamic import and require specifiers of a module, and whether its code reads its own location.
+ * `lex` is the kernel lexer, handed in by the caller so this root module adds no cross-cell import.
+ */
+function importLiterals(source, lex) {
   const info = lex(source);
   const literals = info.strings.filter(row => (source[row.start] === "'" || source[row.start] === '"') && row.end - row.start === row.text.length + 2
     && /(?:\bfrom|\bimport|\bimport\s*\(|\brequire\s*\()\s*$/u.test(info.code.slice(Math.max(0, row.start - 40), row.start)));
@@ -115,10 +116,10 @@ function importLiterals(source) {
  * Rewrite only the relative import specifiers of `source`, read at `from` and written at `to`, so each still names its target
  * after the moves. Bodies are copied byte for byte; `hits` counts specifiers that name a moved file, `missing` the unresolvable ones.
  */
-function repoint(source, from, to, moved, exists) {
+function repoint(source, from, to, moved, exists, lex) {
   const changes = [], missing = [];
   let out = '', at = 0, hits = 0;
-  for (const row of importLiterals(source).literals) {
+  for (const row of importLiterals(source, lex).literals) {
     if (!row.text.startsWith('./') && !row.text.startsWith('../')) continue;
     const target = posix.normalize(posix.join(posix.dirname(from), row.text));
     if (target.startsWith('../') || !exists(target)) { missing.push(row.text); continue; }
@@ -137,13 +138,14 @@ function repoint(source, from, to, moved, exists) {
  * Plan moving one cell's classified tests to its home, repointing import specifiers only [C7,CD64]. With no paths it takes every
  * file the classifier gives that cell. It refuses, naming each case, an unknown cell, an unsafe path, a path that is not this cell's
  * test, a taken home, a file that reads its own location, an unresolvable relative import, and an importer it cannot repoint.
- * A path already at its home is reported and skipped, so a second run is a no-op.
+ * A path already at its home is reported and skipped, so a second run is a no-op. A refusal comes back as `refused: { code, message }`
+ * for the caller to raise; `lex` is the kernel lexer the caller hands in.
  */
-export function planTestMove({ tracked, inventory, plan, cell: name, paths = [] }) {
+export function planTestMove({ tracked, inventory, plan, cell: name, paths = [], lex }) {
   const cell = plan.cells.find(row => row.name === name);
-  if (!cell) throw new Refused('CELLS_TESTS_UNKNOWN', `unknown cell ${JSON.stringify(name ?? '')}; name a cell from bin/cells-plan.json: node bin/cells-plan.js --move-tests <cell> [<path>...]`);
+  if (!cell) return { refused: { code: 'CELLS_TESTS_UNKNOWN', message: `unknown cell ${JSON.stringify(name ?? '')}; name a cell from bin/cells-plan.json: node bin/cells-plan.js --move-tests <cell> [<path>...]` } };
   const unsafe = paths.filter(file => !safePath(file));
-  if (unsafe.length) throw new Refused('CELLS_TESTS_UNSAFE', `unsafe path ${unsafe.map(file => JSON.stringify(file)).join(', ')}; name repository-relative test files; nothing moved`);
+  if (unsafe.length) return { refused: { code: 'CELLS_TESTS_UNSAFE', message: `unsafe path ${unsafe.map(file => JSON.stringify(file)).join(', ')}; name repository-relative test files; nothing moved` } };
   const listed = new Set(tracked), exists = file => listed.has(file);
   const rows = new Map(classifyTestFiles(tracked, inventory, plan).map(row => [row.file, row]));
   const wanted = paths.length ? [...new Set(paths)].sort(byCodeUnit)
@@ -160,19 +162,19 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [] 
   const writes = [];
   for (const [file, to] of moved) {
     const source = inventory.files.get(file).toString('utf8');
-    if (importLiterals(source).located) { refused.push(`unsafe path ${file} (reads paths relative to its own location; move it by hand)`); continue; }
-    const result = repoint(source, file, to, moved, exists);
+    if (importLiterals(source, lex).located) { refused.push(`unsafe path ${file} (reads paths relative to its own location; move it by hand)`); continue; }
+    const result = repoint(source, file, to, moved, exists, lex);
     if (result.missing.length) refused.push(`unsafe path ${file} (unknown import ${result.missing.join(', ')})`);
     else if (result.changes.length) writes.push({ file: to, source: result.source, changes: result.changes });
   }
   const importers = [...inventory.edges].filter(([file, edges]) => !moved.has(file) && edges.some(edge => moved.has(edge.target)))
     .map(([file]) => file).sort(byCodeUnit);
   for (const file of importers) {
-    const bytes = inventory.files.get(file), result = bytes && repoint(bytes.toString('utf8'), file, file, moved, exists);
+    const bytes = inventory.files.get(file), result = bytes && repoint(bytes.toString('utf8'), file, file, moved, exists, lex);
     if (!result?.hits) refused.push(`unsafe path ${file} (imports a moved test without a relative specifier)`);
     else if (result.changes.length) writes.push({ file, source: result.source, changes: result.changes });
   }
-  if (refused.length) throw new Refused('CELLS_TESTS_UNSAFE', `refusing to move tests for ${cell.name}: ${refused.join('; ')}; nothing moved`);
+  if (refused.length) return { refused: { code: 'CELLS_TESTS_UNSAFE', message: `refusing to move tests for ${cell.name}: ${refused.join('; ')}; nothing moved` } };
   return { cell: cell.name, moves: [...moved], writes, already };
 }
 
