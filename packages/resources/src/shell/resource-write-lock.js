@@ -10,6 +10,13 @@ export function resourceWriteError(error, file) {
   return stopped;
 }
 
+/** A write that stayed queued past its deadline: typed so a caller sees SLOT_DB_LOCKED and the exit code of a run that never ran [C7,#3084]. */
+export function resourceQueueStalled(message) {
+  const stopped = new Refused('SLOT_DB_LOCKED', message);
+  stopped.neverRanExitCode = 75;
+  return stopped;
+}
+
 /** Admit every resource writer, including dispatcher startup, with a bounded retry and typed exhaustion. */
 export function beginResourceWrite(db, { file, timeoutMs: timeout = 10_000 } = {}) {
   const started = Date.now();
