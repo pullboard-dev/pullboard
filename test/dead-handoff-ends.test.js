@@ -77,7 +77,7 @@ function fixture(t) {
   const id = document(fixtureAdd(box.run, box.repo, 'web', 'Swept dead handoff', '--route', 'strong', '--specs', 'G1',
     '--criterion', 'A dead handoff ends within one sweep.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
   document(box.run(box.repo, 'fact', String(id), 'diagnosis',
-    'Files: web/snapshot.txt test/dead-handoff-ends.test.js Change: hold and release a real submitted gate Test case: one sweep retires the handoff without returning a builder red', '--json'));
+    'Files: web/snapshot.txt Change: hold and release a real submitted gate Test case: one sweep retires the handoff without returning a builder red', '--json'));
   document(box.run(box.web, 'claim', String(id), '--json'));
   t.after(async () => {
     writeFileSync(release, 'release\n');
