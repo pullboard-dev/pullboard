@@ -11,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  confirmRunnerProbe,
   inheritedGateSlot,
   memoryAdmission,
   readMachineMemory,
@@ -143,6 +144,16 @@ export async function withGateSlot(root, action, options = {}) {
     return result;
   }
   finally { clearInterval(keepAlive); }
+}
+
+/**
+ * Whether this machine has a registered runner a gate run can go to, read from the machine settings.
+ * Why: a check baseline goes to a runner whenever one exists, never to this machine (#2520).
+ *
+ * @param {{ runners: { effectiveRunners: (settings: object) => object[] } }} executionServices
+ */
+export function runnersRegistered(executionServices) {
+  return executionServices.runners.effectiveRunners(loadMachineSettings()).length > 0;
 }
 
 /**
@@ -339,7 +350,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A separate Node process cannot prove that a worker which missed READY can accept a job.
         const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
           || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
-        const health = cleanup || admissionDeadline || setup ? null : await probeRunnerTransport(lease.runner);
+        // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7].
+        const health = cleanup || admissionDeadline || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
         if (health?.healthy && healthyTransportRetry) {
