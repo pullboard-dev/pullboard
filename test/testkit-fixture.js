@@ -1,5 +1,6 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
@@ -73,6 +74,25 @@ export function fixtureAddArgv(cli) {
 /** The argv head for a spawned `pullboard join`: the CLI path then the verb, so spawned joins share the kit seam. */
 export function fixtureJoinArgv(cli) {
   return [cli, 'join'];
+}
+
+/**
+ * Merge policy fields into a fixture project's committed pullboard.json on main.
+ *
+ * Why: policy files are written once here, so a test declares only the fields it needs and a policy rule change is
+ * met in one place.
+ *
+ * @param {object} box - The e2e project (repo, git).
+ * @param {object} fields - Top-level pullboard.json fields to set, such as affectedTests or submitGate.
+ * @returns {object} The committed config.
+ */
+export function fixturePolicy(box, fields) {
+  const path = join(box.repo, 'pullboard.json');
+  const config = { ...JSON.parse(readFileSync(path, 'utf8')), ...fields };
+  writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure fixture policy [G1]');
+  return config;
 }
 
 /**
