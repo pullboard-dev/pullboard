@@ -12,6 +12,7 @@ import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { landingReceiptReuse } from './landing-receipt-reuse.js';
+import { reusableSubmitFiles } from './landing-receipt-reuse.js';
 import { gateVerdictOf } from './main-red-receipt.js';
 import { toolingFor } from '../../../pin/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
@@ -407,14 +408,15 @@ function submittedUnits(state, commit, readEvents = id => store.events(state.boa
   for (const entry of state.batch.items) {
     const event = readEvents(entry.id).findLast((row) => row.event_kind === 'submit');
     const detail = event ? JSON.parse(event.event_detail) : null;
-    const files = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof?.files ?? [] : [];
-    if (!files.length) continue;
+    const proof = detail?.commit === entry.commit && detail.gateGreen === true ? detail.submissionProof : null;
+    if (!proof?.files?.length) continue;
     const [then, now] = packageHashesAt(root, [entry.commit, commit]);
-    for (const file of files) {
+    const { reuse } = reusableSubmitFiles({ proof, closureUnchanged: file => {
       const row = rows.get(file);
-      if (!row || proven.has(file) || blob(entry.commit, file) === null || blob(entry.commit, file) !== blob(commit, file)) continue;
-      if (row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash)) proven.add(file);
-    }
+      return Boolean(row) && blob(entry.commit, file) !== null && blob(entry.commit, file) === blob(commit, file)
+        && row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash);
+    } });
+    for (const file of reuse) proven.add(file);
   }
   return proven;
 }
