@@ -742,7 +742,7 @@ test('ready work waiting past the limit while agents are idle warns the coordina
   const ports = { listAgents, withLocalSeatPresence, dispatchWork };
   const ready = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Ready control', criterion: 'A seat takes it' }).item_id;
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waiting control', criterion: 'Waits on the ready control', args: ['--after', String(ready)] });
-  const board = fixtureOpenBoard(box);
+  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git/pullboard/board.sqlite'), web: box.web });
   t.after(() => store.closeBoard(board));
   const ordered = async (ctx, target, operation, args) => store[operation](target, ...args);
   const warnings = () => board.db.prepare("SELECT shout_from, shout_text FROM shout WHERE shout_to='coordinator' ORDER BY shout_id").all();
