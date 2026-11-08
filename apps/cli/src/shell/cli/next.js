@@ -33,6 +33,7 @@ import { relayLinked } from '../../../../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { openItemFolder } from '../item-folder.js';
+import { liveFolderRefusal } from '../item-folder.js';
 import { claimOrdered } from './claim.js';
 import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
@@ -133,6 +134,11 @@ export async function nextOnce(ctx, values) {
         ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
     }
     ctx.io.nextPhase?.('claim', item.item_id);
+    // A folder another live session holds would refuse after the claim, and the same item would be picked again on
+    // every next; the caller leaves it out and selects the next eligible item, while an explicit claim still refuses (#3688).
+    const live = await liveFolderRefusal(target, board, holder, item.item_id);
+    if (live) return { retry: true, skipItem: item.item_id,
+      retryDetail: { phase: 'claim', item: item.item_id, code: live.code, message: live.message } };
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };

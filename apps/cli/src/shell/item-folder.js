@@ -169,6 +169,30 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   return false;
 }
 
+/**
+ * The ITEM_FOLDER_SESSION_LIVE refusal claiming this item's folder would meet, or null, read without moving, binding or
+ * creating anything (#3688). Why: next claimed first and opened the folder after, so a folder another live session holds
+ * refused every next on the same item; next asks this before claiming and selects another item instead.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string, lane: string }} me the seat about to claim
+ * @param {number} id the item
+ * @returns {Promise<Refused|null>}
+ */
+export async function liveFolderRefusal(ctx, board, me, id) {
+  if (me.id === 'coordinator') return null;
+  const path = itemFolderPath(seatRoot(ctx, board, me), id);
+  const folder = existsSync(path) ? path : branchCheckout(ctx.info.root, branch(me.lane, id))?.path;
+  if (!folder || !existsSync(folder)) return null;
+  const session = await import('./cli/join.js');
+  try { session.endedItemFolderSession(board, me, folder); return null; }
+  catch (error) {
+    if (error instanceof Refused && error.code === 'ITEM_FOLDER_SESSION_LIVE') return error;
+    throw error;
+  }
+}
+
 /** Whether two paths name one existing directory, however each was spelled. */
 function sameDirectory(first, second) {
   try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
