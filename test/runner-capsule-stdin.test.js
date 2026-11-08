@@ -43,7 +43,7 @@ test('clause 2: a capsule larger than the SSH bound installs from stdin and the 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('a truncated capsule fails before the worker starts [C7]', () => {
+test('clause 3: the file passes, including a truncated capsule fails before the worker starts [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-capsule-'));
   try {
     const { worker, tooling, runtime } = largeTooling();
