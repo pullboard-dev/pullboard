@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../test/board-fixture.js';
 import { register } from '../../store/index.js';
+import { withdraw } from '../../store/index.js';
 import { addItem } from '../../store/index.js';
 import { appendFact } from '../../store/index.js';
 import { atomic } from '../../store/index.js';
@@ -75,8 +76,8 @@ test('a refused batch whose items all landed by another path raises no finding, 
   const other = addItem(box.board, { by: 'coordinator', lane: 'core', title: 'Second', criterion: 'It holds.' });
   atomic(box.board, () => logEvent(box.board, 'coordinator', 'landing_batch', null,
     { batch: { ...box.batch, id: 'two', items: [{ id: box.item }, { id: other }] } }));
-  box.board.db.prepare("UPDATE item SET item_status='verified', item_merged_commit='abc123' WHERE item_id=?").run(box.item);
+  box.board.db.prepare("UPDATE item SET item_merged_commit='abc123' WHERE item_id=?").run(box.item);
   assert.equal(landingFailureFindings(box.board).length, 1, 'one item still open keeps the finding');
-  box.board.db.prepare("UPDATE item SET item_status='withdrawn' WHERE item_id=?").run(other);
+  withdraw(box.board, other, { agentId: 'coordinator', reason: 'no longer needed' });
   assert.deepEqual(landingFailureFindings(box.board), [], 'every item merged or withdrawn retires the finding');
 });
