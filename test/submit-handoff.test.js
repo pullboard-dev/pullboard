@@ -374,7 +374,9 @@ function mainAdvanceFixture(t) {
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'node bin/run-tests.js test/feature.test.js',
+  // The web lane owns the runner and the test, so claiming the item is not a cross-ownership refusal [C7,#2650].
+  const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: [...config.lanes.web.owns, 'bin/', 'test/'] } };
+  writeFileSync(configFile, JSON.stringify({ ...config, lanes, gate: 'node bin/run-tests.js test/feature.test.js',
     affectedTests: 'node bin/run-tests.js', submit: { handoff: true } }) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
