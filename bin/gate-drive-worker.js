@@ -24,5 +24,7 @@ if (process.argv[1] && resolve(process.argv[1]) === ENTRY) {
   // The board's module graph reaches the worker through the lib front door; load it once this entry runs.
   Promise.all([import('../apps/lib/src/core/native-board.js'), import('../apps/lib/src/shell/submit-handoff-worker.js')])
     .then(([nativeBoard, worker]) => worker.driveSubmitHandoff(requestFile, { nativeBoard, owner }))
+    // A stalled run's stage may never settle and keep this process alive; its result is recorded, so the process ends (#3661).
+    .then(outcome => { if (outcome?.stalled) process.exit(0); })
     .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
 }

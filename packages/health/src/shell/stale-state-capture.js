@@ -15,10 +15,12 @@ import { releaseBlockingItems } from '../core/stale-state-blockers.js';
 import { CLAIM_STALL_MS } from '../core/stale-state-query.js';
 import { CLAIM_IDLE_RELEASE_MS } from '../core/stale-state-query.js';
 import { CLAIM_RECENT_COMMIT_MS } from '../core/stale-state-query.js';
+import { RENEWALS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
 import { claimFolderActive } from './claim-folder-activity.js';
+import { claimFolderCommitAt } from './claim-folder-activity.js';
 import { redReturnLeaseHolds } from '../../../store/index.js';
 import { submitGateInFlight } from '../../../store/index.js';
 import { itemPinned } from '../../../store/index.js';
@@ -96,6 +98,20 @@ function latestInstant(first, second) {
   return b > a ? second : first;
 }
 
+/**
+ * The holder's last real work on a lapsed claim: its claim episode's start, its latest non-renewal move on the item
+ * (proof runs and facts included) and its latest commit in the item folder. Heartbeats, shouts and renewals are
+ * presence, never progress (#3446). Null when the episode start is unknown.
+ */
+function lapsedWorkAt(board, row, path, now) {
+  const episode = board.db.prepare('SELECT event_at FROM event WHERE event_id=?').get(row.episodeEventId)?.event_at;
+  if (staleInstant(episode, now) === null) return null;
+  const move = board.db.prepare(`SELECT event_at FROM event WHERE event_by=? AND item_id=? AND event_kind NOT IN (${RENEWALS}) ORDER BY event_id DESC LIMIT 1`).get(row.actor, row.id)?.event_at;
+  const commit = path ? claimFolderCommitAt(path, row.id, now) : null;
+  const known = [episode, move, commit].filter(value => staleInstant(value, now) !== null);
+  return new Date(Math.max(...known.map(Date.parse))).toISOString();
+}
+
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const seatQuietLimit = 2 * 60_000;
@@ -134,6 +150,17 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
+    // Presence is not progress (#3446): a lease lapsed 40 minutes ago returns once the holder has made no move, commit
+    // or proof run on it for 40 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
+    // write path leaves it to background maintenance. A claim waiting on an unlanded item keeps its own rule.
+    const leaseAt = staleInstant(row.leaseUntil, at.getTime());
+    if (!heartbeatLost && row.health !== 'waiting' && leaseAt !== null && at.getTime() - leaseAt >= CLAIM_IDLE_RELEASE_MS) {
+      if (lapsedOnly) return [];
+      const workActivity = lapsedWorkAt(board, row, path, at.getTime());
+      const idleMs = workActivity === null ? null : at.getTime() - Date.parse(workActivity);
+      if (idleMs === null || idleMs < CLAIM_IDLE_RELEASE_MS) return [];
+      return [{ ...row, idle: 'release', workActivity, idleMs, handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+    }
     // An expired lease follows the lease-lapse path only after a quiet heartbeat; a live seat still vetoes expiry.
     if (lapsed.has(row.id)) {
       if (!heartbeatLost) return [];
