@@ -20,7 +20,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { usageDueDirectory } from '../packages/stats/index.js';
-import { usageCheckpointWorkerEntrypoint } from '../apps/lib/index.js';
+import { usageCheckpointWorkerEntrypoint } from '../apps/cli/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -115,7 +115,7 @@ function checkpointMs(box, id) {
     import {whoAmI} from ${module('../apps/cli/index.js')};
     import {ordered} from ${module('../src/cli/claim.js')};
     import {checkpointAfterMove} from ${module('../packages/stats/index.js')};
-    import {usageCheckpointWorkerEntrypoint} from ${module('../apps/lib/index.js')};
+    import {usageCheckpointWorkerEntrypoint} from ${module('../apps/cli/index.js')};
     const nativeBoard=await import(${module('../apps/lib/src/core/native-board.js')});
     const ctx=context({cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}});
     const times=[];

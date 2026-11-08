@@ -44,3 +44,4 @@ export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.
 
 export { planWorkerScale, workerWindowHours } from './src/shell/worker-scale.js';
 
+export { usageCheckpointWorkerEntrypoint } from './src/shell/usage-checkpoint-entry.js';
