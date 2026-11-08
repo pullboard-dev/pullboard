@@ -60,6 +60,9 @@ function drainOnce(box, source) {
   // The dispatcher logs a failed sweep here, not on its output; quote it so a missed requeue names its cause.
   let logged = '';
   try { logged = readFileSync(join(box.dir, 'machine-home', 'handoff-queue', 'dispatcher.log'), 'utf8'); } catch { /* no log: nothing failed */ }
+  // Name every dispatcher log under the fixture, and the drive record the sweep judges, so a missed requeue shows its cause.
+  const found = spawnSync('find', [box.dir, '-name', 'dispatcher.log'], { encoding: 'utf8' }).stdout.trim().split('\n').filter(Boolean);
+  for (const file of found) { try { logged += `\n[${file}]\n${readFileSync(file, 'utf8')}`; } catch { /* unreadable log */ } }
   return `${run.stdout}${run.stderr}${logged}`;
 }
 
