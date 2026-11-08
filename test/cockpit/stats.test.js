@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit stats checks, using the shared real-board fixtures [N26]. */
 import { submitFixture } from '../board-submit-fixture.js';

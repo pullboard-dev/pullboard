@@ -1,8 +1,12 @@
 /** The block ledger: refusals that stopped someone's command. Not in refused.js, which the browser loads [C6]. */
 import {
   appendFileSync,
+  closeSync,
   existsSync,
-  readFileSync,
+  fstatSync,
+  openSync,
+  readSync,
+  statSync,
 } from 'node:fs';
 import {
   join,
@@ -37,8 +41,60 @@ export function recordBlock(commonDir, block) {
   return true;
 }
 
+/** Lines this far older than `since` prove the tail read has reached back far enough despite clock skew. */
+const TAIL_SLACK_MS = 3_600_000;
+
+/**
+ * The ledger text from `offset` to the end. A read that starts mid-file drops its first partial line.
+ *
+ * @param {string} file
+ * @param {number} offset
+ * @returns {string}
+ */
+function readFrom(file, offset) {
+  const fd = openSync(file, 'r');
+  try {
+    const bytes = Buffer.alloc(fstatSync(fd).size - offset);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = readSync(fd, bytes, length, bytes.length - length, offset + length);
+      if (count === 0) break;
+      length += count;
+    }
+    const text = bytes.subarray(0, length).toString('utf8');
+    return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
+  } finally { closeSync(fd); }
+}
+
+/**
+ * Whether the text holds a block recorded before the bound, so nothing inside the window lies further back.
+ *
+ * @param {string} text
+ * @param {number} bound
+ * @returns {boolean}
+ */
+function reachesBefore(text, bound) {
+  for (const line of text.split('\n')) if (stampOf(line) < bound) return true;
+  return false;
+}
+
+/**
+ * The time a ledger line was recorded, read from its own `"at"` field by a string scan, never a JSON parse, so a line
+ * can be placed before or after a bound without parsing it. NaN for a torn or foreign line, which proves nothing about time.
+ *
+ * @param {string} line
+ * @returns {number}
+ */
+function stampOf(line) {
+  const found = /"at":"([^"]*)"/u.exec(line);
+  return found ? Date.parse(found[1]) : NaN;
+}
+
 /**
  * The blocks recorded at or after `since`, oldest first. A torn last line from a crash is skipped.
+ * With `since`, only the tail of the ledger is read, doubling backward until it holds a line older than the
+ * bound, and no line older than the bound is parsed: a clear always follows the block it clears, so older lines
+ * cannot change a block inside the window [C7].
  *
  * @param {string} commonDir
  * @param {{ since?: Date }} [options]
@@ -48,10 +104,19 @@ export function readBlocks(commonDir, { since } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
+  const size = statSync(file).size;
+  let text;
+  for (let window = 262_144; ; window *= 2) {
+    const offset = Math.max(0, size - window);
+    text = readFrom(file, offset);
+    if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
+  }
   const blocks = new Map();
   let legacy = 0;
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of text.split('\n')) {
     if (!line.trim()) continue;
+    // A line recorded before the bound cannot change a block inside the window, so it is skipped unparsed.
+    if (since && stampOf(line) < from) continue;
     let block;
     try { block = JSON.parse(line); } catch { continue; /* A torn line from an interrupted append carries no block. */ }
     if (block?.kind === 'clear' && Array.isArray(block.ids)) {

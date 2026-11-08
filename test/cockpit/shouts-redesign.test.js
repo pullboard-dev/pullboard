@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Native conversations and real Chrome bounds prove the Shouts redesign [N26]. */
 import assert from 'node:assert/strict';

@@ -32,6 +32,25 @@ export function frozenRowGates(item) {
     .filter(row => row.id && GATE_FILE.test(row.file));
 }
 
+/** A repository test-file path inside prose: `*.test.js` or `*.spec.js`, also .mjs and .cjs. */
+const TEST_PATH = /[\w@][\w@./-]*\.(?:test|spec)\.[cm]?js\b/gu;
+
+/**
+ * The test files an item's bar names, in order: those in its frozen criterion, then those its brief lists under `Test:`.
+ * Why: seal and tier selection pick tests by changed cells, so a clause naming test/git-adapter.test.js had no recorded
+ * run when the change sat in another cell (7 of 31 INSUFFICIENT_EVIDENCE rejects on 7 Nov). Submit runs these files with
+ * the proof whatever the selection says, and the review packet cites their outcomes per clause [V4,C7].
+ *
+ * @param {{ item_frozen?: string, item_criterion?: string, item_brief?: string }} item
+ * @returns {{ criterion: string[], brief: string[], all: string[] }} Repo-relative paths, without a leading `./`.
+ */
+export function barTestFiles(item) {
+  const paths = text => [...new Set([...String(text).matchAll(TEST_PATH)].map(match => match[0].replace(/^\.\//u, '')))];
+  const criterion = paths(frozenBar(item ?? {}).criterion || wording(item?.item_criterion));
+  const brief = paths(/(?:^|\n)Test:([\s\S]*)$/u.exec(String(item?.item_brief ?? ''))?.[1] ?? '');
+  return { criterion, brief, all: [...new Set([...criterion, ...brief])] };
+}
+
 /** Resolve an unambiguous quotation to its containing requirement, so shorter quotes cannot reset a round. */
 export function namedClause(bar, quote, includeCheck = false) {
   const texts = [...new Set([bar.criterion, ...(includeCheck ? [bar.check] : []), ...bar.rows.map(row => row.text)]
