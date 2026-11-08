@@ -116,6 +116,19 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
 }
 
 /**
+ * Write a fixture's machine settings file with exactly the fields the test names.
+ *
+ * Why: the hand-policy check sends tests here instead of writing settings.json by hand.
+ *
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} settings - The settings object.
+ * @returns {void}
+ */
+export function fixtureMachineSettings(machineHome, settings) {
+  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify(settings));
+}
+
+/**
  * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
  *
  * Why: policy files are written once here, so a policy rule change is met for every test.
