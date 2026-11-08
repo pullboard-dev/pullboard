@@ -1,4 +1,5 @@
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
 import { tapTests } from '../../../../../packages/gate/index.js';
 import { jobbedFlakeObserver } from '../../../../../packages/drive/index.js';
@@ -936,7 +937,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     requireKernelApproval(board, { root, base: currentTrunk.commit, commit: companion?.commit ?? submitted, item: id });
-    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
+    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...submitTooling(root, submitted), ...(infraRecord ? { infra: infraRecord } : {}),
       ...(inspectClauses ? { inspectClauses: true } : {}),
       ...(machineReceiptIds ? { machineReceiptIds } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
@@ -1081,3 +1082,15 @@ export async function run(io, { first, values }) {
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/src/core/submission-size.js';
+
+/**
+ * The tooling tree that judged this submit (RFC 0007 SC7, SC8), recorded so review and landing reuse its receipt only
+ * under the same tooling; an unreadable pin records nothing and the receipt is never reused.
+ *
+ * @param {string} root - The item folder.
+ * @param {string} commit - The submitted commit.
+ * @returns {{ tooling?: string }} The field to spread into the submit record.
+ */
+function submitTooling(root, commit) {
+  try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
+}
