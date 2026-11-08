@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Opening your board from pullboard.dev: one clear screen at a time, in the approved words, moving on by itself [N26,H5]. */
 import assert from 'node:assert/strict';
