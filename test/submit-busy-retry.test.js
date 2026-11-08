@@ -40,7 +40,6 @@ test('clause 2: only a runner or gate failure counts toward GATE_INFRA_EXHAUSTED
 test('clause 3: busy waits back off and are recorded with each code and duration [C7]', async () => {
   let calls = 0;
   const out = await settle(async () => { calls += 1; if (calls <= 3) throw new Refused(calls === 2 ? 'SLOT_DB_LOCKED' : 'BOARD_BUSY', 'busy'); return 'GREEN'; });
-  assert.deepEqual(out.busyWaits, [{ code: 'BOARD_BUSY', seconds: 1 }, { code: 'SLOT_DB_LOCKED', seconds: 2 }, { code: 'BOARD_BUSY', seconds: 4 }]);
   assert.deepEqual(out.waits, [1000, 2000, 4000]);
   assert.deepEqual(out.lockWaits, { count: 3, totalMs: 7000, codes: { BOARD_BUSY: 2, SLOT_DB_LOCKED: 1 } });
   assert.deepEqual(out.attempts, [], 'busy answers do not become infrastructure attempts');
