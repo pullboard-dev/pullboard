@@ -17,6 +17,7 @@ import { toolingFor } from '../../../pin/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runLocalLandingGuard } from '../core/land-local-guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../core/land-local-guard.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -317,6 +318,9 @@ async function runGateGroup(state, label, options) {
   }
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
+  // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
+  // never reaches diagnosis or the repeat guard [C7,#3693].
+  requireNoRunnerRefusalOnlyRed({ ...gate, failures, logPath });
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
