@@ -10,7 +10,7 @@ import {
   submitHandoff,
   pendingSubmitHandoff,
 } from "./submit-handoff-read.js";
-export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from "./submit-handoff-read.js";
+export { submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from "./submit-handoff-read.js";
 /** Durable queue observations do not grant submission or review authority [C7,V4,H16]. */
 import {
   atomic,
@@ -48,7 +48,22 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'RUNNER_RESULT_INVALID', 'RESOURCE_LEASE_LOST',
   // Accepted policy changed or became unavailable; the captured source has no test failure.
   'NO_POLICY',
+  // The board's Git sync lease stayed busy or origin did not answer: the machine, not the source (#3111).
+  'GIT_SYNC_LOCK_BUSY', 'GIT_SYNC_REMOTE',
 ]));
+
+/**
+ * Whether a queued gate's refusal is the machine's, not the builder's source: an infrastructure code, or a worker that
+ * exited on a signal before it recorded a result (SUBMIT_HANDOFF_EXIT naming a signal). Why: on 4 Nov 17 of 52 queued
+ * reds were machine refusals charged to their builders, 3 of them workers stopped by SIGTERM (#3111).
+ *
+ * @param {{ code: string, message?: string, signal?: string }} error - The canonical refusal document's error.
+ */
+export function infrastructureStop(error) {
+  if (INFRASTRUCTURE_CODES.has(error.code)) return true;
+  return error.code === 'SUBMIT_HANDOFF_EXIT' && (typeof error.signal === 'string' && error.signal !== ''
+    || /\bSIG[A-Z0-9]+\b/u.test(String(error.message ?? '')));
+}
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 import { PIPELINE_CAUSE_ENGINE } from "../../../../src/pipeline-cause-engine.js";
@@ -235,9 +250,9 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       // Spent runner retries requeue the same candidate once more, up to twice, with no shout until they are used up (#3074).
       return endDeadHandoff(board, id, item, job, result.error, options.retryJob, EXHAUSTED_RETRIES);
     }
-    if (INFRASTRUCTURE_CODES.has(result.error.code) && item.item_status !== 'submitted') {
+    if (infrastructureStop(result.error) && item.item_status !== 'submitted') {
       // A Git read that kept failing, or runners that kept failing, is the machine's fault: the item stays claimed and the builder gets no red (#2521, #2516).
-      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE) return recordInfrastructureStop(board, id, job, result.error);
+      if ((board.executionEngineVersion ?? ENGINE_VERSION) >= INFRA_HANDOFF_RECOVERY_ENGINE) return recordInfrastructureStop(board, id, job, result.error, result.windowSpent === true);
       insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once ${result.error.code === 'GIT_READ_INFRASTRUCTURE' ? 'the Git read recovers' : 'a runner is healthy'}.`, lanes: [] });
       return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
@@ -325,19 +340,30 @@ function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
 }
 
 /** Persist one infrastructure stop and notify the coordinator once only after the two automatic retries [C7]. */
-function recordInfrastructureStop(board, id, job, error) {
-  const exhausted = (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
+function recordInfrastructureStop(board, id, job, error, windowSpent = false) {
+  const exhausted = windowSpent || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
+  // Only a spent runner or a dead worker is requeued by the recovery sweep; any other machine stop waits on the
+  // coordinator, so it is told at once instead of the job sitting stopped unseen (#3111).
+  const unrecovered = !RECOVERED_STOPS.has(error.code);
   if (exhausted && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
-    text: `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+    text: windowSpent
+      ? `Queued gate #${id} stopped on infrastructure after the 30-minute runner retry window (${error.code}) at ${String(job.commit).slice(0, 12)}: ${String(error.message ?? '').slice(0, 300)}. Restore the runner and requeue the captured candidate. No builder red.`
+      : `Queued gate #${id} exhausted ${INFRASTRUCTURE_RETRY_LIMIT} healthy-executor recovery retries (${error.code}) at ${String(job.commit).slice(0, 12)}; restore the runner and requeue the captured candidate. No builder red.`, lanes: [] });
+  else if (unrecovered && !job.infrastructureNotified) insertShout(board, { from: 'sentinel', to: 'coordinator',
+    text: `Queued gate #${id} stopped on the machine (${error.code}): ${error.message} Nothing is wrong with the builder's source and it keeps its claim; requeue the captured candidate once the machine recovers. No builder red.`, lanes: [] });
   return record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board),
-    ...(exhausted ? { infrastructureNotified: true } : {}) });
+    ...(windowSpent ? { infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT } : {}),
+    ...(exhausted || unrecovered ? { infrastructureNotified: true } : {}) });
 }
+
+/** The machine stops the recovery sweep requeues by itself (retryStoppedHandoff); every other one needs the coordinator. */
+const RECOVERED_STOPS = Object.freeze(new Set(['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD']));
 
 /** Derive a successor only from the stopped native candidate; the caller probes health outside the writer [C7,V4]. */
 function retryStoppedHandoff(board, id, job, retryJob) {
   if (!JOB.test(retryJob) || retryJob === job.id) throw new Refused('BAD_SUBMIT_HANDOFF', 'recovery needs a fresh job identity');
   const item = getItem(board, id);
-  if (job.state !== 'infrastructure' || !['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
+  if (job.state !== 'infrastructure' || !RECOVERED_STOPS.has(job.error?.code)
     || (job.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
     || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;

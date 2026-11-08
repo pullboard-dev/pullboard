@@ -13,3 +13,4 @@ export { calloutLine } from './src/core/coordinator-callouts.js';
 export { openCallouts } from './src/core/coordinator-callouts.js';
 export { actionableCallout } from './src/core/coordinator-callouts.js';
 export { CALLOUT_AGE_MS } from './src/core/coordinator-callouts.js';
+export { fileChangeWaiter } from './src/shell/file-change-wait.js';

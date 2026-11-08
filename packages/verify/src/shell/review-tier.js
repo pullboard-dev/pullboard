@@ -76,7 +76,7 @@ const SOURCE_FILES = new Set([
   'src/train-mechanical-merge.js', 'src/release-gate.js', 'src/release-gate-receipt.js',
   'src/source-advance.js', 'packages/sandbox/src/shell/source-advance.js',
   'packages/sandbox/src/shell/source-advance-worker.js', 'src/source-advance-state.js', 'src/source-advance-worker.js',
-  'src/land.js', 'src/runners.js', 'src/browser-admission.js', 'src/gui-admission.js',
+  'src/land.js', 'src/runners.js', 'packages/gate/src/shell/browser-admission.js', 'src/gui-admission.js',
   'src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js', 'src/runner-request.js',
   'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
 ]);

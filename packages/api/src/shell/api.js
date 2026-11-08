@@ -1,3 +1,4 @@
+import { fileChangeWaiter } from '../../../activity/index.js';
 import { claimHealthSnapshot } from '../../../health/index.js';
 import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
@@ -286,6 +287,7 @@ function openRoadmapInputs(root, milestones, localDb, { scopeCommonDir = null } 
   }
   return {
     inputs,
+    paths: () => [...pathMarkers.keys()],
     close() {
       for (const db of opened.values()) {
         try { db.close(); } catch {}
@@ -332,15 +334,35 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   let externalNextExpiry = null;
   let externalReferences = null;
   let registryMarker = null;
+  let notifications;
+  const listeners = new Set();
+  let expiryTimer;
+  /** Rebind named inputs and schedule only the earliest real lease/proof-window expiry. */
+  function armNotifications() {
+    const relay = relayFiles(info.commonDir);
+    const heads = [...new Set([join(info.gitDir, 'HEAD'), join(info.commonDir, 'HEAD')])];
+    const refs = heads.flatMap(path => {
+      try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(info.commonDir, ref[1])] : []; }
+      catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+    });
+    const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
+      join(info.commonDir, 'pullboard/relay-health.sqlite'), join(info.commonDir, 'pullboard/relay-health.sqlite-wal'), relay.link,
+      ...(external?.paths() ?? []), ...(external?.inputs ?? []).flatMap(input => input.path ? [input.path, input.path + '-wal'] : [])];
+    notifications.update(paths);
+    clearTimeout(expiryTimer);
+    const expiry = [local?.nextExpiry, externalNextExpiry].filter(Boolean).sort()[0];
+    if (expiry) expiryTimer = setTimeout(() => { for (const listener of [...listeners]) listener(); }, Math.max(1, Date.parse(expiry) - Date.now()));
+  }
 
   try {
+    notifications = fileChangeWaiter([dbPath, dbPath + '-wal']);
     dbMarker = fileMarkerForPath(dbPath);
     fileMarkers = files.map(fileMarker);
     fileContent = files.map(fileRevision);
     head = headFileRevision(info);
     dataVersion = db.prepare('PRAGMA data_version').get().data_version;
   } catch (error) {
-    db.close();
+    notifications?.close(); db.close();
     throw error;
   }
 
@@ -412,7 +434,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
     }
     head = latestHead;
     const externalRoadmap = externalInputs(now, local.milestones, localChanged || localExpiryChanged);
-    return stateRevision({
+    const value = stateRevision({
       identity: [info.commonDir, board.id],
       head,
       trunk: readTrunk(),
@@ -427,13 +449,21 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
       ruleProofWindow: local.ruleProofWindow,
       localRelayMarker: localRelayMarker(info),
     });
+    armNotifications();
+    return value;
   }
 
   return {
     revision,
+    subscribe(listener) {
+      listeners.add(listener);
+      const unsubscribe = notifications.subscribe(listener);
+      return () => { listeners.delete(listener); unsubscribe(); };
+    },
     close() {
       if (closed) return;
       closed = true;
+      clearTimeout(expiryTimer); notifications.close(); listeners.clear();
       try { external?.close(); } finally { db.close(); }
     },
   };
