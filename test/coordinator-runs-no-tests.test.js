@@ -34,7 +34,8 @@ function runnerProject({ healthDown = false } = {}) {
   writeFileSync(join(box.repo, 'bin/pullboard.js'), '');
   writeFileSync(join(box.repo, 'packages/landing/src/shell/landing-cli-smoke.js'), `${mark}\nexport function runLandingCliSmoke() { console.error('smoke-ran-at:' + process.env.HOME); process.exit(1); }\n`);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'test: runner-only landing checks');
+  // The plan is another tool's ({"placed":[]}, no cell rows), which this fixture's own hooks would refuse to commit.
+  box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: runner-only landing checks');
   const worker = join(box.dir, 'runner-worker'), sshBin = join(box.dir, 'runner-bin'), remoteHome = join(box.dir, 'runner-home');
   const remoteMachine = join(remoteHome, '.pullboard'), requests = join(box.dir, 'runner-requests.jsonl'), starts = join(box.dir, 'runner-starts.jsonl');
   for (const path of [worker, sshBin, remoteHome, remoteMachine]) mkdirSync(path, { recursive: true });
