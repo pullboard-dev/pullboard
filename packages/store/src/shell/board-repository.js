@@ -1,6 +1,9 @@
 /** Find the repository a file-backed board belongs to, from where its file lives [C7]. */
 import { existsSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
+import { createHash } from 'node:crypto';
+import { appendFact } from './board-append-fact.js';
+import { getItem } from './board-query.js';
 import { contains } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
@@ -75,9 +78,21 @@ function sealCurrentClauseInspection(board, id, options) {
     throw new Refused('NO_POLICY', 'accepted main no longer contains the submit policy commit; refresh the submit policy and retry');
   }
   const sealed = moved ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
-  // Landing scheduling does not change submitted proof; every other policy field still invalidates it.
-  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].filter(key => key !== 'landing').sort()
+  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].sort()
     .flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
-  if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
+  let item = null;
+  try { item = getItem(board, id); } catch (error) { if (error?.code !== 'NO_ITEM') throw error; }
+  const lanePrefix = item ? `lanes.${item.item_lane}` : null;
+  const relevant = ['shared', 'verify', 'gate', 'affectedTests', 'staticChecks', 'submitGate', 'submitInvariants',
+    'landingShards', 'submitDeferAbove', 'check', 'checks'];
+  const affecting = changed.filter(key => (lanePrefix && (key === lanePrefix || key.startsWith(`${lanePrefix}.`)))
+    || relevant.some(name => key === name || key.startsWith(`${name}.`)));
+  if (affecting.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${affecting.join(', ')}; refresh and retry`);
+  if (changed.length && item?.item_owner === options.agentId) {
+    const digest = config => createHash('sha256').update(JSON.stringify(config, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : value)).digest('hex');
+    appendFact(board, id, { agentId: options.agentId, kind: 'note',
+      text: `policy re-frozen automatically: ${digest(sealed.config)} -> ${digest(policy.config)}; only ${changed.join(', ')} changed` });
+  }
   return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
 }

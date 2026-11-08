@@ -81,6 +81,21 @@ function recentLightActivity(board) {
 }
 
 /**
+ * A capable seat's pick that is light work with no current diagnosis, while a light seat is active, is offered as
+ * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
+ *
+ * @param {any} board
+ * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {string} seatRoute
+ * @returns {boolean}
+ */
+export function diagnoseWanted(board, item, seatRoute) {
+  if (seatRoute === 'light' || item?.item_status !== 'open') return false;
+  const stored = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(item.item_id);
+  return Boolean(stored && lightDiagnosisProblem(board, stored) && recentLightActivity(board));
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -150,7 +165,9 @@ export function nextFor(board, options) {
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, reviewRouting.builderFamilyOf(board, entry));
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
+    // One selection shares its queue reads; authoritative reservations derive their witness afresh.
+    const relaxationCache = new Map();
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {

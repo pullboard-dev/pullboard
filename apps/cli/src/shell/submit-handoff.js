@@ -1,3 +1,6 @@
+import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../src/infra-handoff-recovery-engine.js';
+import { ENGINE_VERSION } from '../../../../packages/state/index.js';
+import { healthyExecutor } from '../../../../apps/lib/index.js';
 import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
@@ -229,7 +232,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     return;
   } catch (error) {
     let retry = null;
-    if (owned && current.state === 'running') {
+    if (owned && current.state === 'running' && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
       try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
@@ -277,6 +280,7 @@ export async function sweepDeadSubmitHandoffs(ctx) {
     .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
     .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
   for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
+  await recoverInfrastructureHandoffs(ctx);
   return jobs.length;
 }
 
@@ -335,4 +339,50 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
   });
   ctx.io.say(`replaced the queued gate for #${itemId} at ${job.commit.slice(0, 12)}; the new head gates instead`);
   return null;
+}
+
+/** Requeue stopped immutable jobs only after a healthy-executor probe; a private guard prevents duplicate launches [C7,V4]. */
+export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExecutor, launch = launchCapturedWorker } = {}) {
+  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) }))
+    .filter(({ job }) => job?.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
+      && (job.infrastructureRetries ?? 0) < 2));
+  if (!jobs.length || !(await healthy())) return 0;
+  let recovered = 0;
+  for (const { itemId, job } of jobs) {
+    const directory = dirname(submitHandoffRoot(ctx.info.commonDir, job));
+    await withFileLock(join(directory, 'recovery.guard.sqlite'), async () => {
+      const current = withBoardRead(ctx, board => {
+        const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest,item_lease_until FROM item WHERE item_id=?').get(itemId);
+        const saved = submitHandoff(board, itemId);
+        return saved?.id === job.id && saved.state === 'infrastructure' && item?.item_status === 'claimed'
+          && item.item_owner === job.agentId && item.item_frozen_digest === job.digest && item.item_lease_until > new Date().toISOString() ? saved : null;
+      });
+      if (!current) return;
+      let retry;
+      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
+        { limit: 2, retries: current.infrastructureRetries ?? 0 }); }
+      catch (error) {
+        ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
+        await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));
+        return;
+      }
+      if (!retry) return;
+      let queued;
+      try { queued = await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId,
+        { agentId: job.agentId, job: job.id, retryJob: retry.id }])); }
+      catch (error) { retry.discard(); throw error; }
+      if (queued.job?.id !== retry.id || queued.job.state !== 'queued') { retry.discard(); return; }
+      recovered++;
+      try { await launch(retry.directory, retry.tools, ctx.info.commonDir, queued.job); }
+      catch (error) {
+        const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
+          `recovery worker could not launch: ${error.message}`, 'the next health sweep retries within the captured budget'), { caller: 'seat' }) };
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+          { agentId: job.agentId, job: retry.id, result: failure }]));
+      }
+    });
+  }
+  return recovered;
 }

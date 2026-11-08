@@ -22,6 +22,25 @@ import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
 import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
 import { ROUTE_CALIBRATION_ENGINE } from "../../../../src/route-calibration-engine.js";
+import { RELEASE_TWICE_ROUTE_ENGINE } from "../../../../src/release-twice-route-engine.js";
+
+/**
+ * The id of the item's latest escalation that actually changed its route (0 when none).
+ * Why: a second quality release escalates a light or mid item, and the releases before that move must not
+ * count toward its next episode; a strong item's no-op escalation changes nothing and so never resets the count.
+ *
+ * @param {object} board the open board
+ * @param {number} id the item
+ * @returns {number} the event id of the latest route-changing escalate event
+ */
+function lastRouteChange(board, id) {
+  const rows = board.db.prepare("SELECT event_id, event_detail FROM event WHERE item_id=? AND event_kind='escalate' ORDER BY event_id DESC").all(id);
+  for (const row of rows) {
+    const detail = JSON.parse(row.event_detail ?? '{}');
+    if (detail.from !== detail.to) return row.event_id;
+  }
+  return 0;
+}
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {
@@ -136,9 +155,19 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     }
     if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
-      const releases = lastChosenReleases(board, id, (row, detail) => qualityHolds ? chosenQualityRelease(board, id, row, detail)
-        : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff);
-      if (releases.length === 2) {
+      const routeEpisode = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_ROUTE_ENGINE ? lastRouteChange(board, id) : 0;
+      const releases = lastChosenReleases(board, id, (row, detail) => row.event_id > routeEpisode && (qualityHolds ? chosenQualityRelease(board, id, row, detail)
+        : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff));
+      const route = board.db.prepare('SELECT item_route FROM item WHERE item_id=?').get(id)?.item_route;
+      if (releases.length === 2 && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_ROUTE_ENGINE
+        && ['light', 'mid'].includes(route)) {
+        // A light or mid item moves up one route for any seat there to claim; only a strong item waits for the coordinator.
+        const reasons = releases.reverse().map(row => {
+          const detail = JSON.parse(row.event_detail);
+          return `${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`;
+        }).join('; ');
+        escalate(board, id, { agentId: 'coordinator', note: `Released twice at the ${route} route: ${reasons}` });
+      } else if (releases.length === 2) {
         const reasons = releases.reverse().map(row => {
           const detail = JSON.parse(row.event_detail);
           return `${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`;

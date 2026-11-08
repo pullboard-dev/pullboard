@@ -289,7 +289,12 @@ async function runGateGroup(state, label, options) {
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
   // cases red there too are filed as Main red and never charged to the items.
   const known = await knownMainAccount(state, result);
-  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
+  // A per-item landing cannot tell its item's red from main's without the comparison: it blocks as a landing fault and
+  // the verified item stays verified, never reopened on a guess [C7,#3065].
+  if (singleItemLanding(state) && known?.unavailable?.length) {
+    throw new Refused('LAND_MAIN_COMPARISON', `the per-item landing could not compare its red cases with base main ${state.batch.base.slice(0, 12)} (${known.unavailable.join('; ')}); retry the landing once main can run those files`);
+  }
+  if (known?.known.length) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known, mainRedRepairs: await fileKnownMainReds(state, known.known) }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),

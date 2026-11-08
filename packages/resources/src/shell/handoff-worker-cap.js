@@ -21,6 +21,7 @@ import {
   takeResource,
 } from './resources.js';
 import { machineHome } from './machine-home.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   handoffRoots,
@@ -44,6 +45,13 @@ const HANDOFF_STOP_KILL_MS = 10_000;
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
 /** The most hand-off workers this machine runs at once, whatever the runner fleet offers. */
 export const DISPATCH_WORKER_BOUND = 16;
+
+/** Preserve the launching seat's environment while preventing detached processes from inheriting its session identity. */
+function handoffProcessEnvironment(env = process.env) {
+  const clean = { ...env };
+  for (const name of AGENT_SESSION_IDS) delete clean[name];
+  return clean;
+}
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
@@ -198,7 +206,7 @@ async function startWorker(launch, relaunches, startOf) {
   const log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
   try {
     const worker = spawn(process.execPath, [join(realpathSync(launch.tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(launch.directory, 'request.json')],
-      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
     await once(worker, 'spawn');
     try { writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: worker.pid, started: startOf(worker.pid), relaunches }) + '\n', { mode: 0o600 }); }
     catch (error) {
@@ -240,6 +248,11 @@ function endUnstarted(file, name, launch, error) {
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce } = {}) {
   const started = [];
+  const currentCapacity = listResources({ scope: 'machine' }).find(row => row.name === HANDOFF_WORKER_RESOURCE)?.capacity ?? capacity;
+  // Existing machine capacity can come from an explicit operator override or a prior
+  // dispatcher run. Keep it while holders may depend on those slots; takeResource
+  // supports safe growth but intentionally refuses an implicit shrink.
+  const effectiveCapacity = Math.max(capacity, currentCapacity);
   for (;;) {
     let lock;
     try {
@@ -249,7 +262,7 @@ export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), po
       if (error.code === 'HANDOFF_DISPATCHER_RUNNING') return { started };
       throw error;
     }
-    try { await dispatchWhileQueued(capacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
+    try { await dispatchWhileQueued(effectiveCapacity, pollMs, started, startOf, resultGraceMs, releaseSlot); }
     finally { lock.release(); }
     // A ticket written while the lock was being released still needs a dispatcher.
     if (!waitingTickets().length) return { started };
@@ -358,7 +371,7 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' }
     const log = openSync(handoffDispatcherLog(), 'a', 0o600);
     let dispatcher;
     try {
-      dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
       await once(dispatcher, 'spawn');
     } finally { closeSync(log); }
     try { writeFileSync(receipt, JSON.stringify({ pid: dispatcher.pid, started: startOf(dispatcher.pid) }) + '\n', { mode: 0o600 }); }

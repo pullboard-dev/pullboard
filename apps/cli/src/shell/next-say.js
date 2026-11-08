@@ -14,7 +14,8 @@ export function sayReviewOffer(ctx, found) {
   const command = `pullboard next --verify ${found.item.item_id}${ctx.info.isMain ? ' --as coordinator' : ''}`;
   const offer = { item: found.item.item_id, command, queue: found.offer.queue, ratio: found.offer.ratio };
   ctx.io.result?.({ item: found.item, review: true, held: Boolean(found.offer.held), shared: [], offer, build: found.build, ...(found.buildHeld ? { buildHeld: true } : {}) });
-  ctx.io.say(found.offer.urgent === 'held-review' ? `${reviewQueueLine(ctx, offer.queue, span)}; resume the review already reserved by this seat`
+  if (found.offer.urgent === 'default-loop') ctx.io.say('review first: plain next takes an eligible review before a build');
+  else ctx.io.say(found.offer.urgent === 'held-review' ? `${reviewQueueLine(ctx, offer.queue, span)}; resume the review already reserved by this seat`
     : found.offer.urgent === 'main-red' ? `${reviewQueueLine(ctx, offer.queue, span)}; this review repairs a failure on current main`
     : found.offer.urgent ? `${reviewQueueLine(ctx, offer.queue, span)}; this submission has waited over ${found.offer.starveMinutes ?? 10} minutes without a reviewer`
     : `${reviewQueueLine(ctx, offer.queue, span)}; ratio ${offer.ratio} reached (zero active reviewers counts as one)`);

@@ -90,7 +90,7 @@ export function successfulNext(command, result) {
   if (command === 'claim') return 'git status';
   if (command === 'tour') return 'pullboard view';
   if (['help', 'version'].includes(command)) return 'pullboard status';
-  return 'pullboard next --take';
+  return command === 'next' ? 'nothing for this seat: end your turn' : 'pullboard next';
 }
 
 /** The longest single default-text line in UTF-8 bytes; one agents: line once ran to 54 KB [#1885]. */
@@ -248,6 +248,12 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       document = documentFor({ code: refusal?.code ?? match?.[1] ?? (code === 2 ? 'USAGE' : 'COMMAND_FAILED'), message, next: refusal?.next }, { caller });
     } else if (result !== undefined) {
       document = { version: version, ...result, ...(diagnostics.length ? { diagnostics } : {}) };
+      // `next` is a selector; the frozen bar and criterion belong in `show`, not its bounded offer.
+      if (command === 'next' && document.item && typeof document.item === 'object') {
+        document.item = { ...document.item };
+        delete document.item.item_frozen;
+        delete document.item.item_criterion;
+      }
     } else {
       // A native versioned document, such as export, already owns its public shape.
       let native;

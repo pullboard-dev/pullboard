@@ -3,6 +3,7 @@ import { Refused } from "../../../kernel/core.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
+import { SEAT_GONE_RELEASE_ENGINE } from "../../../../src/seat-gone-release-engine.js";
 import {
   staleInstant,
   staleReleaseNote,
@@ -26,17 +27,21 @@ export function staleClaimRelease(board, item, actor, note, captured) {
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner);
   const limits = staleStateLimits({ health: captured.health });
   const limit = row?.blocker === true ? limits.blocker : limits.claim;
+  // A holder whose registered worktree folder is gone cannot be working there, so no stale interval applies (#3223).
+  const registered = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(item.item_owner)?.agent_path;
+  const folderGone = (board.executionEngineVersion ?? ENGINE_VERSION) >= SEAT_GONE_RELEASE_ENGINE
+    && typeof row?.seatFolderMissing === 'string' && row.seatFolderMissing === registered;
   if (item.item_status !== 'claimed' || item.item_owner !== row?.actor || item.item_id !== row?.id
     || item.item_lease_until !== row?.leaseUntil
     || (captured.leaseLapse !== true || (board.executionEngineVersion ?? ENGINE_VERSION) < LEASE_LAPSE_ENGINE) && !(item.item_lease_until > board.clock.now().toISOString())
     || claim?.event_id !== row?.claimEventId || captured.observedRevision !== revision) {
     throw new Refused('NOT_YOURS', 'the claim changed after the stale observation; capture it again before releasing');
   }
-  if (observed === null || last === null || row.evidence?.complete !== true || row.limitMs !== limit || observed - last < limit) {
+  if (!folderGone && (observed === null || last === null || row.evidence?.complete !== true || row.limitMs !== limit || observed - last < limit)) {
     throw new Refused('NOT_YOURS', 'complete activity evidence does not establish the configured stale interval');
   }
   let lapsed = {};
-  if (captured.leaseLapse === true && item.item_lease_until <= board.clock.now().toISOString()) {
+  if (!folderGone && captured.leaseLapse === true && item.item_lease_until <= board.clock.now().toISOString()) {
     if (observed - Date.parse(item.item_lease_until) < limit) throw new Refused('NOT_YOURS', 'the expired lease has not passed its configured stale interval; wait for that interval before releasing');
     const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner);
     const leaseMs = Date.parse(item.item_lease_until) - Date.parse(lease?.event_at);
@@ -49,5 +54,6 @@ export function staleClaimRelease(board, item, actor, note, captured) {
       reopenFirstRefusal: { builder: item.item_owner, until: new Date(now + leaseMs).toISOString() } };
   }
   return { holder: item.item_owner, lastActivity: row.lastActivity, observedAt: captured.observedAt,
-    claimEventId: row.claimEventId, limitMs: limit, ...lapsed, blocker: row.blocker === true, reason };
+    claimEventId: row.claimEventId, limitMs: limit, ...lapsed, blocker: row.blocker === true,
+    ...(folderGone ? { seatFolderMissing: registered, reason: `registered worktree no longer exists: ${registered}; ${reason}` } : { reason }) };
 }

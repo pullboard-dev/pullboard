@@ -1,6 +1,7 @@
 /** The pullboard worktree command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
+  modelTier,
 } from '../../../../../packages/seats/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
@@ -69,6 +70,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
   model = requiredModel(model, process.env, `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
+  family = family || modelTier(model)?.family || null;
   const mainRoot = primaryCheckoutRoot(ctx.info);
   if (!mainRoot) throw new Refused('NO_POLICY', 'the primary checkout cannot be proven from Git metadata or the read-only project registry; restore the registry and retry');
   const mainConfig = loadConfig(mainRoot);

@@ -55,12 +55,12 @@ function landProject({ withWorktree = true } = {}) {
 }
 
 /** Give one private item a distinct canonical lane identity and an independent main base. */
-function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
+function itemWorktree(box, number, file = FILES[number - 1], afterIds = [], check = `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`) {
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
   assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: `Land fixture ${number}`,
-    criterion: `land fixture ${number} remains valid`, check: `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`,
+    criterion: `land fixture ${number} remains valid`, check,
     args: ['--specs', 'G1', ...(afterIds.length ? ['--after', afterIds.join(',')] : [])] }).item_id;
   assert.equal(box.run(path, 'claim', String(item)).code, 0);
   return { path, item, file };

@@ -4,9 +4,34 @@ import { briefFiles } from "./brief.js";
 import { briefSections } from "../../../spec/core.js";
 import { refuseMaskedExit } from "../../../kernel/src/core/literal-shell-words.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
+import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../../src/per-item-full-suite-engine.js';
 import { Refused } from "../../../kernel/core.js";
 
 const BRIEF_LIMIT = 8000;
+const OUT_OF_SCOPE_CHECK = /\b(?:the\s+)?(?:full|entire|complete)\s+suite\s+(?:passes?|is\s+green|succeeds?|runs?\s+successfully)\b|\b(?:CI|continuous\s+integration)\s+(?:must|needs?\s+to|has\s+to|is\s+required\s+to)\s+(?:pass|be\s+green|succeed)\b|\b(?:must|needs?\s+to|has\s+to|required\s+to)\s+pass\s+(?:CI|continuous\s+integration)\b/iu;
+/** Detect an affirmative audit-scope gate per sentence, allowing local removal instructions. */
+function outOfScopeRequirement(text) {
+  return String(text ?? '').split(/(?<=[.!?])\s+/u).some(sentence => {
+    if (!OUT_OF_SCOPE_CHECK.test(sentence) && !/\b(?:CI|continuous\s+integration)\s+(?:passes?|is\s+green|succeeds?|runs?\s+successfully)\b/iu.test(sentence)) return false;
+    return !/\b(?:remove|drop|delete|omit|exclude)\b.{0,120}\b(?:full|entire|complete)\s+suite\b|\b(?:remove|drop|delete|omit|exclude)\b.{0,120}\bCI\b/iu.test(sentence);
+  });
+}
+
+/** A per-item bar cannot make the main audit's full suite or CI a completion condition [S10]. */
+export function checkPerItemCriterion(criterion, engine) {
+  if (engine < PER_ITEM_FULL_SUITE_ENGINE) return;
+  if (outOfScopeRequirement(criterion)) {
+    throw new Refused('S10', 'a per-item criterion cannot require the full suite or CI to pass; remove that sentence because the full suite belongs to the main audit', 'drop the full-suite or CI requirement and keep the clause tied to this item’s named files');
+  }
+}
+
+/** Remove only complete sentence clauses that make the main full suite or CI a per-item gate. */
+export function stripPerItemFullSuiteCriterion(criterion) {
+  const clauses = String(criterion ?? '').split(/(?<=[.!?])\s+/u);
+  const removed = clauses.filter(clause => outOfScopeRequirement(clause));
+  if (!removed.length) return { criterion: String(criterion ?? '').trim(), removed: [] };
+  return { criterion: clauses.filter(clause => !outOfScopeRequirement(clause)).join(' ').trim(), removed };
+}
 
 /**
  * Refuse an item a lighter model could not build cold (B10, B14). Any brief stays short enough to
@@ -38,6 +63,7 @@ function inferBrief(brief, check, engine) {
 }
 
 export function checkRouted({ brief, route, criterion, check }, engine) {
+  checkPerItemCriterion(criterion, engine);
   if (brief.length > BRIEF_LIMIT) {
     throw new Refused('BRIEF_TOO_LONG', `the brief is ${brief.length} characters; keep it under ${BRIEF_LIMIT} and point to longer docs by path`);
   }
