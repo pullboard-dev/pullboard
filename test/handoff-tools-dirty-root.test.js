@@ -1,8 +1,7 @@
 /** A submit from a dirty seat worktree still runs from the shared committed tools snapshot, never a private copy [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from './board-fixture.js';
@@ -45,7 +44,7 @@ test('clause 1: a tool root with an uncommitted bin edit gets the shared snapsho
 
 test('clause 2: a tool root that is not a git checkout at all still gets a private per-job copy [C7]', t => {
   const { temp } = sandbox(t);
-  const plain = mkdtempSync(join(tmpdir(), 'pullboard-plain-tools-'));
+  const plain = temporaryDirectory('pullboard-plain-tools-');
   t.after(() => rmSync(plain, { recursive: true, force: true }));
   writeFileSync(join(plain, 'package.json'), '{}\n');
   const folder = toolsSnapshot(plain, 'job-plain');
