@@ -94,7 +94,7 @@ export async function shoutConflictedReviews(ctx, board, ordered) {
     const text = markerText(row.item);
     if (itemThread(board, row.item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) continue;
     await ordered(ctx, board, 'appendFact', [row.item.item_id, { agentId: 'coordinator', kind: 'note', text }]);
-    await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [], item: row.item.item_id,
+    await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [],
       text: `#${row.item.item_id} is green but every independent reviewer is refused by its own history of the item; it no longer counts toward the build pause. Give it a reviewer from another family.` }]);
     shouted.push(row.item.item_id);
   }
