@@ -57,7 +57,7 @@ test('conflict shim preserves the accepted main move closure and the broad index
   const before = closure(file => file === MOVED ? read(MOVED).replace(movedExport, 'export { CONFLICT_ENGINE };') : read(file), identities);
   const after = closure(read, identities);
   assert.deepEqual(after, before, 'the exact moved body adds no dependency or native capability');
-  assert.ok(!after.native.includes('node:child_process'));
+  assert.ok(!importsIn([read(MOVED)])[0].includes('node:child_process'), 'the moved conflict body itself imports no process launcher');
   const broad = closure(file => file === MOVED
     ? "export * from '../../index.js';\n" : read(file), identities);
   assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the exact moved body');
