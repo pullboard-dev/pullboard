@@ -146,6 +146,7 @@ export async function readSpec(S) {
   for (const field of ['landing', 'itemCheck', 'diagnostic', 'auditCoverage']) {
     if (value[field] !== undefined && typeof value[field] !== 'boolean') throw new Error(`work specification ${field} is not boolean`);
   }
+  if (value.handoff !== undefined && (!value.handoff || typeof value.handoff !== 'object' || Array.isArray(value.handoff) || value.landing === true || value.trustedMode)) throw new Error('invalid hand-off ticket');
   for (const field of ['item', 'kind']) {
     if (value[field] !== undefined && typeof value[field] !== 'string') throw new Error(`work specification ${field} is not a string`);
   }

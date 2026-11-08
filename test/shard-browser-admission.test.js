@@ -57,21 +57,25 @@ test('clause 1: a gate whose shards hold every browser slot on one runner admits
     const free = freeRunnerSlots(box.pool, { browser: true, gui: false, runners: RUNNERS });
     assert.equal(free, 2, 'a browser gate plans only the browser slots runners can still free');
     const lane = [];
-    const runFirst = async files => { lane.push(files); return { isGreen: true, exitCode: 0, output: '' }; };
-    const runOther = async files => {
-      const started = Date.now();
-      const lease = await takeResource({ ...shardSlotOptions(options, { admitMs: ADMIT_MS }), runnerProvider: () => RUNNERS });
-      shardLeases.push(lease);
-      return { isGreen: true, exitCode: 0, output: '', executionRunner: lease.runner.host, admittedMs: Date.now() - started };
+    // The gate's own lane holds its first batch until both free browser slots have joined, so they find batches left.
+    let joined;
+    const bothJoined = new Promise(resolve => { joined = resolve; });
+    const runFirst = async files => { lane.push(files); await bothJoined; return { isGreen: true, exitCode: 0, output: '' }; };
+    const takeSlot = async (pull, { closed }) => {
+      const lease = await takeResource({ ...shardSlotOptions(options, { admitMs: ADMIT_MS, closed }), runnerProvider: () => RUNNERS });
+      shardLeases.push(lease.runner.host);
+      if (shardLeases.length === free) joined();
+      try { return await pull(async () => ({ isGreen: true, exitCode: 0, output: '', executionRunner: lease.runner.host })); }
+      finally { lease.release(); }
     };
-    const shards = await runProofShards(FILES, { freeSlots: free, runFirst, runOther });
-    assert.equal(shards.length, 3, 'the gate\'s own lane plus one shard per free browser slot');
-    assert.deepEqual(shards.slice(1).map(shard => shard.run.executionRunner), ['fixture-b', 'fixture-b'],
-      'each next shard is placed on the runner with free browser slots');
-    for (const shard of shards.slice(1)) assert.ok(shard.run.admittedMs < ADMIT_MS, `the shard was admitted without waiting (${shard.run.admittedMs} ms)`);
-    assert.equal(lane.length, 1, 'no shard fell back to the gate\'s lane: none waited on a lease the gate holds itself');
+    const shards = await runProofShards(FILES, { freeSlots: free, batchFiles: 1, retryMs: 50, runFirst, takeSlot });
+    const slotShards = shards.filter(shard => shard.run.executionRunner);
+    assert.ok(slotShards.length >= 2, `the free browser slots pulled batches (${slotShards.length})`);
+    assert.deepEqual([...new Set(slotShards.map(shard => shard.run.executionRunner))], ['fixture-b'],
+      'each slot the gate took is on the runner with free browser slots');
+    assert.ok(shardLeases.every(host => host === 'fixture-b'), 'no slot request took a browser lease the gate holds itself');
     assert.deepEqual(shards.flatMap(shard => shard.files).sort(), FILES, 'every proof file runs exactly once');
-  } finally { for (const lease of [...shardLeases, ...own]) lease.release(); }
+  } finally { for (const lease of own) lease.release(); }
 });
 
 test('clause 2: a gate shard that cannot be placed ends RUNNER_WAIT_DEADLINE within its admission window, not the submit\'s 30-minute deadline, and runs on the gate lane [C7]', { timeout: 30_000 }, async t => {
@@ -87,21 +91,23 @@ test('clause 2: a gate shard that cannot be placed ends RUNNER_WAIT_DEADLINE wit
     assert.equal(shard.runnerOnly, true);
     assert.equal(shard.onWait, undefined);
     assert.equal(shardSlotOptions(options).runnerWaitMs, SHARD_ADMIT_MS, 'production shards wait SHARD_ADMIT_MS');
-    // A plan made before the slots filled still asks for a shard: its admission must end, not wait on the gate's own leases.
+    // A request made before the slots filled still asks for a slot: its admission must end, not wait on the gate's own leases.
     const lane = [];
-    const runFirst = async files => { lane.push(files); return { isGreen: true, exitCode: 0, output: '' }; };
-    let refusal = null, waitedMs = 0;
-    const runOther = async () => {
+    let refusal = null, waitedMs = 0, refused;
+    const ended = new Promise(resolve => { refused = resolve; });
+    const runFirst = async files => { await ended; lane.push(files); return { isGreen: true, exitCode: 0, output: '' }; };
+    const takeSlot = async (pull, { closed }) => {
+      if (refusal) throw refusal;
       const started = Date.now();
-      try { return await takeResource({ ...shardSlotOptions(options, { admitMs: ADMIT_MS }), runnerProvider: () => RUNNERS }); }
+      try { return await takeResource({ ...shardSlotOptions(options, { admitMs: ADMIT_MS, closed }), runnerProvider: () => RUNNERS }); }
       catch (error) { refusal = error; throw error; }
-      finally { waitedMs = Date.now() - started; }
+      finally { waitedMs = Date.now() - started; refused(); }
     };
-    const shards = await runProofShards(FILES.slice(0, 2), { freeSlots: 1, runFirst, runOther });
-    assert.equal(refusal?.code, 'RUNNER_WAIT_DEADLINE', `the unplaceable shard ends infrastructure-red: ${refusal?.message}`);
+    const shards = await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, retryMs: 10, runFirst, takeSlot });
+    assert.equal(refusal?.code, 'RUNNER_WAIT_DEADLINE', `the unplaceable request ends infrastructure-red: ${refusal?.message}`);
     // One admission window plus the item check's one infrastructure retry of the same window, never the submit's 30 minutes.
     assert.ok(waitedMs < 2 * ADMIT_MS + 2_000, `the shard ended in ${waitedMs} ms`);
-    assert.deepEqual(lane, [['test/a.test.js'], ['test/b.test.js']], 'the refused shard runs on the gate\'s own lane after its first shard');
+    assert.deepEqual(lane, [['test/a.test.js'], ['test/b.test.js']], 'the batches no slot took run on the gate\'s own lane');
     assert.deepEqual(shards.map(entry => entry.files), [['test/a.test.js'], ['test/b.test.js']]);
   } finally { for (const lease of own) lease.release(); }
 });

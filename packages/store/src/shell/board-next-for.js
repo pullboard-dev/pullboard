@@ -89,7 +89,7 @@ function recentLightActivity(board) {
  * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
  *
  * @param {any} board
- * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {any} item the pick (an item row with its id and status), its route possibly lowered to mid by nextFor
  * @param {string} seatRoute
  * @returns {boolean}
  */

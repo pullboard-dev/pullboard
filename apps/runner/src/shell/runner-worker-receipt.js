@@ -26,6 +26,7 @@ export async function receipt(spec, fields, sink) {
     main: typeof spec.main === 'string' ? spec.main : null, load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
     ...(fields.trustedMode ? { trustedMode: fields.trustedMode } : {}),
     ...(fields.testResults ? { testResults: fields.testResults } : {}),
+    ...(fields.handoff ? { handoff: fields.handoff } : {}),
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
   let completed = body;
   if (spec.runnerPublicKey) {

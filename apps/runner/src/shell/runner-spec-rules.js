@@ -28,6 +28,7 @@ export const SPEC_RULES = new Set([
   'invalid recovery identity',
   'invalid runner signing key identity',
   'invalid trusted private-check source',
+  'invalid hand-off ticket',
   'ambiguous runner policy context',
   'invalid landing timeout',
   'invalid stage marker',

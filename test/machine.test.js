@@ -29,6 +29,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { openBoard } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
@@ -97,9 +98,10 @@ const CAUGHT = {
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../packages/store/src/core/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  // Machine-verified submit lands after its record, and that landing call is caught like verify's.
   // The same catches as reached at the CLI's moved source (#2886).
-  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  '../apps/cli/src/shell/commands/submit.js#submitHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure', '../apps/cli/src/shell/cli.js#freezer', '../apps/cli/src/shell/cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/shell/commands/verify.js#verifyHere': ['../apps/cli/src/shell/commands/land.js#landAfterAcceptance', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
@@ -243,7 +245,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../apps/cli/src/shell/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/shell/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set([
-    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+    '../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', '../packages/gate/src/shell/gate-submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -417,7 +419,7 @@ test('the declared lifecycle is sound: reachable, no traps, no second door, ever
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
@@ -456,7 +458,7 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('clause 1: every refusal a move raises today is declared on that move, and every declared code is raised [M1]', () => {
+test('clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
   const problems = codeProblems(machineRules.MACHINE);
   assert.deepEqual(problems, []);
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
@@ -565,6 +567,8 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
       'MOON_PHASE is raised by accept and reject but not declared there',
       'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
+      // Submit starts the companion objection window, which reads the same rigor sources (#2540).
+      'MOON_PHASE is raised by submit but not declared there',
     ], 'the native summary fact keeps release in the rigor-source refusal audit alongside existing lifecycle moves');
   }
 
@@ -864,9 +868,9 @@ const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
   submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'clausesInspected', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'noUnverifiedStack'],
-  reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable'],
-  accept: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
-  reject: ['coordinatorSaysAs', 'joined', 'atSubmittedCommit', 'reviewTreeCurrent'],
+  reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'companionWindow'],
+  accept: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
+  reject: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent'],
 };
 
 
@@ -1059,6 +1063,8 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   const id = submittedItem(board);
   const minutes = (count) => {
     at += count * 60_000;
+    // A reservation holds only while its reviewer's seat is alive, so both reviewers keep beating as the clock moves.
+    for (const seat of ['web-2', third]) heartbeatSeat(board, seat);
   };
   const reserve = (agentId) => store.reserveReview(board, id, { agentId, leaseMs: 30 * 60_000, policy: 'any' });
   const judge = (agentId, decision) =>
@@ -1153,7 +1159,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
       // Each seat declares its model; the builder's family differs so its peers may review it.
-      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model');
+      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model', '--route', 'strong');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
     });
