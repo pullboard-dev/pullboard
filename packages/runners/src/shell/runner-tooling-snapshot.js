@@ -93,20 +93,20 @@ function sameControllerPolicy(root, policy) {
 export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
   assertRunnerModuleParserCurrent();
   /** Keep every stale generation on the existing typed restart path. */
-  const refuse = (why = '') => { throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying' + ' DEBUG ' + why); };
+  const refuse = () => { throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying'); };
   if (loaded?.problem?.code === 'RUNNER_TOOLING_FILES') throw loaded.problem;
-  if (!loaded) return refuse('loaded null');
+  if (!loaded) return refuse();
   const reader = readers.get(loaded);
   try {
     if (readFileSync(join(root, 'src/runners.js'), 'utf8') !== loaded.controller
       || readFileSync(join(root, 'bin/runner-controller.js'), 'utf8') !== loaded.controllerEntry
       || JSON.stringify(controllerSteps(root)) !== JSON.stringify(loaded.controllerSteps)
-      || !sameControllerPolicy(root, loaded.controllerPolicy) && refuse('policy ' + JSON.stringify(Object.keys(loaded.controllerPolicy ?? {})))
+      || !sameControllerPolicy(root, loaded.controllerPolicy)
       || (reader?.root === resolve(root) ? reader.providers() : controllerProviderReader(root, loaded.controllerEntry)()) !== loaded.controllerProviders
       || Object.entries(loaded.files).some(([name, source]) => readFileSync(join(root, name), 'utf8') !== source)) return refuse();
   } catch (error) {
     if (error.code === 'RUNNER_TOOLING_FILES') throw error;
-    return refuse('catch ' + error.message);
+    return refuse();
   }
   if (!rescan) return { entry: loaded.entry, files: loaded.files };
   const current = reader?.root === resolve(root) ? reader.read() : runnerPackage(root);

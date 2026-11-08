@@ -155,11 +155,10 @@ export function controllerPolicyFingerprints(root) {
         fingerprints.set(file, createHash('sha256').update(source).digest('hex'));
         if (/\.[cm]?js$/u.test(file)) { modules.push(file); sources.push(source.toString('utf8')); }
       }
-      // V8 exposes actual static imports and re-exports without linking or evaluating any controller code.
-      const records = sources.length ? parser.parse(sources) : [];
+      // The worker closure's own derivation reads the static imports; a module that does not compile throws here.
+      const imports = sources.length ? importsIn(sources, parseWithPaths(parser.parse, modules.map(file => join(root, file)))) : [];
       for (const [index, file] of modules.entries()) {
-        if (!records[index].compiles) unavailable(file, 'the controller module does not compile');
-        for (const specifier of records[index].imports) {
+        for (const specifier of imports[index]) {
           const target = dependency(file, specifier, manifest);
           if (target !== null) pending.push(target);
         }
