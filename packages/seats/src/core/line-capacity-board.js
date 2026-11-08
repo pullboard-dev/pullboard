@@ -14,7 +14,7 @@ import { lineWipLimit } from './line-wip-limit.js';
  *
  * The store cell supplies its queue and item readers through `reads`, so seat capacity never loads board queries.
  */
-export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false, starveMinutes = 10 }, nextFor,
+export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy = 'off', ratio = 3, runnable = false, routes = ROUTES, omitIds = [], skipIds = [], priority = [], observeIdle = false, starveMinutes = 5 }, nextFor,
   { reviewQueue, reviewHolder, listItems, overdueReview }) {
   const offered = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, skipIds, priority, observeIdle });
   if (observeIdle && !offered.item) return { item: null, idleReason: offered.idleReason, ...(offered.skips ? { skips: offered.skips } : {}) };

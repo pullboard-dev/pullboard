@@ -3,7 +3,10 @@ import { recordedVerificationComparison } from '../../../../../packages/verify/i
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
+import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
+import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -18,6 +21,7 @@ import {
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
+  retainedGateAssertions,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -31,6 +35,7 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -74,9 +79,12 @@ function answerFirstReasons(reasons) {
 
 /** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
 function heldCounted(reasons) {
+  // The review-cover pause explains why new builds stop, so it leads every count line and is never folded away [#3741].
+  const paused = reasons.filter(reason => reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
+  reasons = reasons.filter(reason => !reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...paused, ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
 }
 
 /**
@@ -109,7 +117,16 @@ export async function nextHere(io, values) {
   if (defaultLoop) io.defaultLoop = true;
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
-  try { return await nextWithProgress(io, values, progress); }
+  try {
+    const code = await nextWithProgress(io, values, progress);
+    sayCoordinatorCallouts(io);
+    return code;
+  }
+  catch (error) {
+    // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    sayCoordinatorCallouts(io);
+    throw error;
+  }
   finally {
     progress.stop(); await monitor?.close();
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
@@ -117,12 +134,34 @@ export async function nextHere(io, values) {
   }
 }
 
+/**
+ * Last line of every next: unanswered coordinator call-outs older than 15 minutes, so a builder passes them on [N2,C7].
+ * Why: sentinel and builder shouts to the coordinator sat unanswered for hours with nothing telling anyone.
+ * Best effort and read-only: a board that cannot be read adds no line.
+ *
+ * @param {any} io
+ */
+function sayCoordinatorCallouts(io) {
+  try {
+    const line = withBoardRead(context(io), board => coordinatorCalloutLine(board, board.clock.now().getTime()));
+    if (line) io.say(line);
+  } catch { /* a missing or unreadable board has no call-outs to report */ }
+}
+
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
-  withBoard(ctx, board => {
+  // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  const hasQueuedReds = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return store.queuedReds(board, me.id).some(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  });
+  if (hasQueuedReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
     const reds = store.queuedReds(board, me.id).filter(red =>
       !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
@@ -140,7 +179,7 @@ async function nextWithProgress(io, values, progress) {
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, reviewFamilyBuildPause };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -166,6 +205,21 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    if (!values.verify) {
+      const ownerQueue = withBoardRead(ctx, board => {
+        const me = whoAmI(ctx, board);
+        return store.ownershipWaiting(board, ctx.info.isMain ? 'coordinator' : me.lane);
+      });
+      if (ownerQueue.length) {
+        io.result?.({ action: 'ownership', ownershipWaiting: ownerQueue });
+        for (const waiting of ownerQueue) {
+          io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+          io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+          io.say(waiting.diff);
+        }
+        return 0;
+      }
+    }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
     const selectionValues = redClaims.length
@@ -175,6 +229,15 @@ async function nextWithProgress(io, values, progress) {
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
+    if (found.ownershipWaiting?.length) {
+      io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
+      for (const waiting of found.ownershipWaiting) {
+        io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+        io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+        io.say(waiting.diff);
+      }
+      return 0;
+    }
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -204,8 +267,13 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
+      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
+        const record = store.returnedRecord(board, item.item_id);
+        return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
+      });
+      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -228,6 +296,14 @@ async function nextWithProgress(io, values, progress) {
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        if (returned) {
+          if (returned.gate) {
+            io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
+          }
+          if (returned.reject) io.say(`rejected ${returned.reject.reason} by ${returned.reject.by} at ${String(returned.reject.commit).slice(0, 12)}: ${returned.reject.note}`);
+          for (const fact of returned.facts) io.say(`  builder fact, ${fact}`);
+        }
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
@@ -276,6 +352,8 @@ async function nextWithProgress(io, values, progress) {
       const reasons = answerFirstReasons(found.reasons);
       return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
+    // An item whose folder another live session holds stays out of this next's selection (#3688).
+    if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
   }

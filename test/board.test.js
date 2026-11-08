@@ -1284,7 +1284,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   const reviewerPath = join(directory, 'reviewer');
   git(repo, 'worktree', 'add', '-q', '-b', 'review/one', reviewerPath, 'main');
   const reviewerRoot = git(reviewerPath, 'rev-parse', '--show-toplevel');
-  const joined = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--json']);
+  const joined = await runMain(reviewerRoot, ['join', 'review', '--family', 'Family Beta', '--route', 'strong', '--json']);
   assert.equal(joined.code, 0, joined.stderr || joined.stdout);
   const joinResult = JSON.parse(joined.stdout);
   assertJsonShape(joinResult, 'join');
@@ -1300,7 +1300,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   finally { if (savedModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = savedModel; }
   assert.equal(missingModel.code, 1);
   assert.equal(JSON.parse(missingModel.stdout).error.code, 'MODEL_REQUIRED', 'join without a flag or model environment refuses');
-  const joinedWithout = await runMain(noFamilyRoot, ['join', 'web']);
+  const joinedWithout = await runMain(noFamilyRoot, ['join', 'web', '--route', 'strong']);
   assert.equal(joinedWithout.code, 0, joinedWithout.stderr || joinedWithout.stdout);
 
   const file = join(repo, '.git', 'pullboard', 'board.sqlite');
@@ -1488,4 +1488,13 @@ test("a branch worktree never changes the shared board's schema or triggers [A5,
 test('direct branch board opens preserve shared DDL while private databases still migrate [A5,A6,C7]', async t => {
   const { assertDirectOpenBoardIsolation } = await import('./direct-open-board-regression.js');
   assertDirectOpenBoardIsolation(t, fileURLToPath(new URL('..', import.meta.url)));
+});
+
+test('clause 1: the SHARED_SCHEMA_DIFFERENCE diagnostic prints once per command, never again from the landing wake [A5,A6,C7]', async t => {
+  const { assertBranchWorktreeBoardIsolation } = await import('./branch-worktree-isolation.js');
+  const outputs = await assertBranchWorktreeBoardIsolation(t, fileURLToPath(new URL('..', import.meta.url)));
+  for (const [command, output] of Object.entries(outputs)) {
+    assert.equal(output.match(/SHARED_SCHEMA_DIFFERENCE/gu)?.length ?? 0, 1,
+      `${command}: SHARED_SCHEMA_DIFFERENCE appears exactly once in that command's output:\n${output}`);
+  }
 });

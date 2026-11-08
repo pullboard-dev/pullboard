@@ -1,6 +1,7 @@
 import { stagedShimImportProblems } from '../../../../../packages/codemap/index.js';
 import { importsIn } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
+import { itemFolderPath } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 /**
@@ -86,6 +87,23 @@ import {
  * @param {any} args
  * @returns {Promise<number>}
  */
+/**
+ * Refuse a commit of item work in a seat checkout, naming the item folder to use (#3691).
+ * Why: builders committed on <lane>/item-<id> inside their seat checkout, which left the seat on an item branch and
+ * blocked every other seat from that item with ITEM_FOLDER_PROTECTED. Item work belongs in the seat's item folder.
+ *
+ * @param {string} root the committing checkout
+ * @param {{ agent_id: string, agent_path: string } | null | undefined} seat the seat whose own checkout this is, if any
+ */
+export function refuseSeatItemWork(root, seat) {
+  if (!seat?.agent_path) return;
+  const match = /^[^/]+\/item-([1-9]\d*)$/u.exec(tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim());
+  if (!match) return;
+  const folder = itemFolderPath(seat.agent_path, Number(match[1]));
+  throw new Refused('ITEM_WORK_IN_SEAT', `item work for #${match[1]} is committed in the seat checkout ${root}; item work is built in its item folder ${folder}`,
+    `move the change to ${folder} (pullboard claim ${match[1]} opens it), commit there, and switch this seat checkout off the item branch`);
+}
+
 export async function hookCommand(io, { first, second }) {
   const info = repoInfo(io.cwd);
   let ctx;
@@ -103,6 +121,7 @@ export async function hookCommand(io, { first, second }) {
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+    if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
     const criterion = agent ? hookRead(ctx, board => {
