@@ -61,10 +61,11 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') {
     throw new Refused('RUNNER_SOURCE', 'cell analysis needs its admitted remote runner');
   }
-  const inventory = await submitCellsInventory(root, main, source);
+  // The coordinator ships an inventory only when it already holds every accepted one; otherwise the runner produces them in its own cache (#3662).
+  const { inventory, produce } = await runnerCellsInventory(root, main, source);
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion;
   const cutRows = readCutItems();
-  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, inventory: inventory?.descriptor ?? null, node: lease.runner.node ?? 'node', collectMachinery });
+  const shell = submitCellsRemoteCommand({ main, source, criterion, title: item.item_title ?? '', cutRows, inventory: inventory?.descriptor ?? null, produceInventory: produce, node: lease.runner.node ?? 'node', collectMachinery });
   const tree = git(root, ['rev-parse', `${source}^{tree}`]).trim();
   const checkedSource = { commit: source, tree };
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell,
@@ -107,12 +108,12 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
 }
 
 /** Construct a data-only request to run the accepted-main checker in a private runner checkout. */
-export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, inventory = null, node = 'node', collectMachinery = false }) {
+export function submitCellsRemoteCommand({ main, source, criterion, title = '', cutRows, inventory = null, produceInventory = [], node = 'node', collectMachinery = false }) {
   if (![main, source].every(value => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value))
     || main.length !== source.length || typeof criterion !== 'string' || !Array.isArray(cutRows) || typeof node !== 'string' || !node) {
     throw new TypeError('cell analysis needs pinned commits, criterion and cut rows');
   }
-  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, collectMachinery })).toString('base64');
+  const data = Buffer.from(JSON.stringify({ main, source, criterion, title, cutRows, inventory, produceInventory, collectMachinery })).toString('base64');
   // A coded refusal is a result, not a crash: print it as a trusted line and exit 0; only a codeless error exits 1 [C7].
   const script = `(${remoteCells.toString()})(${JSON.stringify(data)}).catch(error => {
   if (typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/u.test(error.code) && (error.name === 'Refused' || error.retryable === true)) {
@@ -169,12 +170,31 @@ import {
   commonJsIn,
   withImportParseCache,
   foreignNodeOptions,
+  readAcceptedCells,
+  warmAcceptedCells,
 } from './packages/gate/index.js';
 import { withMainCheckout } from './packages/landing/index.js';
 import * as cellsCache from './bin/cells-inventory-cache.js';
 import { readFileSync } from 'node:fs';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
-const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+// The coordinator held no inventory for these accepted commits: produce each here, once per runner cache (#3662).
+if (!artifacts && Array.isArray(input.produceInventory) && input.produceInventory.length) {
+  const pending = (commit, message) => Object.assign(new Error('accepted cells inventory was not produced on the runner: ' + message), { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
+  const made = new Map();
+  for (const commit of input.produceInventory) {
+    let found = readAcceptedCells(process.argv[3], commit);
+    if (!found.available) {
+      const { withFileLock } = await import('./packages/outbox/index.js');
+      try { await warmAcceptedCells(process.argv[3], commit, { withCheckout: withMainCheckout, withLock: withFileLock, trunk: input.main }); }
+      catch (error) { throw pending(commit, String(error?.message ?? error)); }
+      found = readAcceptedCells(process.argv[3], commit);
+    }
+    if (!found.available) throw pending(commit, commit.slice(0, 12) + ' is unreadable after production (' + found.cause + ')');
+    made.set(commit, found);
+  }
+  artifacts = made;
+}
 const artifact = artifacts?.get(input.main);
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
   { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
