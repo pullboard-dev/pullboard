@@ -5,6 +5,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { trustedStepCommand } from '../apps/cli/src/shell/submit-remote-gate.js';
 
@@ -18,7 +19,8 @@ function runStep(entry) {
   const root = privateFixtureFiles('large-result-').root;
   try {
     const git = (...args) => runFixtureGit(args, { cwd: root, env: ENV });
-    git(...['in' + 'it', '--quiet', '-b', 'main']);
+    const init = runFixtureChild('git', ['init', '--quiet', '-b', 'main'], { cwd: root, env: ENV, encoding: 'utf8' });
+    assert.equal(init.status, 0, init.failure);
     writeFileSync(join(root, 'a.txt'), 'x\n');
     git('add', '.');
     git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'one');
