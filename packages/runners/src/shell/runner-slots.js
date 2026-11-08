@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -102,6 +103,16 @@ async function waitForShared(state, now, waitMs) {
 }
 
 /**
+ * Whether a probe claim is still held. A claim whose owner record is not yet written (empty or unreadable) is held until its file is older than the stale interval.
+ * Why: the claim is created before its owner record is written, and reading that window as stale let a second process probe the same runner (#3112).
+ */
+function claimHeld(lock, now) {
+  const held = readJson(lock), at = Number(held?.at);
+  if (Number.isFinite(at)) return now >= at && now - at < RUNNER_PROBE_STALE_MS;
+  try { return Date.now() - statSync(lock).mtimeMs < RUNNER_PROBE_STALE_MS; } catch { return false; }
+}
+
+/**
  * Claim the one in-flight probe for a runner across processes with an exclusive create; a claim left by a dead probe
  * is taken over once it is stale. A caller that passes no probeDirectory probes unshared, as before. Returns {shared} (the recorded outcome) when one is current, {settle} (the release function) when this process now probes, or null when another process is probing.
  * Why cross-process: every waiting gate is its own process, and each one probing every runner made SSH login storms (#3112).
@@ -116,8 +127,7 @@ async function claimProbe(directory, host, now, waitMs) {
     try { closeSync(openSync(lock, 'wx', 0o600)); writeFileSync(lock, JSON.stringify({ pid: process.pid, at: now })); break; }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      const held = readJson(lock), at = Number(held?.at);
-      if (attempt > 0 || Number.isFinite(at) && now >= at && now - at < RUNNER_PROBE_STALE_MS) return await waitForShared(state, now, waitMs);
+      if (attempt > 0 || claimHeld(lock, now)) return await waitForShared(state, now, waitMs);
       try { unlinkSync(lock); } catch (gone) { if (gone.code !== 'ENOENT') throw gone; }
     }
   }

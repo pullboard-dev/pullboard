@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
@@ -102,4 +105,18 @@ test('a probe claim left by a dead process is taken over once stale, never while
   assert.equal(fake.calls.length, 1, 'a dead claim does not block the runner forever');
   release();
   await first;
+});
+
+test('a just-created claim with no owner record yet is held, so an interleaved second process starts no probe [C7]', async t => {
+  const probeDirectory = probes(t), now = Date.now();
+  const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
+  const lock = join(probeDirectory, `${createHash('sha256').update('runner-a').digest('hex').slice(0, 24)}.lock`);
+  writeFileSync(lock, '');
+  const fake = counting();
+  await refreshRunnerMeasurements(settings, { measure: fake.measure, record: () => {}, now, probeDirectory, waitMs: 0 });
+  assert.equal(fake.calls.length, 0, 'an empty fresh claim is held, not stale');
+  const old = new Date(now - 61_000);
+  utimesSync(lock, old, old);
+  await refreshRunnerMeasurements(settings, { measure: fake.measure, record: () => {}, now, probeDirectory, waitMs: 0 });
+  assert.equal(fake.calls.length, 1, 'an empty claim older than the stale interval is taken over');
 });
