@@ -80,13 +80,20 @@ function heldTrunk(t) {
   return { box, entry };
 }
 
+/** What the wake left behind, so a lander that never backs off names the record, the timer and its own log. */
+function wakeState(box) {
+  const log = join(automaticLandingDirectory(box.repo), 'worker.log');
+  return JSON.stringify({ pending: record(box), timer: record(box, 'timer.json'), leases: leaseRequests(box).length,
+    log: existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : null });
+}
+
 /** Let a real command wake the real lander on the held trunk, and wait until it refuses and backs off. */
 async function backingOff(box) {
   command(box, 'list');
   // One read per poll: the lander and the commands rewrite the record, so a second read can see a newer one.
   let pending = null;
   await waitForCondition(() => (pending = record(box))?.backoff?.outcome === 'LAND_TEST_DEFECT' && leaseRequests(box).length > 0,
-    'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => record(box) });
+    'the woken lander refuses on the held trunk and backs off', { signal: AbortSignal.timeout(90_000), state: () => wakeState(box) });
   return { pending, requests: leaseRequests(box).length };
 }
 
