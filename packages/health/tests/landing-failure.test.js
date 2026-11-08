@@ -68,3 +68,15 @@ test('a later landing retires the failed batch instead of raising a stale except
   box.publish();
   assert.equal(box.publish(), null);
 });
+
+test('a refused batch whose items all landed by another path raises no finding, one still open does [B3,R3,A6,C7]', t => {
+  const box = fixture(t);
+  assert.equal(landingFailureFindings(box.board).length, 1, 'an unlanded item keeps the finding');
+  const other = addItem(box.board, { by: 'coordinator', lane: 'core', title: 'Second', criterion: 'It holds.' });
+  atomic(box.board, () => logEvent(box.board, 'coordinator', 'landing_batch', null,
+    { batch: { ...box.batch, id: 'two', items: [{ id: box.item }, { id: other }] } }));
+  box.board.db.prepare("UPDATE item SET item_status='verified', item_merged_commit='abc123' WHERE item_id=?").run(box.item);
+  assert.equal(landingFailureFindings(box.board).length, 1, 'one item still open keeps the finding');
+  box.board.db.prepare("UPDATE item SET item_status='withdrawn' WHERE item_id=?").run(other);
+  assert.deepEqual(landingFailureFindings(box.board), [], 'every item merged or withdrawn retires the finding');
+});
