@@ -380,10 +380,6 @@
       "reason": "bin/ stays in place during the move (dry run section 1)"
     },
     {
-      "path": "bin/landing-worker.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)"
-    },
-    {
       "path": "bin/runner-controller.js",
       "reason": "bin/ stays in place during the move (dry run section 1)",
       "owner": "app:runner"
@@ -1420,6 +1416,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/static-tree-registry.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/main-red-failure-lines-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1715,6 +1715,26 @@
     },
     {
       "path": "bin/drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/check-cla.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/cells-edges.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/sync-spawn-in-leases.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/245.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
@@ -2114,10 +2134,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "bin/landing-worker.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/landing-candidate.js",
       "cell": "app:lib"
     },
@@ -2146,10 +2162,6 @@
       "cell": "app:lib"
     },
     {
-      "path": "src/submit-handoff-worker.js",
-      "cell": "app:lib"
-    },
-    {
       "path": "bin/static-style-checks.js",
       "cell": "app:cli"
     },
@@ -2164,6 +2176,14 @@
     {
       "path": "bin/main-red-refresh.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/handoff-worker-dispatcher.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/gate-drive-worker.js",
+      "cell": "app:lib"
     }
   ],
   "engineStays": [
@@ -3431,5 +3451,28 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "activity->store",
+    "apps/cli->pin",
+    "api->store",
+    "apps/lib->store",
+    "blueprints->store",
+    "doctrine->store",
+    "gate->store",
+    "github->store",
+    "items->store",
+    "keys->store",
+    "landing->pin",
+    "landing->store",
+    "link->store",
+    "outbox->store",
+    "pages->store",
+    "person->store",
+    "sandbox->store",
+    "sentinels->store",
+    "state->store",
+    "stats->store",
+    "sync->store"
   ]
 }

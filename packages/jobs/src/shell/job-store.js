@@ -3,7 +3,12 @@ import { Refused } from "../../../kernel/index.js";
 import { viewOf } from "../core/job-view.js";
 
 /**
- * Run `work` inside a savepoint so its statements land together or not at all, in or out of a transaction.
+ * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
+ * when the caller already holds a transaction.
+ *
+ * Why: `work` reads before it writes. A deferred transaction that read first cannot upgrade to a write once another
+ * process committed, and SQLite answers "database is locked" at once without waiting; two drivers writing steps for
+ * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn.
  *
  * @template T
  * @param {import('node:sqlite').DatabaseSync} db
@@ -11,6 +16,31 @@ import { viewOf } from "../core/job-view.js";
  * @returns {T}
  */
 function atomically(db, work) {
+  try {
+    db.exec('BEGIN IMMEDIATE');
+  } catch (error) {
+    if (!/within a transaction/u.test(String(error?.message))) throw error;
+    return inSavepoint(db, work);
+  }
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/**
+ * Run `work` inside a savepoint of the caller's transaction.
+ *
+ * @template T
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {() => T} work
+ * @returns {T}
+ */
+function inSavepoint(db, work) {
   db.exec('SAVEPOINT job_store');
   try {
     const result = work();
@@ -36,6 +66,24 @@ export function createJob(db, { id, kind, item = null, candidate = null, base = 
   db.prepare('INSERT OR IGNORE INTO job (job_id, job_kind, job_item, job_candidate, job_base, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(id, kind, item, candidate, base, now, now);
   return jobView(db, id);
+}
+
+/**
+ * Name what a job drives when it was created before that was known: its item, candidate and base. A field already
+ * named keeps its value, so a second call never moves a job onto another candidate.
+ *
+ * Why: the dispatcher admits a gate's drive job from its place in line, which names only the job; the driver reads
+ * the candidate from the captured request and names it before the first transition needs it.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ item?: number | null, candidate?: string | null, base?: string | null }} fields
+ * @returns {ReturnType<typeof viewOf>}
+ */
+export function nameJob(db, job, { item = null, candidate = null, base = null }) {
+  db.prepare('UPDATE job SET job_item = COALESCE(job_item, ?), job_candidate = COALESCE(job_candidate, ?), job_base = COALESCE(job_base, ?) WHERE job_id = ?')
+    .run(item, candidate, base, job);
+  return jobView(db, job);
 }
 
 /**

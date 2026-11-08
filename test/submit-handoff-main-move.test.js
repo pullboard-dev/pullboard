@@ -1,4 +1,5 @@
 /** A genuine main move between preflight and queueing never substitutes gate authority [V4,H16,E18]. */
+import { handoffRecord } from '../packages/store/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,8 +16,7 @@ function state(box) {
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout=5000');
-    const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${box.id}`);
-    return { job: row ? JSON.parse(row.meta_value) : null,
+    return { job: handoffRecord(db, box.id) ?? null,
       item: db.prepare('SELECT item_status,item_commit FROM item WHERE item_id=?').get(box.id) };
   } finally { db.close(); }
 }

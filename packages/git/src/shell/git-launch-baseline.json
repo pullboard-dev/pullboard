@@ -2,7 +2,6 @@
   "scope": "Literal Git process launches in src and packages/*, at their true paths, excluding the adapter files and test directories; computed executables and shell commands are not covered.",
   "originalTotal": 89,
   "files": {
-    "packages/activity/src/shell/activity-inbox.js": 2,
     "packages/codemap/src/shell/code-map.js": 1,
     "packages/commits/src/shell/commit-signoff.js": 1,
     "packages/commits/src/shell/guard-revert.js": 1,
