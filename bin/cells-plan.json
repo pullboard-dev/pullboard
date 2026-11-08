@@ -3511,6 +3511,8 @@
     "landing->git",
     "landing->pin",
     "landing->store",
+    "landing->store/src",
+    "landing->resources",
     "link->store",
     "merge->git",
     "outbox->store",
