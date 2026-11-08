@@ -5,16 +5,33 @@ import { apiBoardOpeners } from '../board-fixture.js';
 
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../apps/lib/index.js';
 import { serveApi } from '../../packages/api/index.js';
-import { refusalDocument } from '../../src/next-step-words.js';
+import { refusalDocument } from '../../apps/cli/index.js';
 import { main } from '../native-cli-fixture.js';
 import { exportBoard } from '../../packages/store/index.js';
 import { submitFixture } from '../board-submit-fixture.js';
 import { machine, project } from './fixture.js';
+
+/** Clause 1 proof: the four view-lane tests take their bindings from the cli front door, not the shims. */
+test('clause 1: the four view-lane tests import nothing from the src/next-step-words.js or src/cli.js shims [N26]', () => {
+  for (const file of ['dashboard-clock.test.js', 'relay-signin.test.js', 'lifecycle-ordinary-seed.js', 'prose.test.js']) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /src\/(next-step-words|cli)\.js['"]/, `${file} still imports a shim`);
+  }
+});
+
+/** Clause 2 proof: every binding the four view-lane tests take from the cli front door resolves. */
+test('clause 2: the cli front door exports every binding the four view-lane tests take from it [N26]', async () => {
+  const front = await import('../../apps/cli/index.js');
+  for (const name of ['refusalDocument', 'cli$HELP', 'cli$freezer', 'cli$main']) {
+    assert.ok(front[name], `apps/cli/index.js does not export ${name}`);
+  }
+});
 
 // Native CLI setup, three real HTTP cache windows and owned server cleanup share this journey budget.
 test('Dashboard pace crosses every cached window without a milestone or a native write [N26,A2]', { timeout: 90_000 }, async t => {

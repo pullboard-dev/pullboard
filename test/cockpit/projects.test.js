@@ -848,8 +848,8 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
     { root: missing.repo, name: 'Missing board', project: '', added: '2026-01-01' }];
   const { serveApi } = await import(pathToFileURL(join(linked, 'src/api.js')).href);
   const { openBoard, openBoardForRead } = await import(pathToFileURL(join(linked, 'apps/lib/index.js')).href);
-  const { refusalDocument } = await import(pathToFileURL(join(linked, 'src/next-step-words.js')).href);
-  const { main: cliMain } = await import(pathToFileURL(join(linked, 'src/cli.js')).href);
+  const { refusalDocument } = await import(pathToFileURL(join(linked, 'apps/cli/index.js')).href);
+  const { cli$main: cliMain } = await import(pathToFileURL(join(linked, 'apps/cli/index.js')).href);
   /** Compose the linked command with its own actual native engine. */
   const main = (argv, streams) => cliMain(argv, { ...streams,
     hookWorker: join(linked, 'apps/lib/src/shell/cli-hook-work.js'), submitHandoffWorker: join(linked, 'apps/lib/src/shell/submit-handoff-worker.js'),
