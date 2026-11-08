@@ -135,10 +135,11 @@ export async function land(options) {
   if (trunk.commit && !options.dryRun && !options.adopt) {
     await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
   }
+  let publishHold = null;
   if (trunk.commit) {
     const policy = policyAt(options.root, trunk.commit).config;
     requireParallelGateAdmission(options.root, policy);
-    requirePublishGreen(options.root, options.board, policy, options.landingPorts);
+    publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
@@ -153,9 +154,10 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
+    if (publishHold && !selected.ready.length) throw publishHold.refusal;
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
@@ -319,7 +321,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
-  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
+  const publishHold = !dryRun && trunk?.commit ? requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts, { perItem: true }) : null;
   const batches = store.landingBatches(board);
   let unfinished = batches.findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (!unfinished && automatic) unfinished = batches.findLast(batch => retryableLandingBatch(batch, trunk?.commit));
@@ -347,7 +349,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (deferred) return deferred;
   }
   if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
@@ -355,6 +357,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
+  if (publishHold && !selected.ready.length) throw publishHold.refusal;
   if (dryRun) {
     if (selected.ready.length && !landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
     const conflicts = [];
