@@ -1,6 +1,7 @@
 /** A gate whose worker died is requeued from its captured candidate with no builder resubmit, three times at most [C7,V4]. */
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { driverRecord } from './gate-driver-fixture.js';
 import { document, fixture, state } from './submit-handoff-fixture.js';
@@ -61,6 +62,7 @@ test('clause 2: a candidate whose workers die three times stops and the sentinel
   assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
   let job = await runningJob(box);
   const commit = job.commit;
+  const killed = [job.id];
   for (let requeue = 1; requeue <= INFRASTRUCTURE_RETRY_LIMIT; requeue++) {
     await killWorker(box, job);
     sweep(box);
@@ -69,10 +71,13 @@ test('clause 2: a candidate whose workers die three times stops and the sentinel
     assert.equal(next.job.infrastructureRetries, requeue);
     assert.equal(next.job.commit, commit);
     job = await runningJob(box);
+    killed.push(job.id);
   }
   await killWorker(box, job);
   sweep(box);
   sweep(box);
+  // A killed worker never removes its disposable checkout; the fixture's cleanup waits for that, so this test removes what it killed.
+  for (const id of killed) rmSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', id, 'source'), { recursive: true, force: true });
   const after = state(box, box.id, job.id);
   assert.equal(after.job.id, job.id, 'no fourth requeue');
   assert.equal(after.job.state, 'infrastructure');
