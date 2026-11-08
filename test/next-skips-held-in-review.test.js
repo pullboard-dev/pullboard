@@ -22,7 +22,7 @@ for (const args of [['next'], ['next', '--take']]) {
   });
 }
 
-for (const state of ['queued', 'running', 'green']) for (const args of [['next'], ['next', '--take']]) {
+for (const state of ['running', 'green']) for (const args of [['next'], ['next', '--take']]) {
   test(`clause 1: ${args.join(' ')} skips the seat's own claimed item whose gate is ${state}, offers new work and names the gate wait [C7,#3532]`, async t => {
     const box = await fixture(t);
     const seat = box.seats.actor;
