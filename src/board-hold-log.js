@@ -22,7 +22,7 @@ function label(value, fallback) {
 }
 
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs, allWrites = false }) {
+export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
   if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS)) return;
   let fd;
   try {
@@ -33,7 +33,10 @@ export function recordBoardHold({ command, seat, item, durationMs, outcome, acqu
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs) } : {}), outcome: label(outcome, 'released'),
-      phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null };
+      phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
+      // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
+      move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
+      stepMs: phase === 'native-move' && Number.isFinite(stepMs) && stepMs >= 0 ? Math.round(stepMs) : null };
     writeSync(fd, JSON.stringify(row) + '\n');
   } catch {
     try { writeSync(2, 'pullboard: board hold log unavailable; original transaction outcome retained\n'); }
@@ -114,4 +117,26 @@ export function boardHoldLines(stats, baseline) {
         ? [`WARNING: ${stats.todayCount} recorded holds on ${stats.today} exceed the daily allowance ${baseline.allowancePerDay}.`]
         : []),
     ...(stats.invalidLines ? [`WARNING: ${stats.invalidLines} invalid hold log lines were not counted.`] : [])];
+}
+
+/**
+ * The longest recorded holds of the last hour, longest first, for `pullboard status`.
+ *
+ * @param {{ now?: number, limit?: number, windowMs?: number }} [options] - The clock, row count and window.
+ * @returns {{ at: string, move: string|null, step: string|null, stepMs: number|null, heldMs: number }[]|null} Null when the machine log is unavailable.
+ */
+export function longestRecentHolds({ now = Date.now(), limit = 5, windowMs = 3_600_000 } = {}) {
+  const retained = retainedHolds();
+  if (!retained.available) return null;
+  const rows = [];
+  for (const line of retained.text.split('\n').filter(Boolean)) {
+    let row;
+    try { row = JSON.parse(line); } catch { continue; }
+    const at = typeof row?.at === 'string' ? Date.parse(row.at) : NaN;
+    if (row?.version !== 1 || !Number.isFinite(at) || !Number.isSafeInteger(row.heldMs) || row.heldMs <= BOARD_HOLD_MS) continue;
+    if (at < now - windowMs || at >= now) continue;
+    rows.push({ at: row.at, move: label(row.move, null), step: label(row.step, null),
+      stepMs: Number.isSafeInteger(row.stepMs) ? row.stepMs : null, heldMs: row.heldMs });
+  }
+  return rows.sort((a, b) => b.heldMs - a.heldMs).slice(0, limit);
 }

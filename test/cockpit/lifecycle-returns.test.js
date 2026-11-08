@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Native ordinary lifecycle returns retain their exact projected counts in Chrome [N26,C7]. */
