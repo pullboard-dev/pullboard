@@ -8,6 +8,7 @@ import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
+import { namedFileRunner } from '../../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../../packages/verify/index.js';
 import { barTestFiles } from '../../../../../packages/verify/index.js';
 import { frozenRowGates } from '../../../../../packages/verify/index.js';
@@ -58,8 +59,9 @@ export function gateTestFiles(root, item) {
  * The tests submit runs beside its selection: the item's call-adjacent tests, each cited spec row's gate test, and every
  * test file the frozen criterion or the brief's "Test:" list names, kept to files that exist at the commit. Why: seal and
  * tier selection pick tests by changed cells, so a clause naming a file in another cell had no recorded run and review
- * rejected a green gate INSUFFICIENT_EVIDENCE (#3533, #3253, #3353 on 7 Nov). Bar files need the affected-tests runner
- * that runs cross-run tests; without one only the row gates are added, as before [V4,C7].
+ * rejected a green gate INSUFFICIENT_EVIDENCE (#3533, #3253, #3353 on 7 Nov). Bar files are added with or without an
+ * affected-tests runner: with none, each file the default runner (namedFileRunner) can run is added, so a project
+ * with no runner configured still gets its named files run; review rejected the runner-only version (#3665) [V4,C7].
  *
  * @param {string} root
  * @param {object} item - The held item, with its frozen bar and brief.
@@ -68,7 +70,8 @@ export function gateTestFiles(root, item) {
  * @returns {string[]} Sorted repo-relative test files for runSubmitGate's `crossRunTests`.
  */
 export function namedProofTests(root, item, commit, { crossRunTests = [], runner = '' } = {}) {
-  const named = [...frozenRowGates(item).map(row => row.file), ...(runner?.trim() ? barTestFiles(item).all : [])];
+  const bar = barTestFiles(item).all.filter(file => namedFileRunner(runner, [file]));
+  const named = [...frozenRowGates(item).map(row => row.file), ...bar];
   return [...new Set([...crossRunTests, ...named.filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
 }
 

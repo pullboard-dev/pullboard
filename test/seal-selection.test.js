@@ -51,7 +51,7 @@ function commit(root, files) {
  * base is imported by user; alone imports nothing. base carries a consumer contract that opens a board (so it is never
  * a plain unit), user's own test crosses into base, and one root journey spans packages. Candidate tests never run here.
  */
-function fixture(t, { unsealed = [] } = {}) {
+function fixture(t, { unsealed = [], tiers = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-seal-selection-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q'], { cwd: root });
@@ -72,8 +72,9 @@ function fixture(t, { unsealed = [] } = {}) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), source);
   }
-  writeTestTiers(root);
+  if (tiers) writeTestTiers(root);
   const first = commit(root, {});
+  if (!tiers) return { root, first };
   const store = sealStoreFile(root);
   for (const row of sealStatus(root, { rev: first, store })) if (!unsealed.includes(row.package)) recordSeal(store, { package: row.package, hash: row.hash, receipts: [`receipt-${row.package.replace('packages/', '')}`], tests: [] });
   return { root, first };
@@ -178,5 +179,25 @@ test('clause 1: the real gate-submit path runs a test file the bar names in a se
   assert.ok(plan.proofFiles.includes(ALONE_TEST) && plan.proofFiles.includes('test/journey.test.js'), `the gate runs both: ${plan.proofFiles}`);
   const proof = await runSubmitGate(root, config, { base: first, check: plan.check, plan, crossRunTests, staticChecked: true, executionServices });
   assert.ok(proof.files.includes(ALONE_TEST) && proof.files.includes('test/journey.test.js'), `the recorded proof names both files: ${JSON.stringify(proof.files)}`);
-  assert.deepEqual(namedProofTests(root, item, head, { runner: '' }), [], 'without a cross-run runner no bar file is added');
+});
+
+test('clause 1: with no affected-tests runner configured, the bar-named files still join the proof selection and the real gate-submit path runs them [C7,V4]', async t => {
+  const { root, first } = fixture(t, { tiers: false });
+  const ALONE_TEST = 'packages/alone/tests/alone.test.js';
+  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n', 'test/greeting_test.py': 'assert True\n' });
+  const item = { item_frozen: JSON.stringify({ criterion: `1. The alone package still loads, proved by ${ALONE_TEST} [test].` }),
+    item_brief: 'Files: packages/base\nTest:\n- test/journey.test.js\n- test/greeting_test.py\n- test/missing.test.js' };
+  const crossRunTests = namedProofTests(root, item, head, { runner: '' });
+  assert.deepEqual(crossRunTests, [ALONE_TEST, 'test/journey.test.js'], 'no runner: every named file the default runner can run, at the commit');
+  assert.deepEqual(namedProofTests(root, item, head, { runner: 'pytest' }), [ALONE_TEST, 'test/greeting_test.py', 'test/journey.test.js'],
+    'a configured runner takes every named file');
+  // A landing-deferred project with no runner: no tier plan, so only the named files are the submit proof.
+  const config = { gate: 'false', submitGate: 'landing', submitInvariants: [], registryGuards: [] };
+  const plan = submitGatePlan(root, config, { base: first, crossRunTests });
+  assert.equal(plan.testTiers, null, 'the fixture has no tier plan');
+  assert.deepEqual(plan.proofFiles, [ALONE_TEST, 'test/journey.test.js'], `the proof selection names both: ${plan.proofFiles}`);
+  assert.equal(plan.proofCommand, `node --test ./${ALONE_TEST} ./test/journey.test.js`);
+  const proof = await runSubmitGate(root, config, { base: first, check: plan.check, plan, crossRunTests, staticChecked: true, executionServices });
+  assert.ok(proof.isGreen, `the named files ran green: ${proof.output}`);
+  assert.ok(proof.files.includes(ALONE_TEST) && proof.files.includes('test/journey.test.js'), `the recorded proof names both files: ${JSON.stringify(proof.files)}`);
 });
