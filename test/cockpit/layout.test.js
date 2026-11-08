@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileFixtureItem } from '../testkit-fixture.js';
 import { joinFixtureSeat } from '../testkit-fixture.js';
 import { openShoutConversation, SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
@@ -262,7 +263,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
   const spec = `${SPEC}- G3 [approved, must] The page has a footer. | gate: web test\n- G4 [approved, must] The page has a header. | gate: web test\n`;
   const alpha = project(box, 'glance', spec, { lanes });
   const add = (lane, title, ...more) => box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'renders', ...more);
-  add('web', 'Free', '--specs', 'G1,G2,G3,G4');
+  fileFixtureItem(box, alpha.repo, { lane: 'web', title: 'Free', criterion: 'renders', args: ['--specs', 'G1,G2,G3,G4'] });
   add('web', 'Base');
   add('web', 'Depends', '--after', '2');
   add('api', 'Api work');
