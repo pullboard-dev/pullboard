@@ -1,5 +1,6 @@
 /** Pin derived tooling bytes without a hand-maintained dependency list [C7,P3]. */
 import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { runnerPackage } from './runner-package.js';
@@ -34,27 +35,49 @@ function controllerProviderReader(root, source) {
       .map(specifier => specifier.slice(3)))].sort();
   } finally { parser.close(); }
   const providers = entries.map(entry => runnerPackageReader(root, entry));
-  return () => {
+  const digest = () => {
     const hash = createHash('sha256');
+    digest.files = new Set();
     for (const read of providers) {
       const runtime = read();
       for (const [file, source] of Object.entries(runtime.files)) {
+        digest.files.add(file);
         hash.update(JSON.stringify([file, Buffer.byteLength(source)]) + '\n');
         hash.update(source);
       }
     }
     return hash.digest('hex');
   };
+  return digest;
 }
 
-/** Capture the worker closure and actual controller bytes at module load, not at first dispatch. */
-export function captureRunnerTooling(root) {
+// Linux stamps files from a tick-granular clock that can lag Date.now() by up to 10 ms.
+const COARSE_CLOCK_MS = 10;
+
+/**
+ * Report whether any pinned file's inode changed after the given process-load instant.
+ * Why: a capture deferred to first dispatch must still refuse bytes changed since this controller loaded;
+ * ctime moves on every write and cannot be set back, and the margin keeps a coarse clock from hiding one.
+ */
+function changedSince(root, files, since) {
+  return files.some(file => {
+    try { return statSync(join(root, file)).ctimeMs > since - COARSE_CLOCK_MS; } catch { return false; }
+  });
+}
+
+/**
+ * Capture the worker closure and actual controller bytes; with since, null when any was written after it.
+ * Why: callers capture at first dispatch, so since (the controller's load instant) keeps the load-time pin.
+ */
+export function captureRunnerTooling(root, { since } = {}) {
   const read = runnerPackageReader(root);
   const controllerEntry = readFileSync(join(root, 'bin/runner-controller.js'), 'utf8');
   const providers = controllerProviderReader(root, controllerEntry);
   const loaded = { ...read(), controller: readFileSync(join(root, 'src/runners.js'), 'utf8'),
     controllerEntry, controllerSteps: controllerSteps(root),
     controllerProviders: providers() };
+  if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), 'src/runners.js',
+    'bin/runner-controller.js', ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
   return loaded;
 }

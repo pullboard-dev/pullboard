@@ -1,11 +1,12 @@
 /** The pipeline stage an item is in, derived once for show, list, the board read and status [C7]. */
+import { handoffRecords } from "../shell/submit-handoff-read.js";
 
 /** Stage names in pipeline order; status counts print them in this order. */
 export const ITEM_STAGES = ['open', 'building', 'in the gate', 'back with builder', 'in review', 'accepted', 'landed', 'withdrawn'];
 
 /**
- * The stage of one stored item row, from its status and the latest submit hand-off (the `submit_handoff:<id>` board_meta
- * value, parsed or as text) and whether its commit reached main.
+ * The stage of one stored item row, from its status and the latest submit hand-off (the record on the item's gate job,
+ * parsed or as text) and whether its commit reached main.
  * A claim whose lease lapsed reads as open unless its own gate is queued or running, as the board's other readers do.
  * Why one helper: a claim stays 'claimed' from claim through the whole gate queue and a red gate, so the raw status hid
  * where the work sat; every reader now names the stage from this one function.
@@ -41,10 +42,10 @@ export function itemStage(item, handoff, landed, at) {
 export function stageCounts(board) {
   const counts = Object.fromEntries(ITEM_STAGES.map(stage => [stage, 0]));
   const at = board.clock.now().toISOString();
-  const rows = board.db.prepare(`SELECT item.*, handoff.meta_value AS handoff_value,
+  const records = handoffRecords(board.db);
+  const rows = board.db.prepare(`SELECT item.*,
       EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
-    FROM item LEFT JOIN board_meta handoff ON handoff.meta_key='submit_handoff:' || item.item_id
-    WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)`).all();
-  for (const row of rows) counts[itemStage(row, row.handoff_value, Boolean(row.landed), at)]++;
+    FROM item WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)`).all();
+  for (const row of rows) counts[itemStage(row, records.get(row.item_id) ?? null, Boolean(row.landed), at)]++;
   return counts;
 }
