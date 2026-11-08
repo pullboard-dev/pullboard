@@ -36,7 +36,7 @@ function fakeSsh(directory, runnerHome, log) {
   return path;
 }
 
-test('clause 1: a claimed item folder is created on the registered runner over ssh; git and the pre-commit hook run there and the branch returns to the coordinator with no coordinator worktree', async t => {
+test('clause 1: a claimed item folder is created on the registered runner over ssh; git and the pre-commit hook run there and the branch returns to the coordinator with no coordinator worktree [C7]', async t => {
   const coordinator = temporaryRepository(t, 'pullboard-hosted-coordinator-');
   const scratch = temporaryDirectory('pullboard-hosted-runner-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -80,7 +80,7 @@ test('clause 1: a claimed item folder is created on the registered runner over s
   assert.ok(hosts.every(host => host === 'runner-a'), 'every folder, git and hook step went over ssh to the runner');
 });
 
-test('a runner-hosted folder refuses an unregistered host, a non-item id and a ref that leaves the item branch', async () => {
+test('a runner-hosted folder refuses an unregistered host, a non-item id and a ref that leaves the item branch [C7]', async () => {
   assert.equal(hostedItemFolderPath({ host: 'runner-a' }, 7), '.pullboard-runner/builders/item-7');
   assert.throws(() => hostedItemFolderPath({ host: 'bad host' }, 7), /registered runner host/u);
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a' }, '../7'), /item number/u);
