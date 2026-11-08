@@ -45,33 +45,30 @@ export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
 ]));
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
+import { CONVEYOR_RETURN_ENGINE } from "../../../../src/conveyor-return-engine.js";
 
-const PREFIX = 'submit_handoff:';
 const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const JOB = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 
-/** Save within the caller's short native transaction; no filesystem or process work runs here. */
-function save(board, id, value) {
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(PREFIX + id, JSON.stringify(value));
-}
-
 /**
- * Mirror a saved hand-off into the job tables through the optional `shadowJob` port, never changing the hand-off.
- * Why: the durable gate proves its job rows beside today's records first; a board without the tables or the port is unaffected [C7].
+ * Save a hand-off onto its gate job through the jobs cell's `shadowJob` port, within the caller's short native
+ * transaction: the queue creates the gate job and every state change is a step of it. No filesystem or process work
+ * runs here.
+ * Why: the job row is the one place the hand-off record lives (#3476), so a board opened without the jobs cell's
+ * port cannot record a hand-off at all, rather than keep a copy no reader sees [C7].
  */
-function shadow(board, id, job) {
-  try { board.enginePorts?.shadowJob?.(board.db, id, job, Date.parse(now(board))); }
-  catch { /* A shadow row is an observation: its failure must never fail the hand-off it mirrors. */ }
+function save(board, id, job) {
+  const write = board.enginePorts?.shadowJob;
+  if (typeof write !== 'function') throw new Refused('NO_POLICY', 'Supply the jobs cell port shadowJob before recording a submit hand-off.');
+  write(board.db, id, job, { now: Date.parse(now(board)) });
 }
 
 /** Keep private job identifiers and refusal text out of the public native event payload. */
 function record(board, id, job) {
   logEvent(board, job.agentId, 'submit-handoff', id, { state: job.state, commit: job.commit });
   save(board, id, job);
-  shadow(board, id, job);
   return structuredClone(job);
 }
 
@@ -222,7 +219,10 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
     const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;
-    if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+    const toBoard = options.returnToBoard === true && (board.executionEngineVersion ?? ENGINE_VERSION) >= CONVEYOR_RETURN_ENGINE;
+    if (state === 'red' && toBoard && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+      returnToBoard(board, id, job, result.error);
+    } else if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       returnToBuilder(board, id, job, result.error);
     } else if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       const reservation = reopenFirstRefusalMinutes > 0
@@ -262,12 +262,28 @@ function returnToBuilder(board, id, job, error) {
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
 }
 
+/**
+ * Give a red or refused queued item back to the board: release the builder's claim and record the return with no
+ * builder first refusal, so next offers it to any free seat of its lane and route.
+ * Why: work belongs to the board, not to an agent; a red sat claimed by a seat whose agent was gone until its
+ * two-hour lease lapsed, and the lapse then reserved it for that same seat (#3541).
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {any} job the queued job whose gate was refused
+ * @param {{ code: string }} error the retained refusal
+ */
+function returnToBoard(board, id, job, error) {
+  release(board, id, job.agentId, `the queued gate was refused (${error.code}); returned to the board for any free seat`, undefined, 'OTHER');
+  logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, returnedToBoard: true });
+  insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it went back to the board for any free seat. pullboard show ${id} prints the refusal.`, lanes: [] });
+}
+
 /** End a crashed incarnation before atomically deriving a bounded successor from its immutable candidate [C7,V4]. */
 function endDeadHandoff(board, id, item, job, error, retryJob, limit = 3) {
   if (retryJob !== undefined && (!JOB.test(retryJob) || retryJob === job.id)) throw new Refused('BAD_SUBMIT_HANDOFF', 'a recovery needs a fresh job identity');
+  // The ended record stays on its own job's steps, where endedSubmitHandoff reads it after the successor takes over.
   const ended = record(board, id, { ...job, state: 'infrastructure', error: { ...error }, completedAt: now(board) });
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run('submit_handoff_ended:' + job.id, JSON.stringify(ended));
   const retries = job.recoveryRetries ?? 0;
   if (!retryJob || retries >= limit || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
@@ -297,8 +313,7 @@ function retryStoppedHandoff(board, id, job, retryJob) {
     || (job.infrastructureRetries ?? 0) >= 2 || item.item_status !== 'claimed' || item.item_owner !== job.agentId
     || item.item_frozen_digest !== job.digest || !(item.item_lease_until > now(board))
     || board.enginePorts.itemPatchDigest(board, id, job.commit) !== job.companionDigest) return job;
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run('submit_handoff_ended:' + job.id, JSON.stringify(job));
+  // The stopped record is already the newest step of its own job, where endedSubmitHandoff reads it.
   const next = { ...job, id: retryJob, state: 'queued', at: now(board),
     infrastructureRetries: (job.infrastructureRetries ?? 0) + 1, retryOf: job.id,
     ...(typeof job.error?.reason === 'string' ? { requeuedFor: job.error.reason } : {}) };
