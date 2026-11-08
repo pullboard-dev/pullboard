@@ -262,6 +262,15 @@ function nextPick(ctx, board, values) {
   const coverPause = !held && reviewFamilyBuildPause(ctx.info, board, ctx.config, me);
   if (coverPause) return { reasons: [...(reasons ?? []), coverPause], idleReason: 'review-family' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
-  return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
+  return { claim: true, me, item, held, shared, reasons: [...(reasons ?? []), ...ownWaitingLines(board, items, me)], reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
+}
+
+/**
+ * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
+ * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
+ */
+function ownWaitingLines(board, items, me) {
+  return items.filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || pendingSubmitHandoff(board, entry)))
+    .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
 }
 
