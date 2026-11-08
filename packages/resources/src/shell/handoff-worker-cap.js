@@ -453,9 +453,25 @@ function resultWrittenAt(directory, since) {
   return null;
 }
 
-/** Signal a detached worker's whole process group, so its --execute child stops with it; a gone group is fine. */
-function signalWorker(worker, signal) {
-  try { process.kill(-worker.pid, signal); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+/**
+ * Signal a detached worker's whole process group, so its --execute child stops with it. A group that is gone (ESRCH) or
+ * that this dispatcher may not signal (EPERM, a pid since reused by another user's process) is logged and treated as no
+ * longer this dispatcher's worker; it is never thrown. Why: on 8 Nov a kill EPERM thrown from here ended the dispatcher
+ * twice (09:08Z and 09:16Z), each time followed by dead gates (#3727) [C7].
+ *
+ * @param {{ pid: number }} worker - The detached worker whose group is signalled.
+ * @param {string} signal - The signal to send.
+ * @param {{ kill?: (pid: number, signal: string) => void, entry?: { job?: string, foreign?: boolean } }} [options] - The kill call (tests pass a stand-in) and the running entry to mark.
+ * @returns {boolean} True when the signal was sent.
+ */
+export function signalWorker(worker, signal, { kill = process.kill, entry } = {}) {
+  try { kill(-worker.pid, signal); return true; }
+  catch (error) {
+    if (error?.code !== 'ESRCH' && error?.code !== 'EPERM') throw error;
+    if (entry) entry.foreign = true;
+    if (error.code === 'EPERM') logDispatcher(`signal ${signal} to the worker group of ${entry?.job ?? worker.pid} refused: ${error.code}; treated as not this dispatcher's worker`);
+    return false;
+  }
 }
 
 /**
@@ -465,9 +481,9 @@ function signalWorker(worker, signal) {
  */
 function boundAfterResult(entry, now, graceMs) {
   entry.resultAt ??= resultWrittenAt(entry.directory, entry.startedAt);
-  if (entry.resultAt === null || now - entry.resultAt < graceMs) return;
-  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM'); }
-  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL');
+  if (entry.foreign || entry.resultAt === null || now - entry.resultAt < graceMs) return;
+  if (!entry.stoppedAt) { entry.stoppedAt = now; signalWorker(entry.worker, 'SIGTERM', { entry }); }
+  else if (now - entry.stoppedAt >= HANDOFF_STOP_KILL_MS) signalWorker(entry.worker, 'SIGKILL', { entry });
 }
 
 /** Sweep finished handoff folders, sparing every job that waits or runs; a failed sweep never stops dispatch. */
