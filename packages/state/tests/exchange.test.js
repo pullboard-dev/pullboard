@@ -125,7 +125,7 @@ test('clause 1: import reports exactly the tables an export carried, with job an
     const withJob = exportBoard(source);
     assert.ok(withJob.tables.job.some((row) => row.job_id === 'job-1'), 'a board with a job row exports the job table');
     assert.deepEqual(importBoard(full, withJob).tables, Object.keys(withJob.tables));
-    assert.ok(importBoard === importBoard && exportBoard(full).tables.job.some((row) => row.job_id === 'job-1'));
+    assert.ok(exportBoard(full).tables.job.some((row) => row.job_id === 'job-1'));
     assert.deepEqual(exportBoard(full), withJob);
   } finally {
     store.closeBoard(source);
