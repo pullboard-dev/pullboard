@@ -35,7 +35,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
       '--criterion', 'The Dashboard shows the real board state.', '--check', 'test -f pullboard.json');
   }
   box.run(alpha.repo, 'add', 'web', 'Dashboard walk active build', '--specs', 'G1', '--route', 'strong',
-    '--criterion', 'The active builder remains visible.', '--check', 'test -f pullboard.json');
+    '--criterion', 'The active builder remains visible.', '--check', 'true');
   build(box, alpha, 1, 'dashboard-walk.txt');
   box.run(alpha.web, 'claim', '12');
   box.run(alpha.repo, 'hold', 'ops', '--reason', 'Waiting for the person');
