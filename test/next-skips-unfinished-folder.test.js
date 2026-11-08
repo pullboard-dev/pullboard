@@ -74,7 +74,7 @@ function unfinishedBoard() {
 test('clause 1: next for another seat names ITEM_FOLDER_UNFINISHED for the mid-merge item, leaves its folder untouched and offers the free item [B3,C7]', () => {
   const { box, a, b, claimer, folder, status } = unfinishedBoard();
   const next = as(box, 'session-b', () => box.run(claimer.root, 'next'));
-  const all = `${next.out}\n${next.err}`;
+  const all = `${next.out}\n${next.err}\nDEBUG ${box.git(box.repo, 'worktree', 'list')}\n${box.run(box.repo, 'show', a).out}\n${box.run(box.repo, 'list', 'web').out}`;
   assert.equal(next.code, 0, all);
   assert.match(next.out, new RegExp(`skipped #${a}: ITEM_FOLDER_UNFINISHED: item folder .*web-a-item-${a} for #${a} holds an unfinished merge`, 'u'), all);
   assert.match(next.out, new RegExp(`claimed #${b}:`, 'u'), all);
