@@ -28,6 +28,7 @@ import {
   writeTestTiers,
 } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
+import { namedProofTests } from '../apps/cli/src/shell/cli/submit.js';
 import { executionServices } from './gate-execution-fixture.js';
 
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];
@@ -159,4 +160,23 @@ test('a sealed skip must cite a receipt its current seal holds [C7,CD44]', t => 
   const plan = selectTestTiers(root, { base: first, commit: head });
   const swapped = { ...plan, skipped: plan.skipped.map(row => ({ ...row, receipt: 'receipt-base' })) };
   assert.throws(() => requireSealedSkips(root, swapped), { code: 'SEAL_STALE', message: /packages\/alone/u });
+});
+
+test('clause 1: the real gate-submit path runs a test file the bar names in a sealed package the change never reaches [C7,V4]', async t => {
+  const { root, first } = fixture(t);
+  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
+  const ALONE_TEST = 'packages/alone/tests/alone.test.js';
+  const config = { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] };
+  const sealed = submitGatePlan(root, config, { base: first });
+  assert.ok(sealed.testTiers.skipped.some(row => row.package === 'packages/alone') && !sealed.proofFiles.includes(ALONE_TEST),
+    'sealing alone skips the named file');
+  const item = { item_frozen: JSON.stringify({ criterion: `1. The alone package still loads, proved by ${ALONE_TEST} [test].` }),
+    item_brief: 'Files: packages/base\nTest:\n- test/journey.test.js\n- test/missing.test.js' };
+  const crossRunTests = namedProofTests(root, item, head, { runner: config.affectedTests });
+  assert.deepEqual(crossRunTests, [ALONE_TEST, 'test/journey.test.js'], 'criterion and brief files that exist at the commit');
+  const plan = submitGatePlan(root, config, { base: first, crossRunTests });
+  assert.ok(plan.proofFiles.includes(ALONE_TEST) && plan.proofFiles.includes('test/journey.test.js'), `the gate runs both: ${plan.proofFiles}`);
+  const proof = await runSubmitGate(root, config, { base: first, check: plan.check, plan, crossRunTests, staticChecked: true, executionServices });
+  assert.ok(proof.files.includes(ALONE_TEST) && proof.files.includes('test/journey.test.js'), `the recorded proof names both files: ${JSON.stringify(proof.files)}`);
+  assert.deepEqual(namedProofTests(root, item, head, { runner: '' }), [], 'without a cross-run runner no bar file is added');
 });

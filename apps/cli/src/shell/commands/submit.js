@@ -106,7 +106,6 @@ import { requireSubmitComposition } from '../../../../../packages/items/index.js
 import { composeAfterProof } from '../../../../../packages/items/index.js';
 import { trunkMoveFact } from '../../../../../packages/items/index.js';
 import { judgeTrunkMove } from '../../../../../packages/verify/index.js';
-import { frozenRowGates } from '../../../../../packages/verify/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { explicitCheckFiles } from '../../../../../packages/gate/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -204,6 +203,7 @@ import {
   context,
   filesSince,
   gateTestFiles,
+  namedProofTests,
   freezer,
   idArg,
   ordered,
@@ -573,8 +573,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
-  // Each cited spec row's gate test runs with the proof, so its frozen clause has a named run to cite [V4].
-  crossRun.tests = [...new Set([...crossRun.tests, ...frozenRowGates(held).map(row => row.file).filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
+  // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
+  crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests, runner: submitConfig.affectedTests });
   const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
