@@ -466,7 +466,6 @@ Automatic milestone placement records its chosen release, order position, rule a
 | Kind | Actor | Detail fields |
 | --- | --- | --- |
 | `join` | joining agent | `lane`, `route`, optional `grantEngine`, optional `family` (the family the registration named, recorded from the family-declaration engine) |
-| `family` | agent | `family` |
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
