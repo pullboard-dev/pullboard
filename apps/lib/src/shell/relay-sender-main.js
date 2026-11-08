@@ -60,4 +60,16 @@ async function serve(root, file, io) {
   return !outboxWaiting(file);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === SENDER_WORKER) await runRelaySender({ serve });
+/**
+ * Start the sender loop without a top-level await. Why: serve() imports src/cli.js, whose graph reaches
+ * apps/lib/index.js and so this module; while this module's evaluation awaited the loop, that import waited on it
+ * forever and the sender hung after "serving" (#3204).
+ */
+function startSender() {
+  runRelaySender({ serve }).catch((error) => {
+    process.exitCode = 1;
+    process.stderr.write(`relay sender stopped: ${error.message}\n`);
+  });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === SENDER_WORKER) startSender();

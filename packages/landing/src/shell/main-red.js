@@ -262,7 +262,10 @@ function comparisonObservationMatches(receipt, environment, browser) {
     && typeof browser === 'boolean' && receipt.runner.capabilities.browser === browser;
 }
 
-/** Select only registered peers with a fresh physical runtime and browser observation matching the red executor. */
+/**
+ * Select the red run host, plus only registered peers with a fresh physical runtime and browser observation matching
+ * the red executor. A peer whose recorded environment differs is never chosen; the red host itself is the fallback.
+ */
 export function comparisonExecutor(root, execution) {
   const original = requiredExecutorOf(execution?.executor);
   if (original?.kind !== 'ssh') return { requiredExecutor: original, browser: null };
@@ -280,14 +283,18 @@ export function comparisonExecutor(root, execution) {
   const red = observed.get(original.host)?.receipt;
   const browser = red?.runner?.capabilities?.browser;
   const redMatches = comparisonObservationMatches(red, execution.environment, browser);
-  const hosts = registered.filter(runner => {
-    if (runner.host === original.host) return !red || redMatches && (runner.browser > 0) === browser;
+  // The registered red run host always qualifies and stays first: it just ran the red, so when no peer receipt matches
+  // the comparison runs there rather than refusing BAD_RUNNER_POOL [C7,#3670].
+  if (!registered.some(runner => runner.host === original.host)) {
+    throw new Refused('BAD_RUNNER_POOL', `the red run host ${original.host} is not a registered runner; register it and retry`);
+  }
+  const peers = registered.filter(runner => {
+    if (runner.host === original.host) return false;
     const peer = observed.get(runner.host)?.receipt;
     return redMatches && comparisonObservationMatches(peer, execution.environment, browser) && (runner.browser > 0) === browser;
   }).map(runner => runner.host);
-  if (!hosts.length) throw new Refused('BAD_RUNNER_POOL', 'no registered runner has the candidate comparison environment; record a matching runner and retry');
-  const host = hosts.includes(original.host) ? original.host : hosts[0];
-  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...hosts.filter(value => value !== host)] }, browser: redMatches ? browser : null };
+  const host = original.host;
+  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...peers] }, browser: redMatches ? browser : null };
 }
 
 /** Companions cannot inherit a red whose complete committed input closure they changed [V4,B3]. */

@@ -53,9 +53,10 @@ export default async function* report(events) {
 
 /**
  * Submit an item citing G1, whose row gate is a committed test the item does not touch, and read its packet.
- * `gateCases` are the gate file's test lines: a passing case by default.
+ * `gateCases` are the gate file's test lines: a passing case by default. `criterion` and `brief` are the item's bar, and
+ * `files(dir)` returns more committed files, keyed by repo path, that the item's change never touches.
  */
-function submittedItem(gateCases = ["test('the row gate holds', () => {});"]) {
+function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { criterion = '1. The page shows a greeting [test].', brief = null, files = () => ({}) } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   box.env.PULLBOARD_MODEL = 'fixture-model';
@@ -77,13 +78,14 @@ function submittedItem(gateCases = ["test('the row gate holds', () => {});"]) {
     ...gateCases,
     '',
   ].join('\n'));
+  for (const [file, source] of Object.entries(files(box.dir))) writeFileSync(join(box.repo, file), source);
   outcomeReporter(box);
   commit(box, box.repo, 'chore: seed the spec-row gate fixture [G1]');
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   ok(box, builder, 'join', 'web');
   const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1', '--route', 'mid',
-    '--criterion', '1. The page shows a greeting [test].', '--check', `${RUN} web/packet.test.js`, '--json').out);
+    '--criterion', criterion, ...(brief ? ['--brief', brief] : []), '--check', `${RUN} web/packet.test.js`, '--json').out);
   const id = added.item.item_id;
   ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name}`;\n");
@@ -100,7 +102,7 @@ function submittedItem(gateCases = ["test('the row gate holds', () => {});"]) {
   const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
-  return { packet, ranRowGate: existsSync(marker) };
+  return { packet, ranRowGate: existsSync(marker), dir: box.dir };
 }
 
 test('clause 1: a submit for an item citing a spec row runs that row\'s gate test file in its recorded proof [V4,C7]', { timeout: 240_000 }, async (t) => {
@@ -127,4 +129,37 @@ test('clause 2: a row gate run with only skipped cases, or none, leaves the spec
       assert.equal(row.gap, 'no recorded run');
     });
   }
+});
+
+/** A committed test file the item's change never imports, which appends `name` to a marker file when it runs. */
+function markedTest(dir, name, caseName) {
+  return [
+    "import { appendFileSync } from 'node:fs';",
+    "import { test } from 'node:test';",
+    `appendFileSync(${JSON.stringify(join(dir, 'named-ran.log'))}, ${JSON.stringify(`${name}\n`)});`,
+    `test(${JSON.stringify(caseName)}, () => {});`,
+    '',
+  ].join('\n');
+}
+
+/** How the packet cites a run of the file a clause names: the file, or (#3696) the executed cases in it. */
+const NAMED_FILE = ['clause names the file', 'case in the file the clause names', 'test cites the clause'];
+
+test('clause 1: submit runs the test file the frozen criterion names and the one the brief Test: list names, though the change never imports them [C7,V4]', { timeout: 240_000 }, async (t) => {
+  const { packet, dir } = submittedItem(undefined, {
+    criterion: '1. The page shows a greeting, proved by web/named.test.js [test]. 2. The visitor sees a farewell [test].',
+    brief: 'Files: web/greet.js\nTest:\n- web/brief.test.js',
+    files: dir => ({ 'web/named.test.js': markedTest(dir, 'named', 'the named file holds'), 'web/brief.test.js': markedTest(dir, 'brief', 'the listed file holds') }),
+  });
+  const ran = readFileSync(join(dir, 'named-ran.log'), 'utf8').split('\n').filter(Boolean).sort();
+  assert.deepEqual([...new Set(ran)], ['brief', 'named'], 'the gate ran both bar-named files, which the affected-test selection never reaches');
+
+  await t.test('clause 2: show --review lists each [test] clause with its named file outcome from the exact-head gate receipt, no gap [C7,V4]', () => {
+    const [first, second] = packet.clauses;
+    assert.ok(first.runs.some(run => run.file === 'web/named.test.js' && run.result === 'pass' && run.receipt && NAMED_FILE.includes(run.why)),
+      `clause 1 cites its named file's run: ${JSON.stringify(first)}`);
+    assert.ok(second.runs.some(run => run.file === 'web/brief.test.js' && run.result === 'pass' && run.receipt && run.why === "the brief's Test: list names the file"),
+      `clause 2 cites the brief's Test: file run: ${JSON.stringify(second)}`);
+    assert.deepEqual(packet.clauses.filter(clause => clause.gap).map(clause => [clause.n, clause.gap]), [], 'no clause is left with no recorded run');
+  });
 });

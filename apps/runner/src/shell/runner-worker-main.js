@@ -13,6 +13,7 @@ import { reportCleanupTimeout } from './runner-worker-cleanup.js';
 import { outputSink } from './runner-worker-command.js';
 import { runCommand } from './runner-worker-command.js';
 import { runPrivateCheck } from './runner-worker-command.js';
+import { runHandoffJob } from './runner-worker-handoff.js';
 import { acquireResourceApi } from './runner-worker-environment.js';
 import { loadResourceApi } from './runner-worker-environment.js';
 import { registeredCapacity } from './runner-worker-environment.js';
@@ -181,7 +182,8 @@ export async function main(S) {
     if (!analysisArtifactPath) delete commandEnv.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT;
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');
-    final = { ...(spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
+    // A ticket runs its hand-off stages here, on the runner; any other job runs its one command.
+    final = { ...(spec.handoff ? await runHandoffJob(spec, root, runnerRoot) : spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
     if (spec.testResults) final.testResults = packTestResults(selectedTestResults(resultStore, spec.testResults.inputKeys));
     if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
   } catch (error) {

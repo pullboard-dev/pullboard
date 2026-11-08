@@ -85,12 +85,23 @@ export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_0
  *
  * @param {string} root
  * @param {{ err?: (line: string) => void }} io
- * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any }} relayPorts
+ * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any, openBoardForRead?: (file: string) => any }} relayPorts
  */
 export async function attestBeforeCommand(root, io, relayPorts) {
   const openBoard = personBoardOpener(relayPorts);
+  const file = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
+  // Look first through a read-only connection: most commands need no vouching, and only pinning writes (#3206).
+  if (typeof relayPorts.openBoardForRead === 'function') {
+    let seen = null;
+    try { seen = relayPorts.openBoardForRead(file); } catch { /* fall through to the writer, which reports its own refusal */ }
+    if (seen) {
+      let needed;
+      try { needed = authorityNeeded(seen) && !authorityAttested(seen); } finally { store.closeBoard(seen); }
+      if (!needed) return;
+    }
+  }
   let board;
-  try { board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
+  try { board = openBoard(file); }
   catch { return; } // No board here: nothing to vouch for, and the command reports its own refusal.
   // Budget: ceiling for one small read before a command; a slow relay leaves passkey checks failing closed instead.
   try { if (authorityNeeded(board) && !authorityAttested(board)) await pinRelayAuthority(root, board, io, { ...relayPorts, timeoutMs: 2_000 }); }
