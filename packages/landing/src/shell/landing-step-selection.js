@@ -2,6 +2,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../items/index.js';
 import { landingChangedFiles } from '../core/land-collisions.js';
+import { publishRedTouched } from './publish-pause.js';
 import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
 import { landingBatchSize } from '../core/landing-batch-size.js';
@@ -61,7 +62,7 @@ export function dependencySatisfied(dependency) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [] } = {}) {
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [] } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
@@ -139,6 +140,14 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     if (stacked) {
       blocked.push({ id: item.item_id, code: 'STACKED_UNVERIFIED', stacked: stacked.item_id });
       continue;
+    }
+    if (redFiles.length) {
+      // A red publish holds only the item whose diff touches a file the red names; the rest still land [C7].
+      const hit = publishRedTouched(redFiles, landingChangedFiles(root, base, item.item_landing_commit));
+      if (hit.length) {
+        blocked.push({ id: item.item_id, code: 'PUBLISH_RED_FILE', files: hit, message: `held: its diff touches ${hit.join(', ')}, which the red publish names` });
+        continue;
+      }
     }
     if (ready.length < maximum) {
       const files = collisionFree ? landingChangedFiles(root, base, item.item_landing_commit) : [];
