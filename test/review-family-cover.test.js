@@ -123,8 +123,8 @@ async function conflictFixture(t, { fresh, conflicted = 1 }) {
   const green = (title, first) => {
     const id = box.add(title, { route: 'strong', brief: 'Files: web/ready.js\nTest: the review stays available.' });
     box.claim(id);
-    // Synthetic history: the independent seat once held this item's claim, so item-authors refuses it as a reviewer.
-    if (first) store.logEvent(box.board, first.id, 'claim', id, { fixture: 'earlier claim by the independent seat' });
+    // Synthetic history: the independent seat once submitted this item at a real commit, so item-authors refuses it as a reviewer.
+    if (first) store.logEvent(box.board, first.id, 'submit', id, { commit: head, gateGreen: false, fixture: 'earlier submission by the independent seat' });
     submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head, tree, gateGreen: true });
     return id;
   };
