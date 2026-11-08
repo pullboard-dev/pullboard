@@ -532,13 +532,16 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   );
   if (config.protect.secrets) {
     let diff;
+    const resolution = isMain ? null : trunkMergeResolutionPaths(root, preMergeHook);
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      diff = resolution
+        ? resolution.map((chunk) => git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...chunk], { maxBuffer: MAX_SECRET_DIFF_BYTES })).join('')
+        : git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
     }
-    if (readCache) readCache.diff = diff;
+    if (readCache && !resolution) readCache.diff = diff;
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
@@ -839,6 +842,28 @@ function mainMergeHeads(root, preMergeHook) {
   return merges.every((merge) => tryGit(root, ['merge-base', '--is-ancestor', merge, main]).status === 0)
     ? merges
     : null;
+}
+
+/**
+ * For a merge whose only other parent is the trunk, the staged paths whose content differs from both parents, in
+ * chunks of pathspecs: the resolution. Trunk content was scanned when it landed on main, so the secret scan reads
+ * only these paths. Null for any other commit, which is scanned in full. Why: a long-lived branch merging main
+ * would otherwise exceed the scan limit on trunk content alone (#3762).
+ *
+ * @param {string} root
+ * @param {boolean} preMergeHook
+ * @returns {string[][] | null}
+ */
+function trunkMergeResolutionPaths(root, preMergeHook) {
+  const heads = mainMergeHeads(root, preMergeHook);
+  if (!heads || heads.length !== 1) return null;
+  const names = (base) => git(root, ['diff', '--cached', '--name-only', '-z', '--no-renames', base, '--'], { maxBuffer: MAX_SECRET_DIFF_BYTES })
+    .split('\0').filter(Boolean);
+  const fromTrunk = new Set(names(heads[0]));
+  const both = names('HEAD').filter((path) => fromTrunk.has(path));
+  const chunks = [];
+  for (let index = 0; index < both.length; index += 200) chunks.push(both.slice(index, index + 200));
+  return chunks;
 }
 
 /** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */
