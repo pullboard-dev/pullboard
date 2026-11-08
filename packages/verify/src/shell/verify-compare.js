@@ -5,10 +5,47 @@ import { testOutcomeFields } from '../../core.js';
 import { retryReviewCommit } from '../core/verdict-retry.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
+/** A comparison whose worker died is started again this many times before it is recorded unavailable [C7]. */
+export const COMPARISON_RESTART_LIMIT = 3;
+
+/** Read one small JSON file, or null when it is absent or half-written. */
+function readJson(file) {
+  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+/** Whether a process still exists; a process owned by another user still counts as alive. */
+function processAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
+/**
+ * Decide what a pending comparison needs: nothing while a worker lives, a restart from its recorded request when every
+ * worker for this exact item, source and digest is dead, or an unavailable record after the restart limit.
+ * Why: a worker killed in a stall left the comparison pending forever and held the item out of review (#3086) [C7].
+ *
+ * @param {{ commonDir: string, item: object, thread: object[], alive?: (pid: number) => boolean }} input
+ * @returns {{ action: 'none' | 'restart' | 'unavailable', error?: string }}
+ */
+export function comparisonRestartPlan({ commonDir, item, thread, alive = processAlive }) {
+  const recorded = recordedVerificationComparison(thread, item);
+  if (recorded?.status !== 'pending') return { action: 'none' };
+  const base = join(commonDir, 'pullboard', 'review-comparisons');
+  let names = [];
+  try { names = readdirSync(base); } catch { return { action: 'none' }; }
+  const jobs = names.map(name => ({ request: readJson(join(base, name, 'request.json')), worker: readJson(join(base, name, 'worker.json')) }))
+    .filter(({ request }) => request && request.item === item.item_id && request.source === item.item_commit && request.digest === item.item_frozen_digest);
+  // A job with no worker record is still being launched; a worker with a result file has already finished.
+  if (!jobs.length || jobs.some(({ worker }) => !worker || alive(worker.pid))) return { action: 'none' };
+  const restarts = jobs.length - 1;
+  if (restarts >= COMPARISON_RESTART_LIMIT) return { action: 'unavailable', error: `its worker died ${jobs.length} times, restarted ${restarts}` };
+  return { action: 'restart' };
+}
 
 /** Read well-formed observation records only for the current submitted source and frozen bar. */
 export function recordedVerificationComparison(thread, item) {

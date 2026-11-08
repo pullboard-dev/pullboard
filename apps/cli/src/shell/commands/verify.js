@@ -1,5 +1,6 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { toolsSnapshot } from '../submit-handoff.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
@@ -623,6 +624,20 @@ export async function startAutomaticComparison(ctx, id) {
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
       item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
+export async function reviveStalledComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const thread = withBoardRead(ctx, board => store.itemThread(board, id));
+  const plan = comparisonRestartPlan({ commonDir: ctx.info.commonDir, item, thread });
+  if (plan.action === 'unavailable') {
+    await recordComparison(ctx, item, { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest, error: plan.error });
+  } else if (plan.action === 'restart') {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+  }
 }
 
 /**

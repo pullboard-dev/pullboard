@@ -263,6 +263,7 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
+      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
       const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
         const record = store.returnedRecord(board, item.item_id);
