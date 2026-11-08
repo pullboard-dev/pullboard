@@ -1,4 +1,5 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
+import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runStaticRegistry } from './static-check-registry.js';
@@ -10,12 +11,14 @@ import { gitSpawnSync } from '../../../git/index.js';
  *
  * @param {string} root - Checkout root the files are read from.
  * @param {string[]} files - Root-relative changed or staged paths.
- * @param {{ staged?: boolean, only?: string[] | null }} [options] - `only` runs just the registered checks with these names.
+ * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[] }} [options] - `only` runs
+ *   just the registered checks with these names; `also` adds checks the caller owns, run on the same context after the registry.
  * @returns {string[]} One `path:line: message` per failure; empty when clean.
  */
-export function changedStaticFailures(root, files, { staged = false, only = null } = {}) {
+export function changedStaticFailures(root, files, { staged = false, only = null, also = [] } = {}) {
   const cache = new Map();
   const accepted = new Map();
+  let indexed = null;
   /** Existing debt is read from accepted main, never the candidate working tree or a baseline file. */
   const previous = file => {
     if (!accepted.has(file)) {
@@ -32,11 +35,8 @@ export function changedStaticFailures(root, files, { staged = false, only = null
   /** Read each exact candidate source once, from the index for a commit hook. */
   const text = file => {
     if (!cache.has(file)) {
-      if (staged) {
-        const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-        if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
-        cache.set(file, result.stdout);
-      } else cache.set(file, readFileSync(join(root, file), 'utf8'));
+      if (staged) cache.set(file, (indexed ??= indexReader(root))(file));
+      else cache.set(file, readFileSync(join(root, file), 'utf8'));
     }
     return cache.get(file);
   };
@@ -51,13 +51,44 @@ export function changedStaticFailures(root, files, { staged = false, only = null
     engineSources = [...sources, ...extra.map(read)];
   }
   const context = { root, files, staged, text, previous, read, sources, engineSources };
-  return only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
+  const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
+  return [...registry, ...also.flatMap(check => check.run(context))];
 }
 
-/** Judge the actual index whenever the explicit staged checker is invoked. */
-export function stagedHookFailures(root) {
+/**
+ * A reader of the exact index bytes that spends two Git calls in all: a file whose working copy matches its index entry
+ * is read from disk, and only a file that differs, is flagged assume-unchanged or skip-worktree, or is not a regular file
+ * is read with `git show`. Why: the whole-tree checks (sync-spawn-in-leases) read hundreds of files, and one Git process
+ * per file made the commit hook take 25 s on a loaded machine; reading the index this way gives the same bytes [C7].
+ *
+ * @param {string} root - Checkout root.
+ * @returns {(file: string) => string} Reads one root-relative path as staged; throws when the index has no such file.
+ */
+function indexReader(root) {
+  const listed = gitSpawnSync(['ls-files', '-z', '-v'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const dirty = gitSpawnSync(['diff', '--no-ext-diff', '--no-renames', '--name-only', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (listed.status !== 0 || dirty.status !== 0) throw new Error('cannot list the index');
+  const differs = new Set(dirty.stdout.split('\0').filter(Boolean));
+  const plain = new Set(listed.stdout.split('\0').filter(row => row.startsWith('H ')).map(row => row.slice(2)).filter(file => !differs.has(file)));
+  return file => {
+    if (plain.has(file) && lstatSync(join(root, file), { throwIfNoEntry: false })?.isFile()) return readFileSync(join(root, file), 'utf8');
+    const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
+    return result.stdout;
+  };
+}
+
+/**
+ * Judge the actual index whenever the explicit staged checker is invoked.
+ *
+ * @param {string} root - Checkout root.
+ * @param {{ also?: { name: string, run: (context: object) => string[] }[] }} [options] - Extra staged checks, such as the
+ *   test fixture and test-name checks the repository hook adds from bin/checks/changed-static.js.
+ * @returns {string[]}
+ */
+export function stagedHookFailures(root, { also = [] } = {}) {
   const merging = gitSpawnSync(['rev-parse', '--verify', 'MERGE_HEAD'], { cwd: root, stdio: 'ignore' }).status === 0;
   const diff = gitSpawnSync(['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])], { cwd: root, encoding: 'utf8' });
   if (diff.status !== 0) throw new Error('cannot enumerate staged files');
-  return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true });
+  return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true, also });
 }
