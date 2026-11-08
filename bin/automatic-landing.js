@@ -10,6 +10,7 @@ import { resumeAutomaticLanding } from '../packages/landing/index.js';
 import { scheduleAutomaticLanding } from '../packages/landing/index.js';
 import { automaticLandingDirectory } from '../packages/landing/index.js';
 import { retryableLandingRefusal, HELD_TRUNK_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff, testBlob } from '../packages/landing/index.js';
+import { defectStillHolds } from '../packages/landing/index.js';
 import { mainCheckout, invalidateGitFacts, tryGit } from '../packages/git/index.js';
 import { stopLandingWaits } from '../packages/landing/index.js';
 import { listItems } from '../packages/store/index.js';
@@ -85,9 +86,11 @@ function landingObservation(root, ioOptions = {}) {
 
 /**
  * What a backed-off landing watches: each verified, unlanded item with its commit, and the trunk blob of every test file
- * that holds the trunk (a landing test defect or a flaky batch on the trunk branch).
- * Why: an accept, a green gate that verifies an item, or a commit correcting the held test is exactly what can change a
- * held or empty landing's outcome, so each one ends the back-off at once [C7].
+ * that holds the trunk (a landing test defect whose repair item is still open, claimed or submitted, or a flaky batch on
+ * the trunk branch).
+ * Why: an accept, a green gate that verifies an item, a commit correcting the held test, or withdrawing or landing the
+ * defect's repair item is exactly what can change a held or empty landing's outcome, so each one ends the back-off at
+ * once: a defect that stops holding drops its file from the marks, which the wake reads as a held-file change [C7,#3761].
  *
  * @param {string} root - The repository's main checkout.
  * @param {{ schemaDiagnostics?: Set<string> }} [ioOptions]
@@ -103,7 +106,7 @@ export function landingWakeMarks(root, ioOptions = {}) {
     const verified = listItems(board, { all: true })
       .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort();
     const files = new Set([
-      ...landingTestDefects(board).filter(defect => defect.branch === trunk.branch).map(defect => defect.test),
+      ...landingTestDefects(board).filter(defect => defect.branch === trunk.branch && defectStillHolds(board, defect)).map(defect => defect.test),
       ...landingBatches(board).filter(batch => batch.state === 'flaky' && batch.branch === trunk.branch).flatMap(batch => (batch.flakes ?? []).map(flake => flake.test)),
     ]);
     const held = Object.fromEntries([...files].sort().map(file => [file, testBlob(root, trunk.commit, file)]));
@@ -191,7 +194,11 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   try { await land(context(wakeIo(root))); }
   catch (error) {
     if (error.code === 'LAND_CODE_STALE') return handover();
-    if (HELD_TRUNK_REFUSALS.has(error.code)) held = error.code;
+    if (HELD_TRUNK_REFUSALS.has(error.code)) {
+      held = error.code;
+      // The held refusal names what holds the trunk, so a stale hold reads back from worker.log (#3761).
+      console.log(new Date().toISOString(), `landing held: ${error.message}`);
+    }
     else if (retryableLandingRefusal(error.code)) refused = true;
     else throw error;
   }
@@ -239,6 +246,10 @@ if (!isAbsolute(root ?? '') || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u
   throw new Error('automatic landing requires its registered root, token and wake time');
 }
 for (const key of [...AGENT_SESSION_IDS, ...AGENT_SHELL_MARKERS, 'PULLBOARD_AGENT', 'PULLBOARD_AGENT_ID', 'PULLBOARD_PARENT_SESSION']) delete process.env[key];
-await resumeAutomaticLanding(root, token, dueAt, runLandingWake, { marks: landingWakeMarks });
+await resumeAutomaticLanding(root, token, dueAt, async (wakeRoot, wake, adopted) => {
+  // The replacement records which dead worker's batch it took and how long that batch sat unattended (#2912).
+  if (adopted) process.env.PULLBOARD_LANDING_ADOPTION = JSON.stringify(adopted);
+  return runLandingWake(wakeRoot, wake);
+}, { marks: landingWakeMarks });
 
 }

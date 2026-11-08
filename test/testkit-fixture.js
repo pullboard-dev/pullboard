@@ -5,6 +5,11 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeBoard, openBoard } from '../apps/lib/index.js';
 
+/** The model name fixture seats join with when a test passes `--model` itself. */
+export const FIXTURE_MODEL = 'Fixture Model';
+/** A second model name, so a later seat must register against the earlier one. */
+export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
+
 /** Normalize the two child-process result shapes used by CLI-backed fixtures. */
 function fixtureResult(result) {
   return { code: result.code ?? result.status, out: result.out ?? result.stdout ?? '', err: result.err ?? result.stderr ?? '' };

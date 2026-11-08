@@ -500,6 +500,16 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
     ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  if (ctx.precheck) {
+    // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
+    withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
+    // Placement and lane are cheap reads too; a full submit defers both until after the gate, so only the precheck raises them here.
+    requirePlannedSource(root, trunk.commit, commit, { deferUnplaced: true });
+    if (ownershipRefusal) throw ownershipRefusal;
+    if (ctx.json) ctx.io.result({ precheck: true, item: id, commit });
+    else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
+    return 0;
+  }
   const companion = await withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
@@ -571,7 +581,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true, ...submitTooling(root, commit) }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
     { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
@@ -704,7 +714,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const invariants = gate.submitInvariants?.length
     ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
   const scope = gate.testTiers ? testTierReport(gate.testTiers) : gate.deferred
-    ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
+    ? gate.deferredFiles ? `${invariants}${deferredSelectionNote(gate.deferredFiles)}`
+      : `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const registry = gate.registryGuards?.length
@@ -1220,7 +1231,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
 
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  let ctx = { ...context(io), submissionResult };
+  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
   const id = idArg(first);
   if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
@@ -1230,7 +1241,7 @@ export async function run(io, { first, values }) {
   const hostRunner = hostedSubmitRunner();
   if (hostRunner) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
-    ctx = { ...context(io), submissionResult };
+    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
