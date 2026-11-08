@@ -7,6 +7,7 @@ import { withBoard } from '../cli-context.js';
 import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../../packages/verify/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
@@ -21,6 +22,34 @@ import { primaryCheckoutRoot } from './worktree.js';
  */
 export function dirtyFiles(root) {
   return tryGit(root, ['status', '--porcelain', '--untracked-files=all']).stdout.split('\n').filter(Boolean).map((line) => line.slice(3));
+}
+
+/**
+ * The test files from `candidates` that the selected gate runs: all of them when no tier plan applies, otherwise only
+ * the plan's units, since journeys are deferred to the landing batch and nothing ticks a clause for a file never run [C7].
+ *
+ * @param {Iterable<string>} candidates
+ * @param {string[] | null} units the tier plan's units, or null when the repository has no tier plan
+ * @returns {Set<string>}
+ */
+export function selectedGateFiles(candidates, units) {
+  const allowed = units ? new Set(units) : null;
+  return new Set([...candidates].filter(file => /\.test\.js$/u.test(file) && (!allowed || allowed.has(file))));
+}
+
+/**
+ * The test files the gate will run for this item: test files committed since the claim plus the files its brief lists
+ * under "Test:" that exist at HEAD, kept to the gate's tier selection. A [test] clause naming one is ticked by the gate
+ * run, not by a builder fact [C7]. A selection that cannot be read names no file, so the clause stays unticked.
+ */
+export function gateTestFiles(root, item) {
+  const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
+  const listed = /(?:^|\n)Test:\s*\n?((?:\s*-?\s*\S+\.test\.js\s*\n?)+)/u.exec(item.item_brief ?? '')?.[1] ?? '';
+  const declared = listed.split('\n').map(line => line.replace(/^\s*-?\s*/u, '').trim()).filter(Boolean)
+    .filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
+  let units = null;
+  try { units = selectTestTiers(root, { base: item.item_claim_head ?? undefined, commit: 'HEAD' })?.units ?? null; } catch { return new Set(); }
+  return selectedGateFiles([...changed, ...declared], units);
 }
 
 /**
