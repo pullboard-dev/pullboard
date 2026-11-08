@@ -92,3 +92,4 @@ export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-bu
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/shell/accepted-cells-inventory.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/core/load-bearing.js";
 export { freeRunnerSlots } from "./src/shell/proof-shards.js";
+export { keepClaimsAlive } from "./src/shell/seat-keepalive.js";

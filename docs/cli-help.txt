@@ -390,7 +390,7 @@ Lifecycle, read from src/machine.js
 
 
 Additional commands
-  pullboard heartbeat                 record this seat's local session activity; no board move
+  pullboard heartbeat [--claims]      record this seat's local session activity; no board move; --claims keeps beating while the seat holds a claim or queued gate
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard seats                     current seat states and local 24-hour timing ledger
   pullboard stats disk [--prune] [--dry-run]  disk used under .git/pullboard per store; --prune ages out old raw logs and archives

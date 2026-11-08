@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 
 const OPTIONS = {
   criterion: { type: 'string' },
+  claims: { type: 'boolean' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
