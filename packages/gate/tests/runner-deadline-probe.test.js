@@ -37,9 +37,9 @@ import { setGateSlots } from ${url('config')};
 import { DatabaseSync } from 'node:sqlite';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// Declare the machine through the canonical settings writers: browser slots fall before gate slots may.
+// Declare the machine through the canonical settings writers: browser slots fall before gate slots may reach 0.
 if (${JSON.stringify(runners)}) addRunner({ host: ${JSON.stringify(RUNNER)}, slots: 1, browser: 1 });
-setBrowserSlots(0);
+if (${JSON.stringify(gateSlots)} === 0) setBrowserSlots(0);
 setGateSlots(${JSON.stringify(gateSlots)});
 setGateRunnersFirst(true);
 setGateRunnerWaitMs(100);
