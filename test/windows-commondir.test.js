@@ -78,3 +78,23 @@ test('clause 3: no raw commonDir === or !== comparison outside the canonical hel
   }
   assert.deepEqual(found, [], 'compare commonDir values with sameCommonDir() from the git front door');
 });
+
+test('clause 2: next reuses the existing seat when its checkout names the repository with the other slash spelling, so no second seat opens and the tour passes step 3 [C7]', async t => {
+  const dir = privateFixtureFiles('pb-wincommon2-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const run = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+  run('init', '-q', '-b', 'main');
+  run('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'x');
+  const real = repoInfo(dir);
+  const item = { item_status: 'open', item_lane: 'core', item_route: 'light', item_id: 1, item_parent_id: null };
+  const seat = { agent_id: 'a', agent_lane: 'core', agent_route: 'light', agent_path: real.root };
+  const store = { ROUTES: ['light'], listItems: () => [], agentById: () => seat, agentAt: () => seat };
+  let opened = 0;
+  // The invoking context read C:/x/.git (git rev-parse); the seat's checkout reads C:\x\.git (realpathSync.native).
+  const ctx = { info: { ...real, commonDir: 'C:/x/.git' }, io: {} };
+  const ports = { store, sessionDigest: () => 'd', openWorktree: async () => { opened += 1; }, repoInfoOf: () => ({ commonDir: 'C:\\x\\.git' }) };
+  const result = await laneSeatContext(ctx, {}, { id: 'a', route: 'light' }, item, [seat], () => ctx, ports);
+  assert.equal(opened, 0, 'no second seat is opened (no app-2)');
+  assert.equal(result.seat.created, false, 'the existing seat is reused, so the tour is not refused NOT_YOURS at step 3');
+  assert.equal(result.seat.agent, 'a');
+});
