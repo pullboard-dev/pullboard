@@ -138,7 +138,7 @@ export function fixtureHandoffPolicy(box, config) {
  * @param {object} policy - The pullboard.json fields to set over the project's current ones.
  * @returns {string} The board file inside the repository's .git.
  */
-export function fixtureProjectPolicy(box, policy) {
+export function fixtureCommittedPolicy(box, policy) {
   const file = join(box.repo, 'pullboard.json');
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...policy }, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');

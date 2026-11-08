@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { fixtureProjectPolicy } from './testkit-fixture.js';
+import { fixtureCommittedPolicy } from './testkit-fixture.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
 import { closePassedTestDefects } from '../packages/landing/src/shell/landing-step-selection.js';
@@ -35,7 +35,7 @@ function fixture(t) {
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const config = { ...helpers.CONFIG, gate: 'true', affectedTests: 'node --test', landing: { perItem: false, publish: 'separate', manualOverride: false } };
-  fixtureProjectPolicy(box, config);
+  fixtureCommittedPolicy(box, config);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, HELD), `import { test } from 'node:test';\ntest('${CASE}', () => {});\n`);
   commit(box, box.repo, 'chore: the board lands accepted items and a held test is committed');
