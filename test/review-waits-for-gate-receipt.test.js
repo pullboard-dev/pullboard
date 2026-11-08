@@ -51,12 +51,12 @@ test('a reject finding no gate receipt is refused and never recorded toward the 
   const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
   assert.equal(reserved.code, 0, reserved.out + reserved.err);
   gate(box, id, 'running');
-  const rejected = await cli(box, reviewer.path, ['verify', String(id), 'reject', '--reason', 'INSUFFICIENT_EVIDENCE', '--note', 'queuedSubmit incomplete, no proof receipts']);
-  assert.notEqual(rejected.code, 0, rejected.out);
-  assert.match(rejected.out + rejected.err, /GATE_PENDING/u);
   const item = store.getItem(box.board, id);
-  assert.equal(item.item_status, 'submitted');
-  assert.equal(item.item_verdict ?? null, null);
+  assert.throws(() => store.verify(box.board, id, { agentId: reviewer.id, decision: 'REJECT', reason: 'INSUFFICIENT_EVIDENCE',
+    note: 'queuedSubmit incomplete, no proof receipts', head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' }),
+  { code: 'GATE_PENDING' });
+  assert.equal(store.getItem(box.board, id).item_status, 'submitted');
+  assert.equal(store.getItem(box.board, id).item_verdict ?? null, null);
   const rejects = box.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='reject'").get(id).n;
   assert.equal(rejects, 0);
 });

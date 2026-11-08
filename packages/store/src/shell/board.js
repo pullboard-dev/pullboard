@@ -302,6 +302,19 @@ export { reviewQueueBreakdown } from "./board-query.js";
 export { reviewQueue } from "./board-query.js";
 
 /**
+ * The refusal for reviewing an item whose queued gate has no terminal result, or null when its receipt exists.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @returns {Refused | null}
+ */
+export function gateReceiptProblem(board, item) {
+  return pendingGateAtHead(board, item)
+    ? new Refused('GATE_PENDING', `the gate for #${item.item_id} has not finished at ${String(item.item_commit).slice(0, 12)}, so there is no proof receipt to review; it becomes reviewable when its gate result exists: pullboard next --verify`)
+    : null;
+}
+
+/**
  * What a verifier must pass before it reviews an item, alike when it reserves the review and when
  * it gives its verdict: it did not build the item, its route covers the item's, the repo's verify
  * policy lets it, and no other agent holds the review (V15). A reservation that lapsed holds
@@ -332,9 +345,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
         ? new Refused('REVIEW_HELD', `${holder} holds the review of #${found.item_id} until ${found.item_review_until}; take another: pullboard next --verify`)
         : null;
     },
-    gateReceipt: (found) => pendingGateAtHead(board, found)
-      ? new Refused('GATE_PENDING', `the gate for #${found.item_id} has not finished at ${String(found.item_commit).slice(0, 12)}, so there is no proof receipt to review; it becomes reviewable when its gate result exists: pullboard next --verify`)
-      : null,
+    gateReceipt: (found) => gateReceiptProblem(board, found),
   };
 }
 
