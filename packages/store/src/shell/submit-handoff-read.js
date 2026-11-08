@@ -89,6 +89,16 @@ export function pendingSubmitHandoff(board, item) {
     && ['queued', 'running'].includes(job.state) ? job : null;
 }
 
+/**
+ * A claimed item whose own gate is queued, running or green at its frozen bar is waiting on its gate or reviewer,
+ * not buildable: next skips it and offers new work [C7,#3532].
+ */
+export function awaitingGateOrReview(board, item) {
+  if (pendingSubmitHandoff(board, item)) return true;
+  const job = item.item_status === 'claimed' ? submitHandoff(board, item.item_id) : null;
+  return Boolean(job) && job.agentId === item.item_owner && job.digest === item.item_frozen_digest && job.state === 'green';
+}
+
 /** Return an unchanged worker refusal only while its original claim and frozen bar still match. */
 export function submitHandoffFailure(board, item) {
   const job = submitHandoff(board, item.item_id);

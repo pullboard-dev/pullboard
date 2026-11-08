@@ -11,6 +11,7 @@ import {
   exitContinuationProblem,
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
+import { awaitingGateOrReview } from "./submit-handoff-read.js";
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
   boardWriteSnapshot,
@@ -175,7 +176,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
-            .all(agentId, now(board), id).filter(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+            .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
@@ -187,7 +188,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
           .all(agentId, now(board), id, agentId)
-          .find(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+          .find(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {

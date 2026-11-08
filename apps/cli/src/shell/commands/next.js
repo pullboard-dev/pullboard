@@ -72,6 +72,15 @@ function inboxReasons(ctx) {
   });
 }
 
+/**
+ * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
+ * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
+ */
+function ownWaitingLines(board, me) {
+  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
+    .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
+}
+
 /** Put the no-item answer first and compress a large held queue without hiding other wait reasons. */
 function answerFirstReasons(reasons) {
   return ['no item is free', ...heldCounted(reasons)];
@@ -247,7 +256,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
-      found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
+      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...inboxReasons(ctx)];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;

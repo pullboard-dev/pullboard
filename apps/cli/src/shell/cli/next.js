@@ -7,7 +7,7 @@ import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
-import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
+import { awaitingGateOrReview } from '../../../../../packages/store/index.js';
 import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
@@ -231,7 +231,7 @@ function nextPick(ctx, board, values) {
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
@@ -242,7 +242,7 @@ function nextPick(ctx, board, values) {
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
   // never this seat's to resume or be pointed at (#958).
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item))
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,

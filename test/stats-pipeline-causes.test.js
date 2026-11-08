@@ -65,7 +65,7 @@ test('typed causes use structured evidence and preserve other text without narra
   for (const code of ['UNKNOWN_CODE', 'toString', 'GATE_RED']) {
     assert.deepEqual(pipelineCause({ code, note: 'runner wait flake main red conflict' }), { type: 'other', code, text: 'runner wait flake main red conflict' });
   }
-  assert.deepEqual(PIPELINE_CAUSES, ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'other']);
+  assert.deepEqual(PIPELINE_CAUSES, ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'host-busy', 'other']);
 });
 
 test('submit outcome cannot claim another seat, expired work, a changed bar or admission authority [V4,H16]', t => {
@@ -164,4 +164,18 @@ test('real successful submit records immediate admission before its bound proof 
     const final = receipts.filter(({ receipt }) => receipt.submitAdmission === admission.id);
     assert.ok(final.length > 0, 'the final formal proof binds the admitted claim; criterion receipts keep their separate authority');
   } finally { store.closeBoard(board); }
+});
+
+test('clause 3: stats pipeline classifies BOARD_BUSY, GIT_READ_INFRASTRUCTURE and DATABASE_LOCKED as host-busy with zero unknown causes [C7]', t => {
+  const f = fixture(t);
+  f.at(1); f.claim();
+  for (const [index, code] of ['BOARD_BUSY', 'GIT_READ_INFRASTRUCTURE', 'DATABASE_LOCKED'].entries()) {
+    f.at(10 + index * 10); f.claim({ submitOutcome: { digest: 'typed-pipeline-bar', code, text: `The fixture host reported ${code}.` } });
+  }
+  f.at(50); f.admit(); f.at(60); f.submit(); f.at(70); f.reserve(); f.at(80); f.verdict('ACCEPT');
+  f.at(90); store.merged(f.board, f.id, { agentId: 'coordinator', commit: 'c'.repeat(40) });
+  const report = pipelineStats(store.events(f.board));
+  assert.deepEqual(report.items[0].retries.map(row => row.cause), ['host-busy', 'host-busy', 'host-busy']);
+  assert.equal(report.causes.unknown, 0);
+  assert.equal(report.causes['host-busy'], 3);
 });

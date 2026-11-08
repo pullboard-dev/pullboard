@@ -192,14 +192,21 @@ function namedTestFiles(text) {
 }
 
 /**
- * Which files each receipt ran: its self-reported children, else the frozen check's named files
- * for the criterion run and the submission proof's files for the proof runs.
+ * Which files each receipt ran: its self-reported children, and for a submit gate phase also every file its command
+ * named, the frozen check's files for the criterion phase and the submission proof's files for the proof phase. A
+ * receipt with no self-reported child ran its phase's named files.
+ *
+ * Why: child self-reports are best effort, and a worker whose report is lost leaves no row. #3734's exact-head proof ran
+ * test/runner-job-folder-live.test.js and test/runner-disk-sweep.test.js in its second shard and recorded their 11 named
+ * cases, yet its children named only first-shard files, so the packet saw neither file run and pinned their cases on
+ * the one reported file: review rejected that green gate INSUFFICIENT_EVIDENCE twice (8 Nov) [C7,V4].
  */
 function receiptFiles(receipt, index, { checkFiles, proofFiles }) {
   const reported = (receipt.testRuntimes ?? []).map(row => row.file).filter(Boolean);
-  if (reported.length) return [...new Set(reported)];
   const criterion = receipt.submitPhase ? receipt.submitPhase === 'criterion' : index === 0;
-  return criterion ? checkFiles : proofFiles;
+  const named = criterion ? checkFiles : proofFiles;
+  if (!reported.length) return named;
+  return [...new Set(receipt.submitPhase ? [...reported, ...named] : reported)];
 }
 
 /**
