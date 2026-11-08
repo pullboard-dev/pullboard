@@ -10,7 +10,7 @@ import {
   cellGitEnvironment,
 } from './cells-snapshot-git.js';
 import { cellsCacheDirectory } from './cells-inventory-cache.js';
-import { withCellSourceSnapshots } from '../packages/codemap/index.js';
+import { withCellSourceSnapshots } from './cells-snapshot-git.js';
 import { readPlan } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
