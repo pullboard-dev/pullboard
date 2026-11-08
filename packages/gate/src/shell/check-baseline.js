@@ -54,6 +54,28 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
   }
 }
 
+/** The captured check as a runner runs it at the captured main, with moved paths mapped as of that commit [C7,#2520]. */
+export function runnerBaselineCommand(root, expected) {
+  return mappedCheck(root, expected.command, { commit: expected.main });
+}
+
+/**
+ * The baseline a runner's run of the check at the captured main records: green on exit 0, otherwise red with its first
+ * failure lines and observed cases, in the same shape a local temporary-clone run records [C7,#2520].
+ *
+ * @param {{ command: string, main: string }} expected - The captured request.
+ * @param {{ exitCode?: number|null, output?: string, executionRoot?: string }} run - The runner's result.
+ * @param {number} seconds - Wall time of the run.
+ */
+export function runnerBaseline(expected, run, seconds) {
+  const output = String(run?.output ?? '');
+  const failures = baselineFailureDetails(output);
+  return { command: expected.command, main: expected.main, result: run?.exitCode === 0 ? 'green' : 'red',
+    seconds: Math.max(0, Math.round(seconds)),
+    ...(failures.length ? { reason: failures.map(row => `${row.name}: ${row.error}`).join('\n') } : {}),
+    testEvidence: baselineTestEvidence(output, expected.command, run?.executionRoot ?? null) };
+}
+
 /** Decode only XML's built-in and numeric entities in one JUnit attribute or text. */
 function xmlText(value) {
   return value.replace(/&(?:#(x[0-9a-f]+|[0-9]+)|(amp|lt|gt|quot|apos));/giu, (whole, number, named) => {
