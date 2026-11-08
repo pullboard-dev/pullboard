@@ -75,12 +75,15 @@ export function keepHeartbeatWhileBlocked(lease, { everyMs = blockedHeartbeatMs(
     child.on('error', () => {});
     child.stdin.on('error', () => {});
     child.unref();
+    // The stdin pipe is the helper's only tie to this process; it must never keep an in-process `land` alive [C7].
+    child.stdin.unref?.();
   } catch { return () => {}; }
   let stopped = false;
   return () => {
     if (stopped) return;
     stopped = true;
-    try { child.stdin.end(); } catch { /* Already closed. */ }
+    // Destroy, never end: an ended pipe stays open until the helper reads it, and a destroyed one closes now [C7].
+    try { child.stdin.destroy(); } catch { /* Already closed. */ }
     try { child.kill('SIGTERM'); } catch { /* Already gone. */ }
   };
 }

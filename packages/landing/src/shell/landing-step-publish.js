@@ -6,7 +6,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
-import { refreshLandedCodeMap } from '../core/landing-main-notices.js';
+import { refreshLandedMain } from './deferred-notices.js';
 import { postLandSuite } from './post-land-suite.js';
 import { mergeOnlyLandingProblem } from '../../../merge/index.js';
 import { requireOutsideOwner } from '../../../items/index.js';
@@ -140,19 +140,28 @@ function parallelPublicationRoot(state, batch) {
   return root;
 }
 
+/**
+ * Read the flake ratchet and refuse with FLAKE_RATCHET when it is not allowed; writes nothing.
+ * Why: the landing asks before its gate starts so a refusal never spends a gate, and again at publish [C7].
+ */
+export function checkFlakeRatchet(state) {
+  const result = state.landingPorts.landingFlakeRatchet(state.board);
+  if (!result.allowed) {
+    const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
+      .map(row => `${row.file} :: ${row.name}`);
+    throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
+      'quarantine each newly observed flake with a filed repair item before landing');
+  }
+  return result;
+}
+
 /** Bind the native count to the batch before any trunk or remote publication. */
 export async function prepareFlakeLanding(state) {
   // The snapshot carries an event boundary the board checks at write time. Seats write gate runs and flake
   // observations every few seconds, so a boundary read before the write is often stale: recompute and write again
   // rather than sleep on it, which starved a landing for 2 minutes on 6 Nov [C7].
   for (let attempt = 1; ; attempt++) {
-    const result = state.landingPorts.landingFlakeRatchet(state.board);
-    if (!result.allowed) {
-      const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
-        .map(row => `${row.file} :: ${row.name}`);
-      throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
-        'quarantine each newly observed flake with a filed repair item before landing');
-    }
+    const result = checkFlakeRatchet(state);
     try { return await save(state, { flakeRatchet: result.snapshot }); }
     catch (error) {
       if (error?.code !== 'BOARD_BUSY' || !/flake evidence or repair status changed/u.test(error.message ?? '') || attempt >= 40) throw error;
@@ -196,7 +205,7 @@ export async function publish(state) {
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
   refreshPublishedMainReds(state, batch.base);
-  await refreshLandedCodeMap(state);
+  await refreshLandedMain(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
@@ -233,7 +242,7 @@ export async function finishTrunk(state) {
   });
   state.say?.('finish: main fast-forwarded; refreshing the code map');
   refreshPublishedMainReds(state, state.batch.base);
-  await refreshLandedCodeMap(state);
+  await refreshLandedMain(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
 }

@@ -265,9 +265,17 @@ async function runMain(argv, streams) {
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
         const worker = await import('../../../../../packages/landing/index.js');
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
         // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics: automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set() });
+        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
+        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
+        // One board read answers both: recovery and the bootstrap share the answer for the same record.
+        const answers = new Map();
+        const woken = async job => {
+          if (!answers.has(job.id)) answers.set(job.id, (await import('../../../../../bin/automatic-landing.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
+          return answers.get(job.id);
+        };
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url), { woken });
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
