@@ -10,7 +10,7 @@ import {
   submitHandoff,
   pendingSubmitHandoff,
 } from "./submit-handoff-read.js";
-export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from "./submit-handoff-read.js";
+export { submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from "./submit-handoff-read.js";
 /** Durable queue observations do not grant submission or review authority [C7,V4,H16]. */
 import {
   atomic,

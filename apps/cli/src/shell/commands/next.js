@@ -77,7 +77,7 @@ function inboxReasons(ctx) {
  * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
  */
 function ownWaitingLines(board, me) {
-  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.pendingSubmitHandoff(board, entry)))
+  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
     .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
 }
 
