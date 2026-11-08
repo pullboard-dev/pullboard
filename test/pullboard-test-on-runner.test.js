@@ -44,8 +44,8 @@ function runnerProject() {
     const set = box.run(box.repo, 'settings', key, value);
     assert.equal(set.code, 0, `${key} ${value}: ${set.err}`);
   }
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }, null, 2));
+  const configFile = join(box.repo, 'pullboard.json'), config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, affectedTests: 'node --test --test-reporter=tap' }, null, 2));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test', 'timed.test.js'), TIMED);
   writeFileSync(join(box.repo, 'test', 'mixed.test.js'), MIXED);
