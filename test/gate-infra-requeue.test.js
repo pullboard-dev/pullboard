@@ -191,3 +191,18 @@ test('lock stops wait without spending runner retries, bounded on their own, and
   assert.equal(lost.attempts.length, 1, 'a lost lease is a counted runner retry, as #3303 requires');
   assert.equal(lost.lockWaits.count, 0);
 });
+
+test('clause 2: each infrastructure rerun records its code once, before the rerun is admitted [C7]', async () => {
+  const order = [];
+  let calls = 0;
+  const { result } = await submitUntilSettled(async () => {
+    calls += 1;
+    order.push(`run ${calls}`);
+    if (calls === 1) throw new Refused('GIT_READ_INFRASTRUCTURE', 'fixture: git read failed');
+    if (calls === 2) throw new Refused('TRANSPORT_LOST', 'fixture: runner lost');
+    return 'green';
+  }, { say: () => {}, wait: async () => {}, healthy: async () => true,
+    onInfrastructure: async rerun => { order.push(`record ${rerun.code} after attempt ${rerun.attempt}`); } });
+  assert.equal(result, 'green');
+  assert.deepEqual(order, ['run 1', 'record GIT_READ_INFRASTRUCTURE after attempt 1', 'run 2', 'record TRANSPORT_LOST after attempt 2', 'run 3']);
+});

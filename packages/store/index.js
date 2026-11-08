@@ -82,7 +82,7 @@ export { reserveWithin } from './src/shell/board-reserve-review.js';
 export { insertShout, persistShout } from './src/shell/board-shout.js';
 export { RELEASE_REASONS, releaseReasonProblem } from './src/core/release-reasons.js';
 export { checkedSubmitOutcome } from './src/shell/submit-outcome.js';
-export { INFRASTRUCTURE_CODES, INFRASTRUCTURE_RETRY_LIMIT, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
+export { INFRASTRUCTURE_CODES, INFRASTRUCTURE_RETRY_LIMIT, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';

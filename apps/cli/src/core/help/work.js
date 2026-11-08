@@ -5,6 +5,7 @@ export const workHelp = `Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
+    [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards

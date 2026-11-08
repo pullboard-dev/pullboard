@@ -7,8 +7,8 @@ import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
-import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
-import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { awaitingGateOrReview } from '../../../../../packages/store/index.js';
+import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { nextSessionSeats } from '../../../../../packages/seats/index.js';
 import { sessionSeatReaders } from './seat-ports.js';
@@ -145,8 +145,8 @@ export async function nextOnce(ctx, values) {
       catch (error) {
         // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
         // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
-        if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_SESSION_LIVE') throw error;
-        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder held by another live session: ${error.message}`, 'OTHER']);
+        if (!(error instanceof Refused) || !['ITEM_FOLDER_SESSION_LIVE', 'ITEM_FOLDER_UNFINISHED'].includes(error.code)) throw error;
+        await ordered(target, board, 'release', [item.item_id, holder.id, `item folder cannot be used: ${error.message}`, 'OTHER']);
         return { retry: true, retryDetail: { phase: 'held folder', item: item.item_id, code: error.code, message: error.message } };
       }
       return { item, held, shared, reviewSkipped, reasons,
@@ -161,6 +161,7 @@ export async function nextOnce(ctx, values) {
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
+      if (!claim.renewed) await shoutReviewCoverStuck(target, board, ordered, holder);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
@@ -231,7 +232,7 @@ function nextPick(ctx, board, values) {
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+  const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   if (found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
@@ -242,7 +243,7 @@ function nextPick(ctx, board, values) {
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
   // never this seat's to resume or be pointed at (#958).
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !pendingSubmitHandoff(board, item)
+    && item.item_parent_id === null && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item))
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
@@ -278,8 +279,6 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
-  const coverPause = !held && reviewFamilyBuildPause(ctx.info, board, ctx.config, me);
-  if (coverPause) return { reasons: [...(reasons ?? []), coverPause], idleReason: 'review-family' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }

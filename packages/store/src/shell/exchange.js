@@ -358,7 +358,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     db.exec('COMMIT');
     released = true;
     outcome = 'committed';
-    return { tables: names };
+    // Report the tables the document carried, so an additive table the export left out is not listed as imported [C7].
+    return { tables: names.filter((table) => !ADDITIVE_TABLES.has(table) || Object.hasOwn(document.tables, table)) };
   } catch (error) {
     db.exec('ROLLBACK');
     released = true;
