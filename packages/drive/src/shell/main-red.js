@@ -3,6 +3,7 @@
  * main-test job (a row any driver resumes) rather than running a refresh process. Nothing here runs a test.
  */
 import { createJob } from '../../../jobs/index.js';
+import { jobsOf } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { classifyMainRed } from '../../../receipt/index.js';
@@ -42,4 +43,16 @@ export function mainRedLookup(db, receipts, { tree, file, command, now = Date.no
 export function classifyGateRed(db, receipts, { tree, file, command, reds, now = Date.now() }) {
   const main = mainRedLookup(db, receipts, { tree, file, command, now });
   return { file, ...classifyMainRed(reds, main), job: main.job };
+}
+
+/**
+ * The ports the gate cell's main-owned verdict reaches the board through: the jobs cell's front door, and this cell's
+ * idempotent main-test enqueue. Why: the gate cell judges and records its verdict, but it imports no board cell, so
+ * every production caller (the submit gate and the dispatcher) hands it the same ports from here [C7,#3534].
+ *
+ * @returns {{ jobs: { createJob: typeof createJob, writeStep: typeof writeStep, jobView: typeof jobView, jobsOf: typeof jobsOf },
+ *   mainTestKind: string, queueMainTest: (db: import('node:sqlite').DatabaseSync, at: { tree: string, file: string, command: string, now?: number }) => string }}
+ */
+export function mainOwnedVerdictPorts() {
+  return { jobs: { createJob, writeStep, jobView, jobsOf }, mainTestKind: MAIN_TEST_JOB, queueMainTest: (db, at) => mainRedLookup(db, [], at).job };
 }
