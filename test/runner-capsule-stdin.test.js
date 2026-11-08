@@ -26,7 +26,7 @@ test('clause 1: the worker command stays far below the SSH packet bound however 
   const { worker, tooling, runtime } = largeTooling();
   const { command, input } = remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, tooling, runtime, '', null);
   assert.ok(input.length > SSH_PACKET_LIMIT, 'the fixture capsule must be larger than the SSH bound');
-  assert.ok(Buffer.byteLength(command) < 64 * 1024, `command is ${Buffer.byteLength(command)} bytes`);
+  assert.ok(Buffer.byteLength(command) < 16 * 1024, `command is ${Buffer.byteLength(command)} bytes`);
   assert.ok(!command.includes(input.subarray(20, 80).toString('ascii')), 'the capsule payload never appears in the command');
 });
 
