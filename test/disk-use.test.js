@@ -52,7 +52,7 @@ test('status and stats report each store and the total on a fixture board [C7]',
   assert.ok(by.receipts > 0);
   assert.equal(use.total, use.stores.reduce((sum, row) => sum + row.bytes, 0));
   assert.equal(use.warning, null);
-  assert.match(diskLines(use)[0], /total \(.*worktree archives.*test actions.*\)/u);
+  assert.match(diskLines(use)[0], /total \(.*test actions.*worktree archives.*\)/u);
 });
 
 test('crossing the threshold warns naming the largest stores [C7]', (t) => {

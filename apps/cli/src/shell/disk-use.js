@@ -50,6 +50,18 @@ function bytesUnder(path) {
   return total;
 }
 
+/** The newest modification time anywhere under a path, so a folder is as old as the last file written in it. */
+function newestMtime(path) {
+  let stat;
+  try { stat = lstatSync(path); } catch { return 0; }
+  let newest = stat.mtimeMs;
+  if (!stat.isDirectory()) return newest;
+  let names = [];
+  try { names = readdirSync(path); } catch { return newest; }
+  for (const name of names) newest = Math.max(newest, newestMtime(join(path, name)));
+  return newest;
+}
+
 /** Which store a top-level name belongs to. */
 function storeOf(name) {
   for (const [store, names] of Object.entries(DISK_STORES)) if (names.includes(name)) return store;
@@ -157,9 +169,7 @@ export function pruneDisk(dir, { now = Date.now(), dryRun = false } = {}) {
     try { names = readdirSync(folder); } catch { continue; }
     const entries = names.map(name => {
       const path = join(folder, name);
-      let mtimeMs = 0;
-      try { mtimeMs = lstatSync(path).mtimeMs; } catch { /* vanished */ }
-      return { name, path, mtimeMs, bytes: bytesUnder(path), held: referenced.has(name) || referenced.has(name.replace(/\.[^.]+$/u, '')) };
+      return { name, path, mtimeMs: newestMtime(path), bytes: bytesUnder(path), held: referenced.has(name) || referenced.has(name.replace(/\.[^.]+$/u, '')) };
     }).sort((a, b) => a.mtimeMs - b.mtimeMs);
     const rule = policy.retention[store];
     let size = entries.reduce((sum, entry) => sum + entry.bytes, 0);
