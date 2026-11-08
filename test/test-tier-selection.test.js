@@ -111,7 +111,7 @@ test('submit and review run only the changed package units and frozen check [C7,
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
   accept(box, entry);
-  assert.deepEqual(calls(box, 'alpha'), ['alpha:2', 'alpha:2'], 'review also executes the package unit');
+  assert.deepEqual(calls(box, 'alpha'), ['alpha:2'], 'review reuses the submit proof of the package unit instead of running it again');
   assert.deepEqual(calls(box, 'beta'), []);
   assert.deepEqual(calls(box, 'journey'), []);
 });
