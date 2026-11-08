@@ -145,6 +145,8 @@ import { spawnSync } from 'node:child_process';
 const api = await import(${entry});
 const {loadedToolingFiles} = await import(${facade});
 assert.ok(api.runnerSource(process.cwd()).commit);
+// The controller pins on its first runner operation, never at import; pin it here, before any policy byte changes.
+api.pinRunnerTooling();
 loadedToolingFiles({rescan:false});
 const baseline = ${JSON.stringify(baseline)};
 const epochs = [

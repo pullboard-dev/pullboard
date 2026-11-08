@@ -55,7 +55,7 @@ export function inRunnerGeneration(generation, operation) {
 /** Capture the derived runtime and controller generation once, refusing bytes written after the instance loaded. */
 function loadedTooling(since) {
   try { return captureRunnerTooling(TOOL_ROOT, { since }); }
-  catch (problem) { process.stderr.write('DEBUG1510 ' + String(problem?.stack) + '\n'); return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
+  catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 
 /** Quote one remote shell argument without permitting substitutions or expansion. */
