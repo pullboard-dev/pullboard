@@ -13,6 +13,7 @@ import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const HOUR = 3_600_000;
@@ -113,7 +114,7 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   const initialized = box.run(box.repo, 'init', '--verbose');
   if (model !== undefined) box.env.PULLBOARD_MODEL = model;
   assert.equal(initialized.code, 0, initialized.err);
-  const added = box.run(box.repo, 'add', 'web', 'Ready for review', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Ready for review', '--specs', 'G1',
     '--criterion', 'The readiness marker exists.', '--check', 'test -f web/ready');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);

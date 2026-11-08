@@ -8,6 +8,8 @@ import { modelTierRoute } from '../apps/cli/src/shell/model-tier-route.js';
 import { scaleWorkers } from '../apps/cli/src/shell/worker-scale.js';
 import { HELP_SOURCE_SECTIONS } from '../apps/cli/src/core/help/declarations.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 test('clause 3: a no-flag Haiku join receives light work and a private board can override its tier [C7]', t => {
   const helpers = createE2eHelpers();
@@ -16,7 +18,7 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   const seat = join(box.dir, 'haiku-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', seat, 'main');
   box.env.PULLBOARD_MODEL = 'Claude 3 Haiku';
-  const joined = box.run(seat, 'join', 'api', '--json');
+  const joined = fixtureJoin(box.run, seat, 'api', '--json');
   assert.equal(joined.code, 0, joined.err + joined.out);
   assert.equal(JSON.parse(joined.out).route, 'light');
 
@@ -28,18 +30,18 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', overrideSeat, 'main');
   writeFileSync(join(overrideSeat, 'pullboard.json'), `${JSON.stringify(config, null, 2)}\n`);
   box.env.PULLBOARD_MODEL = 'Fixture Haiku';
-  const overridden = box.run(overrideSeat, 'join', 'api', '--json');
+  const overridden = fixtureJoin(box.run, overrideSeat, 'api', '--json');
   assert.equal(overridden.code, 0, overridden.err + overridden.out);
   assert.equal(JSON.parse(overridden.out).route, 'strong', 'the board-held table changes join routing in this fixture only');
 
   const unknownSeat = join(box.dir, 'unknown-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', unknownSeat, 'main');
   box.env.PULLBOARD_MODEL = 'Unlisted Vendor Model';
-  const unknown = box.run(unknownSeat, 'join', 'api', '--json');
+  const unknown = fixtureJoin(box.run, unknownSeat, 'api', '--json');
   assert.equal(unknown.code, 0, unknown.err + unknown.out);
   assert.equal(JSON.parse(unknown.out).route, 'mid', 'an unlisted model label falls back to mid');
 
-  const light = box.run(box.repo, 'add', 'api', 'Light fixture item', '--specs', 'G2', '--route', 'mid',
+  const light = fixtureAdd(box.run, box.repo, 'api', 'Light fixture item', '--specs', 'G2', '--route', 'mid',
     '--criterion', 'The fixture light item is available.', '--check', 'true', '--brief', 'Files: api/light.js\nChange: fixture\nTest: check passes', '--json');
   assert.equal(light.code, 0, light.err + light.out);
   const lightId = String(JSON.parse(light.out).item.item_id);
@@ -48,7 +50,7 @@ test('clause 3: a no-flag Haiku join receives light work and a private board can
   assert.equal(diagnosed.code, 0, diagnosed.err + diagnosed.out);
   const lowered = box.run(box.repo, 'edit', lightId, '--route', 'light', '--json');
   assert.equal(lowered.code, 0, lowered.err + lowered.out);
-  const strong = box.run(box.repo, 'add', 'api', 'Strong fixture item', '--specs', 'G2', '--json');
+  const strong = fixtureAdd(box.run, box.repo, 'api', 'Strong fixture item', '--specs', 'G2', '--json');
   assert.equal(strong.code, 0, strong.err + strong.out);
   const offered = box.run(seat, 'next', '--build', '--json');
   assert.equal(offered.code, 0, offered.err + offered.out);

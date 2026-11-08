@@ -38,6 +38,7 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
+import { shadowSubmitHandoff } from '../../../../packages/jobs/index.js';
 import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
 import {
@@ -309,6 +310,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    shadowJob: shadowSubmitHandoff,
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),

@@ -9,6 +9,7 @@ import { getItem, sealClauseInspection, submitHandoff } from '../packages/store/
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
 import { runFixtureGit } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Commit actual accepted policy changes in a private Git repo and use its real file board. */
 function fixture(t) {
@@ -91,7 +92,7 @@ console.log('TAP version 13\\n# Subtest: captured policy fixture\\nok 1 - captur
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: captured worker policy');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Captured policy change', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Captured policy change', '--specs', 'G1',
     '--route', 'strong', '--criterion', 'The captured source check passes.', '--brief', 'Files:\n- web/snapshot.txt\nTest:\n- captured source check\n',
     '--check', `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`, '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);

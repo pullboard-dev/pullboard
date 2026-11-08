@@ -61,7 +61,7 @@ test('the live stylesheet defines the scale the check points to [C12,N26]', () =
   for (const token of ['--text-sm', '--space-3', '--radius-card', '--round']) assert.match(view, new RegExp(`${token}:`), `src/view.css defines ${token}`);
   // Only the deliberately raw glyphs, large layout paddings and Dashboard number remain (#1594/#1668).
   assert.equal(uiSizeCounts(ROOT)['apps/relay/src/shell/browser-screens.css'], 0, 'the actual relay stylesheet uses the shared scale');
-  assert.ok(uiSizeProblems(ROOT).every((problem) => /^(src|relay)\//u.test(problem.path)), 'only stylesheets under src/ and relay/ are read');
+  assert.ok(uiSizeProblems(ROOT).every((problem) => /^apps\/(view|relay)\/src\//u.test(problem.path)), 'only stylesheets under apps/view/src/ and apps/relay/src/ are read');
 });
 
 test('the counts report retains clean relay files and excludes generated documentation [N26]', () => {
@@ -78,7 +78,7 @@ test('the counts report retains clean relay files and excludes generated documen
 });
 
 
-test('the view has only the approved raw sizes, including CSS added after the scale landed [C12,N26]', () => {
+test('clause 1: the view has only the approved raw sizes, including CSS added after the scale landed [C12,N26]', () => {
   const lines = readFileSync(join(ROOT, 'apps/view/src/shell/view.css'), 'utf8').split('\n');
   const allowed = [
     ['header.top {', 'padding-right 62px'],
@@ -91,10 +91,75 @@ test('the view has only the approved raw sizes, including CSS added after the sc
     ['.agent-pill .avatar.wide {', 'font-size 6.5px'],
     ['.heard-face {', 'font 7px'],
     ['.dash-rate > b {', 'font-size 34px'],
+    // The first-run Dashboard block, approved size by size (selector and size), not as a block: a new raw size there fails.
+    ['.first-run {', 'gap 14px'],
+    ['.first-run-rules li:not(.arr) {', 'gap 12px'],
+    ['.first-run-rules li:not(.arr) {', 'padding 14px'],
+    ['.first-run-rules li:not(.arr) {', 'padding 16px'],
+    ['.first-run-rules li:not(.arr) {', 'border-radius 10.5px'],
+    ['.first-run-rules li:not(.arr) {', 'font-size 15px'],
+    ['.first-run-rules .arr {', 'font-size 18px'],
+    ['.first-run-rules b {', 'font-size 14px'],
+    ['.first-run-card {', 'border-radius 10.5px'],
+    ['.first-run-two {', 'padding 24px'],
+    ['.first-run-two {', 'padding 28px'],
+    ['.first-run-how {', 'padding 28px'],
+    ['.first-run-start {', 'padding-left 28px'],
+    ['.first-run-dia .node text {', 'font 12.5px'],
+    ['.first-run-dia .node .sub {', 'font 10.5px'],
+    ['.first-run-dia .lbl {', 'font 10.5px'],
+    ['.first-run-caption {', 'margin 8px'],
+    ['.first-run-caption {', 'font-size 15px'],
+    ['.first-run-tour {', 'gap 10px'],
+    ['.first-run-tour {', 'margin-top 6px'],
+    ['.first-run-tour button {', 'font-size 16px'],
+    ['.first-run-dots {', 'gap 6px'],
+    ['.first-run-start h2 {', 'margin 12px'],
+    ['.first-run-start h2 {', 'font-size 24px'],
+    ['.first-run-line {', 'gap 10px'],
+    ['.first-run-line {', 'padding 8px'],
+    ['.first-run-line {', 'padding 14px'],
+    ['.first-run-line {', 'border-radius 10px'],
+    ['.first-run-line code {', 'font 15px'],
+    ['.first-run-line button {', 'border-radius 6px'],
+    ['.first-run-line button {', 'padding 6px'],
+    ['.first-run-line button {', 'padding 16px'],
+    ['.first-run-line button {', 'font-size 13.5px'],
+    ['.first-run-checks {', 'margin 16px'],
+    ['.first-run-checks {', 'margin 12px'],
+    ['.first-run-checks {', 'gap 6px'],
+    ['.first-run-checks li {', 'gap 10px'],
+    ['.first-run-checks li {', 'font-size 14px'],
+    ['.first-run-checks li i {', 'font-size 11px'],
+    ['.first-run-checks li small.hint {', 'font-size 13px'],
+    ['.first-run-checks li.after {', 'margin-top 6px'],
+    ['.first-run-checks li.after {', 'padding-left 30px'],
+    ['.first-run-checks li.after {', 'font-size 16px'],
+    ['.first-run-arch {', 'padding 16px'],
+    ['.first-run-arch {', 'padding 18px'],
+    ['.first-run-dhead {', 'gap 12px'],
+    ['.first-run-dhead {', 'margin-bottom 12px'],
+    ['.first-run-dhead h2 {', 'font-size 18px'],
+    ['.first-run-dhead span {', 'font-size 13px'],
+    ['.first-run-tiles {', 'gap 10px'],
+    ['.first-run-tile {', 'gap 10px'],
+    ['.first-run-tile {', 'padding 12px'],
+    ['.first-run-tile {', 'padding 14px'],
+    ['.first-run-tile {', 'border-radius 10.5px'],
+    ['.first-run-tile .ico {', 'border-radius 8px'],
+    ['.first-run-tile .k {', 'font-size 12px'],
+    ['.first-run-tile b {', 'font-size 15px'],
+    ['.first-run-tile a {', 'margin-top 2px'],
+    ['.first-run-tile a {', 'font-size 12px'],
+    ['.first-run-later {', 'font-size 13px'],
+    ['.first-run-later {', 'padding 6px'],
+    ['@media (max-width: 1000px) { .first-run-two {', 'padding 20px'],
+    ['@media (max-width: 700px) { .first-run-checks li {', 'margin-left 30px'],
   ];
   const problems = uiSizeProblems(ROOT).filter(problem => problem.path === 'apps/view/src/shell/view.css');
-  assert.ok(problems.length <= allowed.length, `only ${allowed.length} approved raw sizes remain, found ${problems.length}`);
-  for (const problem of problems) {
+  const listed = problems;
+  assert.ok(listed.length <= allowed.length, `only ${allowed.length} approved raw sizes remain, found ${listed.length}`);
+  for (const problem of listed) {
     assert.ok(allowed.some(([selector, size]) => lines[problem.line - 1].trim().startsWith(selector)
       && problem.text.startsWith(`${size} is typed by hand:`)), `${problem.line}: ${problem.text}`);
   }

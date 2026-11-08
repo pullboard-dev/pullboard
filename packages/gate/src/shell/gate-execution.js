@@ -8,6 +8,7 @@ import { readStages } from './gate-stages.js';
 import { readPipes } from './gate-stages.js';
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
+import { shadowOfRun } from './tier1-shadow-run.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from '../../core.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
@@ -313,6 +314,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
     try { signed = observedFailureSignatures({ version: lease?.signatureCapture?.version,
       failures: !rawRunGreen(run) && run.stages ? lease?.signatureCapture?.derive(run, root) : null }, failures); }
     catch { /* Optional diagnostics cannot erase the raw native receipt. */ }
+    const shadow = shadowOfRun(root, { head: before.head, main, green: rawRunGreen(run), failures });
     const receipt = receiptFields({ version: 2, id: randomUUID(), kind: context.kind,
       tree: before.tree, head: before.head, main, command: createHash('sha256').update(command).digest('hex'),
       green: rawRunGreen(run), failures,
@@ -320,6 +322,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
       load: run.executionLoad ?? (remote || lease?.runner ? null : localLoad), at: new Date().toISOString(),
       ...(sourceClean && run.testOutcomes ? { testOutcomes: run.testOutcomes } : {}),
       ...(sourceClean && run.blockingVerdict ? { blockingVerdict: run.blockingVerdict } : {}),
+      ...(shadow ? { shadow } : {}),
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null
           : run.profile?.receipt?.runner?.id ?? lease?.receipt?.runner?.id ?? lease?.localDescriptor?.id ?? null), exitCode: run.exitCode,

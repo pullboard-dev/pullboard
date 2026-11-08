@@ -19,6 +19,7 @@ import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const waitPorts = { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem };
 const helpers = createE2eHelpers();
@@ -34,7 +35,7 @@ function onBoard(box, action, clock) {
 /** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Wait for the verdict', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/wait.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
@@ -137,7 +138,7 @@ test('clause 1: a withdrawn verdict does not finish a submission wait successful
 /** Refreezing permits the same SHA again; an older wait must not inherit the newer attempt's verdict. */
 test('clause 1: a wait keeps its original receipt across a same-SHA refrozen resubmission [V2,V6]', async t => {
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Same commit, new attempt', '--specs', 'G1', '--route', 'mid',
     '--brief', 'Files:\n- web/retry.txt\nChange:\n- add the submitted fixture file\nTest:\n- the fixture check accepts the submitted source\n',
     '--criterion', 'The fixture check passes.', '--check', 'true').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);

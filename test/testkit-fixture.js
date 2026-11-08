@@ -32,3 +32,42 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
 export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
   return fixtureResult(run(root, 'worktree', lane, '--model', model, '--route', route, '--json'));
 }
+
+/**
+ * Run a fixture `pullboard add` through the kit and return the runner's result untouched.
+ *
+ * Why: every test that files an item reaches the CLI through this one seam, so a new add rule is met here
+ * once instead of in hundreds of copies. Tests that assert a refusal keep their exact arguments.
+ *
+ * @param {(cwd: string, ...args: string[]) => unknown} run - The fixture's CLI runner, such as box.run.
+ * @param {string} cwd - The checkout the command runs in.
+ * @param {...string} args - Everything after `add`: lane, title words and flags.
+ * @returns {unknown} Whatever the runner returns, a promise included.
+ */
+export function fixtureAdd(run, cwd, ...args) {
+  return run(cwd, 'add', ...args);
+}
+
+/**
+ * Run a fixture `pullboard join` through the kit and return the runner's result untouched.
+ *
+ * Why: seat admission rules (model, route, family) change; one seam lets the kit meet them for every test.
+ *
+ * @param {(cwd: string, ...args: string[]) => unknown} run - The fixture's CLI runner, such as box.run.
+ * @param {string} cwd - The worktree that joins.
+ * @param {...string} args - Everything after `join`: lane and flags.
+ * @returns {unknown} Whatever the runner returns, a promise included.
+ */
+export function fixtureJoin(run, cwd, ...args) {
+  return run(cwd, 'join', ...args);
+}
+
+/** The argv head for a spawned `pullboard add`: the CLI path then the verb, so spawned adds share the kit seam. */
+export function fixtureAddArgv(cli) {
+  return [cli, 'add'];
+}
+
+/** The argv head for a spawned `pullboard join`: the CLI path then the verb, so spawned joins share the kit seam. */
+export function fixtureJoinArgv(cli) {
+  return [cli, 'join'];
+}

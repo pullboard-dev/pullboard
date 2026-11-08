@@ -30,6 +30,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Remove only the CLI's trailing next-step hint; its flags change independently of the queue answer under test. */
 function queueAnswer(output) {
@@ -244,7 +245,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up the fresh board');
   for (const title of ['First app item', 'Second app item']) {
-    const added = box.run(repo, 'add', 'app', title, '--route', 'strong',
+    const added = fixtureAdd(box.run, repo, 'app', title, '--route', 'strong',
       '--criterion', 'The app item creates its readiness marker.', '--check', 'test -f app/ready', '--json');
     assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   }
@@ -652,7 +653,7 @@ test('an explicit colliding claim warns but remains available to the builder [N2
   const busy = box.seat('collision-busy', 'web', 'collision-busy-session');
   const manual = box.seat('collision-manual', 'web', 'collision-manual-session');
   /** A real coordinator-created brief in the private project's permitted web lane. */
-  const add = title => box.json(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+  const add = title => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
     '--brief', 'Files: web/shared.js\nTest: an explicit choice names its overlap', '--json')).item.item_id;
   const a = add('A holds the shared file');
   const b = add('B is an explicit override');
@@ -725,7 +726,7 @@ test("a claimed item whose files grow into another claimed item's files names th
   const left = box.seat('growth-left', 'web', 'growth-left-session');
   const right = box.seat('growth-right', 'web', 'growth-right-session');
   /** Create ordinary coordinator briefs in the private project's permitted lane. */
-  const add = (title, file) => box.json(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+  const add = (title, file) => box.json(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1',
     '--brief', `Files: ${file}\nTest: growing work names its newly shared file`, '--json')).item.item_id;
   const a = add('A already holds x', 'web/x.js');
   const b = add('B initially holds only y', 'web/y.js');

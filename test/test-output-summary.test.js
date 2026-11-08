@@ -7,6 +7,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -82,7 +84,7 @@ function itemProject() {
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: record native item-check inputs');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Output fixture', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Output fixture', '--specs', 'G1',
     '--criterion', 'the recorded test file runs', '--check', command);
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
@@ -145,7 +147,7 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   box.git(box.repo, 'add', 'docs/main-move.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: advance fixture trunk');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output', submittedHead);
-  const joined = box.run(review, 'join', 'api', '--model', 'Test Model');
+  const joined = fixtureJoin(box.run, review, 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
   writeFileSync(flag, 'red');
   const refused = box.run(review, 'verify', '1', 'accept', '--note', 'run the frozen assertions', '--no-next');

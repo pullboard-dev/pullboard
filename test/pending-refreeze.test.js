@@ -24,6 +24,7 @@ import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { unpackRelease } from './release-archive.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 
@@ -57,7 +58,7 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
 
-  const added = box.run(box.repo, 'add', 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = JSON.parse(added.out).item.item_id;
   const claim = box.run(box.web, 'claim', String(id), '--json');
@@ -104,7 +105,7 @@ test("clause 1: the coordinator corrects a claimed item's criterion without rele
   assert.equal(JSON.parse(finalItem.item_frozen).criterion, 'the corrected criterion');
   assert.equal(finalItem.item_commit, box.git(box.web, 'rev-parse', 'HEAD'));
 
-  const checkAdd = box.run(box.repo, 'add', 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
+  const checkAdd = fixtureAdd(box.run, box.repo, 'web', 'Correct only a check', '--specs', 'G1', '--route', 'strong', '--criterion', 'unchanged criterion', '--check', 'true', '--json');
   assert.equal(checkAdd.code, 0, checkAdd.err || checkAdd.out);
   const checkId = JSON.parse(checkAdd.out).item.item_id;
   const checkClaim = box.run(box.web, 'claim', String(checkId), '--json');
@@ -134,7 +135,7 @@ test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
   const add = (title, route = 'mid') => {
-    const result = box.run(box.repo, 'add', 'web', title, '--route', route, '--criterion', title,
+    const result = fixtureAdd(box.run, box.repo, 'web', title, '--route', route, '--criterion', title,
       '--brief', 'Files: web/dependencies.js\nChange: update dependency links\nTest: records dependency edits', '--check', 'true', '--json');
     assert.equal(result.code, 0, result.err || result.out);
     return JSON.parse(result.out).item.item_id;

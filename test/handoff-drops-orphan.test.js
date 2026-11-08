@@ -9,6 +9,7 @@ import { Refused, listResources, nativeBoardPorts, openBoard, openBoardForRead, 
 import { cliContext$context as context } from '../apps/cli/index.js';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const now = Date.now();
 const request = { item: 17, job: '123e4567-e89b-42d3-a456-426614174000', commit: 'a'.repeat(40) };
@@ -69,7 +70,7 @@ test('the real worker guard records one terminal stale result after a waiting ha
     else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
   });
   const box = helpers.project('true', sandbox);
-  const added = box.run(box.repo, 'add', 'web', 'Native queued handoff', '--specs', 'G1', '--criterion',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Native queued handoff', '--specs', 'G1', '--criterion',
     'A stale queued handoff is dropped before runner admission. [test]', '--check', 'true', '--brief', 'Files:\n- web/page.js\nTest:\n- the check passes', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;

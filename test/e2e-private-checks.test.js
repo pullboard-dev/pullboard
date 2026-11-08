@@ -28,6 +28,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -337,7 +338,7 @@ test('clause 1: private check timeout kills a TERM-resistant shell and its track
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure bounded check fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Bounded check', '--specs', 'G1', '--criterion', 'the check stops within its timeout', '--check', 'true', '--brief', 'Files:\n- web/index.html\nTest:\n- the check stops').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
