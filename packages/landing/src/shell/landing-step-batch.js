@@ -37,6 +37,7 @@ import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { relandAcceptedItems } from './accepted-reland.js';
+import { closePassedTestDefects } from './landing-step-selection.js';
 import { landingMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { oneItemBatch } from './landing-step-selection.js';
@@ -143,6 +144,8 @@ export async function land(options) {
     requireParallelGateAdmission(options.root, policy);
     publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
+  // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
