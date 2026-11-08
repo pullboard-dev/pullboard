@@ -257,8 +257,12 @@ test('clause 1: a stopped job whose captured tools are gone spends its retries a
   try {
     writeBoardCommand(board, 'completeSubmitHandoff', [box.id, { agentId: job.agentId, job: job.id,
       result: { code: 1, error: { code: 'SUBMIT_HANDOFF_DEAD', message: 'fixture worker died', next: 'restore the executor' } } }], job.agentId);
-    const request = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'request.json'), 'utf8'));
+    const requestFile = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'request.json');
+    const request = JSON.parse(readFileSync(requestFile, 'utf8'));
     rmSync(request.tools, { recursive: true, force: true });
+    // Since #3716 a retry rebuilds vanished tools from the tooling commit its request captured; with no such commit they are truly gone.
+    delete request.toolsCommit;
+    writeFileSync(requestFile, JSON.stringify(request) + '\n');
     const ctx = { file: box.boardFile, info: { root: box.repo, commonDir: join(box.repo, '.git'), isMain: true },
       config: loadConfig(box.repo), clock: { now: () => new Date() }, nativeBoard, io: { err() {} } };
     for (let sweeps = 0; sweeps < 3; sweeps++) await recoverInfrastructureHandoffs(ctx, { healthy: async () => true, launch: async () => assert.fail('no tools, no launch') });
