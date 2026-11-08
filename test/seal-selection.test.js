@@ -173,7 +173,7 @@ test('clause 1: the real gate-submit path runs a test file the bar names in a se
     'sealing alone skips the named file');
   const item = { item_frozen: JSON.stringify({ criterion: `1. The alone package still loads, proved by ${ALONE_TEST} [test].` }),
     item_brief: 'Files: packages/base\nTest:\n- test/journey.test.js\n- test/missing.test.js' };
-  const crossRunTests = namedProofTests(root, item, head, { runner: config.affectedTests });
+  const crossRunTests = namedProofTests(root, item, head);
   assert.deepEqual(crossRunTests, [ALONE_TEST, 'test/journey.test.js'], 'criterion and brief files that exist at the commit');
   const plan = submitGatePlan(root, config, { base: first, crossRunTests });
   assert.ok(plan.proofFiles.includes(ALONE_TEST) && plan.proofFiles.includes('test/journey.test.js'), `the gate runs both: ${plan.proofFiles}`);
@@ -184,13 +184,11 @@ test('clause 1: the real gate-submit path runs a test file the bar names in a se
 test('clause 1: with no affected-tests runner configured, the bar-named files still join the proof selection and the real gate-submit path runs them [C7,V4]', async t => {
   const { root, first } = fixture(t, { tiers: false });
   const ALONE_TEST = 'packages/alone/tests/alone.test.js';
-  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n', 'test/greeting_test.py': 'assert True\n' });
+  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const item = { item_frozen: JSON.stringify({ criterion: `1. The alone package still loads, proved by ${ALONE_TEST} [test].` }),
-    item_brief: 'Files: packages/base\nTest:\n- test/journey.test.js\n- test/greeting_test.py\n- test/missing.test.js' };
-  const crossRunTests = namedProofTests(root, item, head, { runner: '' });
-  assert.deepEqual(crossRunTests, [ALONE_TEST, 'test/journey.test.js'], 'no runner: every named file the default runner can run, at the commit');
-  assert.deepEqual(namedProofTests(root, item, head, { runner: 'pytest' }), [ALONE_TEST, 'test/greeting_test.py', 'test/journey.test.js'],
-    'a configured runner takes every named file');
+    item_brief: 'Files: packages/base\nTest:\n- test/journey.test.js\n- test/missing.test.js' };
+  const crossRunTests = namedProofTests(root, item, head);
+  assert.deepEqual(crossRunTests, [ALONE_TEST, 'test/journey.test.js'], 'no runner: the criterion and brief files that exist at the commit');
   // A landing-deferred project with no runner: no tier plan, so only the named files are the submit proof.
   const config = { gate: 'false', submitGate: 'landing', submitInvariants: [], registryGuards: [] };
   const plan = submitGatePlan(root, config, { base: first, crossRunTests });
