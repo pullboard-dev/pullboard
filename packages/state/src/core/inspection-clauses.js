@@ -5,7 +5,7 @@ export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'm
 const KINDS = EVIDENCE_KINDS.join('|');
 const CLAUSE_MARKER = /(?:^|\s)(\d+)[.)]\s+/gu;
 const DECLARED = new RegExp(`\\[(${KINDS})\\]\\s*[.;]?\\s*$`, 'u');
-const RUN_EVIDENCE = /^green pullboard test run of \S/u;
+const RUN_EVIDENCE = /^green pullboard (?:test|check) run of \S/u;
 const TICK = new RegExp(`^clause (\\d+) \\[(${KINDS})\\]:\\s*(\\S[\\s\\S]*)$`, 'u');
 
 /** The clauses of a criterion, or [] when it is free text: sequential numbered outcomes. */
@@ -90,8 +90,22 @@ export function testRunTickNotes(item, files, head) {
   const clauses = criterionClauses(item.item_criterion);
   const check = String(item.item_check ?? '');
   if (!clauses.length || !files.length || !files.every(file => check.includes(file))) return [];
+  return testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head);
+}
+
+/**
+ * The tick notes a green `pullboard check` run earns: the frozen check is the proof of every test clause, whether it is a test file
+ * or a shell command such as `test ! -e src/x.js`. Why: shell-command checks never name a file `pullboard test` could run [C7].
+ */
+export function checkRunTickNotes(item, head) {
+  const check = String(item.item_check ?? '').trim();
+  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head) : [];
+}
+
+/** One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit. */
+function testClauseTickNotes(clauses, run, head) {
   return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
-    .map(clause => `clause ${clause.number} [test]: green pullboard test run of ${files.join(' ')} at ${head}`);
+    .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */

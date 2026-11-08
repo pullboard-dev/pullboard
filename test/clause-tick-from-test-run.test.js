@@ -1,9 +1,10 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: clause 1 reads the shipped pullboard test command source to prove it records ticks only after a green run. */
 /** A green pullboard test run of the item's check ticks the test clauses it proves [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { clauseInspectionProblem, testRunTickNotes } from '../packages/state/index.js';
+import { checkRunTickNotes, clauseInspectionProblem, testRunTickNotes } from '../packages/state/index.js';
 
 const FILE = 'test/example.test.js';
 const item = {
@@ -17,7 +18,7 @@ function thread(texts) {
   return texts.map((text, index) => ({ type: 'fact', kind: 'note', by: 'core-1', text, id: `f${index}` }));
 }
 
-test('clause 1: a green check run ticks its clauses', () => {
+test('clause 1: a green check run ticks its clauses [C7]', () => {
   const notes = testRunTickNotes(item, [FILE], 'abc123');
   assert.equal(notes.length, 2, 'only the two [test] clauses are ticked');
   assert.match(notes[0], /^clause 1 \[test\]: green pullboard test run of test\/example\.test\.js at abc123$/u);
@@ -29,12 +30,26 @@ test('clause 1: a green check run ticks its clauses', () => {
   assert.match(other.message, /clause 2/u, 'a non-test clause still needs its own evidence');
 });
 
-test('clause 1: a run of a file outside the check ticks nothing', () => {
+test('clause 1: a run of a file outside the check ticks nothing [C7]', () => {
   assert.deepEqual(testRunTickNotes(item, ['test/other.test.js'], 'abc123'), []);
   assert.deepEqual(testRunTickNotes(item, [], 'abc123'), []);
 });
 
-test('clause 1: pullboard test records the ticks only after a green run', () => {
+test('clause 1: pullboard test records the ticks only after a green run [C7]', () => {
   const source = readFileSync(new URL('../apps/cli/src/shell/commands/test.js', import.meta.url), 'utf8');
   assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
+});
+
+test('clause 1: a green run of a shell-command check ticks its clauses [C7]', () => {
+  const shell = { ...item, item_criterion: '1) The old file is gone [test]\n2) The new file exists [test]', item_check: 'test ! -e src/x.js' };
+  const notes = checkRunTickNotes(shell, 'abc123');
+  assert.equal(notes.length, 2);
+  assert.match(notes[0], /^clause 1 \[test\]: green pullboard check run of test ! -e src\/x\.js at abc123$/u);
+  assert.equal(clauseInspectionProblem(shell, thread(notes)), null, 'submit does not refuse CLAUSE_UNTICKED after a green shell check');
+  assert.deepEqual(checkRunTickNotes({ ...shell, item_check: '' }, 'abc123'), []);
+});
+
+test('clause 1: pullboard check records the ticks only after a green run [C7]', () => {
+  const source = readFileSync(new URL('../apps/cli/src/shell/commands/check.js', import.meta.url), 'utf8');
+  assert.match(source, /run\.isGreen\) await recordCheckTicks/u);
 });
