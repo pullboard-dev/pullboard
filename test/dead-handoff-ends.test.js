@@ -161,11 +161,11 @@ test('a dead handoff on an item its seat no longer holds also ends within one sw
 });
 
 
-test('two same-candidate crash retries are bounded and exhaustion stays infrastructure [C7,V4]', async t => {
+test('three same-candidate crash retries are bounded and exhaustion stays infrastructure [C7,V4]', async t => {
   const box = fixture(t);
   let job = await killedRunningHandoff(box);
   const commit = job.commit;
-  for (let retry = 1; retry <= 2; retry += 1) {
+  for (let retry = 1; retry <= 3; retry += 1) {
     sweep(box);
     const next = state(box, box.id, job.id);
     assert.equal(next.ended.state, 'infrastructure');
@@ -178,16 +178,16 @@ test('two same-candidate crash retries are bounded and exhaustion stays infrastr
   }
   sweep(box);
   const after = state(box, box.id, job.id);
-  assert.equal(after.job.id, job.id, 'no third retry is queued');
+  assert.equal(after.job.id, job.id, 'no fourth retry is queued');
   assert.equal(after.job.state, 'infrastructure');
-  assert.equal(after.job.infrastructureRetries, 2);
+  assert.equal(after.job.infrastructureRetries, 3);
   assert.equal(after.job.error.code, 'SUBMIT_HANDOFF_DEAD');
   assert.equal(after.item.item_status, 'claimed');
   assert.equal(after.returns, 0, 'infrastructure never becomes a builder red');
 });
 
 
-test('clause 2: an infrastructure-stopped candidate waits for health, retries twice, and notifies once without builder red [C7,V4]', async t => {
+test('clause 2: an infrastructure-stopped candidate waits for health, retries three times, and notifies once without builder red [C7,V4]', async t => {
   const box = fixture(t);
   let job = await killedRunningHandoff(box);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
@@ -203,7 +203,7 @@ test('clause 2: an infrastructure-stopped candidate waits for health, retries tw
     assert.equal(await recoverInfrastructureHandoffs(ctx, { healthy: async () => false,
       launch: async () => assert.fail('an unhealthy executor must not launch') }), 0);
     assert.equal(state(box, box.id).job.id, job.id);
-    for (let retry = 1; retry <= 2; retry++) {
+    for (let retry = 1; retry <= 3; retry++) {
       sweep(box);
       const next = state(box, box.id, job.id);
       assert.equal(next.ended.state, 'infrastructure');
@@ -224,7 +224,7 @@ test('clause 2: an infrastructure-stopped candidate waits for health, retries tw
     assert.equal(after.item.item_status, 'claimed');
     assert.equal(after.returns, 0);
     const notices = board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all()
-      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted two healthy-executor recovery retries`));
+      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted 3 healthy-executor recovery retries`));
     assert.equal(notices.length, 1);
   } finally { board.db.close(); }
 });
@@ -264,10 +264,10 @@ test('clause 1: a stopped job whose captured tools are gone spends its retries a
     for (let sweeps = 0; sweeps < 3; sweeps++) await recoverInfrastructureHandoffs(ctx, { healthy: async () => true, launch: async () => assert.fail('no tools, no launch') });
     const after = state(box, box.id);
     assert.equal(after.job.id, job.id);
-    assert.equal(after.job.infrastructureRetries, 2);
+    assert.equal(after.job.infrastructureRetries, 3);
     assert.equal(after.returns, 0);
     const notices = board.db.prepare("SELECT shout_text FROM shout WHERE shout_to='coordinator'").all()
-      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted two healthy-executor recovery retries`));
+      .filter(row => row.shout_text.includes(`Queued gate #${box.id} exhausted 3 healthy-executor recovery retries`));
     assert.equal(notices.length, 1);
   } finally { board.db.close(); }
 });
