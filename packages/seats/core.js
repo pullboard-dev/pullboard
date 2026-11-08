@@ -29,6 +29,7 @@ export {
 export {
   ROUTES,
   canTake,
+  cappedRoute,
 } from './src/core/route-escalation.js';
 export {
   takeoverReady,

@@ -85,7 +85,17 @@ function acceptItem(box, entry) {
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
+/**
+ * Advance main by one unrelated commit after an item's submit. Why: these fixtures submit with their red suppressed, so a
+ * landing on the submit's own main would reuse that green receipt (#3685) and never run the landing gate under test.
+ */
+function moveMainPastSubmit(box, number = 0) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    const moved = commitFile(box, box.repo, `web/main-moved-${number}.txt`, `main moved past submit ${number}\n`, `chore(web): main moves past the submit ${number} [G1]`);
+    assert.equal(moved.status, 0, moved.stderr);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
+}
 
-
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem };
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit };
 }

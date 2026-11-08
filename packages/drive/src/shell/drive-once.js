@@ -8,10 +8,13 @@ import { renewLease } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { bundleFor } from '../../../pin/index.js';
+import { listTreeObjects } from '../../../pin/index.js';
+import { packObjects } from '../../../pin/index.js';
 import { toolingFor } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
 import { receiptKey } from '../../../receipt/index.js';
 import { settle } from '../../../receipt/index.js';
+import { ensureSource } from '../../../transport/index.js';
 import { ensureTooling } from '../../../transport/index.js';
 import { fetchResult } from '../../../transport/index.js';
 import { sharedTransport } from '../../../transport/index.js';
@@ -29,6 +32,26 @@ const BUNDLE_FOLDER = join(tmpdir(), 'pullboard-tooling-bundles');
 
 /** How often a driver renews its lease while a whole gate runs in-process; the lease lapses after 2 minutes. */
 const GATE_RENEW_MS = 5_000;
+
+/**
+ * How long a whole gate may run with no step written before the drive cell ends that run. Why: a renewed lease
+ * proves the driver is alive, not that it progresses; #2828's driver renewed its lease for 2 h 10 min after its
+ * last step (7 Nov) and nothing ended it.
+ */
+export const GATE_STALL_MS = 20 * 60_000;
+
+/** Reruns of the same candidate after a stalled run; the next stall ends the gate as infrastructure. */
+export const GATE_STALL_RETRIES = 1;
+
+/**
+ * The result a gate records when its stall retries are spent: the canonical refusal shape the hand-off records.
+ *
+ * @param {Refused} error
+ * @returns {{ code: 1, version: 1, error: { code: string, message: string, next: string } }}
+ */
+function stalledRefusal(error) {
+  return { code: 1, version: 1, error: { code: error.code, message: error.message, next: error.next ?? '' } };
+}
 
 /**
  * Hold the job's lease for this driver: renew it when the driver already holds it, else take it if it lapsed.
@@ -90,10 +113,13 @@ async function startOwed(db, view, channel, owner, now) {
  * Why: before the shards start, the runner is asked for the captured tooling pin's tree. A runner that holds it is
  * sent zero tooling bytes and the shard commands read the pinned copy at `captured.toolingPath`; only a runner
  * without it is sent the bundle once. The outcome is written into the running step as `tooling` [C7].
+ * Then the candidate's source is sent by tree id (ensureSource): the runner reports which of the tree's objects its
+ * own store lacks, only those are sent, and the shard commands read the folder it materialised at
+ * `captured.sourcePath`. The outcome is written into the running step as `source` [C7].
  *
- * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number, gate?: Function, repo?: string, tooling?: boolean, bundles?: string }} options
+ * @param {{ runner?: { host: string, root?: string }, plan?: object[] | ((captured: object) => object[]), transport: object, owner: string, now: number, gate?: Function, repo?: string, tooling?: boolean, source?: boolean, bundles?: string }} options
  */
-async function send(db, view, { runner, plan, transport, owner, now, gate, repo, tooling = true, bundles = BUNDLE_FOLDER }) {
+async function send(db, view, { runner, plan, transport, owner, now, gate, repo, tooling = true, source = true, bundles = BUNDLE_FOLDER }) {
   if (gate) {
     writeStep(db, view.id, 'running', { gate: true, shards: [] }, { now });
     return;
@@ -105,12 +131,16 @@ async function send(db, view, { runner, plan, transport, owner, now, gate, repo,
   if (repo && tooling !== false && captured.tooling) {
     pinned = await ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
   }
-  const shards = typeof plan === 'function' ? plan(pinned ? { ...captured, toolingPath: pinned.path } : captured) : plan;
+  let sourced;
+  if (repo && source !== false && captured.tree) sourced = await ensureSource(transport.connect(where), { tree: captured.tree, objects: () => listTreeObjects(repo, captured.tree), pack: ids => packObjects(repo, ids) });
+  const planned = { ...captured, ...(pinned ? { toolingPath: pinned.path } : {}), ...(sourced ? { sourcePath: sourced.path } : {}) };
+  const shards = typeof plan === 'function' ? plan(planned) : plan;
   if (!Array.isArray(shards) || !shards.length || shards.some(s => typeof s?.shard !== 'string' || typeof s?.command !== 'string')) {
     throw new Refused('DRIVE_PLAN', 'driveOnce needs a shard plan to send: pass { plan: [{ shard, command }] } with the project\'s own test command.');
   }
   const step = { runner: where, shards: shards.map(({ shard, command }) => ({ shard, command })) };
   if (pinned) step.tooling = { tree: pinned.tree, path: pinned.path, held: pinned.held, bytesSent: pinned.bytesSent };
+  if (sourced) step.source = { tree: sourced.tree, path: sourced.path, held: sourced.held, total: sourced.total, sent: sourced.sent, reused: sourced.reused, bytesSent: sourced.bytesSent };
   writeStep(db, view.id, 'running', step, { now });
   await startOwed(db, jobView(db, view.id), transport.connect(where), owner, now);
 }
@@ -157,19 +187,20 @@ async function collect(db, view, { transport, owner, now }) {
  * @param {() => number} now
  * @returns {(stages: { name: string, run: (signal: AbortSignal) => unknown }[]) => { name: string, run: (signal: AbortSignal) => Promise<unknown> }[]}
  */
-function observeStages(db, job, seen, now) {
+function observeStages(db, job, seen, now, ended = null) {
   return stages => {
     seen.order = stages.map(stage => stage.name);
     seen.sections = {};
-    /** Record one stage's outcome as a step and in this run's record. */
+    /** Record one stage's outcome as a step and in this run's record; an ended run records nothing more. */
     const record = (index, name, outcome, code) => {
+      if (ended?.aborted) return;
       seen.sections[name] = { outcome, code };
       writeStep(db, job, 'section.done', { section: name, index, outcome, code }, { seq: seen.seq, now: now() });
       seen.seq += 1;
     };
     return stages.map((stage, index) => ({ ...stage, run: async signal => {
       try {
-        const value = await stage.run(signal);
+        const value = await stage.run(ended && signal ? AbortSignal.any([signal, ended]) : signal ?? ended ?? undefined);
         record(index, stage.name, 'pass', null);
         return value;
       } catch (error) {
@@ -181,26 +212,77 @@ function observeStages(db, job, seen, now) {
 }
 
 /**
- * running → collected for a whole submit gate: run the caller's gate in-process with its stages observed, renewing
- * the lease while it runs, and write `collected` with the stage order, each stage's outcome and the gate's result.
- *
- * Why the caller's gate: the hand-off worker's gate (canonical submit) is the one source of what runs and in what
- * order; the driver only records it, so a gate driven here runs exactly the worker's sections and result.
+ * One run of a whole gate, renewing the lease while it runs and watching the job's steps: the run ends with the gate's
+ * result, or as stalled once no step was written for `stallMs`. A stalled run's stages get its signal and it records
+ * nothing more, so a stage that never settles cannot hold the gate.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {ReturnType<typeof jobView>} view
- * @param {{ gate: (observe: ReturnType<typeof observeStages>) => Promise<object>, owner: string, now: () => number }} options
+ * @param {{ gate: Function, owner: string, now: () => number, seen: object, stallMs: number, checkMs: number }} options
+ * @returns {Promise<{ result: object } | { stalled: { idleMs: number, lastStep: string | null } }>}
+ */
+async function attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs }) {
+  const ended = new AbortController();
+  const startedAt = now();
+  let watch;
+  // Not unref'd: a gate whose stage holds no handle of its own must still reach its stall.
+  const stalled = new Promise(resolvePromise => {
+    watch = setInterval(() => {
+      const at = now();
+      renewLease(db, view.id, owner, { now: at });
+      const steps = jobView(db, view.id).steps;
+      const last = steps.reduce((latest, step) => (step.at > latest.at ? step : latest), { at: startedAt, name: null });
+      if (at - last.at >= stallMs) resolvePromise({ stalled: { idleMs: at - last.at, lastStep: last.name } });
+    }, checkMs);
+  });
+  const run = Promise.resolve().then(() => gate(observeStages(db, view.id, seen, now, ended.signal), { signal: ended.signal }))
+    .then(result => ({ result }));
+  try {
+    const outcome = await Promise.race([run, stalled]);
+    if (outcome.stalled) {
+      ended.abort(new Refused('GATE_STALLED', `gate job ${view.id} recorded no step for ${Math.round(outcome.stalled.idleMs / 60_000)} min`));
+      run.catch(() => {});
+    }
+    return outcome;
+  } finally { clearInterval(watch); }
+}
+
+/**
+ * running → collected for a whole submit gate: run the caller's gate in-process with its stages observed, renewing
+ * the lease while it runs, and write `collected` with the stage order, each stage's outcome and the gate's result.
+ * A run that writes no step for `stallMs` is ended by this cell: a `gate.stalled` step is written and the same
+ * candidate runs again, GATE_STALL_RETRIES times; the next stall writes `collected` with a GATE_INFRA_EXHAUSTED
+ * refusal (`stalled(error)` shapes it), so the gate ends as infrastructure and never waits on a live lease forever.
+ *
+ * Why the caller's gate: the hand-off worker's gate (canonical submit) is the one source of what runs and in what
+ * order; the driver only records it, so a gate driven here runs exactly the worker's sections and result.
+ * Why its own watch: lease renewal proves the driver is alive, not that it progresses (#2828, 7 Nov).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view
+ * @param {{ gate: (observe: ReturnType<typeof observeStages>, run: { signal: AbortSignal }) => Promise<object>, owner: string, now: () => number,
+ *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object }} options
  * @returns {Promise<number>} Always 0: a gate owes nothing once its result is written.
  */
-async function runGate(db, view, { gate, owner, now }) {
+async function runGate(db, view, { gate, owner, now, stallMs = GATE_STALL_MS, stallCheckMs = GATE_RENEW_MS, stalled = stalledRefusal }) {
   if (typeof gate !== 'function') throw new Refused('DRIVE_GATE', `Job ${view.id} runs a whole gate: pass { gate } to driveOnce.`);
   const seen = { order: [], sections: {}, seq: view.steps.filter(step => step.name === 'section.done').length };
-  const renew = setInterval(() => renewLease(db, view.id, owner, { now: now() }), GATE_RENEW_MS);
-  renew.unref?.();
+  let stalls = view.steps.filter(step => step.name === 'gate.stalled').length;
   let result;
-  try { result = await gate(observeStages(db, view.id, seen, now)); }
-  finally { clearInterval(renew); }
-  writeStep(db, view.id, 'collected', { gate: true, order: seen.order, sections: seen.sections, result }, { now: now() });
+  for (;;) {
+    const outcome = await attemptGate(db, view, { gate, owner, now, seen, stallMs, checkMs: stallCheckMs });
+    if (!outcome.stalled) { result = outcome.result; break; }
+    const retry = stalls < GATE_STALL_RETRIES;
+    writeStep(db, view.id, 'gate.stalled', { attempt: stalls + 1, idleMs: outcome.stalled.idleMs, lastStep: outcome.stalled.lastStep, retry }, { seq: stalls, now: now() });
+    stalls += 1;
+    if (!retry) {
+      result = stalled(new Refused('GATE_INFRA_EXHAUSTED',
+        `gate job ${view.id} renewed its lease but recorded no step for ${Math.round(outcome.stalled.idleMs / 60_000)} min on ${stalls} runs of the same candidate (last step ${outcome.stalled.lastStep ?? 'none'}); nothing is wrong with the candidate`,
+        'nothing to do as the builder: the coordinator finds the stalled section and requeues this gate'));
+      break;
+    }
+  }
+  writeStep(db, view.id, 'collected', { gate: true, order: seen.order, sections: seen.sections, result, ...(stalls ? { stalls } : {}) }, { now: now() });
   return 0;
 }
 
@@ -247,10 +329,12 @@ function decide(db, view, { sections, failures, owner, now }) {
  *   plan?: { shard: string, command: string }[] | ((captured: object) => { shard: string, command: string }[]),
  *   gate?: (observe: (stages: object[]) => object[]) => Promise<object>,
  *   transport?: { connect: Function }, sections?: (collected: object) => object,
- *   failures?: (collected: object) => { file: string, case: string }[], tooling?: boolean, bundles?: string, now?: () => number }} options
+ *   failures?: (collected: object) => { file: string, case: string }[], tooling?: boolean, source?: boolean, bundles?: string,
+ *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, now?: () => number }} options - A whole gate that
+ *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error).
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, bundles, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
   const view = jobView(db, job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
@@ -261,8 +345,8 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
   const channels = transport ?? sharedTransport();
   let owed;
   if (before === 'queued') capture(db, view, repo, at);
-  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, bundles });
-  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(db, view, { gate, owner, now });
+  else if (before === 'captured') await send(db, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });
+  else if (before === 'running' && stepPayload(view, 'running')?.gate) owed = await runGate(db, view, { gate, owner, now, stallMs, stallCheckMs, stalled });
   else if (before === 'running') owed = await collect(db, view, { transport: channels, owner, now: at });
   else decide(db, view, { sections, failures, owner, now: at });
   const after = jobView(db, job);

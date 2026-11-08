@@ -1736,6 +1736,14 @@
     {
       "path": "src/move-history/245.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/246.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/247.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -3454,6 +3462,7 @@
   ],
   "allowedEdges": [
     "activity->store",
+    "apps/cli->pin",
     "api->store",
     "apps/lib->store",
     "blueprints->store",
@@ -3462,6 +3471,7 @@
     "github->store",
     "items->store",
     "keys->store",
+    "landing->pin",
     "landing->store",
     "link->store",
     "outbox->store",
