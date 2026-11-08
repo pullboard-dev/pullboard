@@ -59,7 +59,8 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
     '--criterion', 'The feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.out + added.err);
   box.id = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(box.id)).code, 0);
+  const claimed = box.run(box.web, 'claim', String(box.id));
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const built = helpers.commitFile(box, box.web, 'web/feature.js', "export const feature='item';\n", 'feat(web): private candidate [G1]');
   assert.equal(built.status, 0, built.stderr);
   const ready = box.run(box.repo, 'bar', 'ready', 'on', '--json');
