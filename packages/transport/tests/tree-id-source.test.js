@@ -7,10 +7,9 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
-import { closeBoard } from '../../../apps/lib/index.js';
-import { openBoard } from '../../../apps/lib/index.js';
 import { driveOnce } from '../../drive/index.js';
 import { createJob } from '../../jobs/index.js';
+import { fixtureBoard } from '../../../test/board-fixture.js';
 import { privateFixtureFiles } from '../../../test/fixture-child.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { listTreeObjects } from '../../pin/index.js';
@@ -104,10 +103,10 @@ async function resultWritten(transport, runner, job, shard) {
   assert.equal(reply.status, 0, `no result file at ${file}`);
 }
 
-test('clause 1: the production driver driveOnce runs real gates that send source by tree id, the second gate on the same base sending only the changed objects [C7]', async () => {
+test('clause 1: the production driver driveOnce runs real gates that send source by tree id, the second gate on the same base sending only the changed objects [C7]', async t => {
   const { repo, firstCommit, secondCommit, first, second } = repoWithTwoBases();
   const { transport, runner } = localRunner('runner-c');
-  const board = openBoard(join(scratch.root, 'board.sqlite'));
+  const board = fixtureBoard(t);
   try {
     let clock = 10_000;
     /** Drive one gate job from queued to its verdict and return its running step. */
@@ -141,8 +140,5 @@ test('clause 1: the production driver driveOnce runs real gates that send source
     const third = await gate('g3', secondCommit);
     assert.equal(third.source.held, true, 'a gate on a tree the runner holds sends nothing');
     assert.equal(third.source.bytesSent, 0);
-  } finally {
-    closeBoard(board);
-    transport.close();
-  }
+  } finally { transport.close(); }
 });
