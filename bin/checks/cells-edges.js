@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Report cell import edges with --report, lower the ceilings with --write, or refuse an undeclared new cross-cell import or deep import [C7]. */
 import {
+  existsSync,
   readFileSync,
   realpathSync,
   writeFileSync,
@@ -194,7 +195,7 @@ export function writeCellsEdgeCeilings(root) {
   return [];
 }
 
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) report(writeCellsEdgeCeilings(root));
