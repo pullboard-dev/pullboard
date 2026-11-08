@@ -6,8 +6,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
-import { refreshLandedMain } from './deferred-notices.js';
-import { postLandSuite } from './post-land-suite.js';
+import { finishLanding } from './landing-finish.js';
 import { mergeOnlyLandingProblem } from '../../../merge/index.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { existsSync } from 'node:fs';
@@ -171,6 +170,9 @@ export async function prepareFlakeLanding(state) {
   }
 }
 
+/** The finish steps the automatic lander has done before its finish runs: engines in each item merge, the gate, the audits at start, stale verdicts at selection. */
+const AUTOMATIC_EARLIER = ['amendLandingEngines', 'gate', 'activateMainAudits', 'returnStaleVerdicts'];
+
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
@@ -204,10 +206,7 @@ export async function publish(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
-  refreshPublishedMainReds(state, batch.base);
-  await refreshLandedMain(state);
-  await postLandSuite(state, state.landingPorts?.postLandSuite);
+  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
 }
@@ -271,9 +270,6 @@ export async function finishTrunk(state) {
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
-  await timedPhase(state.say, 'push', () => moveTrunkRef(state));
-  refreshPublishedMainReds(state, state.batch.base);
-  await refreshLandedMain(state);
-  await postLandSuite(state, state.landingPorts?.postLandSuite);
+  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => timedPhase(state.say, 'push', () => moveTrunkRef(state)) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
 }

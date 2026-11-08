@@ -185,9 +185,13 @@ export function handoffRefusedResult(error) {
 export async function handoffGate(ctx, request, { waitInventory, submit = submitHere, healthy, wait, agentId }) {
   ctx.submissionResult = {};
   const { lockWaits } = await submitUntilSettled(() => submit(ctx, request.item, request.infra), { say: line => process.stderr.write(line + '\n'), waitInventory,
-    onInfrastructure: rerun => withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
-      text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]))
-      .catch(error => process.stderr.write(`infrastructure rerun not recorded: ${error.message}\n`)),
+    // A board that cannot take the note (withBoard may throw before it returns a promise) never stops the rerun.
+    onInfrastructure: async rerun => {
+      try {
+        await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [request.item, { agentId, kind: 'note',
+          text: `Queued gate infrastructure rerun [${rerun.code}] after attempt ${rerun.attempt}${rerun.hosts.length ? ` on ${rerun.hosts.join(', ')}` : ''}: ${rerun.message}` }]));
+      } catch (error) { process.stderr.write(`infrastructure rerun not recorded: ${error.message}\n`); }
+    },
     ...(healthy ? { healthy } : {}), ...(wait ? { wait } : {}) });
   return handoffGreenResult(ctx, lockWaits);
 }

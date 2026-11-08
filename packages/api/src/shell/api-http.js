@@ -176,13 +176,16 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     let closed = false;
     let busy = false;
     let blocked = false;
+    let dirty = false;
     let timer;
+    const subscriptions = [];
     /** Remove this stream and its timer once the client disconnects or access is revoked. */
     function stop() {
       if (closed) return;
       closed = true;
       clearInterval(timer);
       streams.delete(res);
+      for (const unsubscribe of subscriptions) unsubscribe();
       for (const follow of follows) follow.watcher?.close();
       res.end();
     }
@@ -193,8 +196,9 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
     /** Deliver only records after each board's latest delivered sequence, with no overlapping polls. */
     async function send() {
       return withGitFacts(async () => {
-        if (closed || busy || blocked) return;
-        busy = true;
+        if (closed) return;
+        if (busy || blocked) { dirty = true; return; }
+        busy = true; dirty = false;
         let current = null;
         try {
           for (const follow of follows) {
@@ -227,13 +231,17 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false } = {
         } catch (error) {
           if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(tagged && current ? namedRefusal(current.board.id, error) : error)) + '\n\n');
           stop();
-        } finally { busy = false; }
+        } finally { busy = false; if (dirty && !closed && !blocked) queueMicrotask(send); }
       });
     }
     res.once('close', stop);
     res.on('drain', () => { blocked = false; void send(); });
-    timer = setInterval(send, pollMs);
-    timer.unref();
+    for (const follow of follows) if (follow.watcher?.subscribe) subscriptions.push(follow.watcher.subscribe(error => {
+      if (error) { if (!closed) res.write('event: error\ndata: ' + JSON.stringify(refusal(error)) + '\n\n'); stop(); }
+      else void send();
+    }));
+    // Remote/legacy adapters without a native notification port retain their existing transport contract.
+    if (follows.some(follow => !follow.watcher?.subscribe)) { timer = setInterval(send, pollMs); timer.unref(); }
     await send();
   }
 
