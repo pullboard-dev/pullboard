@@ -4,10 +4,12 @@ import {
   copyFileSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { privateFixtureFiles, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import {
@@ -76,4 +78,37 @@ test('clause 3: the check runs in the changed-file static list and in the full s
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /packages\/b\/deep\.js:1: deep import into a/u);
   assert.match(readFileSync(join(REPO, 'bin/checks/static-tree-registry.js'), 'utf8'), /cellsEdgeProblems\(root\)/u);
+});
+
+const CHECKS = join(REPO, 'bin', 'checks');
+
+/** Every bin/checks module whose main-module guard resolves process.argv[1] (#3666). */
+function guardedChecks() {
+  return readdirSync(CHECKS).filter(file => file.endsWith('.js'))
+    .filter(file => readFileSync(join(CHECKS, file), 'utf8').includes('realpathSync(process.argv[1])'));
+}
+
+/** The source of an ES module that imports each named check, then prints how many it imported. */
+function importSource(files) {
+  return `${files.map(file => `await import(${JSON.stringify(pathToFileURL(join(CHECKS, file)).href)});`).join('\n')}\nconsole.log('imported', ${files.length});\n`;
+}
+
+test('clause 1: importing bin/checks/cells-edges.js never throws when process.argv[1] names no file [C7]', () => {
+  // The saved check-baseline worker retry runs `node -e <source> <id> <request>`, so argv[1] is an item id, not a file.
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', importSource(['cells-edges.js']), '424242', 'request'], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.doesNotMatch(child.stderr, /ENOENT/u);
+  assert.match(child.stdout, /imported 1/u);
+});
+
+test('clause 2: every bin/checks main-module guard tolerates a deleted argv[1] script [C7]', () => {
+  const files = guardedChecks();
+  assert.ok(files.includes('cells-edges.js') && files.includes('git-launches.js') && files.includes('ui-sizes.js'), files.join(', '));
+  const inputs = privateFixtureFiles('checks-main-guard-');
+  made.push(inputs.root);
+  inputs.write('gone.mjs', `import { unlinkSync } from 'node:fs';\nunlinkSync(process.argv[1]);\n${importSource(files)}`);
+  const child = runFixtureChild(process.execPath, [join(inputs.root, 'gone.mjs')], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(child.status, 0, child.context);
+  assert.doesNotMatch(child.stderr, /ENOENT/u);
+  assert.match(child.stdout, new RegExp(`imported ${files.length}`, 'u'));
 });

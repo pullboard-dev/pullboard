@@ -94,9 +94,13 @@ export function prepareSubmit(board, id, options) {
     options = sealClauseInspection(board, id, options);
     options = sealStrictRenames(board, id, options);
   }
-  requireBoardWriteSnapshot(board, snapshot, 'submit');
+  // The seal's own "policy re-frozen" fact is this preparation's write on this connection, not a stale board: only
+  // another connection's commit voids the seal, and the write checks from after it. Counting the fact as a change
+  // refused every submit after a landing-only policy change, so a queued gate retried it forever (#3516).
+  const sealed = boardWriteSnapshot(board);
+  if (sealed.version !== snapshot.version) requireBoardWriteSnapshot(board, snapshot, 'submit');
   const prepared = Object.freeze({ ...options });
-  PREPARED_SUBMITS.set(prepared, { board, id, snapshot });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed });
   return prepared;
 }
 
