@@ -86,12 +86,9 @@ process.stdout.write=function(...args) {
 };\n`);
   t.after(async () => {
     const job = state(box).job;
-    if (job) await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
-      const directory = join(box.repo, '.git/pullboard/submit-handoffs', job.id);
-      const request = join(directory, 'request.json');
-      return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
-        && !existsSync(join(directory, 'source'));
-    }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+    if (job) await helpers.waitFor(() => !['queued', 'running'].includes(state(box).job?.state), // budget: owned worker cleanup hang ceiling; no throughput claim.
+      'queued worker finished', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+    // The gate driver and dispatcher still write for a moment after the job ends; remove the tree only once they are done.
     await gateSettled(helpers, box, job?.id);
     await removeSandboxes(helpers);
   });
