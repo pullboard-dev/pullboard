@@ -48,6 +48,7 @@ import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
+import { parkedClaims } from "./next-release-cooldown.js";
 import { reviewerChecks } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
@@ -89,7 +90,7 @@ function recentLightActivity(board) {
  * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
  *
  * @param {any} board
- * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {any} item the pick (an item row with its id and status), its route possibly lowered to mid by nextFor
  * @param {string} seatRoute
  * @returns {boolean}
  */
@@ -127,7 +128,7 @@ export function nextFor(board, options) {
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, skips: [...idleSkips] } : result;
+  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
@@ -301,6 +302,9 @@ export function nextFor(board, options) {
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
+  const parked = parkedClaims(board, agentId);
+  if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
