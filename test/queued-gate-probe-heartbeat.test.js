@@ -6,12 +6,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import {
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { rmSync } from 'node:fs';
+import { privateFixtureFiles } from './fixture-child.js';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
@@ -39,7 +35,7 @@ function deadPid() {
 }
 
 test('clause 1: a queued gate keeps its queue entry through 135 s of sequential runner probes, and its next renewal succeeds [C7]', async (t) => {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), 'pb-probe-heartbeat-')));
+  const home = privateFixtureFiles('pb-probe-heartbeat-').root;
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => {
@@ -89,7 +85,7 @@ test('clause 1: a queued gate keeps its queue entry through 135 s of sequential 
 });
 
 test('clause 2: a queued gate whose process is gone is still removed from the queue [C7]', async (t) => {
-  const home = realpathSync(mkdtempSync(join(tmpdir(), 'pb-probe-heartbeat-')));
+  const home = privateFixtureFiles('pb-probe-heartbeat-').root;
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => {
