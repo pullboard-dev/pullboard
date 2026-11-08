@@ -5,6 +5,7 @@ import { overdueSeatTestsFirst } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { retainConnection } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
@@ -147,18 +148,16 @@ function canonicalResourceFile(file) {
   }
 }
 
-/** Open and initialize the small durable queue database. */
-function open(file, machine = false) {
-  return machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file);
-}
+/** Open and initialize the small durable queue database, or hand back the process's one retained connection when reuse is on [C7,#3338]. */
+function open(file, machine = false) { return retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file)); }
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer [C7].
   let transaction = false;
   try {
+    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
     transaction = true;
     db.exec(`CREATE TABLE IF NOT EXISTS resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
@@ -1042,10 +1041,9 @@ export async function takeResource(options) {
   const file = databaseFile(scope, root);
   // A queued run waits out a locked database in place; only a lock past the deadline stops it, as never ran.
   const db = await retryLockedSlotDatabase(file, () => open(file, scope === 'machine'));
-  let pool;
-  try { pool = canonicalResourceFile(file); }
+  let pool, awarenessCursor; // A throw before the admission loop owns the connection must close it [C7,#3338].
+  try { pool = canonicalResourceFile(file); awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id; }
   catch (error) { db.close(); throw error; }
-  const awarenessCursor = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM timing_client_observation').get().id;
   const unfenced = new Map();
   const observedRunnerNames = new Set();
   /** Preserve every observed unfenced client throughout this admission and execution. */
@@ -1060,7 +1058,7 @@ export async function takeResource(options) {
     for (const client of observations) unfenced.set(`${client.pid}:${client.started}:${client.agent}`, { ...client });
     return { exclusive: unfenced.size === 0, unfencedClients: [...unfenced.values()] };
   };
-  timingEvidence();
+  try { timingEvidence(); } catch (error) { db.close(); throw error; }
   const resume = options._resume;
   const token = resume?.token ?? randomUUID();
   const requestedAt = resume?.requestedAt ?? Date.now();
@@ -1077,7 +1075,8 @@ export async function takeResource(options) {
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
-  const repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root);
+  let repo;
+  try { repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root); } catch (error) { db.close(); throw error; }
   let queuedAt = resume?.queuedAt ?? new Date().toISOString();
   let leaseUntil = '';
   let initialTicket = resume?.ticket;

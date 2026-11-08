@@ -6,7 +6,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
-import { refreshLandedCodeMap } from '../core/landing-main-notices.js';
+import { refreshLandedMain } from './deferred-notices.js';
 import { postLandSuite } from './post-land-suite.js';
 import { mergeOnlyLandingProblem } from '../../../merge/index.js';
 import { requireOutsideOwner } from '../../../items/index.js';
@@ -196,7 +196,7 @@ export async function publish(state) {
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
   refreshPublishedMainReds(state, batch.base);
-  await refreshLandedCodeMap(state);
+  await refreshLandedMain(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
@@ -233,7 +233,7 @@ export async function finishTrunk(state) {
   });
   state.say?.('finish: main fast-forwarded; refreshing the code map');
   refreshPublishedMainReds(state, state.batch.base);
-  await refreshLandedCodeMap(state);
+  await refreshLandedMain(state);
   await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
 }

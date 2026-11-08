@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runStaticRegistry } from './static-check-registry.js';
+import { STATIC_CHECKS } from './static-check-registry.js';
 import { gitSpawnSync } from '../../../git/index.js';
 
 /**
@@ -9,9 +10,10 @@ import { gitSpawnSync } from '../../../git/index.js';
  *
  * @param {string} root - Checkout root the files are read from.
  * @param {string[]} files - Root-relative changed or staged paths.
+ * @param {{ staged?: boolean, only?: string[] | null }} [options] - `only` runs just the registered checks with these names.
  * @returns {string[]} One `path:line: message` per failure; empty when clean.
  */
-export function changedStaticFailures(root, files, { staged = false } = {}) {
+export function changedStaticFailures(root, files, { staged = false, only = null } = {}) {
   const cache = new Map();
   const accepted = new Map();
   /** Existing debt is read from accepted main, never the candidate working tree or a baseline file. */
@@ -48,7 +50,8 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
     const extra = paths.stdout.split('\0').filter(file => file && !files.includes(file) && /\.[cm]?js$/u.test(file));
     engineSources = [...sources, ...extra.map(read)];
   }
-  return runStaticRegistry({ root, files, staged, text, previous, read, sources, engineSources });
+  const context = { root, files, staged, text, previous, read, sources, engineSources };
+  return only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
 }
 
 /** Judge the actual index whenever the explicit staged checker is invoked. */

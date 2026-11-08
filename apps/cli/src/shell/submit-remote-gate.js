@@ -1,4 +1,7 @@
-import { submitCellsInventory } from './submit-cells-remote.js';
+import { runnerCellsInventory } from './submit-cells-remote.js';
+import { keepRunnerStderr } from './runner-stderr.js';
+import { stderrNote } from './submit-cells-remote.js';
+import { throwTrustedRefusal } from './submit-cells-remote.js';
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
 import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
@@ -101,7 +104,26 @@ try {
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
   if (selected('preflight') && input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
-  const artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+  let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
+  // The controller holds no inventory for these accepted commits: produce each here, once per runner cache (#2535).
+  if (selected('cells') && !artifacts && Array.isArray(input.produceInventory) && input.produceInventory.length) artifacts = await step('inventory', async () => {
+    const pending = message => Object.assign(new Error('accepted cells inventory was not produced on the runner: ' + message), { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, commit: input.main });
+    if (typeof gate.warmAcceptedCells !== 'function' || typeof gate.readAcceptedCells !== 'function') throw pending('accepted main lacks the inventory producer');
+    const made = new Map();
+    for (const commit of input.produceInventory) {
+      let found = gate.readAcceptedCells(root, commit);
+      if (!found.available) {
+        const { withFileLock } = await import('./packages/outbox/index.js');
+        try { await gate.warmAcceptedCells(root, commit, { withCheckout: landing.withMainCheckout, withLock: withFileLock, trunk: input.main }); }
+        catch (error) { throw pending(String(error?.message ?? error)); }
+        found = gate.readAcceptedCells(root, commit);
+        result.notes.push('submit cells inventory: produced on the runner for ' + commit.slice(0, 12));
+      }
+      if (!found.available) throw pending(commit.slice(0, 12) + ' is unreadable after production (' + found.cause + ')');
+      made.set(commit, found);
+    }
+    return made;
+  });
   const artifact = artifacts?.get(input.main);
   if (selected('cells')) result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout: landing.withMainCheckout, acceptedArtifact: artifact, acceptedArtifacts: artifacts, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
@@ -114,6 +136,7 @@ try {
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
+  else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
   else if (error?.name !== 'Refused') throw error;
   else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
@@ -159,6 +182,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
+  const kept = keepRunnerStderr(directory, result);
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
@@ -169,7 +193,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
-    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory} and submit again`);
+    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
   const bytes = readFileSync(result.rawOutputPath);
   if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
@@ -179,7 +203,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   let value = null;
   try { if (rows.length === 1) value = JSON.parse(rows[0].slice(RESULT.length)); } catch { /* refused below */ }
   if (!value || value.main !== main || value.source !== source) {
-    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step returned no result bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; read ${directory}`);
+    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step returned no result bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; read ${directory}${stderrNote(kept)}`);
   }
   return { value, directory, sha256: phase.sha256 };
 }
@@ -193,17 +217,19 @@ const ANALYSIS_INFRA_ATTEMPTS = 3;
  */
 export async function remoteSubmitAnalysis(root, request, lease, artifactDirectory) {
   const { main, source, readCutItems } = request;
-  const inventory = !request.parts || request.parts.includes('cells') ? await submitCellsInventory(root, main, source) : null;
+  // A missing accepted inventory is produced on the runner, never on this machine (#2535).
+  const { inventory, produce } = !request.parts || request.parts.includes('cells') ? await runnerCellsInventory(root, main, source) : { inventory: null, produce: [] };
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
     step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data, analysisArtifact: inventory }, lease, artifactDirectory);
     if (!step.value.infra || step.value.infra.code.startsWith('CELLS_INVENTORY_')) break;
   }
+  if (step.value.refusal) throwTrustedRefusal(step.value.refusal);
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   const { value, directory, sha256 } = step;
