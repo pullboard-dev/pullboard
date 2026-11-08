@@ -869,3 +869,9 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     assert.deepEqual([...actual[kind].fields].sort(), expected.fields);
   }
 });
+
+test('clause 2: formats.md states that job and job_step are part of a board export only while they hold rows', () => {
+  const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+  assert.match(guide, /The `job` and `job_step` tables are part of a board export only while they hold rows/);
+  assert.match(guide, /an import treats a missing `job` or `job_step` table as empty/);
+});

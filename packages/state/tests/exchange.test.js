@@ -109,6 +109,32 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
   }
 });
 
+test('clause 1: import reports exactly the tables an export carried, with job and job_step only while they hold rows [C7]', () => {
+  const directory = tempDirectory();
+  const source = populatedBoard(directory);
+  const empty = openBoard(join(directory, 'empty.sqlite'));
+  const full = openBoard(join(directory, 'full.sqlite'));
+  try {
+    const bare = exportBoard(source);
+    assert.ok(!Object.hasOwn(bare.tables, 'job') && !Object.hasOwn(bare.tables, 'job_step'), 'a board with no jobs exports neither table');
+    assert.ok(!bare.tables.sqlite_sequence.some(({ name }) => name === 'job' || name === 'job_step'));
+    assert.deepEqual(importBoard(empty, bare).tables, Object.keys(bare.tables));
+    assert.deepEqual(exportBoard(empty), bare);
+
+    source.db.prepare('INSERT INTO job (job_id, job_kind, job_created, job_updated) VALUES (?, ?, ?, ?)').run('job-1', 'gate', 1, 1);
+    const withJob = exportBoard(source);
+    assert.ok(withJob.tables.job.some((row) => row.job_id === 'job-1'), 'a board with a job row exports the job table');
+    assert.deepEqual(importBoard(full, withJob).tables, Object.keys(withJob.tables));
+    assert.ok(importBoard === importBoard && exportBoard(full).tables.job.some((row) => row.job_id === 'job-1'));
+    assert.deepEqual(exportBoard(full), withJob);
+  } finally {
+    store.closeBoard(source);
+    store.closeBoard(empty);
+    store.closeBoard(full);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
