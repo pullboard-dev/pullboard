@@ -1,4 +1,7 @@
 import { submitCellsInventory } from './submit-cells-remote.js';
+import { keepRunnerStderr } from './runner-stderr.js';
+import { stderrNote } from './submit-cells-remote.js';
+import { throwTrustedRefusal } from './submit-cells-remote.js';
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
 import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { shellWord } from '../../../../packages/runners/index.js';
@@ -114,6 +117,7 @@ try {
     { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
 } catch (error) {
   if (error?.retryable === true && (error.code === 'GIT_READ_INFRASTRUCTURE' || error.code?.startsWith('CELLS_INVENTORY_'))) result.infra = { code: error.code, message: String(error.message), commit: error.inventoryCommit ?? error.commit ?? null };
+  else if (error?.retryable === true && typeof error.code === 'string') result.refusal = { code: error.code, message: String(error.message), retryable: true };
   else if (error?.name !== 'Refused') throw error;
   else result.refused = { code: error.code, message: String(error.message).replace(/^\\[\\w+\\] /u, ''), ...(error.next ? { next: error.next } : {}) };
 }
@@ -159,6 +163,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     metadata: { ...lease.runMetadata, testStage: stage }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
   lease.executionAdmission = result.executionAdmission ?? null;
   lease.executionPhases = result.executionPhases ?? null;
+  const kept = keepRunnerStderr(directory, result);
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
@@ -169,7 +174,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
-    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory} and submit again`);
+    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
   const bytes = readFileSync(result.rawOutputPath);
   if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
@@ -179,7 +184,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   let value = null;
   try { if (rows.length === 1) value = JSON.parse(rows[0].slice(RESULT.length)); } catch { /* refused below */ }
   if (!value || value.main !== main || value.source !== source) {
-    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step returned no result bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; read ${directory}`);
+    throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step returned no result bound to main ${main.slice(0, 12)} and source ${source.slice(0, 12)}; read ${directory}${stderrNote(kept)}`);
   }
   return { value, directory, sha256: phase.sha256 };
 }
@@ -204,6 +209,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
     step = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data, analysisArtifact: inventory }, lease, artifactDirectory);
     if (!step.value.infra || step.value.infra.code.startsWith('CELLS_INVENTORY_')) break;
   }
+  if (step.value.refusal) throwTrustedRefusal(step.value.refusal);
   if (step.value.infra) throw Object.assign(new Error(step.value.infra.message), { name: step.value.infra.code.startsWith('CELLS_') ? 'CellsInventoryInfrastructureError' : 'GitReadInfrastructureError', code: step.value.infra.code, retryable: true,
     ...(typeof step.value.infra.commit === 'string' ? { commit: step.value.infra.commit } : {}) });
   const { value, directory, sha256 } = step;
