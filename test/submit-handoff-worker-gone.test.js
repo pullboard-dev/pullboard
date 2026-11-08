@@ -9,7 +9,6 @@ import { openBoard } from '../apps/lib/index.js';
 import { recordSubmitHandoff } from '../packages/jobs/index.js';
 import { gateDriveJobId, readGateDrive } from '../packages/drive/index.js';
 import { fixture, state } from './submit-handoff-fixture.js';
-import { goneHandoff, lostQueuedLaunch } from '../apps/cli/src/shell/submit-handoff.js';
 
 /** Age the queued or running job's recorded start by `ms`, standing in for time passing on the fixture's own board. */
 function ageHandoff(box, id, ms) {
@@ -96,13 +95,7 @@ test('clause 1: a drain requeues a gone-worker hand-off once as worker-gone, and
   ageHandoff(box, box.id, 11 * 60_000);
   const swept = await drain();
   const requeued = state(box, box.id);
-  const judged = (() => {
-    const saved = process.env.PULLBOARD_MACHINE_HOME; process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
-    try { return { driver: driverRecord(box, first.id), gone: goneHandoff(requeued.job), lost: lostQueuedLaunch(requeued.job), requestFile: existsSync(join(directory, 'request.json')), now: new Date().toISOString() }; }
-    catch (error) { return { error: error.message }; }
-    finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
-  })();
-  assert.notEqual(requeued.job.id, first.id, `clause 1: a successor job carries the same source\n${swept}\n${JSON.stringify(requeued.job)}\n${JSON.stringify(judged)}`);
+  assert.notEqual(requeued.job.id, first.id, `clause 1: a successor job carries the same source\n${swept}\n${JSON.stringify(requeued.job)}`);
   assert.equal(requeued.job.retryOf, first.id);
   assert.equal(requeued.job.commit, first.commit);
   assert.equal(requeued.job.requeuedFor, 'worker-gone');
