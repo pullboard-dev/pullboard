@@ -66,7 +66,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const linked = run('git', ['worktree', 'add', '-q', '-b', 'schema/drift', branch, 'main'], main, env);
   assert.equal(linked.status, 0, linked.stderr + linked.stdout);
 
-  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker');
+  const joined = cli(branch, 'join', 'web', '--model', 'fixture-worker', '--route', 'strong');
   assert.equal(joined.status, 0, joined.stderr + joined.stdout);
   const { agent } = JSON.parse(joined.stdout);
   const added = cli(main, 'add', 'web', 'direct opener shared move', '--criterion', 'the direct branch opener uses the native board');

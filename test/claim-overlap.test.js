@@ -69,7 +69,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
 
-test('next skips a named file being edited and offers it after release [N2]', async t => {
+test('next names a file being edited as an overlap note and still offers the item [N2,C7]', async t => {
   const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const board = openBoard(':memory:');
@@ -82,7 +82,7 @@ test('next skips a named file being edited and offers it after release [N2]', as
     freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
   const workingFiles = new Map([[edited, { files: ['shared.js'], unknown: false }]]);
   const blocked = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles });
-  assert.notEqual(blocked.item?.item_id, waiting);
+  assert.equal(blocked.item?.item_id, waiting);
   assert.ok(blocked.reasons.some(reason => reason.includes(`#${edited}`) && reason.includes('shared.js')));
   store.release(board, edited, holder, 'fixture', undefined, 'ROUTED_ELSEWHERE');
   const offered = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles, omitIds: [edited] });
@@ -129,7 +129,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   const box = helpers.project('true');
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
-  const joined = fixtureJoin(box.run, second, 'web', '--model', 'Fixture');
+  const joined = fixtureJoin(box.run, second, 'web', '--route', 'strong', '--model', 'Fixture');
   assert.equal(joined.code, 0, joined.err + joined.out);
   // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

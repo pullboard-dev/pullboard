@@ -29,7 +29,7 @@
 .dash-item span { flex: none; color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
 .dash-item b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); font-weight: 500; }
 .dash-item:hover b { color: var(--accent-strong); text-decoration: underline; }
-.dash-item-copy { flex: 1; align-items: start; }
+.dash-item .dash-item-copy { display: grid; flex: 1; gap: var(--space-0); min-width: 0; align-items: start; }
 .dash-item-copy > b { min-width: 0; }
 .dash-item .item-stage { max-width: 100%; }
 .dash-item .item-stage > span, .dash-item .item-stage small { flex: none; color: var(--ink-muted); font-family: var(--sans); font-size: var(--text-2xs); }

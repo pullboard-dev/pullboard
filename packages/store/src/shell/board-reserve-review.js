@@ -13,6 +13,10 @@ import { confirmFamilyRelaxation } from './board-review-family.js';
 import { frozenRelaxAt } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
+import { sweepLapsedReviews } from './board-review-lease.js';
+import { holdReviewLease } from './board-review-lease.js';
+import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../src/review-gate-receipt-engine.js';
+import { gateReceiptProblem } from './board.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -74,8 +78,12 @@ export function prepareReserveReview(board, id, who) {
  * @returns {any}
  */
 export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, prepared, reviewHeartbeats = null }) {
+  sweepLapsedReviews(board, reviewHeartbeats);
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
   const found = getItem(board, id);
+  // No proof receipt exists while the queued gate runs: a reviewer could only reject it INSUFFICIENT_EVIDENCE (#3737).
+  const pending = found && (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_GATE_RECEIPT_ENGINE ? gateReceiptProblem(board, found) : null;
+  if (pending) throw pending;
   const frozen = found ? frozenRelaxAt(found) : undefined;
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
@@ -98,5 +106,6 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });
   logEvent(board, agentId, 'reserve', id, { until, ...(witness ? { commit: found.item_commit, digest: found.item_frozen_digest, familyRelaxation: witness } : {}) });
+  holdReviewLease(board, id, agentId);
   return getItem(board, id);
 }
