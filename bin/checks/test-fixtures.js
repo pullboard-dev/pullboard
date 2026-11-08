@@ -202,6 +202,32 @@ export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = comp
 }
 
 /**
+ * The same growth as fixtureProblems, judged on just the named files and read through `text`, so the commit hook can
+ * judge staged bytes in milliseconds. A file's allowance is the greater of its ceiling and the count its own text has at
+ * `previous` (accepted main, '' when main lacks it), as the gate's composition base allows. Paths the gate's tree walk
+ * would skip are skipped here too [C7].
+ *
+ * @param {string[]} files - Repo-relative changed or staged paths.
+ * @param {{ text: (path: string) => string, previous: (path: string) => string, ceilings: () => Record<string, Record<string, number>> }} options
+ *   `ceilings` is read only when a named file is a test source, so a commit with no test files reads and scans nothing.
+ * @returns {{ path: string, line: number, text: string }[]} The rows the gate static stage prints, as `kind: message`.
+ */
+export function fixtureGrowthIn(files, { text, previous, ceilings }) {
+  const tests = files.filter(path => TEST_SOURCE.test(path) && !path.split('/').some(part => part === 'node_modules' || part === 'work' || part.startsWith('.')));
+  if (!tests.length) return [];
+  const committed = ceilings();
+  const problems = tests.flatMap(path => fixtureSites(text(path), path));
+  const allowed = { ...committed };
+  for (const path of new Set(fixtureGrowth(problems, committed).map(row => row.path))) {
+    const inherited = fixtureCounts(fixtureSites(previous(path), path))[path] ?? {};
+    const merged = { ...(committed[path] ?? {}) };
+    for (const [kind, count] of Object.entries(inherited)) merged[kind] = Math.max(merged[kind] ?? 0, count);
+    allowed[path] = merged;
+  }
+  return fixtureGrowth(problems, allowed).map(({ path, line, kind, text: message }) => ({ path, line, text: `${kind}: ${message}` }));
+}
+
+/**
  * Write today's counts as the ceilings, or lower them; growth over an existing file is returned and nothing is written.
  * A kind the ceilings file has never recorded is new to the scanner, so its first counts are written as they stand.
  */

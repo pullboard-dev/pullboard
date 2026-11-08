@@ -11,12 +11,15 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
-import { pipelineStats, pipelineLimit, pipelineLines } from '../packages/stats/index.js';
+import { pipelineStats, pipelineLimit, pipelineLines, pipelinePerHour, pipelinePerHourLines } from '../packages/stats/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
+/** Reviewer models whose families the per-hour verdicts group by. */
+const ANTHROPIC_MODEL = 'claude-sonnet-5-5';
+const OPENAI_MODEL = 'gpt-6';
 const BASE = Date.parse('2026-10-01T00:00:00.000Z');
 /** Private synthetic native admission identities; never used as production proof receipts. */
 const admission = id => ({ submitAdmission: { id: String(id).padStart(8, '0') + '-0000-4000-8000-000000000000', commit: 'a'.repeat(40), tree: 'b'.repeat(40) } });
@@ -124,4 +127,50 @@ test('pipeline recorded lease expiry excludes open time and restores review wait
     [21, 'claim', 1, { leaseUntil: at(200) }], [31, 'renew', 1, admission(1)], [51, 'submit', 1],
     [61, 'reserve', 1, { until: at(71) }], [81, 'reserve', 1, { until: at(200) }], [101, 'accept', 1], [151, 'merged', 1]]);
   assert.deepEqual(pipelineStats(history).items[0].stages, { claim: 20000, submit: 20000, reviewWait: 20000, review: 30000, landing: 50000 });
+});
+
+
+/** Hand-built native events at known offsets from BASE for the per-hour projection. */
+function hourEvents(rows) {
+  return rows.map(([seconds, kind, by, detail], index) => ({ event_id: index + 1, event_at: new Date(BASE + seconds * 1000).toISOString(),
+    event_by: by, event_kind: kind, item_id: 1, event_detail: JSON.stringify(detail ?? {}) }));
+}
+const gate = green => ({ run: { kind: 'submit', green } });
+
+test('clause 1: stats --window prints green submits, verdicts by reviewer family, items landed and the share bounced at each stage per hour [C7]', () => {
+  const history = hourEvents([
+    [10, 'gate-run', 'core-1', gate(true)], [20, 'gate-run', 'core-2', gate(true)], [30, 'gate-run', 'core-3', gate(false)],
+    [40, 'gate-run', 'core-1', { run: { kind: 'landing', green: false } }],
+    [50, 'accept', 'core-9', { model: ANTHROPIC_MODEL }], [60, 'accept', 'core-8', { model: OPENAI_MODEL }], [70, 'reject', 'core-9', { model: ANTHROPIC_MODEL }],
+    [80, 'merged', 'coordinator'], [90, 'reopen', 'coordinator'], [100, 'claim', 'core-1'], [110, 'claim', 'core-2'],
+    [120, 'release', 'core-1', { reason: 'Seat core-1 has no heartbeat for two minutes or more' }], [130, 'release', 'core-2', { reason: 'done' }],
+    [-7200, 'gate-run', 'core-4', gate(true)], [4000, 'merged', 'coordinator'],
+  ]);
+  const report = pipelinePerHour(history, { now: BASE + 1800 * 1000, windowMinutes: 30 });
+  assert.equal(report.greenSubmitsPerHour, 4, '2 green in 30 minutes is 4 an hour; a landing gate and an older run do not count');
+  assert.equal(report.landedPerHour, 2);
+  assert.deepEqual(report.verdictsPerHour, [{ family: 'anthropic', accept: 2, reject: 2 }, { family: 'openai', accept: 2, reject: 0 }]);
+  assert.deepEqual(report.bounced.red, { count: 1, of: 3, share: 1 / 3 });
+  assert.deepEqual(report.bounced.reject, { count: 1, of: 3, share: 1 / 3 });
+  assert.deepEqual(report.bounced.reopen, { count: 1, of: 2, share: 0.5 });
+  assert.deepEqual(report.bounced.stale, { count: 1, of: 2, share: 0.5 });
+  const lines = pipelinePerHourLines(report);
+  assert.match(lines[0], /4 green submits · 2 items landed/u);
+  assert.match(lines[1], /anthropic 2 accept \/ 2 reject; openai 2 accept \/ 0 reject/u);
+  assert.match(lines[2], /red 33\.3% \(1 of 3\) · reject 33\.3% \(1 of 3\) · reopen 50\.0% \(1 of 2\) · stale 50\.0% \(1 of 2\)/u);
+  const quiet = pipelinePerHour(history, { now: BASE + 86_400_000, windowMinutes: 60 });
+  assert.equal(quiet.bounced.red.share, null, 'a stage nothing entered is unmeasured, never 0%');
+  assert.match(pipelinePerHourLines(quiet)[2], /red unmeasured · reject unmeasured/u);
+  assert.throws(() => pipelinePerHour(history, { windowMinutes: 0 }), { code: 'USAGE' });
+});
+
+test('clause 1: the real stats --window command prints the per-hour pipeline first and exposes it in JSON [C7]', async t => {
+  const { root } = fixture(t, cycle(1));
+  const text = await command(root, ['stats', '--window', '1h']);
+  assert.equal(text.code, 0, text.stderr);
+  assert.match(text.stdout.split('\n')[0], /^pipeline per hour \(window 60 min\): \d+ green submits · \d+ items landed$/u);
+  assert.match(text.stdout, /\nbounced: red unmeasured/u);
+  const json = JSON.parse((await command(root, ['stats', '--window', '1h', '--json'])).stdout);
+  assert.equal(json.pipelineHour.windowMinutes, 60);
+  assert.equal(json.pipelineHour.bounced.stale.share, null);
 });

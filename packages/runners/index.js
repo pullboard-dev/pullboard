@@ -26,7 +26,7 @@ export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-t
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
 export { packText, commitWork, runItems } from "./src/shell/run.js";
 /** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
-export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch } from './src/shell/runner-hosted-worktree.js';
+export { hostedItemFolderPath, hostedFolderScript, runOnRunnerShell, createHostedItemFolder, runInHostedItemFolder, returnHostedBranch, pushHostedItemBranch } from './src/shell/runner-hosted-worktree.js';
 export { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout, discardWarmCheckout } from './src/shell/warm-checkouts.js';
 export { captureSubmitTooling, prepareSubmitToolingRetry, retrySubmitTooling } from './src/shell/submit-tooling-retry.js';
 export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupProcessText } from './src/core/cleanup-diagnostics.js';

@@ -26,17 +26,26 @@ const ROW_ID = /\[[^\]]*\b[A-Z]+\d+(?:\.\d+)*\b[^\]]*\]/u;
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function testNameProblems(root) {
+  return walk(root, TEST_FILE).flatMap(path => testNameSites(readText(root, path), path));
+}
+
+/**
+ * One problem per literal test name without a spec row id in one test file's text. Why: the commit hook judges staged
+ * bytes, not the working file, with the same rule and message the gate's T5 check prints [C7].
+ *
+ * @param {string} source - Test file text.
+ * @param {string} path - Repo-relative path.
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function testNameSites(source, path) {
   const problems = [];
-  for (const path of walk(root, TEST_FILE)) {
-    const source = readText(root, path);
-    const { code, strings } = lex(source);
-    const starts = new Map(strings.map((literal) => [literal.start, literal]));
-    for (const call of code.matchAll(CALL)) {
-      const name = starts.get(call.index + call[0].length);
-      if (!name || ROW_ID.test(name.text)) continue;
-      const shown = name.text.replace(/\\(['"`\\])/gu, '$1').replace(/\s+/gu, ' ');
-      problems.push({ path, line: lineAt(source, name.start), text: `test name has no spec row id: ${shown.length > 80 ? `${shown.slice(0, 77)}...` : shown}` });
-    }
+  const { code, strings } = lex(source);
+  const starts = new Map(strings.map((literal) => [literal.start, literal]));
+  for (const call of code.matchAll(CALL)) {
+    const name = starts.get(call.index + call[0].length);
+    if (!name || ROW_ID.test(name.text)) continue;
+    const shown = name.text.replace(/\\(['"`\\])/gu, '$1').replace(/\s+/gu, ' ');
+    problems.push({ path, line: lineAt(source, name.start), text: `test name has no spec row id: ${shown.length > 80 ? `${shown.slice(0, 77)}...` : shown}` });
   }
   return problems;
 }

@@ -15,6 +15,8 @@ import { displayAgentName } from '../../../../../packages/seats/index.js';
 import { bindLocalSession } from '../../../../../packages/seats/index.js';
 import { HOOK_CHECKOUT_WAIT_MS } from '../../../../../packages/seats/index.js';
 import { localSessionMatches } from '../../../../../packages/seats/index.js';
+import { endedFolderSession } from '../../../../../packages/seats/index.js';
+import { adoptLocalSession } from '../../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { seatAt } from '../item-folder-identity.js';
 import { itemFolderRenewalRefusal } from '../item-folder-identity.js';
@@ -76,6 +78,35 @@ export async function bindWriteSession(io, positionals, values) {
     const me = withBoard(ctx, (board) => whoAmI(ctx, board));
     lease.updateAgent(me.id);
   } };
+}
+
+/**
+ * The ended session an item folder is bound to, or null when the claiming session has nothing to take over. Refuses
+ * ITEM_FOLDER_SESSION_LIVE, naming the seat, when another live session still holds the folder (#3679).
+ *
+ * @param {any} board
+ * @param {{ id: string }} me the claiming seat
+ * @param {string} folder the item folder about to be adopted
+ * @returns {{ digest: string, binding: { agent: string, digest: string } } | null}
+ */
+export function endedItemFolderSession(board, me, folder) {
+  const digest = agentSessionDigest();
+  if (!digest || !board) return null;
+  const binding = endedFolderSession(repoInfo(folder), { agent: me.id, digest,
+    liveSeats: () => store.listAgents(board).filter(seat => seat.presence === 'live') });
+  return binding ? { digest, binding } : null;
+}
+
+/**
+ * Bind an adopted item folder to the claiming session so its commit hooks accept the claimer's commits (#3679).
+ * Why: the folder kept the ended seat's binding, and every commit there was refused NOT_YOUR_CHECKOUT.
+ *
+ * @param {string} folder the adopted item folder, at its new path
+ * @param {{ id: string }} me the claiming seat
+ * @param {{ digest: string, binding: { agent: string, digest: string } } | null} prior what endedItemFolderSession returned
+ */
+export async function adoptItemFolderSession(folder, me, prior) {
+  if (prior) await adoptLocalSession(repoInfo(folder), { agent: me.id, digest: prior.digest, from: prior.binding });
 }
 
 /** Choose an explicitly supplied model or the standard environment fallback, refusing an unknown identity. */

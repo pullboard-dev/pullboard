@@ -22,15 +22,15 @@ function largeTooling() {
   return { entry, worker, tooling: { sha256 }, runtime: { entry, files: runtimeFiles } };
 }
 
-test('the worker command stays far below the SSH packet bound however large the capsule is [C7]', () => {
+test('clause 1: the worker command stays far below the SSH packet bound however large the capsule is [C7]', () => {
   const { worker, tooling, runtime } = largeTooling();
   const { command, input } = remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, tooling, runtime, '', null);
   assert.ok(input.length > SSH_PACKET_LIMIT, 'the fixture capsule must be larger than the SSH bound');
-  assert.ok(Buffer.byteLength(command) < 64 * 1024, `command is ${Buffer.byteLength(command)} bytes`);
+  assert.ok(Buffer.byteLength(command) < 16 * 1024, `command is ${Buffer.byteLength(command)} bytes`);
   assert.ok(!command.includes(input.subarray(20, 80).toString('ascii')), 'the capsule payload never appears in the command');
 });
 
-test('a capsule larger than the SSH bound installs from stdin and the worker reads exactly the bytes after it [C7]', () => {
+test('clause 2: a capsule larger than the SSH bound installs from stdin and the worker reads exactly the bytes after it [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-capsule-'));
   try {
     const { entry, worker, tooling, runtime } = largeTooling();
@@ -43,7 +43,7 @@ test('a capsule larger than the SSH bound installs from stdin and the worker rea
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('a truncated capsule fails before the worker starts [C7]', () => {
+test('clause 3: the file passes, including a truncated capsule fails before the worker starts [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-capsule-'));
   try {
     const { worker, tooling, runtime } = largeTooling();

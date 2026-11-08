@@ -15,6 +15,8 @@ import { coordinatorActionLines } from '../../../../../packages/stats/index.js';
 import { pipelineLimit } from '../../../../../packages/stats/index.js';
 import { pipelineStats } from '../../../../../packages/stats/index.js';
 import { pipelineLines } from '../../../../../packages/stats/index.js';
+import { pipelinePerHour } from '../../../../../packages/stats/index.js';
+import { pipelinePerHourLines } from '../../../../../packages/stats/index.js';
 import { movesStats } from '../../../../../packages/stats/index.js';
 import { movesLines } from '../../../../../packages/stats/index.js';
 import { readFileSync } from 'node:fs';
@@ -120,7 +122,7 @@ export function run(io, { first, second, rest, values }) {
   if (values.compare && values.window === undefined) throw new Refused('USAGE', 'compare adjacent windows with pullboard stats --window 4h --compare');
   const windowMinutes = values.window === undefined ? undefined : flowWindowMinutes(values.window);
   const now = ctx.clock.now().getTime();
-  const { stats, agents, window, comparison, usage, coordinator, idleSkips } = withBoard(ctx, (board) => {
+  const { stats, agents, window, comparison, usage, coordinator, idleSkips, pipelineHour } = withBoard(ctx, (board) => {
     // Keep counters and optional raw-history window on the same read snapshot while other seats append.
     if (windowMinutes !== undefined) board.db.exec('SAVEPOINT stats_window_read');
     try {
@@ -128,12 +130,13 @@ export function run(io, { first, second, rest, values }) {
       // The lifecycle projection validates the date range before capacity reads use its bounds.
       const history = store.events(board);
       const idleSkips = idleSkipMinutes(history, now);
+      const pipelineHour = windowMinutes === undefined ? undefined : pipelinePerHour(history, { now, windowMinutes });
       const window = windowMinutes === undefined ? undefined
         : flowStats(history, null, now, stats, { windowMinutes }).window;
       const comparison = values.compare ? compareFlowWindows(history, { now, windowMinutes, complete: true }) : undefined;
       if (window) window.executionCapacity = readRunnerStage(ctx.info.root, { from: window.since, to: window.until });
       const coordinator = coordinatorActions(board, { since: window?.since ?? stats.since ?? undefined, until: new Date(now).toISOString() });
-      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage: localUsage(costTotals(board, prices), publicUsage), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
+      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage: localUsage(costTotals(board, prices), publicUsage), ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
     } finally {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
@@ -144,7 +147,9 @@ export function run(io, { first, second, rest, values }) {
   boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'
     : boardHolds.todayCount > holdBaseline.allowancePerDay ? 'exceeded'
       : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
-  io.result?.({ stats, usage, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  io.result?.({ stats, usage, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  // First, so the 8192-byte human summary never withholds the answer a window was asked for.
+  if (pipelineHour) for (const line of pipelinePerHourLines(pipelineHour)) io.say(line);
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
   io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);

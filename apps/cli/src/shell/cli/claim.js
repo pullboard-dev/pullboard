@@ -76,6 +76,7 @@ import { SEAT_LIVE_WINDOW_MS } from '../../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
 import { contains } from '../../../../../packages/git/index.js';
 import { isDeepStrictEqual } from 'node:util';
+import { sessionRoute } from '../model-tier-route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
@@ -292,12 +293,17 @@ export async function claimOrdered(ctx, board, args) {
   }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
+  // The claiming session's declared model caps its seat's route, so a Haiku in a strong seat cannot claim strong work (#3678).
+  const seat = store.agentById(board, args[1].agentId);
+  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
+  const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: item => ({
       ...freezer(ctx, { captureVerifyPolicy: true, board })(item), policyRefreeze,
     }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
+    ...(routeCap ? { routeCap } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;

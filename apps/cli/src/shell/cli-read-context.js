@@ -44,6 +44,7 @@ import {
 } from '../../../../packages/sandbox/index.js';
 import { familyIndex } from '../../../../packages/verify/index.js';
 import { MAIN_MERGE_LABEL } from '../../../../packages/merge/index.js';
+import { sessionRoute } from './model-tier-route.js';
 
 /**
  * A comma list of spec ids from a flag.
@@ -412,7 +413,7 @@ export function withOpenedBoard(ctx, work, board) {
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   const seat = environmentAgent(ctx.info.root, board);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: seat.agent_route, family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -427,5 +428,6 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
+  // The route follows the model this session declares, not only the one the seat joined with (#3678).
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
 }

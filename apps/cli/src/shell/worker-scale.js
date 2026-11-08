@@ -105,13 +105,36 @@ export function planWorkerScale({ budget, usedSpend, cycleHours, worth, workers,
     running: workers.length, assign: { review, build: Math.min(builds, Math.max(0, free - review)) }, binding, worthKnown };
 }
 
+/** A review waits this long before the scaler opens a seat of another family for it [C7]. */
+export const REVIEW_FAMILY_WAIT_MS = 10 * 60_000;
+
+/**
+ * The reviewer seats to open for builder families whose reviews wait with no free reviewer of another family.
+ * One seat per waiting builder family, of a different family, on the lowest route that can review all of that
+ * family's waiting items. Why: a review needs a family other than its builder's, so same-family idle seats cannot help.
+ * @param {{ waiting: { family: string, waitedMs: number, route: string }[], seats: { family: string|null, busy: boolean }[], families: string[], thresholdMs?: number }} state
+ * @returns {{ family: string, route: string, for: string }[]}
+ */
+export function planReviewFamilySeats({ waiting, seats, families, thresholdMs = REVIEW_FAMILY_WAIT_MS }) {
+  const opens = [];
+  for (const builder of new Set(waiting.filter(entry => entry.waitedMs > thresholdMs).map(entry => entry.family))) {
+    if (seats.some(seat => !seat.busy && seat.family !== builder)) continue;
+    const family = families.find(candidate => candidate !== builder);
+    if (!family) continue;
+    const routes = waiting.filter(entry => entry.family === builder && entry.waitedMs > thresholdMs).map(entry => store.ROUTES.indexOf(entry.route));
+    opens.push({ family, route: store.ROUTES[Math.max(0, ...routes)], for: builder });
+  }
+  return opens;
+}
+
 /**
  * One supervisor cycle: draw down the hours the live seats used since the last cycle, observe, plan, stop idle
  * seats (each re-checked just before it stops, since a seat may have taken work after the observation), then
  * launch. Every effect goes through the injected ports.
  */
 export async function scaleCycle({ observe, isIdle, stop, launch }) {
-  const plan = planWorkerScale(await observe());
+  const observed = await observe();
+  const plan = planWorkerScale(observed);
   const stopped = [];
   for (const id of plan.stop) {
     if (!await isIdle(id)) continue;
@@ -119,7 +142,14 @@ export async function scaleCycle({ observe, isIdle, stop, launch }) {
     stopped.push(id);
   }
   for (let index = 0; index < plan.launch; index += 1) await launch();
-  return { ...plan, stopped };
+  // Reviews waiting on a family no free seat belongs to open a reviewer of another family, within what the budget left can pay for [C7].
+  const room = Math.max(0, plan.affordable - plan.running - plan.launch + stopped.length);
+  const opened = [];
+  for (const open of planReviewFamilySeats({ waiting: observed.waiting ?? [], seats: observed.seats ?? [], families: observed.families ?? [] }).slice(0, room)) {
+    await launch(open);
+    opened.push(open);
+  }
+  return { ...plan, stopped, opened };
 }
 
 /** True while a seat holds a claim or reserves a review: such a seat is never stopped. */
@@ -139,7 +169,14 @@ export function liveLocalSeats(board) {
 export function observeWorkers(board, { lane, managed, inactive = [], route = 'strong', now = Date.now() }) {
   const items = store.listItems(board);
   const ids = [...new Set([...liveLocalSeats(board).filter(id => !inactive.includes(id)), ...managed])];
+  const agents = store.listAgents(board), familyOf = id => store.canonicalFamily(board, store.seatFamily(board, id)) || null;
+  const submittedAt = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id=? AND event_kind='submit'");
+  const unreserved = items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item));
   return {
+    seats: ids.map(id => ({ id, family: familyOf(id), busy: seatHoldsWork(board, id, items) })),
+    families: [...new Set(agents.map(agent => familyOf(agent.agent_id)).filter(Boolean))].sort(),
+    waiting: unreserved.map(item => ({ item: item.item_id, family: store.canonicalFamily(board, item.item_builder_family) || null, route: item.item_route,
+      waitedMs: Math.max(0, now - Date.parse(submittedAt.get(item.item_id).at ?? '')) || 0 })).filter(entry => entry.family),
     worth: readCapacity(board, now, { currentProofCounters, proofCounter }).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item) && store.canTake(route, item.item_route)).length,
@@ -217,6 +254,7 @@ export function scaleLine(plan) {
     : plan.binding === 'worth' ? `${plan.worth} worth running` : plan.binding === 'unknown-worth' ? 'the four-seat cap while worth running is unknown' : 'the waiting work';
   return `workers: ${plan.running} live on this machine, target ${plan.target} (limited by ${why}${plan.worthKnown ? '' : '; worth running is unknown, capped at four'})`
     + `${plan.launch ? `; launching ${plan.launch}` : ''}${plan.stopped?.length ? `; stopped idle ${plan.stopped.join(', ')}` : ''}`
+    + `${plan.opened?.length ? `; opened ${plan.opened.map(open => `a ${open.family} reviewer on ${open.route} for ${open.for} reviews`).join(', ')}` : ''}`
     + `${plan.running > plan.target && !plan.launch ? '; seats above target are holding work or were started elsewhere and keep running' : ''}`
     + `; free seats take ${plan.assign.review} review${plan.assign.review === 1 ? '' : 's'} first, then ${plan.assign.build} build${plan.assign.build === 1 ? '' : 's'}`;
 }
@@ -271,12 +309,13 @@ export async function scaleWorkers(io, values, deps) {
       if (!child?.pid) return;
       try { process.kill(-child.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
     },
-    launch: async () => {
-      let seat = parked.shift();
+    launch: async (open) => {
+      const seatRoute = open?.route ?? route, seatFamily = open?.family ?? values.family ?? null;
+      let seat = open ? undefined : parked.shift();
       if (seat && retired.has(seat.id)) {
         const old = seat;
         const made = {};
-        try { await deps.worktreeFor(quiet(made), lane, route, values.family ?? null, model, true, { reuseRoot: old.path }); }
+        try { await deps.worktreeFor(quiet(made), lane, seatRoute, seatFamily, model, true, { reuseRoot: old.path }); }
         catch (error) { parked.unshift(old); throw error; }
         owned.delete(old.id);
         retired.delete(old.id);
@@ -285,15 +324,15 @@ export async function scaleWorkers(io, values, deps) {
       if (!seat) {
         if (owned.size >= (ports.target ?? 0) + 2) throw new Refused('WORKER_WORKTREE_LIMIT', 'the worker worktree pool is full; finish or preserve its parked work before launching another seat');
         const made = {};
-        await deps.worktreeFor(quiet(made), lane, route, values.family ?? null, model);
+        await deps.worktreeFor(quiet(made), lane, seatRoute, seatFamily, model);
         seat = { id: made.value.agent, path: made.value.path, prompt: made.value.prompt };
       }
       if (typeof seat.id !== 'string' || !seat.id || typeof seat.path !== 'string') throw new Refused('WORKER_SEAT_IDENTITY', 'worktree creation must return its registered seat id and path before an agent can launch');
       owned.set(seat.id, seat);
       const entry = { child: null, seat };
       running.set(seat.id, entry);
-      const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: route, PULLBOARD_MODEL: model,
-        PULLBOARD_PROMPT: `${seat.prompt}\nThis seat is already joined on --route ${route}; keep that route on any join. Take work with pullboard next --take until it has nothing for you, then stop.` };
+      const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: seatRoute, PULLBOARD_MODEL: model,
+        PULLBOARD_PROMPT: `${seat.prompt}\nThis seat is already joined on --route ${seatRoute}; keep that route on any join. Take work with pullboard next --take until it has nothing for you, then stop.` };
       /** Reap exactly this launch once; an old child can never remove a newer incarnation of its seat. */
       const finished = error => {
         if (running.get(seat.id) !== entry) return;

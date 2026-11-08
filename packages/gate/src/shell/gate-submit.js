@@ -46,6 +46,7 @@ import { contains } from '../../../../src/git.js';
 import { mainPolicy } from '../../../sandbox/index.js';
 import {
   browserFreeChecksEnabled,
+  loadMachineSettings,
 } from '../../../config/index.js';
 import {
   selectAffectedTests,
@@ -70,7 +71,7 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './gate-execution.js';
-import { SHARD_ADMIT_MS } from './proof-shards.js';
+import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
 import { mergeShardRuns } from './proof-shards.js';
 import { runProofShards } from './proof-shards.js';
@@ -242,8 +243,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
         metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
       const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
-        { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
-      const shards = await runProofShards(proofFiles, { freeSlots: (planners.freeSlots ?? freeRunnerSlots)(), times: readFileTimes(root), root, runFirst, runOther });
+        shardSlotOptions(slotOptions));
+      // A browser proof plans only as many shards as runners have browser slots free, so no shard waits on its siblings [C7].
+      const freeSlots = planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
+      const shards = await runProofShards(proofFiles, { freeSlots, times: readFileTimes(root), root, runFirst, runOther });
       return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
     };
     lease.tracker?.mark('runAt');

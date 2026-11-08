@@ -35,6 +35,8 @@ export {
   localSeatSessionDigest,
   localSessionMatches,
   bindLocalSession,
+  endedFolderSession,
+  adoptLocalSession,
   localSessionSeats,
   parentSessionFile,
   recordParentSession,
@@ -114,6 +116,7 @@ export {
 export {
   ROUTES,
   canTake,
+  cappedRoute,
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/core/route-escalation.js';

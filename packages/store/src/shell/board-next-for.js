@@ -42,6 +42,7 @@ import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../state/index.js";
 import { ROUTES } from "../../../seats/index.js";
 import { canTake } from "../../../seats/index.js";
+import { cappedRoute } from "../../../seats/index.js";
 import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
@@ -118,7 +119,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -136,7 +137,8 @@ export function nextFor(board, options) {
     const item = nextFor(board, { ...options, verify: !verify, focusOnly: true }).item;
     return Boolean(item && focus.ids.has(item.item_id));
   };
-  const route = routeOf(board, agentId);
+  // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
+  const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {

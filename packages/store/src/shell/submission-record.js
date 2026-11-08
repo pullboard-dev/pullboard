@@ -19,8 +19,12 @@ export function submissionItemValues(board, found, { agentId, commit, tree, file
   };
 }
 
-/** Append the original submit payload after the guarded mutation, preserving legacy omissions and field order. */
-export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion }) {
+/**
+ * Append the original submit payload after the guarded mutation, preserving legacy omissions and field order.
+ * Why the tooling tree: landing and review reuse a submit's proof only when its tooling tree is the one that judges
+ * them (RFC 0007 SC7); dropped here, every receipt read as TOOLING_CHANGED and no proof was ever reused [C7,#3685].
+ */
+export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion }) {
   const criterionDigest = engineVersion >= 9 ? getItem(board, id).item_frozen_digest : null;
   logEvent(board, agentId, 'submit', id, {
     commit,
@@ -34,6 +38,7 @@ export function recordSubmissionEvent(board, id, { agentId, commit, tree, policy
     ...(recordedSize ? { submissionSize: recordedSize } : {}),
     ...(companion ? { companion } : {}),
     ...(quarantineProofIds !== undefined ? { quarantineProofIds: [...quarantineProofIds] } : {}),
+    ...(typeof tooling === 'string' && /^[a-f0-9]{40,64}$/u.test(tooling) ? { tooling } : {}),
   });
 }
 

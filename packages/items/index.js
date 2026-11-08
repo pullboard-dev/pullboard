@@ -52,7 +52,7 @@ export { itemEditBar } from './src/core/item-edit-bar.js';
 export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/core/item-patch-paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/shell/item-patch-submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
-export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/shell/family-declaration.js';
+export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/shell/family-declaration.js';
 export { auditFailureItem } from './src/core/audit-failure-item.js';
 
 export { claimProgress } from './src/core/claims.js';

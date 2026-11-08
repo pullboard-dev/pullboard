@@ -5,6 +5,7 @@ import { overdueSeatTestsFirst } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { beatingProbes } from './waiter-heartbeat.js';
 import { retainConnection } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
@@ -117,7 +118,6 @@ export function gateSlotEnvironment(lease) {
     [BROWSER_SLOT_HELD_ENV]: lease.browser ? '1' : '',
   };
 }
-
 /** Resolve the local database for the requested scope. */
 function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
@@ -1371,7 +1371,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe, transportProbe: options.runnerTransportProbe }).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), beatingProbes(options, db, token)).catch(error => { if (!slotDatabaseLocked(error)) throw error; return false; })) continue; // A busy queue skips this probe, never the wait [C7].
       await pause(POLL_MS);
     }
   } catch (error) {

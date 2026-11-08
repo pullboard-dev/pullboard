@@ -21,6 +21,16 @@ export const ROUTES = ['light', 'mid', 'strong'];
  */
 export const canTake = (agentRoute, itemRoute) => ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute);
 
+/**
+ * The lower of a seat's joined route and a session's cap, so the model running in a seat narrows what it takes [#3678].
+ * Why narrowing only: a claim the cap allows is one the stored route allows too, so replaying the event log agrees.
+ *
+ * @param {string} route
+ * @param {string | null | undefined} cap
+ * @returns {string}
+ */
+export const cappedRoute = (route, cap) => ROUTES.includes(cap) && ROUTES.indexOf(cap) < ROUTES.indexOf(route) ? cap : route;
+
 /** Return rejected verdict receipts since the item's most recent route change [B15,B13].
  *
  * @param {any} board

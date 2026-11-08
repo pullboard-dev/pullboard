@@ -14,6 +14,7 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
+import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
@@ -112,4 +113,32 @@ export async function runnerCommand(io, { first, second, rest, values }) {
 /** Run `pullboard runner` and return its exit code. */
 export function run(io, args) {
   return runnerCommand(io, args);
+}
+
+/**
+ * The registered runner a runner-hosted seat keeps its item folders on, or null for a seat with local folders [C7].
+ * A seat is runner-hosted when its environment names a registered runner in PULLBOARD_ITEM_FOLDER_RUNNER.
+ * @param {NodeJS.ProcessEnv} [env] The seat's environment.
+ * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
+ */
+export function itemFolderRunner(env = process.env) {
+  const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
+  if (!host) return null;
+  const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
+  if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `item folder runner ${host} is not registered`, 'run pullboard runner list, or unset PULLBOARD_ITEM_FOLDER_RUNNER');
+  return runner;
+}
+
+/**
+ * Create or renew the item folder on the seat's runner over ssh; the coordinator repository gains no worktree [C7].
+ * The runner clones from PULLBOARD_ITEM_FOLDER_ORIGIN, or from the coordinator's Git directory when unset.
+ * @param {{ host: string }} runner The registered runner.
+ * @param {{ itemId: number, branch: string, commonDir: string, hooksPath?: string }} plan The item, its branch, the coordinator's Git directory and its hooks path.
+ * @param {NodeJS.ProcessEnv} [env] The seat's environment.
+ * @returns {Promise<string>} The folder as host:path.
+ */
+export async function openHostedItemFolder(runner, { itemId, branch, commonDir, hooksPath }, env = process.env) {
+  const hosted = await createHostedItemFolder(runner, { itemId, origin: env.PULLBOARD_ITEM_FOLDER_ORIGIN?.trim() || commonDir,
+    branch, ...(hooksPath ? { hooksPath } : {}) });
+  return `${hosted.host}:${hosted.folder}`;
 }

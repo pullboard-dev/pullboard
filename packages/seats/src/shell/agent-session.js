@@ -109,6 +109,56 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
   } finally { if (!retained) lease.release(); }
 }
 
+/**
+ * The ended session an item folder is bound to, which a claiming session may take over, or null when there is nothing
+ * to hand over. A folder whose session is still live is refused, naming the seat that holds it, and is never adopted
+ * (#3679). A session is live while a seat with live presence keeps its own checkout bound to it; a seat checkout taken
+ * over by a new session, or a seat silent past the live window, means the session that bound the folder has ended.
+ *
+ * @param {{ root: string, gitDir: string, commonDir: string }} info the item folder about to be adopted
+ * @param {{ agent: string, digest: string, liveSeats: () => any[] }} claimer the claiming seat, its session digest, and
+ *   the board's seats with live presence, read only when the folder is bound to another session
+ * @returns {{ agent: string, digest: string } | null} the binding to replace
+ */
+export function endedFolderSession(info, { agent, digest, liveSeats }) {
+  const binding = readBinding(checkoutSessionFile(info), true);
+  if (!binding || (binding.digest === digest && binding.agent === agent)) return null;
+  if (binding.digest !== digest) {
+    const others = liveSeats().filter(seat => seat.agent_id !== agent);
+    const { digests } = seatLinks(info, others);
+    const holder = others.find(seat => digests.get(seat.agent_id) === binding.digest);
+    if (holder) {
+      throw new Refused('ITEM_FOLDER_SESSION_LIVE', `item folder ${info.root} belongs to ${holder.agent_id}'s live session${holder.heartbeatAt ? ` (last seen ${holder.heartbeatAt})` : ''}; it is retained, not adopted`,
+        `ask ${holder.agent_id} to finish with the folder or end its session, then claim the item again; build another item meanwhile`);
+    }
+  }
+  return binding;
+}
+
+/**
+ * Hand a checkout from an ended session to the claiming one, so its commit hooks act for the claimer (#3679).
+ * Why: an item folder adopted at claim kept the ended seat's binding, and every commit in it was refused
+ * NOT_YOUR_CHECKOUT. The binding is replaced only while it is still the one the caller judged ended (`from`), under the
+ * checkout's lease, so a session that bound the folder meanwhile is never overwritten.
+ *
+ * @param {{ root: string, gitDir: string }} info the adopted checkout
+ * @param {{ agent: string, digest: string, from: { agent: string, digest: string } }} adoption
+ */
+export async function adoptLocalSession(info, { agent, digest, from }) {
+  const file = checkoutSessionFile(info);
+  const lease = await checkoutLease(info, 'checkout-session:' + createHash('sha256').update(info.gitDir).digest('hex'), agent, 0);
+  try {
+    const current = readBinding(file, true);
+    if (current?.digest !== from.digest || current?.agent !== from.agent) {
+      throw new Refused('NOT_YOUR_CHECKOUT', `this checkout belongs to ${current?.agent ?? 'another agent'} in another agent session`,
+        'claim the item again; the claim adopts the folder only once its previous session has ended');
+    }
+    const pending = file + '.' + process.pid + '.tmp';
+    writeFileSync(pending, JSON.stringify({ version: 1, agent, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+    renameSync(pending, file);
+  } finally { lease.release(); }
+}
+
 /** Find this session's registered seats from local Git bindings, never from shared board credentials. */
 export function localSessionSeats(info, { agents, digest }) {
   const directory = join(info.commonDir, 'worktrees');

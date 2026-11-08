@@ -16,7 +16,7 @@ import { failureSignatures } from '../packages/landing/src/shell/main-failure-ma
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile } = e2e;
-const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
+const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures({ sandbox, project, commitFile });
 const MAIN_RED = 'web/land-9.test.js';
 
 test('known-main cancellation accounting excludes only fully accounted cancellations [B3,C7]', () => {
@@ -63,15 +63,20 @@ function redMainProject({ perItem = false, focused = true } = {}) {
   return box;
 }
 
-/** Submit and accept one item with the fixture's red suppressed, as an item whose own check passed. */
+/**
+ * Submit and accept one item with the fixture's red suppressed, as an item whose own check passed; main then moves, so
+ * the landing runs its gate instead of reusing the suppressed submit receipt [C7,#3685].
+ */
 function acceptedItem(box, number, contents) {
   box.env.LAND_SUPPRESS_RED = '1';
+  let entry;
   try {
-    const entry = itemWorktree(box, number);
+    entry = itemWorktree(box, number);
     submitItem(box, entry, contents);
     acceptItem(box, entry);
-    return entry;
   } finally { delete box.env.LAND_SUPPRESS_RED; }
+  moveMainPastSubmit(box, number);
+  return entry;
 }
 
 /** Run one real landing batch on the fixture board and return its record and the landing's own lines. */
