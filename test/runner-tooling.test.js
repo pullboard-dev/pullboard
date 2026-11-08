@@ -14,6 +14,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { fixtureProjectPolicy } from './testkit-fixture.js';
 
 test('a dirty main checkout does not stop a runner check [O5,C7]', async t => {
   const helpers = createE2eHelpers();
@@ -24,7 +25,7 @@ test('a dirty main checkout does not stop a runner check [O5,C7]', async t => {
   const machineHome = join(home, '.pullboard'), requests = join(box.dir, 'requests.jsonl');
   for (const root of [tooling, project, worker, home, machineHome]) mkdirSync(root, { recursive: true });
   copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);
-  writeFileSync(join(project, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
+  fixtureProjectPolicy(project, { config: { gate: 'true' } });
   for (const root of [tooling, project]) {
     box.git(root, 'init', '-q', '-b', 'main');
     box.git(root, 'add', '-A');
@@ -120,7 +121,7 @@ test('warmed controller refuses changed policy bytes and a fresh run uses each n
   const machineHome = join(home, '.pullboard'), requests = join(box.dir, 'requests.jsonl');
   for (const root of [tooling, project, worker, home, machineHome]) mkdirSync(root, { recursive: true });
   copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);
-  writeFileSync(join(project, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
+  fixtureProjectPolicy(project, { config: { gate: 'true' } });
   box.git(project, 'init', '-q', '-b', 'main');
   box.git(project, 'add', '-A');
   box.git(project, 'commit', '-q', '-m', 'test: controller policy project');
