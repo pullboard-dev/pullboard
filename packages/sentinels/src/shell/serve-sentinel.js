@@ -45,15 +45,9 @@ function refreshCanary(root, signal) {
   return refreshBoard(root, signal, ['relay', 'canary', 'run', '--json'], true);
 }
 
-/** Replace a landing worker whose recorded pid is gone mid-batch; a live worker or timer keeps its custody. */
-async function recoverLanding(root) {
-  const { recoverAutomaticLanding } = await import('../../../landing/index.js');
-  return recoverAutomaticLanding(root, new URL('../../../../bin/automatic-landing.js', import.meta.url));
-}
-
-/** Start after the view listens; scans use the ordinary sentinel command so each board's off switch and ordering apply. */
+/** Start after the view listens; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
 export function startServeSentinel({ projectRoot, run = refreshBoard, projects = listProjects,
-  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = recoverLanding } = {}) {
+  every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = refreshCanary, canary = startRelayCanaryWatch, recover = async () => false } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
   const lifetime = new AbortController();
   let pending = null;

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A test Chrome never outlives the test that started it: every launcher ties Chrome to its owner [C7]. */
 import assert from 'node:assert/strict';

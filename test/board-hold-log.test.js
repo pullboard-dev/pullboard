@@ -73,7 +73,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(admission[0].outcome, 'rolled-back');
   assert.equal(admission[0].phase, 'policy-admission');
   assert.ok(admission[0].heldMs >= 1_200);
-  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'phase', 'phaseMs', 'seat', 'version'],
+  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'move', 'outcome', 'phase', 'phaseMs', 'seat', 'step', 'stepMs', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
   appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'
     + JSON.stringify({ version: 1, at: { toString: null }, heldMs: 1_200, command: 'invalid', seat: 'web-1' }) + '\n');

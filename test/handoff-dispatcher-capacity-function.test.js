@@ -27,8 +27,8 @@ writeFileSync(join(dirname(process.argv[2]), 'result.json'), '{}');
 function fixture() {
   const dir = realpathSync(temporaryDirectory('pullboard-dispatcher-capacity-'));
   const tools = join(dir, 'tools');
-  mkdirSync(join(tools, 'apps', 'lib', 'src', 'shell'), { recursive: true });
-  writeFileSync(join(tools, 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), WORKER);
+  mkdirSync(join(tools, 'bin'), { recursive: true });
+  writeFileSync(join(tools, 'bin', 'gate-drive-worker.js'), WORKER);
   const directory = join(dir, 'jobs', 'job1');
   mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'request.json'), JSON.stringify({ job: 'job1' }) + '\n');

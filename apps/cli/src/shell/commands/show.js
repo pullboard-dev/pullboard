@@ -11,6 +11,7 @@ import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
+import { handoffWorkerAlive } from '../handoff-worker-alive.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
@@ -56,6 +57,7 @@ import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { itemFolderPath } from '../item-folder.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -72,9 +74,9 @@ export async function run(io, { first, values }) {
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     const job = submitHandoff(board, id);
-    const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}) } : null;
+    const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const panel = job ? gatePanel(board.db, job.id) : null;
+    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
@@ -116,13 +118,17 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
-    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
+    // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
+    const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
+    io.say(seatPath
+      ? `you hold #${item.item_id}; build and commit in its item folder ${itemFolderPath(seatPath, item.item_id)}, then run pullboard submit ${item.item_id} there`
+      : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));
   io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
-  if (queuedSubmit) io.say(`queued gate: ${gateText ?? queuedSubmit.state} at ${queuedSubmit.executionCommit}`);
+  if (queuedSubmit) io.say(`queued gate: ${gateText ?? queuedSubmit.state} at ${queuedSubmit.executionCommit}${queuedSubmit.requeuedFor ? `; requeued on the same source after ${queuedSubmit.requeuedFor}` : ''}`);
   if (queuedSubmit?.error) io.say(`${queuedSubmit.error.code}: ${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
@@ -140,7 +146,7 @@ export async function run(io, { first, values }) {
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
   if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
-  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : ''}; --detail`);
+  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : ''}${dollarText(cost)}; --detail`);
   if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
   if (checkText) {
     io.say(`check: ${checkText}`);

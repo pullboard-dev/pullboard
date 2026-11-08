@@ -1,10 +1,13 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { toolsSnapshot } from '../submit-handoff.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -228,6 +231,18 @@ function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
 }
 
 /**
+ * Whether a recovered verdict's note is the retried command's note.
+ * The sent note carries machine suffixes (check receipts, main moves, approvals), each starting on a new line,
+ * so a retry with the person's original note must match the recorded note with those suffixes.
+ * @param {string | undefined} recorded
+ * @param {string} given
+ * @returns {boolean}
+ */
+function sameVerdictNote(recorded, given) {
+  return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
+}
+
+/**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
  *
@@ -256,7 +271,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&
-        previous.note === (textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
+        sameVerdictNote(previous.note, textArg(ctx.io, values, 'note') ?? '') && previous.cause === (decision === 'REJECT' ? values.cause : undefined) &&
         previous.clause === (decision === 'REJECT' ? values.clause : undefined)) {
       if (decision === 'ACCEPT' && !recordedRecovery(board, recovered)) {
         const item = store.getItem(board, id);
@@ -341,7 +356,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         const reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
@@ -607,6 +622,31 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
+export async function reviveStalledComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const thread = withBoardRead(ctx, board => store.itemThread(board, id));
+  const plan = comparisonRestartPlan({ commonDir: ctx.info.commonDir, item, thread });
+  if (plan.action === 'unavailable') {
+    await recordComparison(ctx, item, { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest, error: plan.error });
+  } else if (plan.action === 'restart') {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+  }
+}
+
+/**
+ * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The reviewer's checkout.
+ * @param {string} commit - The reviewed commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function toolingTree(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
 }
