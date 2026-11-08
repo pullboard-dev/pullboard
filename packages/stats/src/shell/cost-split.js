@@ -2,17 +2,35 @@
 import { COUNTS } from './cost-read.js';
 import { sharedSessionTotals } from './cost-shared.js';
 
-/** Milliseconds one seat held one item, from its claim to its submit or release, clamped to the session's last checkpoint. */
+/** A lease deadline from a claim or renew event's detail, or Infinity when it names none. */
+function leaseEnd(detail) {
+  const at = Date.parse(JSON.parse(detail || '{}').leaseUntil);
+  return Number.isFinite(at) ? at : Infinity;
+}
+
+/**
+ * Milliseconds one seat held one item, from its claim to the earliest of its submit or release, its lease
+ * running out (a renew extends it), another seat claiming the item, and the session's last checkpoint.
+ * Why: a lapsed or taken-over claim stays open in the log, and counting it to the checkpoint overstated the share.
+ */
 function claimedMs(board, seat, item, until) {
   let start = null;
+  let deadline = Infinity;
   let total = 0;
-  const events = board.db.prepare("SELECT event_at,event_kind FROM event WHERE event_by=? AND item_id=? AND event_kind IN ('claim','submit','release') ORDER BY event_id").all(seat, item);
+  const close = (at) => { total += Math.max(0, Math.min(at, deadline, until) - start); start = null; };
+  const events = board.db.prepare("SELECT event_at,event_kind,event_by,event_detail FROM event WHERE item_id=? AND event_kind IN ('claim','renew','submit','release') ORDER BY event_id").all(item);
   for (const event of events) {
     const at = Date.parse(event.event_at);
-    if (event.event_kind === 'claim') start ??= at;
-    else if (start !== null) { total += Math.max(0, Math.min(at, until) - start); start = null; }
+    const own = event.event_by === seat;
+    if (event.event_kind === 'claim') {
+      if (start !== null && (!own || at >= deadline)) close(at);
+      if (own && start === null) { start = at; deadline = leaseEnd(event.event_detail); }
+      else if (own) deadline = leaseEnd(event.event_detail);
+    } else if (event.event_kind === 'renew') {
+      if (own && start !== null) deadline = leaseEnd(event.event_detail);
+    } else if (own && start !== null) close(at);
   }
-  if (start !== null) total += Math.max(0, until - start);
+  if (start !== null) close(until);
   return total;
 }
 

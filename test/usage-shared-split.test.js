@@ -22,7 +22,7 @@ function totals(input, output, wallMs, reasons = []) {
 }
 
 /** Two seats claim two items for the given hours each; one shared session spent 1000 input and 100 output tokens meanwhile. */
-function twoSeats(hours) {
+function twoSeats(hours, { leases = [], lapsed = [] } = {}) {
   const box = helpers.project('true');
   assert.equal(joinFixtureSeat(box, box.web, 'web', { model: FIXTURE_MODEL }).code, 0);
   const second = join(box.dir, 'split-seat');
@@ -39,8 +39,9 @@ function twoSeats(hours) {
     const items = hours.map((_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Split item ${index + 1}`, specIds: ['G1'],
       criterion: 'a shared session divides by time', check: 'test -f web/ready',
       checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } }));
-    items.forEach((id, index) => store.claim(board, id, { agentId: seats[index], lane: 'web', leaseMs: LEASE, freeze }));
+    items.forEach((id, index) => store.claim(board, id, { agentId: seats[index], lane: 'web', leaseMs: leases[index] ?? LEASE, freeze }));
     for (const [index, id] of items.entries()) {
+      if (lapsed.includes(index)) continue; // its claim is left open in the log: the lease ran out, nobody released it
       instant = start + hours[index] * HOUR;
       store.release(board, id, seats[index], 'Close the private usage fixture claim.', 'OTHER');
     }
@@ -82,4 +83,12 @@ test('show prints that a shared session was split by time, not that the split is
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /usage: input 250 .*output 25, .*; split by time with a shared session/u);
   assert.doesNotMatch(shown.out, /item split unknown/u);
+});
+
+test('a claim whose lease ran out counts only to its lease, not to the session checkpoint [N2]', () => {
+  // Item 1 was claimed for 1h and never released; the session checkpoint is 10h in. Item 2 held 3h.
+  const { cost: [a, b] } = twoSeats([10, 3], { leases: [1 * HOUR], lapsed: [0] });
+  assert.equal(a.inputTokens, 250, 'the lapsed claim weighs 1h, its lease, against 3h');
+  assert.equal(b.inputTokens, 750);
+  assert.equal(a.inputTokens + b.inputTokens, 1000, 'the split totals equal the session');
 });
