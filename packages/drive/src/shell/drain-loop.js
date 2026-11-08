@@ -22,7 +22,8 @@ function rest(ms) {
  * loop on the job (the respawned worker, or any driver once the lease lapses) continues from the last written step
  * and reruns no shard that has a done step.
  *
- * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
+ * @param {import('node:sqlite').DatabaseSync | import('./drive-once.js').JobRows} db - The board's SQLite handle, or job
+ *   rows (rowSink) whose step, ticket and verdict rows a coordinator-side recorder writes.
  * @param {string} job - The job id.
  * @param {{ owner: string, intervalMs?: number, onStep?: (result: object) => void, drive?: typeof driveOnce }
  *   & Record<string, any>} options - The rest (repo, runner, plan, transport, sections, now) passes to driveOnce.
