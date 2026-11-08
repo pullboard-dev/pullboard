@@ -144,11 +144,10 @@ async function stopProcessGroup(child, stopped, timeoutMs = CLEANUP_TIMEOUT_MS) 
 }
 
 /**
- * Refuse a Chrome launch from a test file the runner admitted without a browser slot [C7].
- * With gate.browserByLaunch on, the runner marks each file's worker held or none; a launch under none
- * means the classifier missed a launch path, so the file fails here by name before Chrome starts.
- * src/browser-slot-guard.js also refuses direct browser spawns it can see under none, best effort.
- * Without a marker this is inert.
+ * Refuse a Chrome launch from a test file that did not declare a browser [C7]. The runner marks each file's
+ * worker held when its first line is `// pullboard: browser` and none otherwise; a launch under none fails
+ * here BROWSER_UNDECLARED by file name before Chrome starts. packages/gate/src/shell/browser-slot-guard.js
+ * also refuses direct browser spawns it can see under none, best effort. Outside the runner this is inert.
  */
 export function requireBrowserSlot() {
   if (process.env.PULLBOARD_TEST_BROWSER_SLOT === 'none') throw browserSlotRefusal('through test/chrome-fixture.js');
