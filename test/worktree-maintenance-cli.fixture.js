@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 
 /** Hold a private timer registration with this actual process; no detached worker is needed in these CLI cases. */
 function retainFixtureTimer(box) {
@@ -51,13 +52,11 @@ export function registerMaintenanceCliTests() {
     enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    const joined = box.run(owner, 'join', 'web', '--json');
+    const joined = joinFixtureSeat(box, owner, 'web');
     assert.equal(joined.code, 0, joined.err);
-    const added = box.run(box.repo, 'add', 'web', 'Private release archive', '--specs', 'G1', '--route', 'light',
-      '--criterion', 'The fixture can release its own work.', '--check', 'true',
-      '--brief', 'Files: web/page.js\nChange: exercise private release\nTest: native release retains archive evidence', '--json');
-    assert.equal(added.code, 0, added.err);
-    const id = JSON.parse(added.out).item.item_id;
+    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive', diagnose: false,
+      criterion: 'The fixture can release its own work.', args: ['--specs', 'G1'],
+      brief: 'Files:\n- web/page.js\nChange:\n- Exercise private release.\nTest:\n- Native release retains archive evidence.' }).item_id;
     const claimed = box.run(owner, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);

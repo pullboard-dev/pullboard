@@ -8,6 +8,8 @@ import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { handoffToolsAllowed } from '../../../../packages/items/index.js';
+import { assertToolTreeRoom } from '../../../../packages/items/index.js';
+import { touchToolTree } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
@@ -54,12 +56,17 @@ function copyTools(toolRoot, target) {
  * dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else gets a
  * private per-job copy. Why: every submit copied 3,762 files, over a million file creations a day on a disk-bound Mac [C7].
  */
-function toolsSnapshot(toolRoot, job) {
+function toolsSnapshot(toolRoot, job, commonDir) {
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
   const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
     && realpathSync(top.stdout) === realpathSync(toolRoot)
     && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
+  if (clean && existsSync(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`))) {
+    touchToolTree(join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`));
+    return join(tmpdir(), `pullboard-handoff-tools-${head.stdout}`);
+  }
+  assertToolTreeRoom({ commonDirs: [commonDir] });
   if (!clean) {
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${job}-`));
     copyTools(toolRoot, tools);
@@ -96,7 +103,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
-    const tools = toolsSnapshot(toolRoot, result.job.id);
+    const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });

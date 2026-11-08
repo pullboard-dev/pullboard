@@ -134,7 +134,8 @@ test('clause 1: one sweep ends a killed worker as infrastructure and retries its
   assert.equal(after.item.item_lease_until, before.item_lease_until, 'recovery does not replace or renew the claim');
   assert.equal(after.returns, 0, 'no builder-red return is recorded');
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the recovered candidate finishes', 120000); // budget: worker completion ceiling, no timing assertion.
+  // The worker records the job green and then moves the item in a later write, so wait for both before reading either.
+  await box.helpers.waitFor(() => { const seen = state(box, box.id); return ['green', 'submitted'].includes(seen.job?.state) && seen.item.item_status === 'submitted'; }, 'the recovered candidate finishes and the item is submitted', 120000); // budget: worker completion ceiling, no timing assertion.
   assert.equal(state(box, box.id).item.item_status, 'submitted');
   assert.equal(state(box, box.id).job.commit, job.commit, 'no builder command or newer source was required');
 });

@@ -39,7 +39,7 @@ function enable(box) {
 
 /** Add one ordinary native item for a private builder checkout. */
 function addFixtureItem(box, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'light',
+  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--route', 'mid',
     '--criterion', 'The private lifecycle fixture retains the builder source.', '--check', 'true',
     '--brief', 'Files: web/page.js\nChange: exercise private lifecycle cleanup\nTest: native cleanup archives source first', '--json');
   assert.equal(added.code, 0, added.err);

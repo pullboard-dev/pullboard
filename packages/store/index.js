@@ -32,7 +32,7 @@ export { diagnoseWanted } from './src/shell/board-next-for.js';
 export { companionPlan, applyCompanionRequest } from './src/shell/companion.js';
 export { dispatchWork } from './src/shell/dispatch-eligibility.js';
 export { heldClaim } from './src/shell/held-claim.js';
-export { ineligibleReleaseIds, nextWithReleaseCooldown, recentlyReleased } from './src/shell/next-release-cooldown.js';
+export { allItemsNeedingRescope, ineligibleReleaseIds, itemsNeedingRescope, nextWithReleaseCooldown, recentlyReleased, RESCOPE_REASONS } from './src/shell/next-release-cooldown.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/shell/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/shell/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline } from './src/shell/item-check-baseline.js';
@@ -85,6 +85,7 @@ export { INFRASTRUCTURE_CODES, requireSubmitHandoffHookProof, submitHandoff, pen
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
+export { ITEM_STAGES, itemStage, stageCounts } from './src/core/item-stage.js';
 export { itemPinned, itemUrgent, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";

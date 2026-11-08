@@ -19,6 +19,9 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     assert.deepEqual(approvals.map(row => row.id), ['G1', 'G2', 'G3', 'G4']);
     assert.ok(chromeExecutable(), 'Chrome is required for the two real presentation surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'needs-panel-chrome'));
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Needs-you card is measured.
+    await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo));
+    await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
     /** Preserve actual seeded browser views in bounded native-log chunks for visual review. */
     const capture = async (surface, width) => {

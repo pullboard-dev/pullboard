@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { ENGINE_CANDIDATE } from '../../../kernel/index.js';
+import { gitSpawnSync } from '../../../git/index.js';
 
 /** Recognize the canonical placeholder declaration automatic landing numbers, without executing candidate code. */
 function unnumberedEngine(source) {
@@ -28,7 +29,7 @@ function unnumberedEngine(source) {
  */
 export function requireLandingPlanCheck(root, commit) {
   const env = cleanGitEnvironment();
-  const listed = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', commit, '--', 'bin/cells-plan.json', 'src/'], { cwd: root, env, encoding: 'utf8' });
+  const listed = gitSpawnSync(['ls-tree', '-r', '-z', '--name-only', commit, '--', 'bin/cells-plan.json', 'src/'], { cwd: root, env, encoding: 'utf8' });
   if (listed.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not read landing commit ${commit.slice(0, 12)}; restore its Git objects and retry merged`);
   const paths = listed.stdout.split('\0').filter(Boolean);
   const hasPlan = paths.includes('bin/cells-plan.json');
@@ -37,7 +38,7 @@ export function requireLandingPlanCheck(root, commit) {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-landing-plan-'));
   const tree = join(scratch, 'tree');
   try {
-    const add = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '--detach', tree, commit], { cwd: root, env, encoding: 'utf8' });
+    const add = gitSpawnSync(['-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '--detach', tree, commit], { cwd: root, env, encoding: 'utf8' });
     if (add.status !== 0) throw new Refused('LAND_PLAN_CHECK', `could not check out ${commit.slice(0, 12)} to run the cells-plan check: ${add.stderr.trim()}; retry merged`);
     const pending = candidates.filter(path => {
       const file = join(tree, path);
@@ -53,7 +54,7 @@ export function requireLandingPlanCheck(root, commit) {
     const detail = unplaced.length ? `unplaced paths: ${unplaced.join(', ')}` : (lines.join('; ') || run.stderr.trim().split('\n').pop() || 'the check failed');
     throw new Refused('LAND_PLAN_UNPLACED', `${commit.slice(0, 12)} fails the cells-plan check (${detail}); place each path with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), commit it, and record that commit`);
   } finally {
-    spawnSync('git', ['worktree', 'remove', '--force', tree], { cwd: root, env });
+    gitSpawnSync(['worktree', 'remove', '--force', tree], { cwd: root, env });
     rmSync(scratch, { recursive: true, force: true });
   }
 }

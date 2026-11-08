@@ -11,6 +11,7 @@ import { missingGrantActivationIndex } from "../../../state/src/core/relay-activ
 
 /** Each index a hot query needs; IF NOT EXISTS lets an existing board gain them on its next open. */
 const HOT_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS shout_target_id ON shout (shout_to, shout_id)',
   'CREATE INDEX IF NOT EXISTS shout_answers ON shout (shout_answers)',
   'CREATE INDEX IF NOT EXISTS shout_open_decision ON shout (shout_decision, shout_to) WHERE shout_decision = 1',
   'CREATE INDEX IF NOT EXISTS shout_open_request ON shout (shout_request) WHERE shout_request = 1',

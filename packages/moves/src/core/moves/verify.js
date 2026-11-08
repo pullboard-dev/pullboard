@@ -13,6 +13,7 @@ import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.
 import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
 import { ITEM_PATCH_ENGINE } from "../../../../../src/item-patch-engine.js";
 import { requiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../../src/review-head-builder-family-engine.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
@@ -52,7 +53,7 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? Math.max(ITEM_PATCH_ENGINE, REVIEW_HEAD_BUILDER_FAMILY_ENGINE) : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
@@ -124,7 +125,7 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "SANDBOX_IMAGE_REQUIRED": "preload the exact configured digest in the configured Docker daemon; verification does not pull automatically",
   "SANDBOX_PROVIDER_REQUIRED": "commit sandbox.provider docker with an absolute executable, explicit Unix endpoint and pinned minimum/current images in trusted main pullboard.json",
   "SANDBOX_RUNTIME": "correct the pinned official image so its actual Linux Node environment matches the configured minimum/current role",
-  "SELF_SESSION_VERIFY": "ask another agent session to verify it: pullboard next --verify from that session's own worktree",
+  "SELF_SESSION_VERIFY": "start the review in a separate process or session: run pullboard next --verify from a different agent session's own worktree",
   "SELF_VERIFY": "ask a different agent to verify it; from main create its worktree with pullboard worktree <lane> --model \"<model name>\"",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",

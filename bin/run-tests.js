@@ -16,13 +16,13 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/verify/index.js';
+import { installFileWatchdog } from '../packages/verify/src/shell/file-watchdog.js';
 import {
   DEFAULT_TEST_FILE_TIMEOUT_MS,
   testFileTimeoutMs,
   activeHandleSummary,
   installTestChildDrain,
-} from '../packages/gate/index.js';
+} from '../packages/gate/src/shell/test-child-drain.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
@@ -30,21 +30,21 @@ import {
   trackedDefaultTestFiles,
   shardArguments,
   testSelectionPatterns, narrowsSelection,
-} from '../packages/gate/index.js';
+} from '../packages/gate/src/shell/test-selection.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
-import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/index.js';
-import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/index.js';
-import { optionTakesValue } from '../packages/gate/index.js';
-import { knownNodeOption } from '../packages/gate/index.js';
-import { COLLECTION_ID_ENV } from '../packages/gate/index.js';
-import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
-import { hasTestFiles as selectedFilesPresent } from '../packages/gate/index.js';
-import { explicitTestFiles as selectedFiles } from '../packages/gate/index.js';
-import { formatTestOutcomes } from '../packages/gate/index.js';
+import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/src/shell/test-isolation.js';
+import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/src/shell/test-file-pool.js';
+import { optionTakesValue } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { knownNodeOption } from '../packages/gate/src/shell/test-file-dispatch.js';
+import { COLLECTION_ID_ENV } from '../packages/gate/src/core/collection-env.js';
+import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../packages/gate/src/shell/run-timing.js';
+import { hasTestFiles as selectedFilesPresent } from '../packages/gate/src/shell/test-selection.js';
+import { explicitTestFiles as selectedFiles } from '../packages/gate/src/shell/test-selection.js';
+import { formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));

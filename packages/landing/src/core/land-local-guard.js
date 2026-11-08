@@ -9,6 +9,7 @@ import { testsNeedBrowser } from '../../../gate/index.js';
 import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 
+import { readFileSync } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
 
 /** Retain native admission, complete stage output and failure observation under the actual run's lease. */
@@ -44,4 +45,16 @@ export function requireLocalGuardClassification(state, gate) {
     row.file === failure.file && row.name === failure.name && row.main === state.batch.base
     && (row.classification === 'flake' || row.classification === 'possible-regression' && row.mainReceipt?.green === true)));
   if (!classified) throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk red also fails on main or lacks a positive main comparison; no item is returned');
+}
+
+/**
+ * A red guard run that never ran a case because resources.sqlite stayed locked is infrastructure, not a verdict:
+ * refuse SLOT_DB_LOCKED so the landing fault path keeps the batch and retries, never LAND_DIAGNOSTIC [C7,#3314].
+ * Why: batch 3aa5b65d was refused LAND_DIAGNOSTIC with no failing case, only "[SLOT_DB_LOCKED] never ran" in its log.
+ */
+export function requireNoLockOnlyRed(gate, readLog = path => readFileSync(path, 'utf8')) {
+  if (gate.isGreen || (gate.failures ?? []).length || !gate.logPath) return;
+  let text = '';
+  try { text = String(readLog(gate.logPath)); } catch { return; }
+  if (text.includes('[SLOT_DB_LOCKED]')) throw new Refused('SLOT_DB_LOCKED', 'the local-trunk guards never ran: resources.sqlite stayed locked; the landing retries');
 }

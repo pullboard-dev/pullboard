@@ -34,9 +34,13 @@ export function withoutPullboardEnv(source) {
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
-  /** Remove this test file's fixtures after its tests finish. */
+  /**
+   * Remove this test file's fixtures after its tests finish. A detached writer (a gate or board worker a
+   * fixture command started) can still be flushing into the tree on a loaded runner, so the removal waits up
+   * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
+   */
   const cleanup = () => {
-    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
   };
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../apps/cli/src/shell/cockpit.js'), 'utf8');

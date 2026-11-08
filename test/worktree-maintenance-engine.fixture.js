@@ -246,11 +246,12 @@ export function registerMaintenanceEngineTests() {
     assert.equal(fx.censusCount(), before, 'health reads retained state and does not start a filesystem scan');
   });
 
-  test('maintenance cleans only the released owner checkout and keeps competing claims, live retirement and exclusions [B3,C7]', async t => {
+  test('clause 1: maintenance cleans only the released owner checkout and keeps competing claims, live retirement and exclusions [B3,C7]', async t => {
     const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
     const clean = fx.addTree('released-owner', { seat: true });
     const released = claimItem(fx, clean.agent, 'Owner release that may clean this checkout');
-    store.release(fx.board, released, clean.agent);
+    store.release(fx.board, released, clean.agent,
+      'Fixture releases owner claim for cleanup.', undefined, 'OTHER');
     fs.writeFileSync(join(clean.path, 'untracked.bin'), 'release cleanup fixture\n');
     const cleanResult = await cleanMaintenanceSeat(clean.path, fx.config, fx.ports,
       { path: clean.path, item: released, agent: clean.agent, now: fx.now() });
@@ -260,7 +261,8 @@ export function registerMaintenanceEngineTests() {
 
     const held = fx.addTree('other-claim-holds', { seat: true });
     const releasedAgain = claimItem(fx, held.agent, 'Current owner release');
-    store.release(fx.board, releasedAgain, held.agent);
+    store.release(fx.board, releasedAgain, held.agent,
+      'Fixture releases first claim while a competing claim remains.', undefined, 'OTHER');
     const competing = claimItem(fx, held.agent, 'Another active owner claim');
     fs.writeFileSync(join(held.path, 'untracked.bin'), 'must remain dirty\n');
     const heldBefore = maintenanceSnapshot(held.path).signature;
@@ -269,7 +271,8 @@ export function registerMaintenanceEngineTests() {
     assert.equal(maintenanceSnapshot(held.path).signature, heldBefore);
     assert.equal(store.listItems(fx.board, { all: true }).find(row => row.item_id === competing)?.item_status, 'claimed');
 
-    store.release(fx.board, competing, held.agent);
+    store.release(fx.board, competing, held.agent,
+      'Fixture releases competing claim before cleanup exclusions.', undefined, 'OTHER');
     const liveBefore = maintenanceSnapshot(held.path).signature;
     assert.equal(await cleanMaintenanceSeat(held.path, fx.config, fx.ports,
       { path: held.path, item: releasedAgain, agent: held.agent, retired: true, now: fx.now() }), null);
@@ -288,7 +291,8 @@ export function registerMaintenanceEngineTests() {
       family: fx.box.declareFamily(reviewerTree.path) });
 
     const released = claimItem(fx, owner.agent, 'Release eligible only without other obligations');
-    store.release(fx.board, released, owner.agent);
+    store.release(fx.board, released, owner.agent,
+      'Fixture releases owner claim before creating a verified unmerged obligation.', undefined, 'OTHER');
     const pendingLanding = claimItem(fx, owner.agent, 'Verified implementation still awaiting landing');
     const head = fx.box.git(owner.path, 'rev-parse', 'HEAD').trim();
     const tree = fx.box.git(owner.path, 'rev-parse', 'HEAD^{tree}').trim();
@@ -320,7 +324,8 @@ export function registerMaintenanceEngineTests() {
       const retired = fx.addTree(`${name}-retired`, { seat: true });
       const incoming = fx.addTree(`${name}-incoming`, { seat: true });
       const claim = claimItem(fx, retired.agent, `${name} released checkout`);
-      store.release(fx.board, claim, retired.agent);
+      store.release(fx.board, claim, retired.agent,
+        'Fixture releases retired checkout claim before takeover.', undefined, 'OTHER');
       fs.writeFileSync(join(retired.path, 'untracked.bin'), Buffer.from([0, 31, 255]));
       const takenAt = completeTakeover(fx, retired.agent, incoming.agent);
       return { retired, incoming, claim, takenAt, before: maintenanceSnapshot(retired.path, { includeMetadata: true }).signature };

@@ -7,6 +7,8 @@ const OPTIONS = {
   'force-size': { type: 'string' },
   'expected-minutes': { type: 'string' },
   sensitive: { type: 'boolean' },
+  'machine-verified': { type: 'string' },
+  'machine-commands-file': { type: 'string' },
   'review-tier': { type: 'string' },
   'review-family': { type: 'string' },
   sandbox: { type: 'boolean' },

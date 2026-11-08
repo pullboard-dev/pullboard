@@ -62,6 +62,10 @@ export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildP
 export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
 export { handoffToolsAllowed } from './src/shell/submit-handoff-recovery.js';
 export { sharedHandoffTools } from './src/shell/submit-handoff-recovery.js';
+export { queuedToolOwners } from './src/shell/submit-handoff-recovery.js';
+export { sweepToolTrees } from './src/shell/submit-handoff-recovery.js';
+export { assertToolTreeRoom } from './src/shell/submit-handoff-recovery.js';
+export { touchToolTree } from './src/shell/submit-handoff-recovery.js';
 
 export { claimedItemRoot } from './src/shell/item-patch-submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/core/dependency-progress.js';

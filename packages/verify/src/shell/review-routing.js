@@ -1,3 +1,4 @@
+import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
 import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
@@ -82,6 +83,8 @@ export function prioritizeReviews(board, candidates, priority, focusCompare) {
 /** From the alias engine on, a reviewer may not share a vendor family with any companion patch author of a strict item [#1762]. */
 function companionFamilyProblem(board, item, family) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < FAMILY_ALIAS_ENGINE) return null;
+  // Only the submitted head builder's family is judged; earlier or companion authors of other families do not exclude [V1].
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_HEAD_BUILDER_FAMILY_ENGINE) return null;
   const aliases = familyAliasesOf(board);
   for (const author of reviewPatchAuthors(board, item)) {
     const declared = seatFamily(board, author.agentId);

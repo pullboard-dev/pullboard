@@ -20,6 +20,11 @@ import { relayOrdering } from '../packages/outbox/index.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
 
+/** Make an empty temporary directory; the caller removes it. The single place fixtures create one [C7]. */
+export function temporaryDirectory(prefix) {
+  return mkdtempSync(join(tmpdir(), prefix));
+}
+
 /**
  * Open the production schema and moves in memory, with cleanup owned by the test.
  * A file requires a named database boundary; an unsupported mode never silently falls back.
@@ -34,7 +39,7 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
   let file = ':memory:';
   let directory;
   if (storage === 'file') {
-    directory = mkdtempSync(join(tmpdir(), 'pullboard-board-contract-'));
+    directory = temporaryDirectory('pullboard-board-contract-');
     file = join(directory, 'board.sqlite');
   }
   try {

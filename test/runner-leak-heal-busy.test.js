@@ -23,16 +23,15 @@ function queueWith(holders) {
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'CLEANUP_UNVERIFIED' };
 const unhealthy = { healthy: false, step: 'idle proof', reason: 'runner resource lease is active' };
 
-test('a quarantined runner that other seats keep busy returns to service once nothing of its leaked job remains [C7]', async () => {
+test('a quarantined runner that other seats keep busy is left to the transport probe and its leak stop is skipped [C7]', async () => {
   const { db, home } = queueWith([4242]);
   try {
     let idleProbes = 0;
     const proof = await healLeakedRunner(db, row, { host: HOST }, unhealthy,
-      { leakProbe: async () => ({ ok: true, stopped: [] }), idleProbe: async () => { idleProbes++; return unhealthy; }, token: 'token-1' });
-    assert.equal(proof.healthy, true, JSON.stringify(proof));
-    assert.equal(proof.step, 'leak proof');
+      { leakProbe: async () => { throw new Error('leak probe must not run'); }, idleProbe: async () => { idleProbes++; return unhealthy; }, token: 'token-1' });
+    assert.equal(proof, unhealthy);
     assert.equal(idleProbes, 0, 'a busy runner is not asked to prove idle');
-    const event = db.prepare("SELECT detail FROM runner_recovery_event WHERE kind = 'leaked-jobs-stopped'").get();
+    const event = db.prepare("SELECT detail FROM runner_recovery_event WHERE kind = 'leak-stop-skipped'").get();
     assert.equal(JSON.parse(event.detail).busy, true);
   } finally { db.close(); rmSync(home, { recursive: true, force: true }); }
 });

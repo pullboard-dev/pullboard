@@ -1,19 +1,21 @@
 /** A long seat command keeps its seat's heartbeat fresh while it runs, so a live seat never reads as gone [B3,C7]. */
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { closeBoard } from '../../../store/index.js';
-import { heartbeatSeat } from '../../../store/index.js';
-import { openBoardForRead } from '../../../store/index.js';
 import { timingSeat } from '../../../../src/seat-timing.js';
 
-/** One beat: open the board for read, refresh the seat's presence, close it; a missed beat is retried next tick. */
-function defaultBeat(file, seat) {
-  let board;
+/**
+ * One beat: open the board for read, refresh the seat's presence, close it; a missed beat is retried next tick.
+ * The store loads on the first beat, so the test runner's static import graph never reaches the board [C7,#3056].
+ */
+async function defaultBeat(file, seat) {
+  let board, store;
   try {
+    store = await import('../../../store/index.js');
+    const { openBoardForRead, heartbeatSeat } = store;
     board = openBoardForRead(file);
     if (board) heartbeatSeat(board, seat);
   } catch { /* retried on the next tick */ }
-  finally { try { if (board) closeBoard(board); } catch { /* already closed */ } }
+  finally { try { if (board) store.closeBoard(board); } catch { /* already closed */ } }
 }
 
 /**

@@ -7,7 +7,7 @@ import { posix } from 'node:path';
 import { gitChildEnv } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
-import { carriedRunnerTrunk } from '../../../sandbox/index.js';
+import { carriedRunnerTrunk } from '../../../sandbox/src/shell/trusted-policy-read.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../core/test-file-budget.js';
 import { requireTestFileRatchet } from '../core/test-file-budget.js';
 import { testFileLimit } from '../core/test-file-budget.js';

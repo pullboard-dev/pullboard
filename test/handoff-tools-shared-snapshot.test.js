@@ -1,7 +1,7 @@
 /** Every gate at one Pullboard commit runs from one shared tools snapshot, never a copy per submit [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -10,7 +10,8 @@ import { openBoard } from '../apps/lib/index.js';
 import { HANDOFF_DISPATCHER_RESOURCE, handoffQueueDirectory, takeResource } from '../packages/resources/index.js';
 import { getItem, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
+import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
+import { assertToolTreeRoom, sweepToolTrees, queuedToolOwners } from '../packages/items/index.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -121,4 +122,43 @@ test('clause 2: a dead queued worker is relaunched from a shared snapshot [C7]',
   assert.match(again.err + again.out, /relaunched queued submit #\d+ from its captured tools/u, `${again.err}\n${again.out}`);
   assert.ok(waiting() > before, 'the dead worker has a fresh launch ticket');
   assert.deepEqual(snapshots(box.temp), [`pullboard-handoff-tools-${box.toolsCommit}`], 'recovery reused the shared snapshot');
+});
+
+test('clause 1: the sweep removes unowned tool trees older than 60 minutes and keeps recent or owned ones [C7]', () => {
+  const temp = privateFixtureFiles('pullboard-sweep-fixture-');
+  const now = Date.now();
+  const hoursAgo = hours => new Date(now - hours * 3_600_000);
+  for (const name of ['pullboard-handoff-tools-old', 'pullboard-compare-tools-old', 'pullboard-handoff-tools-owned', 'pullboard-handoff-tools-fresh', 'unrelated-old']) {
+    temp.write(`${name}/marker`, 'x');
+    const age = name.endsWith('fresh') ? hoursAgo(0.1) : hoursAgo(3);
+    utimesSync(join(temp.root, name), age, age);
+  }
+  const removed = sweepToolTrees({ temp: temp.root, now, live: path => path.endsWith('owned') });
+  assert.deepEqual(removed.map(path => path.slice(temp.root.length + 1)).sort(), ['pullboard-compare-tools-old', 'pullboard-handoff-tools-old']);
+  assert.deepEqual(readdirSync(temp.root).sort(), ['pullboard-handoff-tools-fresh', 'pullboard-handoff-tools-owned', 'unrelated-old']);
+});
+
+test('clause 2: a new tool-tree copy is refused under 5 GB free with a refusal naming the sweep [C7]', () => {
+  const temp = privateFixtureFiles('pullboard-room-fixture-');
+  assert.throws(() => assertToolTreeRoom({ temp: temp.root, minFree: Number.MAX_SAFE_INTEGER }),
+    error => error.code === 'TOOL_TREE_DISK_LOW' && /sweep/u.test(error.message));
+  assert.doesNotThrow(() => assertToolTreeRoom({ temp: temp.root, minFree: 0 }));
+});
+
+test('clause 1: a queued ticket and an unfinished request with no process keep their old tool folder [C7]', () => {
+  const temp = privateFixtureFiles('pullboard-queued-fixture-');
+  const queue = privateFixtureFiles('pullboard-queue-fixture-');
+  const repo = privateFixtureFiles('pullboard-common-fixture-');
+  const now = Date.now();
+  const old = new Date(now - 3 * 3_600_000);
+  const folders = ['queued', 'running', 'finished', 'orphan'].map(name => `pullboard-handoff-tools-${name}`);
+  for (const name of folders) { temp.write(`${name}/marker`, 'x'); utimesSync(join(temp.root, name), old, old); }
+  queue.write('000000000001-job.json', JSON.stringify({ tools: join(temp.root, folders[0]) }));
+  repo.write('pullboard/submit-handoffs/a/request.json', JSON.stringify({ tools: join(temp.root, folders[1]) }));
+  repo.write('pullboard/submit-handoffs/b/request.json', JSON.stringify({ tools: join(temp.root, folders[2]) }));
+  repo.write('pullboard/submit-handoffs/b/submission.json', '{}');
+  assert.ok(queuedToolOwners({ queue: queue.root, commonDirs: [repo.root] }).has(join(temp.root, folders[0])));
+  const removed = sweepToolTrees({ temp: temp.root, now, queue: queue.root, commonDirs: [repo.root], live: undefined });
+  assert.deepEqual(removed.map(path => path.slice(temp.root.length + 1)).sort(), ['pullboard-handoff-tools-finished', 'pullboard-handoff-tools-orphan']);
+  assert.deepEqual(readdirSync(temp.root).sort(), ['pullboard-handoff-tools-queued', 'pullboard-handoff-tools-running']);
 });

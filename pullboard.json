@@ -10,7 +10,7 @@
   "submitDeferAbove": 20,
   "landingShards": 6,
   "landing": {
-    "manualOverride": true,
+    "manualOverride": false,
     "publish": "separate",
     "perItem": false,
     "parallel": true,
@@ -57,7 +57,9 @@
     "auditOnly": [
       "test/machine.test.js",
       "test/refusal-next-steps.test.js",
-      "test/e2e.test.js"
+      "test/e2e.test.js",
+      "docs/formats.test.js",
+      "packages/store/tests/verdict-check.test.js"
     ]
   },
   "submit": {
