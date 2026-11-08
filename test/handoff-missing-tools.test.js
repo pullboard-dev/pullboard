@@ -1,4 +1,4 @@
-/** A queued gate ticket whose captured tools are gone never stops the handoff dispatcher; its gate ends as infrastructure [C7]. */
+/** A queued gate ticket whose captured tools are gone never stops the handoff dispatcher; its gate stops on infrastructure and is requeued [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -68,7 +68,7 @@ function state(box, id) {
   finally { board.db.close(); }
 }
 
-test('a queued gate whose tools temp cleanup removed gets an infrastructure stop, never a red [C7]', async t => {
+test('a queued gate whose tools temp cleanup removed gets an infrastructure stop, never a red, and is requeued from its candidate with rebuilt tools [C7]', async t => {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
@@ -102,12 +102,26 @@ test('a queued gate whose tools temp cleanup removed gets an infrastructure stop
   } finally { lock.release(); }
   // The production admission: the gate's drive job records that its driver never started [C7].
   await drainHandoffQueue({ capacity: 1, pollMs: 20, admission: gateAdmission });
-  const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
-  assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
-  const after = state(box, id);
-  assert.equal(after.job.id, job.id);
-  assert.equal(after.job.state, 'infrastructure', 'the lost gate stops on infrastructure');
-  assert.equal(after.job.error.code, 'SUBMIT_HANDOFF_DEAD');
+  // Hold the dispatcher seat again, so the requeued gate waits in line where the test can read it instead of running.
+  const held = await takeResource({ name: HANDOFF_DISPATCHER_RESOURCE, capacity: 1, scope: 'machine', agent: 'test-dispatcher' });
+  let after;
+  try {
+    const sweep = box.run(box.repo, 'sentinel', 'run', '--health-only');
+    assert.equal(sweep.code, 0, `${sweep.err}\n${sweep.out}`);
+    after = state(box, id);
+  } finally { held.release(); }
+  // The lost gate stops on infrastructure, never a red.
+  const lost = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'refusal.json'), 'utf8'));
+  assert.equal(lost.error.code, 'SUBMIT_HANDOFF_DEAD', 'the lost gate stops on infrastructure');
+  // A healthy sweep then requeues that exact candidate as a fresh gate, its tools rebuilt from the captured commit (#3716, #3714).
+  assert.notEqual(after.job.id, job.id, 'the stopped gate is requeued as a fresh job');
+  assert.equal(after.job.retryOf, job.id, 'the fresh job is the lost gate requeued');
+  assert.equal(after.job.state, 'queued');
+  assert.equal(after.job.infrastructureRetries, 1, 'one infrastructure retry is spent');
+  assert.deepEqual([after.job.commit, after.job.tree, after.job.digest], [job.commit, job.tree, job.digest], 'from the same captured candidate and bar');
+  const retried = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', after.job.id, 'request.json'), 'utf8'));
+  assert.equal(existsSync(retried.tools), true, 'the requeued gate has its tools back');
+  assert.ok(tickets().some(name => name.includes(after.job.id)), 'the requeued gate waits in the dispatch queue');
   assert.equal(after.item.item_status, 'claimed', 'the builder keeps the item to resubmit');
   assert.equal(after.returns, 0, 'no builder red is recorded');
 });
