@@ -11,6 +11,8 @@ import { projectItemDecisions } from "../../../items/index.js";
 import { itemById } from "../core/board-item-read.js";
 import { submitGateInFlight } from "../core/red-return-lease.js";
 import { itemStage } from "../core/item-stage.js";
+import { handoffRecord } from "./submit-handoff-read.js";
+import { handoffRecords } from "./submit-handoff-read.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -122,7 +124,7 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const stored = itemById(board, id);
-  const item = { ...current(board, stored), item_stage: itemStage(stored, board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${id}`)?.meta_value,
+  const item = { ...current(board, stored), item_stage: itemStage(stored, handoffRecord(board.db, id) ?? null,
     Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
@@ -161,9 +163,8 @@ export function listItems(board, { lane, all = false } = {}) {
   }
   const rows = board.db
     .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
-      handoff.meta_value AS handoff_value, EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
-      FROM item LEFT JOIN board_meta handoff ON handoff.meta_key='submit_handoff:' || item.item_id
-      LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
+      EXISTS (SELECT 1 FROM event WHERE event.item_id=item.item_id AND event.event_kind='merged') AS landed
+      FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
       LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
       LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
@@ -172,12 +173,14 @@ export function listItems(board, { lane, all = false } = {}) {
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
-  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'handoff_value', 'landed'].includes(key)) : [];
+  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
+  // Every item's hand-off record in one read of the job tables, where the record lives [C7].
+  const records = handoffRecords(board.db);
   const items = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
-    item.item_stage = itemStage(item, row.handoff_value, Boolean(row.landed), at);
+    item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
     if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !submitGateInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;
@@ -552,7 +555,7 @@ function activityBatchBase(board, event) {
  * One canonical activity history boundary for inbox readers; batch item queries rather than
  * re-reading every global landing receipt for each item. Projection never acknowledges messages.
  */
-export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, sessionStart = false } = {}) {
+export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workingFiles = [], changesForMain, prepareMainChanges, sessionStart = false } = {}) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id=?').get(agentId));
   if (!agent) throw new Refused('NO_AGENT', `no agent ${agentId}; join your own worktree first`);
   if (![after, newsAfter].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -597,6 +600,9 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
   const newsIds = [...rows.values()].filter(event => isActivityNews(event, byShout.get(activityEventDetail(event)?.shout)))
     .map(event => activityEventDetail(event).shout);
   for (const event of rows.values()) if (event.event_kind === 'main-moved') event.activityBase = activityBatchBase(board, event);
+  // A caller that reads Git for every landing learns them all first and can answer in one process (#3252).
+  prepareMainChanges?.([...rows.values()].filter(event => event.event_kind === 'main-moved')
+    .map(event => ({ commit: activityEventDetail(event)?.sha, base: event.activityBase })));
   for (const event of rows.values()) if (event.event_kind === 'row_apply') {
     const ids = activityEventDetail(event)?.events;
     event.activityRows = [];

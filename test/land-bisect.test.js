@@ -31,6 +31,15 @@ after(e2e.cleanup);
 const { commitFile } = e2e;
 const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures(e2e);
 
+/**
+ * Return the landing-owned events: batches, leases, waivers, flakes and trunk moves.
+ * A queued handoff or maintenance wake may append an unrelated board event while a dry run executes, so
+ * counting every event could flake (76 !== 75); the claim under test is that a dry run records no landing.
+ */
+function landingEvents(box) {
+  return events(box).filter(event => /^landing|^main-moved$|^merged$/u.test(event.event_kind));
+}
+
 test('land bisects a real red, blocks stale proof and refuses an unverified stack [B3,R3,E8]', async () => {
   const box = landProject();
   box.env.LAND_SUPPRESS_RED = '1';
@@ -47,7 +56,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   assert.equal(commitFile(box, box.repo, FILES[1], 'different main content\n', 'chore: create a merge conflict').status, 0);
   const base = box.git(box.repo, 'rev-parse', 'main');
   await drainOwnedProcesses(box.dir); // A submit's finishing gate writes its event on its own clock, so count only after it ends.
-  const beforeEvents = events(box).length;
+  const beforeEvents = landingEvents(box).length;
   const beforeCalls = calls(box).length;
   const dry = json(box, box.repo, 'land', '--max', '4', '--dry-run');
   assert.deepEqual(dry.conflicts, [], 'main changed the reviewed path, so stale proof is blocked before attempting its merge');
@@ -56,7 +65,7 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
       reviewedTrunk: entries[1].reviewedTrunk, main: base },
     { id: entries[3].item, code: 'STACKED_UNVERIFIED', stacked: hidden.item },
   ]);
-  assert.equal(events(box).length, beforeEvents, 'dry run creates no board batch');
+  assert.equal(landingEvents(box).length, beforeEvents, 'dry run creates no board batch');
   assert.equal(calls(box).length, beforeCalls, 'dry run runs no gate');
   const result = json(box, box.repo, 'land', '--max', '4');
   assert.deepEqual(result.landed, [entries[0].item]);
@@ -95,11 +104,11 @@ test('land bisects a real red, blocks stale proof and refuses an unverified stac
   assert.notEqual(result.batch.tip, base);
   await drainOwnedProcesses(box.dir);
   const afterCalls = calls(box).length;
-  const beforeEmptyEvents = events(box);
+  const beforeEmptyEvents = landingEvents(box);
   const beforeEmptyLease = onBoard(box, board => store.landingLeaseState(board));
   const again = box.run(box.repo, 'land', '--json');
   assert.ok(!again.out.includes('STALE_VERDICT'), `the stale accept was returned, so no stale refusal remains: ${again.out}`);
-  assert.deepEqual(events(box), beforeEmptyEvents, 'an idle selection with only an unverified stack adds no lease events');
+  assert.deepEqual(landingEvents(box), beforeEmptyEvents, 'an idle selection with only an unverified stack adds no lease events');
   assert.deepEqual(onBoard(box, board => store.landingLeaseState(board)), beforeEmptyLease, 'an idle selection takes no lease');
   assert.equal(json(box, box.repo, 'show', String(entries[2].item)).item_status, 'open', 'the known red is returned to its builder and is no longer a verified landing candidate');
   assert.equal(calls(box).length, afterCalls, 'known unchanged red is not retried');

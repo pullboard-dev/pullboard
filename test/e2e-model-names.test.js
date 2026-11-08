@@ -24,6 +24,10 @@ function coordinatorRepo(box, name) {
   return repo;
 }
 
+/** Models the rejoin cases use; named so no join call carries a literal model string. */
+const CLAUDE_MODEL = 'Claude';
+const OTHER_MODEL = 'Another Model';
+
 /** Read the ordered coordinator events from the fixture's real SQLite board. */
 function coordinatorEvents(repo) {
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
@@ -49,7 +53,7 @@ const TOUR_STEPS = [
   '8  The coordinator merges it. The ledger is the receipt.',
 ];
 
-test('the coordinator declares its model [O8,O3]', async (t) => {
+test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   const box = sandbox();
   delete box.env.PULLBOARD_MODEL;
 
@@ -124,10 +128,11 @@ test('the coordinator declares its model [O8,O3]', async (t) => {
     assert.equal(coordinatorModel(canonicalRelay.root), model, `${command}: the model is persisted on the linked board`);
     const acted = await canonicalRelay.cli('shout', 'all', `${model} acts`);
     assert.equal(acted.code, 0, acted.failure);
-    const latestShout = coordinatorEvents(canonicalRelay.root).filter(event => event.event_kind === 'shout').at(-1);
-    assert.equal(JSON.parse(latestShout.event_detail).model, model, `${command}: later linked moves carry the declared model`);
+    // An export round trip through the relay orders the read after the linked shout reaches the canonical board.
     const exported = await canonicalRelay.cli('export');
     assert.equal(exported.code, 0, exported.failure);
+    const latestShout = coordinatorEvents(canonicalRelay.root).filter(event => event.event_kind === 'shout').at(-1);
+    assert.equal(JSON.parse(latestShout.event_detail).model, model, `${command}: later linked moves carry the declared model`);
     const canonical = exported.document.tables.agent.find(agent => agent.agent_id === 'coordinator');
     assert.equal(canonical.agent_path, canonicalRelay.root, `${command}: the canonical coordinator retains its own checkout`);
   }
@@ -145,27 +150,29 @@ test('the coordinator declares its model [O8,O3]', async (t) => {
   assert.ok(remoteCoordinator, 'the linked snapshot retains the remote coordinator row');
   assert.equal(remoteCoordinator.agent_path, relay.root, 'the snapshot names the coordinator checkout on the source device');
   assert.equal(before.document.tables.board_meta.find(row => row.meta_key === 'agent_model:coordinator')?.meta_value, 'Remote Coordinator');
-  const relayCalls = relay.calls.length;
+  /** Count real sealed moves sent to the relay, excluding checkpoint and token requests (checkpoint uploads follow 013609a3d5). */
+  const remoteMoves = () => relay.calls.filter(call => call.method === 'POST' && /\/moves$/u.test(call.path)).length;
+  const relayCalls = remoteMoves();
   const linkedInit = await paired.cli('init');
   assert.equal(linkedInit.code, 0, linkedInit.failure);
-  assert.equal(relay.calls.length, relayCalls, 'plain linked init does not publish a coordinator registration');
+  assert.equal(remoteMoves(), relayCalls, 'plain linked init does not publish a coordinator registration');
   const afterPlainInit = await paired.cli('export');
   assert.equal(afterPlainInit.code, 0, afterPlainInit.failure);
   assert.deepEqual(afterPlainInit.document, before.document, 'plain linked init preserves the remote coordinator identity and path');
-  const callsBeforeRefusals = relay.calls.length;
+  const callsBeforeRefusals = remoteMoves();
 
   const refusal = await paired.cli('init', '--model', 'Clone Coordinator');
   assert.equal(refusal.code, 1);
   assert.equal(refusal.document.error.code, 'REMOTE_COORDINATOR_MODEL');
   assert.match(refusal.document.error.message, /the coordinator's model is declared on the coordinator's own checkout \(coordinator \(Remote Coordinator\)\)/u);
   assert.equal(refusal.document.error.message.includes('\n'), false, 'the refusal is one line');
-  assert.equal(relay.calls.length, callsBeforeRefusals, 'the linked refusal does not attempt a remote registration');
+  assert.equal(remoteMoves(), callsBeforeRefusals, 'the linked refusal does not attempt a remote registration');
   const joinRefusal = await paired.cli('join', 'coordinator', '--model', 'Clone Coordinator');
   assert.equal(joinRefusal.code, 1);
   assert.equal(joinRefusal.document.error.code, 'REMOTE_COORDINATOR_MODEL');
   assert.match(joinRefusal.document.error.message, /the coordinator's model is declared on the coordinator's own checkout \(coordinator \(Remote Coordinator\)\)/u);
   assert.equal(joinRefusal.document.error.message.includes('\n'), false, 'the linked coordinator-join refusal is one line');
-  assert.equal(relay.calls.length, callsBeforeRefusals, 'the linked coordinator-join refusal does not dispatch a remote mutation');
+  assert.equal(remoteMoves(), callsBeforeRefusals, 'the linked coordinator-join refusal does not dispatch a remote mutation');
   const after = await paired.cli('export');
   assert.equal(after.code, 0, after.failure);
   assert.deepEqual(after.document, before.document, 'linked init preserves the remote coordinator identity and path');
@@ -239,7 +246,7 @@ function runTour(box, harness, variant = '') {
 test('model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', () => {
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
-    box.env.PULLBOARD_MODEL = 'Test Model';
+    box.env.PULLBOARD_MODEL = 'Claude';
     // The shared fixture now joins web-1 with an explicit --model; this scenario needs the join to come from PULLBOARD_MODEL alone.
     const base = project('true', box, { withWorktree: false });
     const web = join(box.dir, 'web-1');
@@ -248,7 +255,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     const repo = { ...base, web };
     const legacyJoin = box.run(repo.web, 'whoami', '--json');
     assert.equal(legacyJoin.code, 0, legacyJoin.err || legacyJoin.out);
-    assert.equal(JSON.parse(legacyJoin.out).model, 'Test Model', 'the model environment identifies the initial join');
+    assert.equal(JSON.parse(legacyJoin.out).model, 'Claude', 'the model environment identifies the initial join');
 
     if (style === 'suffix') {
       for (const command of ['join', 'worktree']) {
@@ -278,9 +285,13 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     box.git(repo.repo, 'commit', '-q', '-m', 'chore(repo): choose agent names [G1]');
     box.git(repo.web, 'merge', '-q', '--ff-only', 'main');
 
-    const joined = fixtureJoin(box.run, repo.web, 'web', '--model', 'Claude', '--json');
+    const joined = fixtureJoin(box.run, repo.web, 'web', '--model', CLAUDE_MODEL, '--json');
     assert.equal(joined.code, 0, joined.err || joined.out);
     assert.equal(JSON.parse(joined.out).agent, 'web-1');
+    // Rejoining with another model is refused and keeps the registered one (#2714, 04384c0971).
+    const otherModel = fixtureJoin(box.run, repo.web, 'web', '--model', OTHER_MODEL, '--json');
+    assert.equal(otherModel.code, 1);
+    assert.equal(JSON.parse(otherModel.out).error.code, 'ALREADY_JOINED');
     const made = box.run(repo.repo, 'worktree', 'web', '--model', 'GPT 6', '--json');
     assert.equal(made.code, 0, made.err || made.out);
     const second = JSON.parse(made.out);
@@ -293,9 +304,9 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.ok(second.prompt.includes("Model: 'GPT 6'. This worktree joined with --model 'GPT 6'."), second.prompt);
     assert.ok(second.prompt.includes("pass --model 'GPT 6' or set PULLBOARD_MODEL='GPT 6'"), second.prompt);
 
-    const wrongLane = fixtureJoin(box.run, repo.web, 'api', '--model', 'Claude');
+    const wrongLane = fixtureJoin(box.run, repo.web, 'api', '--model', CLAUDE_MODEL);
     assert.equal(wrongLane.code, 1);
-    assert.ok(wrongLane.err.includes(`this worktree is ${builderName} in the web lane`), wrongLane.err);
+    assert.ok(wrongLane.err.includes('ALREADY_JOINED') && wrongLane.err.includes('retry with lane web and model "Claude"'), wrongLane.err);
 
     const selfShout = box.run(repo.web, 'shout', 'web-1', 'Keep web-1 literal');
     assert.equal(selfShout.code, 1);
@@ -402,7 +413,10 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     const freeId = JSON.parse(available.out).item.item_id;
     assert.equal(box.run(second.path, 'release', String(freeId), '--reason', 'BLOCKED').code, 0);
     const selectedJson = box.run(second.path, 'next', '--build', '--json');
-    assert.ok(JSON.parse(selectedJson.out).reasons.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
+    // The seat just released the other item, so release cooldown keeps it from this seat and only the held item's count folds into the refusal.
+    const selectedError = JSON.parse(selectedJson.out).error;
+    assert.equal(selectedError.code, 'NOTHING_FREE');
+    assert.ok(selectedError.message.includes('1 item is held by coordinator'), selectedError.message);
 
     const board = openBoard(join(repo.repo, '.git', 'pullboard', 'board.sqlite'));
     try { board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run('agent_model:web-2'); }
