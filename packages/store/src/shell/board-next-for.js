@@ -128,7 +128,7 @@ export function nextFor(board, options) {
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, skips: [...idleSkips] } : result;
+  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
@@ -396,7 +396,7 @@ export function greenReviewFor(board, who) {
  * @param {any} entry
  * @returns {string | null}
  */
-function gateAtHead(board, entry) {
+export function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).

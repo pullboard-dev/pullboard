@@ -154,6 +154,13 @@ test('clause 2: the old hand-off worker launch, worker.json, board_meta hand-off
   assert.deepEqual(offenders(/runLandingWorker|landingWorkerEntry|superviseSubmitHandoffWorker|runSubmitHandoffWorker/u), [], 'nothing names the old worker entries');
 });
 
+test('clause 1: the comparison restart plan reads the worker record through comparison-worker.js with no allowlist entry [C7]', () => {
+  const plan = readFileSync(join(ROOT, 'packages/verify/src/shell/verify-compare.js'), 'utf8');
+  assert.doesNotMatch(plan, /'worker\.json'/u, 'the restart plan names no worker.json literal');
+  assert.match(plan, /COMPARISON_WORKER_RECORD/u, 'the plan reads the record name the worker module exports');
+  assert.match(readFileSync(join(ROOT, 'packages/verify/src/shell/comparison-worker.js'), 'utf8'), /COMPARISON_WORKER_RECORD = 'worker\.json'/u);
+});
+
 test('clause 3: two drivers writing steps on one board never fail with database is locked [C7]', async t => {
   const dir = temporaryDirectory('pullboard-durable-lock-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
