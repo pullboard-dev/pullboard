@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads src/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
