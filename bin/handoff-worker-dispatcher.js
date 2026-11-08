@@ -129,22 +129,72 @@ export function dispatcherPass(row, { now = Date.now, finish = finishAwaitingVer
   };
 }
 
-// The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
-// Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const row = dispatcherRow(process.cwd(), process.env[HANDOFF_DISPATCHER_OWNER_ENV]);
+/** Failures a drain pass can meet from a busy disk or a busy writer: the pass is retried, never the dispatcher ended. */
+export const TRANSIENT_DRAIN_ERRORS = new Set(['SLOT_DB_LOCKED', 'BOARD_BUSY']);
+
+/** The first wait before a drain pass that met a transient failure runs again; it doubles up to DRAIN_RETRY_MAX_MS. */
+export const DRAIN_RETRY_MS = 1_000;
+
+/** The longest wait between retried drain passes. */
+export const DRAIN_RETRY_MAX_MS = 30_000;
+
+/**
+ * Drain the hand-off queue until it is empty, as the detached dispatcher process does. A pass that throws a transient
+ * failure (TRANSIENT_DRAIN_ERRORS) is logged and run again after a backoff that doubles from DRAIN_RETRY_MS to
+ * DRAIN_RETRY_MAX_MS, keeping the workers already started, so a locked slot database never ends the dispatcher. Any
+ * other failure is reported and ends the process. The workers it started hold their own slots and run on through
+ * any exit of this process.
+ *
+ * Why: on 8 Nov the dispatcher died on SLOT_DB_LOCKED six times in 95 minutes ("stayed locked for 10005ms"), and
+ * about 22 gates ended SUBMIT_HANDOFF_DEAD after those deaths; a busy disk on one laptop has the same lock (#3717) [C7].
+ *
+ * @param {{ row?: { renew: () => void, release: () => void, retake: () => boolean, withDb: Function },
+ *   drain?: typeof drainHandoffQueue, admission?: object, onPass?: () => void, retryMs?: number, maxRetryMs?: number,
+ *   exit?: (code: number) => void }} [ports] - The dispatcher's job row and the drain; tests pass stand-ins for the board.
+ * @returns {Promise<void>}
+ */
+export async function runDispatcher({ row = dispatcherRow(process.cwd(), process.env[HANDOFF_DISPATCHER_OWNER_ENV]), drain = drainHandoffQueue,
+  admission = gateAdmission, onPass = dispatcherPass(row), retryMs = DRAIN_RETRY_MS, maxRetryMs = DRAIN_RETRY_MAX_MS, exit = code => process.exit(code) } = {}) {
+  const running = new Map();
   let again;
+  let backoff = retryMs;
   do {
     let drained;
-    try { drained = await drainHandoffQueue({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission: gateAdmission, onPass: dispatcherPass(row) }); }
+    try { drained = await drain({ startOf: exactStart, capacity: liveCapacity, sweep: sweepRepositoryInChild, admission, onPass, running }); }
     catch (error) {
+      if (TRANSIENT_DRAIN_ERRORS.has(error?.code)) {
+        reportDispatcherRetry(error, backoff);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        backoff = Math.min(backoff * 2, maxRetryMs);
+        again = true;
+        continue;
+      }
       // The drain released its lock on the way out; exit now so a detached worker handle cannot keep a dead loop alive.
       reportDispatcherFailure(error);
       try { row.release(); } catch { /* a board that cannot be written lets the row lapse in 2 minutes */ }
-      process.exit(1);
+      exit(1);
+      return;
     }
+    backoff = retryMs;
     // The queue is empty: free the row so the next submit launches a dispatcher at once.
     try { row.release(); } catch { /* a board that cannot be written lets the row lapse in 2 minutes */ }
     again = lateTicketRetaken(drained, row);
   } while (again);
 }
+
+/**
+ * Say that a drain pass met a transient failure and when it runs again, on stderr and in the dispatcher log.
+ *
+ * @param {Error & { code?: string }} error - What the drain pass threw.
+ * @param {number} waitMs - How long the dispatcher waits before the next pass.
+ */
+export function reportDispatcherRetry(error, waitMs) {
+  const line = `dispatcher pass interrupted: ${error.code}: ${error.message}; retrying in ${waitMs}ms`;
+  process.stderr.write(line + '\n');
+  try { appendFileSync(handoffDispatcherLog(), `${new Date().toISOString()} ${line}\n`, { mode: 0o600 }); }
+  catch { /* an unwritable log still leaves stderr, and the retry itself still happens */ }
+}
+
+// The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.
+// Only a direct launch drains; importing this file to read its cap (as the test does) starts nothing.
+if (process.argv[1] === fileURLToPath(import.meta.url)) await runDispatcher();

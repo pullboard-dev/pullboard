@@ -48,6 +48,7 @@ import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
+import { parkedClaims } from "./next-release-cooldown.js";
 import { reviewerChecks } from "./board.js";
 import { reviewFamilyRelaxation } from './board-review-family.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
@@ -89,7 +90,7 @@ function recentLightActivity(board) {
  * 'diagnose #N' instead of claimed, so the capable seat writes the handoff and the light seat builds it (#2973).
  *
  * @param {any} board
- * @param {{ item_id: number, item_status: string }} item the pick, its route possibly lowered to mid by nextFor
+ * @param {any} item the pick (an item row with its id and status), its route possibly lowered to mid by nextFor
  * @param {string} seatRoute
  * @returns {boolean}
  */
@@ -127,7 +128,7 @@ export function nextFor(board, options) {
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, skips: [...idleSkips] } : result;
+  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
@@ -301,6 +302,9 @@ export function nextFor(board, options) {
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
+  const parked = parkedClaims(board, agentId);
+  if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
@@ -329,7 +333,7 @@ export function nextFor(board, options) {
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       skip(entry, 'FOREIGN_DEPENDENCY');
@@ -347,9 +351,8 @@ export function nextFor(board, options) {
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
   for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
     if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
-    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons.filter(line => !collisions.includes(line)), ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
   }
-  for (const { collisions } of overlapping) reasons.push(...collisions);
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
@@ -392,7 +395,7 @@ export function greenReviewFor(board, who) {
  * @param {any} entry
  * @returns {string | null}
  */
-function gateAtHead(board, entry) {
+export function gateAtHead(board, entry) {
   const job = submitHandoff(board, entry.item_id);
   if (!job || !entry.item_commit || job.commit !== entry.item_commit) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).

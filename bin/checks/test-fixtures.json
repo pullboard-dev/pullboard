@@ -124,9 +124,6 @@
     "repo-read": 2,
     "tempdir": 2
   },
-  "packages/gate/tests/browser-scan-cache.test.js": {
-    "tempdir": 2
-  },
   "packages/gate/tests/check-baseline-delivery.test.js": {
     "tempdir": 1,
     "hand-policy": 1,
@@ -593,9 +590,9 @@
   },
   "test/api-http.test.js": {
     "tempdir": 4,
-    "hand-policy": 6,
-    "model": 13,
-    "raw-board": 12
+    "hand-policy": 5,
+    "model": 8,
+    "raw-board": 6
   },
   "test/api-requests.test.js": {
     "tempdir": 1,
@@ -724,15 +721,6 @@
   "test/browser-admission-runners.test.js": {
     "tempdir": 3,
     "hand-policy": 1
-  },
-  "test/browser-barrel-admission.test.js": {
-    "tempdir": 1
-  },
-  "test/browser-source-files.test.js": {
-    "tempdir": 3
-  },
-  "test/browser-verdict-by-launch.test.js": {
-    "tempdir": 2
   },
   "test/builder-family-required.test.js": {
     "hand-policy": 1,
@@ -3917,9 +3905,11 @@
     "model": 2,
     "raw-board": 1
   },
+  "test/worker-scale-fixture.js": {
+    "raw-board": 2
+  },
   "test/worker-scale.test.js": {
-    "tempdir": 1,
-    "raw-board": 5
+    "tempdir": 1
   },
   "test/workflows.test.js": {
     "repo-read": 2,
@@ -3943,5 +3933,10 @@
   },
   "test/worktree-start.test.js": {
     "model": 8
+  },
+  "test/api-http-events.test.js": {
+    "model": 5,
+    "raw-board": 6,
+    "hand-policy": 1
   }
 }

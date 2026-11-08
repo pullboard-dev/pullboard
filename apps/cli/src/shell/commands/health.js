@@ -6,6 +6,7 @@ import { flakeQuarantines } from '../../../../../packages/flakes/index.js';
 import { toolBuildHealth } from '../pinned-tool-build.js';
 import { newestEligibleToolBuild } from '../pinned-tool-publish.js';
 import { toolBuildLocation } from '../pinned-tool-build.js';
+import { unfinishedFolders } from '../item-folder.js';
 import { fileURLToPath } from 'node:url';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
 import { existsSync } from 'node:fs';
@@ -47,6 +48,7 @@ export async function run(io, { values = {} } = {}) {
     report.maintenanceTimer = maintenanceTimerHealth(ctx.info.commonDir);
     report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
   }
+  report.unfinishedFolders = unfinishedFolders(ctx.info.root, seatsByPath(ctx.file));
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
   if (report.maintenanceTimer) {
@@ -67,7 +69,8 @@ export async function run(io, { values = {} } = {}) {
   for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'
     ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
     : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
-  return report.stuck.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
+  for (const row of report.unfinishedFolders) io.say(`item folder with an unfinished ${row.operation}: ${JSON.stringify(row.path)}; seat ${row.seat ?? 'unregistered'}, #${row.item}; finish or abort it there`);
+  return report.stuck.length || report.unfinishedFolders.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
 
 }
 
