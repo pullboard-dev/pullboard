@@ -46,7 +46,7 @@ export { nativeStateClockWindow, nativeStateClockMatches } from './src/core/nati
 export { nativeUserDirectory } from './src/shell/native-user-directory.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/shell/outside-store.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/shell/proof-receipts.js';
-export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence } from './src/shell/seat-presence.js';
+export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/shell/seat-presence.js';
 export { sourceAdvanceReturnProblem } from './src/core/source-advance-return.js';
 export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem } from './src/shell/submission-record.js';
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/shell/typed-requests.js';
