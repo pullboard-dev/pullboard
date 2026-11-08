@@ -154,6 +154,8 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
     await session.adoptItemFolderSession(desired, me, prior);
     return true;
   }
+  // A dirty folder is archived only once its holder's session has ended; a live session keeps it and is named (#3720).
+  (await import('./cli/join.js')).endedItemFolderSession(board, me, tree.path);
   if (!holder) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has uncommitted changes and no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
   const status = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
   if (status.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);

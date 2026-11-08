@@ -71,10 +71,29 @@ export function copyTools(toolRoot, target) {
  * Copy the tool root's committed HEAD tree, never its working tree, into `target`. Why: a seat runs Pullboard from its
  * own item worktree, which is usually dirty, and an uncommitted edit must never leak into a snapshot other gates share [C7].
  */
-export function copyCommittedTools(toolRoot, target) {
-  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar HEAD | tar -xf - -C "$2"', 'sh', toolRoot, target],
+export function copyCommittedTools(toolRoot, target, commit = 'HEAD') {
+  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', toolRoot, target, commit],
     { encoding: 'utf8', env: cleanGitEnvironment() });
   if (run.status !== 0) throw new Error(`tools snapshot of the committed tree failed: ${String(run.stderr ?? '').slice(0, 500)}`);
+}
+
+/**
+ * Rebuild a retry's vanished tools folder from the Pullboard commit its request captured.
+ * Why: a retry whose tools were swept must not end GATE_INFRA_EXHAUSTED; the captured tooling commit is enough (#3716).
+ *
+ * @param {string} directory - The stopped job's folder holding request.json.
+ * @returns {boolean} Whether the captured tools folder exists afterwards.
+ */
+export function rebuildCapturedTools(directory) {
+  let request;
+  try { request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8')); } catch { return false; }
+  const { tools, toolRoot, toolsCommit } = request;
+  if (typeof tools !== 'string') return false;
+  if (existsSync(tools)) return true;
+  if (!/^[0-9a-f]{40}$/u.test(toolsCommit ?? '') || typeof toolRoot !== 'string' || dirname(tools) !== tmpdir()
+    || !handoffToolsAllowed(tools, request.job)) return false;
+  try { toolsSnapshot(toolRoot, request.job, request.commonDir, { rebuild: { tools, commit: toolsCommit } }); } catch { /* The retry then retains the evidence. */ }
+  return existsSync(tools);
 }
 
 /** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
@@ -100,16 +119,16 @@ function toolingDigest(toolRoot) {
  * @param {string} toolRoot
  * @param {string} job
  * @param {string} [commonDir]
- * @param {{ copy?: (toolRoot: string, target: string) => void }} [options] copy is injectable so a test can count copies
+ * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string } }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716)
  * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools } = {}) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild } = {}) {
   copy ??= copyTools;
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
+  const clean = rebuild !== undefined || head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
     && realpathSync(top.stdout) === realpathSync(toolRoot);
-  const shared = clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null;
+  const shared = rebuild?.tools ?? (clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null);
   if (shared && existsSync(shared)) {
     touchToolTree(shared);
     // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
@@ -124,7 +143,7 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
   }
   const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copyCommitted(toolRoot, staging);
+    copyCommitted(toolRoot, staging, rebuild?.commit);
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -164,7 +183,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
-      companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
+      companion: candidate.companion, tools, toolRoot, toolsCommit: tryGit(toolRoot, ['rev-parse', 'HEAD']).stdout }) + '\n', { flag: 'wx', mode: 0o600 });
     await launchCapturedWorker(directory, tools, ctx.info.commonDir, result.job, 0, result.reservation);
   } else {
     await recoverSubmitHandoff(ctx, item.item_id, me.id, result.job);
@@ -340,7 +359,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const gone = goneHandoff(current);
     let retry = null;
     if (owned && (current.state === 'running' || gone) && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
-      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
@@ -547,7 +566,7 @@ export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExec
       });
       if (!current) return;
       let retry;
-      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
         { limit: 2, retries: current.infrastructureRetries ?? 0 }); }
       catch (error) {
         ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
