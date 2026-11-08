@@ -4,7 +4,7 @@
  * cites the row, so only the gate test can prove it.
  */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -102,7 +102,7 @@ function submittedItem(gateCases = ["test('the row gate holds', () => {});"], { 
   const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
-  return { packet, ranRowGate: existsSync(marker), dir: box.dir };
+  return { packet, ranRowGate: existsSync(marker), dir: box.dir, repo: box.repo, head: box.git(builder, 'rev-parse', 'HEAD').trim() };
 }
 
 test('clause 1: a submit for an item citing a spec row runs that row\'s gate test file in its recorded proof [V4,C7]', { timeout: 240_000 }, async (t) => {
@@ -160,6 +160,60 @@ test('clause 1: submit runs the test file the frozen criterion names and the one
       `clause 1 cites its named file's run: ${JSON.stringify(first)}`);
     assert.ok(second.runs.some(run => run.file === 'web/brief.test.js' && run.result === 'pass' && run.receipt && run.why === "the brief's Test: list names the file"),
       `clause 2 cites the brief's Test: file run: ${JSON.stringify(second)}`);
+    assert.deepEqual(packet.clauses.filter(clause => clause.gap).map(clause => [clause.n, clause.gap]), [], 'no clause is left with no recorded run');
+  });
+});
+
+/**
+ * A committed test file whose worker loses its own runtime self-report, as #3734's second-shard workers did: it removes
+ * its `runtime-<pid>` record from the gate's capture folder, so the receipt's children never name it, then logs `lost`.
+ */
+function unreportedTest(dir, caseName) {
+  return [
+    "import { appendFileSync, readdirSync, rmSync } from 'node:fs';",
+    "import { join } from 'node:path';",
+    "import { test } from 'node:test';",
+    'const capture = process.env.PULLBOARD_RUNTIME_CAPTURE_DIR;',
+    "const own = capture ? readdirSync(capture).filter(name => name.startsWith(`runtime-${process.pid}-`)) : [];",
+    'for (const name of own) rmSync(join(capture, name));',
+    `appendFileSync(${JSON.stringify(join(dir, 'named-ran.log'))}, own.length ? 'lost\\n' : 'kept\\n');`,
+    `test(${JSON.stringify(caseName)}, () => {});`,
+    '',
+  ].join('\n');
+}
+
+/** The exact-head submit receipts the gate wrote for the item, read from the gate's own receipt files. */
+function submitReceipts(repo, head) {
+  const folder = join(repo, '.git', 'pullboard', 'gate-receipts');
+  return readdirSync(folder).filter(name => name.endsWith('.json')).map(name => JSON.parse(readFileSync(join(folder, name), 'utf8')))
+    .filter(receipt => receipt.kind === 'submit' && receipt.head === head);
+}
+
+test('clause 1: the exact-head submit receipt runs a file the frozen criterion names, outside the affected selection, and names its cases though its worker report is lost [C7,V4]', { timeout: 240_000 }, async (t) => {
+  const { packet, dir, repo, head } = submittedItem(undefined, {
+    criterion: '1. The job folder stays while its job runs, proved by web/folder-live.test.js [test]. 2. The sweep keeps its floor, proved by web/sweep.test.js [test].',
+    files: dir => ({ 'web/folder-live.test.js': unreportedTest(dir, 'a long job mid-run keeps its folder'),
+      'web/sweep.test.js': markedTest(dir, 'sweep', 'the sweep keeps its floor') }),
+  });
+  assert.deepEqual(readFileSync(join(dir, 'named-ran.log'), 'utf8').split('\n').filter(Boolean).sort(), ['lost', 'sweep'],
+    'the gate ran both criterion-named files, and the folder-live worker lost its runtime report');
+  const proof = submitReceipts(repo, head).find(receipt => receipt.proof?.submitPhase === 'proof');
+  assert.ok(proof, `the gate wrote an exact-head proof receipt at ${head}`);
+  const outcomes = proof.testOutcomes ?? [];
+  assert.ok(outcomes.some(row => row.file === 'web/folder-live.test.js' && row.name === 'a long job mid-run keeps its folder' && row.passed),
+    `the receipt names the criterion file's case: ${JSON.stringify(outcomes)}`);
+  assert.ok(!(proof.proof.testRuntimes ?? []).some(row => row.file === 'web/folder-live.test.js'),
+    "the receipt's children miss the file, as #3734's did");
+  assert.ok((proof.proof.testRuntimes ?? []).some(row => row.file === 'web/sweep.test.js'), 'another child of the same receipt is reported');
+
+  await t.test('clause 2: show --review lists the named-file case outcomes from the exact-head gate receipt for each clause, no gap [C7,V4]', () => {
+    const [live, sweep] = packet.clauses;
+    assert.equal(packet.head, head, 'the packet is for the exact submitted head');
+    assert.ok(live.runs.some(run => run.file === 'web/folder-live.test.js' && run.test === 'a long job mid-run keeps its folder'
+      && run.result === 'pass' && run.receipt === proof.id), `clause 1 cites the receipt's named case: ${JSON.stringify(live)}`);
+    assert.ok(sweep.runs.some(run => run.file === 'web/sweep.test.js' && run.test === 'the sweep keeps its floor' && run.result === 'pass'),
+      `clause 2 cites its named case: ${JSON.stringify(sweep)}`);
+    assert.ok(!sweep.runs.some(run => run.test === 'a long job mid-run keeps its folder'), "a lost report never moves a case to another file's clause");
     assert.deepEqual(packet.clauses.filter(clause => clause.gap).map(clause => [clause.n, clause.gap]), [], 'no clause is left with no recorded run');
   });
 });
