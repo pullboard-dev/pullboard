@@ -10,6 +10,7 @@ import { refreshLandedCodeMap } from '../packages/landing/index.js';
 import { mainMovedWarnings } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -25,7 +26,7 @@ test('a landing warns on a claimed local HEAD, then submit refuses until a real 
   const box = e2e.project('true');
   assert.equal(e2e.commitFile(box, box.repo, 'web/shared.txt', 'base\n', 'chore: shared fixture').status, 0);
   box.git(box.web, 'merge', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Keep local work', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Keep local work', '--specs', 'G1',
     '--criterion', 'the shared source exists', '--check', 'test -f web/shared.txt', '--json');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);

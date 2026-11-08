@@ -30,6 +30,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { unpackRelease } from './release-archive.js';
+import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL', 'SSH_CONNECTION', 'SSH_TTY'];
@@ -266,7 +267,7 @@ test('a lane draft made while a Rigor proof runs still keeps its id [D1,S1,B26]'
   historyBox.close();
   const lane = join(box.dir, 'lane');
   box.git('worktree', 'add', '-q', lane, '-b', 'app/rows');
-  const joined = runFixtureChild(process.execPath, [BIN, 'join', 'app', '--model', 'Lane model'], { cwd: lane, env: box.env, encoding: 'utf8' });
+  const joined = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'app', '--model', 'Lane model'], { cwd: lane, env: box.env, encoding: 'utf8' });
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   // The proof's own check drafts from the lane the first time it runs, so the draft lands mid-proof.
   const result = join(box.dir, 'mid-proof-draft.json');

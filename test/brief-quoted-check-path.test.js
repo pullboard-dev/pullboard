@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import * as store from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 test.after(helpers.cleanup);
@@ -30,7 +31,7 @@ test('a quote that does not close around the path infers nothing and still refus
 
 test("clause 1: pullboard add with --check \"node bin/run-tests.js 'test/x.test.js'\" and no brief succeeds with a brief naming the test [B14,C7,#3120]", () => {
   const box = helpers.project('true', helpers.sandbox());
-  const added = box.run(box.repo, 'add', 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Quoted check', '--specs', 'G1', '--criterion', 'x passes [test]',
     '--check', "node bin/run-tests.js 'test/x.test.js'", '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const { item } = JSON.parse(added.out);

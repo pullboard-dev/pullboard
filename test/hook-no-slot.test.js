@@ -8,6 +8,7 @@ import {
 import { resolve } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { takeResource } from '../packages/resources/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -25,7 +26,7 @@ function commitAs(box, cwd, session, path, message) {
 test('clause 1; clause 2; clause 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
   const box = helpers.project();
   const session = 'hook-no-slot-2505';
-  assert.equal(box.run(box.repo, 'add', 'web', 'Hook speed', '--specs', 'G1').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Hook speed', '--specs', 'G1').code, 0);
   box.env.CODEX_SESSION_ID = session;
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   delete box.env.CODEX_SESSION_ID;

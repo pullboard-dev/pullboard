@@ -24,6 +24,12 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
     mkdirSync(join(box.repo, 'packages', 'gate'), { recursive: true });
     writeFileSync(join(box.repo, 'packages', 'gate', 'test-tiers.json'), JSON.stringify({ version: 1, files: [] }));
   }
+  // The map is committed before the move: a map file first appearing in the change is a non-module input that import
+  // selection cannot compute, which sends the plan to the full gate [C7,S10].
+  if (moved) {
+    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
+  }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add fixture tests');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -31,8 +37,6 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   if (moved) {
     mkdirSync(join(box.repo, 'packages', 'example', 'tests'), { recursive: true });
     renameSync(join(dir, 'a.test.js'), join(box.repo, 'packages', 'example', 'tests', 'a.test.js'));
-    mkdirSync(join(box.repo, 'bin', 'cells-plan', 'path-map'), { recursive: true });
-    writeFileSync(join(box.repo, 'bin', 'cells-plan', 'path-map', 'example.json'), JSON.stringify({ 'test/a.test.js': 'packages/example/tests/a.test.js' }));
   }
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: fix selected tests');
@@ -97,7 +101,7 @@ test('a full fallback proof does not stop landing: the merged change selects its
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a frozen moved test resolves through the submitted source map [C7,S10]', () => {
+test('clause 1: a frozen moved test resolves through the submitted source map [C7,S10]', () => {
   const { files } = plannedFiles(['a'], { proof: [], moved: true });
   assert.deepEqual(files, ['packages/example/tests/a.test.js']);
 });

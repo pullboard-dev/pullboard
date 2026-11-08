@@ -6,6 +6,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];
@@ -82,7 +84,7 @@ function isAncestor(box, cwd, ancestor, commitId) {
 function addBuilder(box, name) {
   const cwd = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/${name}`, cwd, 'main');
-  const joined = box.run(cwd, 'join', 'web', '--route', 'strong');
+  const joined = fixtureJoin(box.run, cwd, 'web', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   return cwd;
 }
@@ -90,7 +92,7 @@ function addBuilder(box, name) {
 /** Add and claim a strong item with the complete brief shape expected by production. */
 function addAndClaim(box, cwd, title, row) {
   const brief = `Files:\n- web/fixture.txt\nTest:\n- inspect the committed fixture history`;
-  const added = box.run(box.repo, 'add', 'web', title, '--route', 'strong', '--specs', row,
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--route', 'strong', '--specs', row,
     '--criterion', 'the cited row holds', '--check', 'true', '--brief', brief);
   assert.equal(added.code, 0, added.err || added.out);
   const id = Number(/#(\d+)/u.exec(added.out)?.[1]);

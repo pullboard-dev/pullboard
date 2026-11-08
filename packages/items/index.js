@@ -25,7 +25,7 @@ export { itemOfferAnnouncement, readItemOffer, acceptItemOffer, declineItemOffer
 export { composeItemPatches } from './src/shell/item-patch-compose.js';
 export { validateItemPatchInput, prepareItemPatchReview, reviewCompanionOffer, missingCompanionKeys } from './src/shell/item-patch-review.js';
 export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, itemPatchAuthors } from './src/shell/item-patch-state.js';
-export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem } from './src/shell/item-patches.js';
+export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem, startItemPatchObjectionWindow, companionWindowProblem, applyItemPatchObjection } from './src/shell/item-patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/shell/item-receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/shell/item-rehome.js';
 export { checkRouted, checkRoute, checkTestFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/core/item-routing.js';
@@ -52,7 +52,7 @@ export { itemEditBar } from './src/core/item-edit-bar.js';
 export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/core/item-patch-paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/shell/item-patch-submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
-export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/shell/family-declaration.js';
+export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/shell/family-declaration.js';
 export { auditFailureItem } from './src/core/audit-failure-item.js';
 
 export { claimProgress } from './src/core/claims.js';
@@ -62,6 +62,10 @@ export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildP
 export { prepareDeadHandoffRetry } from './src/shell/submit-handoff-recovery.js';
 export { handoffToolsAllowed } from './src/shell/submit-handoff-recovery.js';
 export { sharedHandoffTools } from './src/shell/submit-handoff-recovery.js';
+export { queuedToolOwners } from './src/shell/submit-handoff-recovery.js';
+export { sweepToolTrees } from './src/shell/submit-handoff-recovery.js';
+export { assertToolTreeRoom } from './src/shell/submit-handoff-recovery.js';
+export { touchToolTree } from './src/shell/submit-handoff-recovery.js';
 
 export { claimedItemRoot } from './src/shell/item-patch-submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/core/dependency-progress.js';

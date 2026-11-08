@@ -2,7 +2,7 @@ import { archivedToolingSource } from './committed-tooling.js';
 import { committedRunnerController } from './committed-tooling.js';
 import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
-import { runnerSource } from '../../../gate/index.js';
+import { runnerSource } from '../../../gate/src/core/gate-policy-load.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -27,20 +27,19 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
+// When this module loaded: bytes written after it do not belong to this controller, even though the capture waits for first use.
+const LOAD_INSTANT = Date.now();
 
-/** True in the commit-time hooks, which are short-lived and never dispatch or serve a runner (#2505). */
-const COMMIT_HOOK = process.argv[2] === 'hook' && ['pre-commit', 'commit-msg'].includes(process.argv[3]);
+/** Whether any runners.js instance has pinned the loaded tooling in this process. */
+export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
 
 /**
- * Pin one runners.js instance's controller generation when it loads, before any later dispatch.
- * Why a lazy pin in the commit hooks: capturing the tooling costs them hundreds of milliseconds of
- * every commit, and a process that lives well under a second has no stale bytes to guard against.
+ * Pin one runners.js instance's controller generation when it loads; the closure capture waits for first use.
+ * Why: parsing the package at import cost every command ~0.8 s; the load instant still bounds which bytes count.
  */
-export function pinRunnerTooling() {
-  let captured;
-  const generation = COMMIT_HOOK
-    ? { get loaded() { return captured ??= loadedTooling(); } }
-    : { loaded: loadedTooling() };
+export function pinRunnerTooling(since = LOAD_INSTANT) {
+  let loaded;
+  const generation = { get loaded() { return loaded === undefined ? (loaded = loadedTooling(since)) : loaded; } };
   LOADED_TOOLING ??= generation;
   return generation;
 }
@@ -53,9 +52,9 @@ export function inRunnerGeneration(generation, operation) {
   return GENERATION.run(generation, operation);
 }
 
-/** Pin the actual derived runtime and controller generation before any later dispatch. */
-function loadedTooling() {
-  try { return captureRunnerTooling(TOOL_ROOT); }
+/** Capture the derived runtime and controller generation once, refusing bytes written after the instance loaded. */
+function loadedTooling(since) {
+  try { return captureRunnerTooling(TOOL_ROOT, { since }); }
   catch (problem) { return problem?.code === 'RUNNER_TOOLING_FILES' ? { problem } : null; }
 }
 

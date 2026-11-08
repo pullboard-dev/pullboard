@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 /** Create one real repository and board; no runner registration, host settings or credentials are changed. */
 export function mixedModeProject(t) {
@@ -33,7 +34,7 @@ console.log('# fail 0'); console.log('# skipped 0');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const runner = join(box.dir, 'runner-developer');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/runner', runner, 'main');
-  const joined = box.run(runner, 'join', 'web', '--json');
+  const joined = fixtureJoin(box.run, runner, 'web', '--json');
   assert.equal(joined.code, 0, joined.err);
   const remote = join(box.dir, 'origin.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);

@@ -27,6 +27,7 @@ import { specGateMoveOnly } from '../../spec/index.js';
 import { submissionPaths } from '../../sandbox/index.js';
 import { ownsNewFile } from '../../sandbox/src/shell/trusted-policy.js';
 import { planRowChange } from '../../../src/plan-row-change.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 const CONFIG = {
   ...defaults(),
@@ -207,7 +208,7 @@ function reassignedPathFixture() {
   box.git(box.repo, 'add', 'api/shared.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create coordinator fixture path');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Update reassigned path', '--specs', 'G1',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Update reassigned path', '--specs', 'G1',
     '--criterion', 'the reassigned path has the new content', '--check', 'true', '--route', 'strong');
   assert.equal(added.code, 0, added.err);
   const claimed = box.run(box.web, 'claim', '1');
@@ -314,7 +315,7 @@ test('submit and patch attach share frozen ownership and move together on refree
 /** A web item that merged main, after which main changed the same foreign file again. */
 function mergedMainFixture(title) {
   const box = policyFixtures.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'merge of main stays in lane', '--check', 'true', '--route', 'strong').code, 0);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(policyFixtures.commitFile(box, box.web, 'web/index.html', 'own work\n', 'feat(web): own change [G1]').status, 0);
   assert.equal(policyFixtures.commitFile(box, box.repo, 'coordinator.txt', 'main one\n', 'chore: main change one').status, 0);
@@ -487,7 +488,7 @@ function nativePlanRowFixture({ mainFile } = {}) {
 
 /** Add and claim a real web item for native plan-row submission coverage. */
 function nativePlanRowItem(box, title) {
-  const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
+  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', 'the owned new file has a canonical plan row',
     '--check', 'true', '--route', 'strong', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
