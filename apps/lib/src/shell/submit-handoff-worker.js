@@ -103,16 +103,30 @@ function workerContext(request, directory, root, nativeBoard) {
   return { ctx, job };
 }
 
+/**
+ * The completion a queued gate's failure records.
+ * Why: a red gate keeps its item with the seat that built it, in its item folder; only a driver failure may give the claim
+ * back to the board when claim.returnToBoard is on, so a seat is never handed a rework it did not start (#3796).
+ *
+ * @param {any} config - The coordinator configuration.
+ * @param {{ id: string, agentId: string }} job - The current queued job.
+ * @param {any} failure - The exact refusal document.
+ * @param {boolean} keepSeat - True for a red gate result.
+ * @returns {object} The completeSubmitHandoff argument.
+ */
+export function failureCompletion(config, job, failure, keepSeat) {
+  return { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: config.claim?.reopenFirstRefusalMinutes,
+    ...(config.claim?.returnToBoard === true && !keepSeat ? { returnToBoard: true } : {}) };
+}
+
 /** Retain a refusal and return only this process's still-current native job through the normal move. */
-async function recordWorkerFailure(ctx, request, directory, failure) {
+async function recordWorkerFailure(ctx, request, directory, failure, { keepSeat = false } = {}) {
   writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
   if (ctx && isSubmitHandoffWorker(ctx)) {
     try {
       const job = withBoard(ctx, board => submitHandoff(board, request.item));
       if (job?.id === request.job && ['queued', 'running'].includes(job.state)) {
-        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,
-          { agentId: job.agentId, job: job.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes,
-            ...(ctx.config.claim?.returnToBoard === true ? { returnToBoard: true } : {}) }]));
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, failureCompletion(ctx.config, job, failure, keepSeat)]));
       }
     } catch (recordingError) { process.stderr.write(`queued result was not recorded: ${recordingError.message}\n`); }
   }
@@ -396,7 +410,8 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner, reco
     if (!result) throw new Refused('SUBMIT_HANDOFF_EXIT', `gate ${request.job} reached its verdict with no recorded result`);
     // A refused gate keeps its refusal.json beside the hand-off and records through the same move the worker used
     // for a thrown refusal, so the builder reads the exact canonical refusal (#2516).
-    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result);
+    // A red gate stays with the seat that built it, in its item folder; only a driver that failed hands the claim back (#3796).
+    if (result.code !== 0) await recordWorkerFailure(ctx, request, directory, result, { keepSeat: true });
     else await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item, { agentId: job.agentId, job: job.id, result }]));
     withBoard(ctx, board => finishJob(board.db, drive, owner));
     return { stalled };
