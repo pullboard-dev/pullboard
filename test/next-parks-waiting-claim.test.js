@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { crossLaneFixture } from './e2e-helpers.js';
+import { FIXTURE_MODEL } from './e2e-helpers.js';
 import { joinFixtureSeat } from './testkit-fixture.js';
-import { FIXTURE_MODEL } from './testkit-fixture.js';
 
 test('next parks a claimed item whose new wait is unmet and offers other work instead [N2,B5,B10]', t => {
   const box = crossLaneFixture(t);
