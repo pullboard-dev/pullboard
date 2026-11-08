@@ -208,7 +208,7 @@ function refuseRepeatedFlags(argv, options) {
     if (name && options[name]?.type === 'string' && !options[name].multiple) counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   for (const [name, count] of counts) {
-    if (count > 1) throw new Error(`--${name} was given ${count} times and only one value is kept (REPEATED_FLAG --${name}); give it once, with every clause numbered inside that one value`);
+    if (count > 1) throw Object.assign(new Error(`--${name} was given ${count} times and only one value is kept (REPEATED_FLAG --${name}); give it once, with every clause numbered inside that one value`), { refusalCode: 'REPEATED_FLAG' });
   }
 }
 
