@@ -574,12 +574,20 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
     onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
       { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
+  /**
+   * Stage one: settled when preflight is clean. Every stage that queues a runner waits on it, so a static failure queues none [C7].
+   * Why: the stages start together, and a runner queued before a static red is wasted work the refusal cannot take back.
+   */
+  let settlePreflight;
+  const preflightPassed = new Promise((resolve, reject) => { settlePreflight = { resolve, reject }; });
+  preflightPassed.catch(() => {});
   /** The runner selection stage's analysis, settled once for the test stage that needs its plan. */
   let settleSelection;
   const selectionResult = remoteMode ? new Promise((resolve, reject) => { settleSelection = { resolve, reject }; }) : null;
   selectionResult?.catch(() => {});
   /** Judge the test result, including exact-main comparison, while other independent stages run. */
   const judgeTests = async (signal) => {
+  await preflightPassed;
   // In a handoff worker the runner already planned the selection and browser admission; the Mac never plans it again (#3006).
   let gate = await gateWithRunnerPlan(remoteMode, selectionResult, { main: acceptedMain.commit, source: companion?.commit ?? commit, crossRunTests: crossRun.tests },
     runnerPlan => runGate(frozenCheck(held), runnerPlan, signal));
@@ -758,14 +766,28 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
   const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
-      if (remoteMode) return runRemotePart('preflight', signal);
-      return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
-        code: [fileURLToPath(new URL('../../../../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
-      () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
+      try {
+        const placed = remoteMode ? await runRemotePart('preflight', signal)
+          : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
+            code: [fileURLToPath(new URL('../../../../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
+          () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
+        if (!remoteMode && !companion && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          const changed = git(root, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, commit]).split('\0').filter(Boolean);
+          const report = await runPreflight(root, changed);
+          if (!report.ok) {
+            const lines = [];
+            reportPreflight(report, line => lines.push(line));
+            throw new Refused('GATE_RED', `preflight is red; no runner was queued. Fix the named source, commit, and submit again:\n${lines.join('\n')}`);
+          }
+        }
+        settlePreflight.resolve();
+        return placed;
+      } catch (error) { settlePreflight.reject(error); throw error; }
     } },
-    ...(remoteMode ? [{ name: 'selection', run: signal => runRemotePart('selection', signal).then(analysis => { settleSelection.resolve(analysis); return analysis; },
+    ...(remoteMode ? [{ name: 'selection', run: signal => preflightPassed.then(() => runRemotePart('selection', signal)).then(analysis => { settleSelection.resolve(analysis); return analysis; },
       error => { settleSelection.reject(error); throw error; }) }] : []),
     { name: 'cells', run: async signal => {
+      await preflightPassed;
       const cellsStart = performance.now();
       try { const result = await (remoteMode ? (await runRemotePart('cells', signal)).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
         ? await withGateSlot(root, async lease => {
@@ -787,6 +809,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       finally { reportSubmitStage(ctx, 'cells', cellsStart); }
     } },
     { name: 'doctrine', run: async signal => {
+      await preflightPassed;
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
       try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
@@ -805,6 +828,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     } },
     { name: 'static', run: async signal => {
       try {
+        await preflightPassed;
         if (remoteMode) return await runRemotePart('static', signal);
         const changedStaticStart = performance.now();
         try {
