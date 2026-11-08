@@ -146,7 +146,7 @@ export async function land(options) {
     publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
   // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
-  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say, onWait: options.onWait });
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);

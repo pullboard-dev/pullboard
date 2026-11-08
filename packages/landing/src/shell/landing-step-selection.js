@@ -17,7 +17,6 @@ import { sameEnvironment } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { cachedMainComparison } from './main-red.js';
-import { compareMainFailures } from './main-red.js';
 import { cachedFailureSignatures } from './main-failure-matches.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
@@ -63,14 +62,10 @@ export function heldTestDefects(root, board, trunk, landingPorts, { defects = st
  * Why: heldTestDefects releases on a run at the current tip only, and every landing moves the tip, so the automatic
  * lander refused #3304 LAND_TEST_DEFECT again one landing after its test was recorded green (#3694).
  */
-export async function closePassedTestDefects({ root, board, trunk, write, say = () => {}, onWait }, { defects = store.landingTestDefects, comparison = cachedMainComparison, measure = compareMainFailures } = {}) {
+export async function closePassedTestDefects({ root, board, trunk, write, say = () => {} }, { defects = store.landingTestDefects, comparison = cachedMainComparison } = {}) {
   const closed = [];
   for (const defect of defects(board)) {
-    if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item)) continue;
-    if (!defectPassedAtTrunk(root, trunk, defect, comparison)) {
-      await measureHeldTest(root, trunk, defect, onWait, measure);
-      if (!defectPassedAtTrunk(root, trunk, defect, comparison)) continue;
-    }
+    if (defect.branch !== trunk.branch || !Number.isSafeInteger(defect.item) || !defectPassedAtTrunk(root, trunk, defect, comparison)) continue;
     const result = await write('closeLandingTestDefect', [{ agentId: 'coordinator', branch: defect.branch, test: defect.test, item: defect.item, commit: trunk.commit }]);
     if (result) {
       closed.push(result);
@@ -78,24 +73,6 @@ export async function closePassedTestDefects({ root, board, trunk, write, say = 
     }
   }
   return closed;
-}
-
-/** Held files this process already ran at a trunk commit, so a file still red there runs once per commit, not once per wake. */
-const measuredHeld = new Set();
-
-/**
- * Run a defect's held file at the trunk commit when the main comparison cache has no entry for it, and let the cache
- * keep the result. Why: nothing else wrote that entry, so a hold whose test was green kept every accepted batch
- * refused LAND_TEST_DEFECT for 30 minutes on 8 Nov until the coordinator landed by hand (#3719). The run goes through
- * compareMainFailures, so it uses a runner when one is registered and this machine otherwise. A failed run records nothing and the hold stays.
- */
-async function measureHeldTest(root, trunk, defect, onWait, measure) {
-  if (!Array.isArray(defect.names) || !defect.names.length) return;
-  const key = `${root}\0${trunk.commit}\0${defect.test}`;
-  if (measuredHeld.has(key)) return;
-  measuredHeld.add(key);
-  try { await measure(root, { tests: [{ file: defect.test, passed: false }] }, onWait, '', { commit: trunk.commit, detailed: true }); }
-  catch { /* No measurement leaves the hold as it was. */ }
 }
 
 /** Keep each verdict's recorded executor distinct from the actual landing host. */
