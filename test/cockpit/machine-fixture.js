@@ -18,6 +18,7 @@ import { join, resolve, sep } from 'node:path';
 import { after } from 'node:test';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 import { joinFixtureSeat } from '../testkit-fixture.js';
+import { withoutPullboardEnv } from '../e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../../bin/pullboard.js');
 const scratch = [];
@@ -44,7 +45,7 @@ function machine() {
   writeFileSync(join(dir, 'bin', 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(dir, 'bin', 'pullboard'), 0o755);
   const env = {
-    ...process.env,
+    ...withoutPullboardEnv(process.env),
     PATH: `${join(dir, 'bin')}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',

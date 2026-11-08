@@ -262,7 +262,10 @@ function comparisonObservationMatches(receipt, environment, browser) {
     && typeof browser === 'boolean' && receipt.runner.capabilities.browser === browser;
 }
 
-/** Select only registered peers with a fresh physical runtime and browser observation matching the red executor. */
+/**
+ * Select the red run host, plus only registered peers with a fresh physical runtime and browser observation matching
+ * the red executor. A peer whose recorded environment differs is never chosen; the red host itself is the fallback.
+ */
 export function comparisonExecutor(root, execution) {
   const original = requiredExecutorOf(execution?.executor);
   if (original?.kind !== 'ssh') return { requiredExecutor: original, browser: null };
@@ -280,14 +283,18 @@ export function comparisonExecutor(root, execution) {
   const red = observed.get(original.host)?.receipt;
   const browser = red?.runner?.capabilities?.browser;
   const redMatches = comparisonObservationMatches(red, execution.environment, browser);
-  const hosts = registered.filter(runner => {
-    if (runner.host === original.host) return !red || redMatches && (runner.browser > 0) === browser;
+  // The registered red run host always qualifies and stays first: it just ran the red, so when no peer receipt matches
+  // the comparison runs there rather than refusing BAD_RUNNER_POOL [C7,#3670].
+  if (!registered.some(runner => runner.host === original.host)) {
+    throw new Refused('BAD_RUNNER_POOL', `the red run host ${original.host} is not a registered runner; register it and retry`);
+  }
+  const peers = registered.filter(runner => {
+    if (runner.host === original.host) return false;
     const peer = observed.get(runner.host)?.receipt;
     return redMatches && comparisonObservationMatches(peer, execution.environment, browser) && (runner.browser > 0) === browser;
   }).map(runner => runner.host);
-  if (!hosts.length) throw new Refused('BAD_RUNNER_POOL', 'no registered runner has the candidate comparison environment; record a matching runner and retry');
-  const host = hosts.includes(original.host) ? original.host : hosts[0];
-  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...hosts.filter(value => value !== host)] }, browser: redMatches ? browser : null };
+  const host = original.host;
+  return { requiredExecutor: { kind: 'ssh', host, hosts: [host, ...peers] }, browser: redMatches ? browser : null };
 }
 
 /** Companions cannot inherit a red whose complete committed input closure they changed [V4,B3]. */
@@ -433,15 +440,31 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
   // A landing's missing files run at once, each under its own gate slot: three serial runs cost a landing 27 minutes
   // on 6 Nov before its bisect could start, while runner slots sat free. A submit keeps its files in FIFO order and
   // releases the slot between them, so other seats' gates interleave [V4,C7].
+  /**
+   * One flight per content hash: a reader takes this lock before it asks for a gate slot, so a second cold reader of the
+   * same test content waits here, not in a slot of its own, and finds the first one's record when it gets the lock [C7,#3166].
+   */
   const measureFile = async path => {
+    const key = content.get(path);
+    if (rerun(path) || !key) return measureFileUnlocked(path);
+    const flight = await takeResource({
+      name: `main-red-flight-${createHash('sha256').update(String(key)).digest('hex').slice(0, 32)}`, capacity: 1, scope: 'repo', root,
+      agent: process.env.PULLBOARD_AGENT ?? `pid-${process.pid}`, onWait,
+    });
+    try { return await measureFileUnlocked(path); }
+    finally { flight.release(); }
+  };
+  const measureFileUnlocked = async path => {
     try {
-      // Another submit may have completed this file after the initial snapshot.
+      // Another submit may have completed this file after the initial snapshot, or while this reader waited for the flight lock.
       if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return;
       /**
        * Run main's copy of the file under the held slot in `checkout`, retaining detailed identity when requested. A
        * `source` runs main's exact commit on the runner from the object store, with `checkout` the repository itself.
        */
       const measureIn = async (checkout, lease, source) => {
+        // Another caller may have measured this content while this one waited for the slot: recheck after admission, so concurrent cold readers execute the file at most once [C7,#3166].
+        if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return { reused: true };
         // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
         const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
         if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
@@ -505,6 +528,7 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
         measured = await inCheckout(false);
       }
       if (measured.unavailable) throw new Error(measured.unavailable);
+      if (measured.reused) return;
       if (pinned) pinnedEntries[path] = measured;
       await withComparisonCache(root, onWait, () => {
         const current = readCache(file);

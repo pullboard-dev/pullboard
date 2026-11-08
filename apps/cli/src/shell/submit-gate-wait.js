@@ -1,11 +1,12 @@
 /** Follow only the exact queued gate, never an unrelated later review verdict [V4,H16,E18]. */
 import { setTimeout as pause } from 'node:timers/promises';
-import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
+import { gateDriverGone } from '../../../../packages/drive/index.js';
+import { readGateDrive } from '../../../../packages/drive/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
@@ -22,11 +23,14 @@ function observeJob(ctx, id, acknowledgment, jobId, ports) {
   });
 }
 
-/** A missing, unreadable or reused process identity never attests a healthy continuing gate. */
-function requireWorker(directory, jobId, id) {
-  let worker;
-  try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
-  catch { throw new Refused('SUBMIT_HANDOFF_RESULT', `the queued worker observation is unavailable; run pullboard show ${id}; its gate may still be running`); }
+/**
+ * A missing, unreadable or reused process identity never attests a healthy continuing gate. The driver's identity is
+ * its gate's drive job on the board; a driver whose lease lapsed or never started is gone [C7].
+ */
+function requireWorker(ctx, ports, jobId, id) {
+  const worker = ports.withBoardRead(ctx, board => readGateDrive(board.db, jobId));
+  if (!worker) throw new Refused('SUBMIT_HANDOFF_RESULT', `the queued worker observation is unavailable; run pullboard show ${id}; its gate may still be running`);
+  if (gateDriverGone(worker, Date.now())) throw new Refused('SUBMIT_HANDOFF_CHANGED', `queued gate job ${jobId} lost its worker before a final outcome; run pullboard show ${id}; remote cleanup remains unknown`);
   if (worker.version !== 1 || worker.job !== jobId || !Number.isSafeInteger(worker.pid) || worker.pid < 1
     || typeof worker.started !== 'string' || !worker.started) {
     throw new Refused('SUBMIT_HANDOFF_RESULT', `the queued worker identity is unavailable; run pullboard show ${id}; do not dispatch another copy`);
@@ -97,10 +101,11 @@ export async function waitForSubmitGate(ctx, id, acknowledgment, jobId, ports) {
       throw new Refused('SUBMIT_HANDOFF_CHANGED', `the queued gate no longer owns #${id}; run pullboard show ${id}`);
     }
     // Observe native completion again after checking process death: completion can race the last worker exit.
-    try { requireWorker(directory, jobId, id); }
+    try { requireWorker(ctx, ports, jobId, id); }
     catch (error) {
-      // A job still holding its place in line has no worker yet; the dispatcher starts it, so keep waiting [V4].
-      if (!existsSync(join(directory, 'worker.json')) && handoffTicketWaiting(jobId)) { await pause(250); continue; }
+      // A job still holding its place in line, or admitted but not yet started, has no process yet; keep waiting [V4].
+      const admitted = ports.withBoardRead(ctx, board => readGateDrive(board.db, jobId));
+      if ((!admitted && handoffTicketWaiting(jobId)) || (admitted && admitted.pid === null && !gateDriverGone(admitted, Date.now()))) { await pause(250); continue; }
       const final = observeJob(ctx, id, acknowledgment, jobId, ports);
       if (['green', 'submitted', 'ownership-wait', 'red', 'incomplete'].includes(final.job.state)) continue;
       throw error;

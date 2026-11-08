@@ -81,7 +81,7 @@ test('an unchanged inbox read never waits on the board write lock while another 
   }
   const neighbour = join(box.dir, 'api-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'api/neighbour', neighbour, 'main');
-  for (const [root, args] of [[neighbour, ['join', 'api']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
+  for (const [root, args] of [[neighbour, ['join', 'api', '--route', 'strong']], [neighbour, ['claim', '2']], [box.web, ['claim', '1']], [box.web, ['inbox']]]) {
     const done = box.run(root, ...args);
     assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
   }

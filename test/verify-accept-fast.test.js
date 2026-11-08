@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { join } from 'node:path';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
+import { FIXTURE_MODEL, FIXTURE_MODEL_EARLIER, fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 import { reusableSubmitProof, sealedMoveOverlap, submittedPolicyCommit } from '../packages/verify/index.js';
-
-const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 
 /** A submit event plus the admission and both receipts, shaped as the board records them. */
 function sealedEvents({ deferred }) {
@@ -36,14 +34,16 @@ test('a deferred full suite no longer blocks reusing the sealed receipts [C7]', 
   assert.deepEqual(reused.ids, ['criterion', 'proof']);
 });
 
-test('a moved main keeps the receipt unless it changes the item or its check [C7]', t => {
-  const dir = mkdtempSync(join(tmpdir(), 'accept-fast-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
-  git(dir, 'init', '-q', '-b', 'main'); git(dir, 'config', 'user.email', 'a@b.c'); git(dir, 'config', 'user.name', 'T');
-  const commit = (path, text) => { mkdirSync(join(dir, path, '..'), { recursive: true }); writeFileSync(join(dir, path), text); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', `change ${path}`); return git(dir, 'rev-parse', 'HEAD'); };
+test('a moved main keeps the receipt unless it changes the item or its check [C7]', async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox());
+  const dir = box.repo;
+  const commit = (path, text) => { helpers.commitFile(box, dir, path, text, `chore: change ${path}`); return box.git(dir, 'rev-parse', 'HEAD'); };
   const base = commit('base.txt', 'base');
-  git(dir, 'switch', '-qc', 'item');
+  box.git(dir, 'switch', '-qc', 'item');
   const item = commit('item.js', 'x');
-  git(dir, 'switch', '-q', 'main');
+  box.git(dir, 'switch', '-q', 'main');
   assert.equal(sealedMoveOverlap(dir, { from: base, to: base, commit: item, check: 'node --test test/a.test.js' }), null);
   const unrelated = commit('other.txt', 'y');
   assert.equal(sealedMoveOverlap(dir, { from: base, to: unrelated, commit: item, check: 'node --test test/a.test.js' }), null);
@@ -60,14 +60,14 @@ test('clause 1: accept reuses the receipt after an unrelated landing moved main 
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
-  sandbox.env.PULLBOARD_MODEL = 'fast-builder'; sandbox.env.CODEX_THREAD_ID = 'fast-builder-session';
+  sandbox.env.PULLBOARD_MODEL = FIXTURE_MODEL; sandbox.env.CODEX_THREAD_ID = 'fast-builder-session';
   const count = join(sandbox.dir, 'check-count');
   const box = helpers.project('true', sandbox);
-  const added = box.run(box.repo, 'add', 'web', 'Fast accept', '--specs', 'G1', '--criterion', 'the check passes', '--check', `printf x >> '${count}'`, '--brief', 'Files:\n- web/proof.js\nTest:\n- the check passes\n');
-  assert.equal(added.code, 0, added.err || added.out);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const added = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fast accept', criterion: 'the check passes', check: `printf x >> '${count}'`, brief: 'Files:\n- web/proof.js\nTest:\n- the check passes\n', args: ['--specs', 'G1'], diagnose: false });
+  const id = String(added.item_id);
+  assert.equal(box.run(box.web, 'claim', id).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]').status, 0);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = box.run(box.web, 'submit', id);
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const before = readFileSync(count, 'utf8');
   const landed = helpers.commitFile(box, box.repo, 'unrelated.txt', 'landed elsewhere\n', 'chore: unrelated landing');
@@ -75,9 +75,9 @@ test('clause 1: accept reuses the receipt after an unrelated landing moved main 
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'fast-reviewer-session';
-  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'fast-reviewer').code, 0);
+  assert.equal(joinFixtureSeat(box, reviewer, 'web', { model: FIXTURE_MODEL_EARLIER }).code, 0);
   const started = performance.now();
-  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The sealed receipt covers the check.');
+  const verdict = box.run(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
   const elapsed = performance.now() - started;
   assert.equal(verdict.code, 0, verdict.err || verdict.out);
   assert.match(verdict.out, /reused submit proof/);
@@ -89,22 +89,22 @@ test('clause 2: accept says why the receipt could not be reused before it reruns
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
-  sandbox.env.PULLBOARD_MODEL = 'fast-builder'; sandbox.env.CODEX_THREAD_ID = 'fast-builder-session';
+  sandbox.env.PULLBOARD_MODEL = FIXTURE_MODEL; sandbox.env.CODEX_THREAD_ID = 'fast-builder-session';
   const count = join(sandbox.dir, 'check-count');
   const box = helpers.project('true', sandbox);
-  const added = box.run(box.repo, 'add', 'web', 'Fast accept', '--specs', 'G1', '--criterion', 'the check passes', '--check', `test -n web/dep.js && printf x >> '${count}'`, '--brief', 'Files:\n- web/proof.js\nTest:\n- the check passes\n');
-  assert.equal(added.code, 0, added.err || added.out);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  const added = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Fast accept', criterion: 'the check passes', check: `test -n web/dep.js && printf x >> '${count}'`, brief: 'Files:\n- web/proof.js\nTest:\n- the check passes\n', args: ['--specs', 'G1'], diagnose: false });
+  const id = String(added.item_id);
+  assert.equal(box.run(box.web, 'claim', id).code, 0);
   assert.equal(helpers.commitFile(box, box.web, 'web/proof.js', 'export const proof = true;\n', 'feat(web): add proof fixture [G1]').status, 0);
-  const submitted = box.run(box.web, 'submit', '1');
+  const submitted = box.run(box.web, 'submit', id);
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
   const landed = helpers.commitFile(box, box.repo, 'web/dep.js', 'export const dep = 1;\n', 'feat(web): main adds a file the check names [G1]');
   assert.equal(landed.status, 0, landed.stderr || landed.stdout);
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   sandbox.env.CODEX_THREAD_ID = 'fast-reviewer-session';
-  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'fast-reviewer').code, 0);
-  const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'The sealed receipt covers the check.');
+  assert.equal(joinFixtureSeat(box, reviewer, 'web', { model: FIXTURE_MODEL_EARLIER }).code, 0);
+  const verdict = box.run(reviewer, 'verify', id, 'accept', '--note', 'The sealed receipt covers the check.');
   const said = `${verdict.out}${verdict.err}`;
   assert.match(said, /submit proof not reused: .*main moved since submit and reaches web\/dep\.js, a file the check names/u, said);
 });

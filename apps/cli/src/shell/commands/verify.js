@@ -1,5 +1,7 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
+import { toolsSnapshot } from '../submit-handoff.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
@@ -7,6 +9,7 @@ import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
 import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -355,7 +358,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         let reused = reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
-          tree: item.item_tree, main: trunk.commit, check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
+          tree: item.item_tree, main: trunk.commit, tooling: toolingTree(root, checkedCommit), check: expectedPlan?.check ?? frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '',
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
         // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
@@ -366,7 +369,7 @@ export async function verifyHere(ctx, id, { second, values }) {
             const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
             if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
           } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
-          const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain,
+          const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, checkedCommit),
             check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
           if (sealed?.ids) reused = sealed;
           else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
@@ -635,6 +638,31 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
+}
+
+/** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
+export async function reviveStalledComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const thread = withBoardRead(ctx, board => store.itemThread(board, id));
+  const plan = comparisonRestartPlan({ commonDir: ctx.info.commonDir, item, thread });
+  if (plan.action === 'unavailable') {
+    await recordComparison(ctx, item, { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest, error: plan.error });
+  } else if (plan.action === 'restart') {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+  }
+}
+
+/**
+ * The tooling tree a review judges under (RFC 0007 SC8), or null when the pin is unreadable, so nothing is reused.
+ *
+ * @param {string} root - The reviewer's checkout.
+ * @param {string} commit - The reviewed commit.
+ * @returns {string | null} The tooling tree id.
+ */
+function toolingTree(root, commit) {
+  try { return toolingFor(root, commit).tooling; } catch { return null; }
 }
