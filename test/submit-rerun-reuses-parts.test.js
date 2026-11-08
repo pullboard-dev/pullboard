@@ -18,7 +18,8 @@ function countingRunner(box) {
   const runOnRunnerAsync = async (_root, _shell, options) => {
     const part = box.nextPart;
     admitted.push(part);
-    const value = { main: box.main, source: box.source, plan: { proofFiles: ['test/a.test.js'] }, admission: { browser: false, gui: false }, steps: { [part]: true } };
+    const value = { main: box.main, source: box.source, plan: { proofFiles: ['test/a.test.js'] }, admission: { browser: false, gui: false }, steps: { [part]: true },
+      ...(box.refuse ? { outcomes: { [part]: { refused: { code: 'STATIC_RED', message: 'fixture refusal' } } } } : {}) };
     const bytes = Buffer.from(`${RESULT}${JSON.stringify(value)}\n`);
     writeFileSync(options.rawOutputPath, bytes);
     return { executionRunner: 'runner-1', executionSource: { commit: box.source, tree: box.tree }, rawOutputPath: options.rawOutputPath,
@@ -53,7 +54,7 @@ function commits() {
   return { source, older, tree: runFixtureGit(['rev-parse', `${source}^{tree}`]) };
 }
 
-test('clause 1: a rerun with the same main, source and tooling admits no analysis part and returns the same results', async () => {
+test('clause 1: a rerun with the same main, source and tooling admits no analysis part and returns the same results [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { source, tree } = commits();
   const box = { main: source, source, tree, nextPart: '' };
@@ -68,7 +69,7 @@ test('clause 1: a rerun with the same main, source and tooling admits no analysi
   process.stderr.write(`stage seconds: first run ${(first.ms / 1000).toFixed(3)}s, rerun ${(second.ms / 1000).toFixed(3)}s\n`);
 });
 
-test('clause 2: a change in the main commit runs every part fresh', async () => {
+test('clause 2: a change in the main commit runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { source, older, tree } = commits();
   const box = { main: source, source, tree, nextPart: '' };
@@ -79,7 +80,7 @@ test('clause 2: a change in the main commit runs every part fresh', async () => 
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'a new main admits every part again');
 });
 
-test('clause 2: a change in the source commit runs every part fresh', async () => {
+test('clause 2: a change in the source commit runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { source, older, tree } = commits();
   const box = { main: source, source, tree, nextPart: '' };
@@ -92,7 +93,7 @@ test('clause 2: a change in the source commit runs every part fresh', async () =
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'a new source admits every part again');
 });
 
-test('clause 2: a change in the board cut rows runs the part fresh', async () => {
+test('clause 2: a change in the board cut rows runs the part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { source, tree } = commits();
   const box = { main: source, source, tree, nextPart: '' };
@@ -103,7 +104,7 @@ test('clause 2: a change in the board cut rows runs the part fresh', async () =>
   assert.deepEqual(runner.admitted, [...PARTS, 'static']);
 });
 
-test('clause 2: a change in the tooling id runs every part fresh', async () => {
+test('clause 2: a change in the tooling id runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { source, tree } = commits();
   const box = { main: source, source, tree, nextPart: '' };
@@ -112,4 +113,18 @@ test('clause 2: a change in the tooling id runs every part fresh', async () => {
   box.tooling = 'pullboard-handoff-tools-other';
   await attempt(box, runner, files.root);
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'new tooling admits every part again');
+});
+
+test('clause 2: a part that refused is never recorded, so its rerun runs fresh [C7]', async () => {
+  const files = privateFixtureFiles('pullboard-rerun-parts-');
+  const { source, tree } = commits();
+  const box = { main: source, source, tree, nextPart: 'static', refuse: true };
+  const runner = countingRunner(box);
+  const request = { ...partRequest(box, 'static'), perPart: true };
+  const first = await remoteSubmitAnalysis(process.cwd(), request, runner.lease, files.root);
+  assert.equal(first.outcomes.static.refused.code, 'STATIC_RED', 'the per-part job returns the refusal as its outcome');
+  box.refuse = false;
+  const second = await remoteSubmitAnalysis(process.cwd(), request, runner.lease, files.root);
+  assert.deepEqual(runner.admitted, ['static', 'static'], 'the refused part is admitted again');
+  assert.equal(second.reused, undefined, 'the rerun is a fresh result, not a reused refusal');
 });
