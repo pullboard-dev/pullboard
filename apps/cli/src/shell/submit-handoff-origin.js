@@ -23,6 +23,7 @@ import {
   untracked,
 } from '../../../../packages/git/index.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { handoffRecords } from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 const CONTEXTS = new WeakMap();
@@ -131,8 +132,8 @@ export function requireSubmitHandoffExecution(ctx, board, commit, tree) {
 export function submitHandoffHookActor(ctx, board) {
   const prefix = resolve(ctx.info.commonDir, 'pullboard', 'submit-handoffs') + '/';
   if (!resolve(ctx.info.root).startsWith(prefix)) return null;
-  const entry = board.db.prepare("SELECT meta_key,meta_value FROM board_meta WHERE meta_key LIKE 'submit_handoff:%'").all()
-    .map(row => ({ id: Number(row.meta_key.slice('submit_handoff:'.length)), job: JSON.parse(row.meta_value) }))
+  // Every item's current record, read from the job tables where hand-off state lives [C7].
+  const entry = [...handoffRecords(board.db)].map(([id, job]) => ({ id, job }))
     .find(({ job }) => resolve(submitHandoffRoot(ctx.info.commonDir, job)) === resolve(ctx.info.root));
   if (!entry) throw new Refused('SUBMIT_HANDOFF_AUTHORITY', 'the hook source is not the exact native queued job');
   const { id, job } = entry;
