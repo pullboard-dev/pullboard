@@ -122,7 +122,7 @@ test('queued submit still refuses a main rewind during native preflight [V4,H16,
   const box = fixture(t, true);
   const result = submit(box);
   assert.ok(existsSync(box.marker), result.stdout + result.stderr);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 1, `${result.stdout}${result.stderr}\nrepo head ${box.git(box.repo, 'rev-parse', 'HEAD')}; captured main ${box.main}; marker ${readFileSync(box.marker, 'utf8')}; job ${JSON.stringify(state(box).job)}`);
   assert.match(result.stdout + result.stderr, /SUBMIT_HANDOFF_SOURCE/u);
   assert.equal(state(box).job, null, 'a rewound policy grants no queued worker');
 });
@@ -141,6 +141,6 @@ for (const mode of ['unrelated', 'twice', 'policy']) test(`queued gate handles $
   } else {
     assert.notEqual(completed.job.state, 'green', JSON.stringify(completed.job));
     const refusal = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8'));
-    assert.match(JSON.stringify(refusal), /verify\.family/u);
+    assert.match(JSON.stringify(refusal), /UNDECLARED_BUILDER_FAMILY/u);
   }
 });
