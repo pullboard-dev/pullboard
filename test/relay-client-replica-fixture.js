@@ -125,6 +125,28 @@ export async function assertOriginalOutcomeDelivery(uploads, key, boardId, submi
   assert.equal(moves[0].recipient, submitter);
 }
 
+/**
+ * Require a refused receipt-missing submit to reach the relay with exactly one usage move.
+ * Since the usage cap (22f7703ed1, 0ef9c1a9c2) a refused lifecycle move orders one usage summary;
+ * it never orders a submit or a proof run. A detached sender can land that usage upload after the CLI
+ * returns, so the count is taken only once a status round trip finds the outbox empty and the
+ * upload count unchanged twice in a row [H16,C7].
+ */
+export async function assertRefusalUploadsOneUsageMove({ relay, before, key, boardId, status }) {
+  let stable = 0;
+  let seen = -1;
+  for (let attempt = 0; attempt < 40 && stable < 2; attempt += 1) {
+    const { relay: link } = await status();
+    const settled = (link?.outbox ?? []).length === 0 && relay.uploads.length === seen;
+    stable = settled ? stable + 1 : 0;
+    seen = relay.uploads.length;
+  }
+  assert.equal(stable, 2, 'the refused submit leaves a settled outbox');
+  const operations = (await relayUploadSummary(relay.uploads.slice(before), key, boardId)).map(({ operation }) => operation);
+  assert.equal(operations.length, 1, `a receipt-missing recovered descriptor is refused before relay upload; only one usage move follows (saw ${operations.join(', ') || 'nothing'})`);
+  assert.match(operations[0], /^recordUsage(Batch)?$/u, `the one upload after the refusal is a usage move (saw ${operations[0]})`);
+}
+
 /** Make a submitted commit locally verifiable by the other replica's real Git history. */
 export function mergeCandidateForReview(root, env, sourceRoot, commit, gitAt) {
   gitAt(root, env, 'fetch', sourceRoot, commit);
