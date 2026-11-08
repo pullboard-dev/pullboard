@@ -113,7 +113,7 @@ for (const dropped of [false, true]) {
   });
 }
 
-test('with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
+test('clause 1: with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
   // gate.timingRunner 'auto' keeps failed-runner (no measured headroom or cores, so registration order) for timed checks.
   const run = failover(t, { dropped: true, timingRunner: 'auto' });
   assert.equal(run.failure, undefined);
