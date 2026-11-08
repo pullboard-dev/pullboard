@@ -43,7 +43,7 @@ function setup(wholeCoverage = false) {
   writeFileSync(join(box.repo,'test','witness.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\ntest('named witness',()=>assert.ok(existsSync('web/ready.txt')));\ntest('neighbor witness',()=>assert.ok(true));\n");
   if (wholeCoverage) {
     const config=JSON.parse(readFileSync(join(box.repo,'pullboard.json'),'utf8'));
-    config.affectedTests='node --test --test-reporter=tap';config.check={timeout:'5m'};config.shared.push('test/');
+    config.affectedTests='node --test --test-reporter=tap';config.check={timeout:'5m'};config.lanes.web.owns.push('test/');
     writeFileSync(join(box.repo,'pullboard.json'),JSON.stringify(config));
     mkdirSync(join(box.repo,'web'));writeFileSync(join(box.repo,'web','ready.txt'),'ready');
   }
@@ -78,9 +78,10 @@ function readItem(box,id) {
 
 test('[B4,V1,V2,H16] real native sessions sign and freeze one bar before normal submit and review',()=>{
   const box=setup(true);const id=add(box,'private-author-a');
-  box.git(box.web,'merge','--ff-only','main');
-  succeeds(act(box,'private-builder',box.web,'join','web','--model','Private builder'));
-  const unsigned=act(box,'private-builder',box.web,'claim',String(id));
+  const builder=join(box.dir,'private-builder');box.git(box.repo,'worktree','add','-qb','web/private-builder',builder,'main');
+  box.git(builder,'merge','--ff-only','main');
+  succeeds(act(box,'private-builder',builder,'join','web','--model','Private builder'));
+  const unsigned=act(box,'private-builder',builder,'claim',String(id));
   assert.notEqual(unsigned.code,0);assert.match(unsigned.err,/BAR_NOT_READY/);
   const reviewer=join(box.dir,'outside-review');box.git(box.repo,'worktree','add','-qb','api/outside',reviewer,'main');
   succeeds(act(box,'private-reviewer',reviewer,'join','api','--model','Private reviewer'));
@@ -94,13 +95,13 @@ test('[B4,V1,V2,H16] real native sessions sign and freeze one bar before normal 
   const self=act(box,'private-author-a',box.repo,'bar','sign',String(id),'--coverage-file',coverageFile,'--note','can be built and graded alike');
   assert.notEqual(self.code,0);assert.match(self.err,/BAR_SELF_SIGN/);
   succeeds(act(box,'private-reviewer',reviewer,'bar','sign',String(id),'--coverage-file',coverageFile,'--note','Builder can meet this witness; measured whole-file coverage fits and two reviewers can grade absent and present output alike.'));
-  succeeds(act(box,'private-builder',box.web,'claim',String(id)));
+  succeeds(act(box,'private-builder',builder,'claim',String(id)));
   const frozen=JSON.parse(readItem(box,id).item_frozen);
   assert.match(frozen.sourceCheck,/named witness/);assert.deepEqual(frozen.barCoverage.required,['test/witness.test.mjs']);assert.match(frozen.check,/node --test --test-reporter=tap '.\/test\/witness\.test\.mjs'/);assert.equal(frozen.barCoverage.files[0].evidence.sha256,box.wholeEvidence.sha256);
-  mkdirSync(join(box.web,'web'),{recursive:true});writeFileSync(join(box.web,'web','ready.txt'),'ready');
-  box.git(box.web,'add','web/ready.txt');box.git(box.web,'commit','-qm','feat(web): ready output [G1]');
-  succeeds(act(box,'private-builder',box.web,'submit',String(id)));
-  const head=box.git(box.web,'rev-parse','HEAD');box.git(reviewer,'switch','--detach',head);
+  mkdirSync(join(builder,'web'),{recursive:true});writeFileSync(join(builder,'web','ready.txt'),'ready');
+  box.git(builder,'add','web/ready.txt');box.git(builder,'commit','-qm','feat(web): ready output [G1]');
+  succeeds(act(box,'private-builder',builder,'submit',String(id)));
+  const head=box.git(builder,'rev-parse','HEAD');box.git(reviewer,'switch','--detach',head);
   succeeds(act(box,'private-reviewer',reviewer,'verify',String(id),'accept','--note','The real named witness passes with ready output present.'));
   assert.equal(readItem(box,id).item_status,'verified');
 });

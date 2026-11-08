@@ -1,7 +1,6 @@
 /** Local first: a linked board reads and moves locally whether or not the relay answers [H21,H5,H16]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { cpus, loadavg, tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
@@ -11,11 +10,11 @@ import { ACCESS_WINDOW_MS } from '../apps/relay/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureBoardChanges } from '../packages/store/index.js';
-import { SENDER_WORKER } from '../apps/lib/index.js';
 import { outboxGuardFile } from '../packages/outbox/index.js';
 import { undoQueued } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture, relayFixtureChild } from './relay-client-fixture.js';
+import { senderProcesses, stopSender } from './relay-sender-fixture.js';
 import { fixtureJoinArgv } from './testkit-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
@@ -49,50 +48,6 @@ function senderEnv(env) {
 /** The machine sender's claim file under an environment's private pullboard home. */
 function senderPid(env) {
   return join(env.PULLBOARD_HOME, 'relay-sender', 'sender.pid');
-}
-
-/** Read exact worker identities and scope this simulated machine to its private fixture checkout. */
-function senderProcesses(root) {
-  const expected = realpathSync(root);
-  const rows = execFileSync('ps', ['-Ao', 'pid=,lstart=,command='], { encoding: 'utf8' }).split('\n')
-    .map(line => /^\s*(\d+)\s+(.+)$/u.exec(line))
-    .filter(match => match && match[2].endsWith(SENDER_WORKER))
-    .map(match => ({ pid: Number(match[1]), identity: match[2] }));
-  const owned = rows.filter(record => {
-    try {
-      const cwd = process.platform === 'linux' ? readlinkSync(`/proc/${record.pid}/cwd`)
-        : execFileSync('lsof', ['-a', '-p', String(record.pid), '-d', 'cwd', '-Fn'],
-          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').find(line => line.startsWith('n'))?.slice(1);
-      return cwd === expected;
-    } catch (error) {
-      if ((error.code === 'ENOENT' && process.platform === 'linux') || error.status === 1) return false;
-      throw error;
-    }
-  });
-  return { owned, others: rows.length - owned.length };
-}
-
-/** Stop only verified PID/start/command/cwd identities from this fixture; other test homes stay untouched. */
-async function stopSender(root) {
-  for (const record of senderProcesses(root).owned) {
-    const current = senderProcesses(root).owned.find(candidate => candidate.pid === record.pid);
-    if (!current || current.identity !== record.identity) continue;
-    try { process.kill(record.pid, 'SIGTERM'); } catch (error) { if (error.code === 'ESRCH') continue; throw error; }
-    const started = record.identity.match(/^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4})/u)?.[1].replace(/\s+/gu, ' ');
-    assert.ok(started, 'the verified sender has a stable start identity');
-    const deadline = Date.now() + 5000; // budget: the verified fixture worker normally exits immediately.
-    let stopped = false;
-    while (Date.now() < deadline) {
-      let row;
-      try { row = execFileSync('ps', ['-p', String(record.pid), '-o', 'lstart=,stat='], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
-      catch { stopped = true; break; }
-      const state = /^([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s+(\S+)$/u.exec(row);
-      assert.ok(state, 'post-signal sender start/state is readable');
-      if (state[1].replace(/\s+/gu, ' ') !== started || state[2].startsWith('Z')) { stopped = true; break; }
-      await new Promise(next => setTimeout(next, 20));
-    }
-    assert.ok(stopped, `fixture sender ${record.pid} exited after its verified signal`);
-  }
 }
 
 /** Wait until `ready()` holds, or fail naming what never happened and what `detail()` says. */

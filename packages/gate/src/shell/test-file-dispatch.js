@@ -29,6 +29,9 @@ import { testOutcomeCollector } from './test-outcomes.js';
 import { readTestFileBudgets } from './test-file-budget-policy.js';
 import { testFileRelative } from './test-file-budget-policy.js';
 import { testFileBudgetFailure } from '../core/test-file-budget.js';
+import { fileRuntimeCapRefusal } from './file-runtime-cap.js';
+import { rootReceiptRuntimes } from './file-runtime-cap.js';
+import { readFileTimes } from './test-value-timing.js';
 import { repoInfo } from '../../../git/index.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
@@ -53,7 +56,7 @@ function admissionImport(value, browser, runner, outputMarker) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
-      + "if(process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH==='1')process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
+      + "process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
     + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
@@ -101,6 +104,10 @@ export function dispatchTestFiles(options, env) {
   let budgetRoot = cwd;
   try { budgetRoot = repoInfo(cwd).root; } catch { /* A non-repository test run uses the default limit. */ }
   const budgets = readTestFileBudgets(budgetRoot, files.map(file => resolve(cwd, file)));
+  // Each file's last runtime comes from the gate receipts first, then the landing times, so a candidate is judged against what the gate last measured [C7].
+  const lastRuntimes = { ...readFileTimes(budgetRoot), ...rootReceiptRuntimes(budgetRoot) };
+  // PULLBOARD_FILE_RUNTIME_CAP_MS replaces the two-minute cap for a run; a fixture uses it to cross the cap in milliseconds.
+  const runtimeCap = Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) > 0 ? Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) : undefined;
   const limit = options.concurrency === false ? 1 : options.concurrency === true
     ? Math.max(1, availableParallelism() - 1) : options.concurrency ?? 1;
   const acquire = acquisitionQueue();
@@ -129,8 +136,7 @@ export function dispatchTestFiles(options, env) {
   /** Browser waits happen before reserving CPU, and their real lease lasts through the file's exit. */
   async function browserLease(file) {
     if (!env.PULLBOARD_TEST_BROWSER_RESOURCE) return null;
-    const byLaunch = env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
-    if (!await testsNeedBrowser(process.cwd(), [file], { byLaunch })) return null;
+    if (!await testsNeedBrowser(process.cwd(), [file])) return null;
     signal.throwIfAborted();
     return takeResource({ name: env.PULLBOARD_TEST_BROWSER_RESOURCE,
       capacity: Number(env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd(),
@@ -170,7 +176,7 @@ export function dispatchTestFiles(options, env) {
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
-          testOutcomes.observe(event);
+          testOutcomes.observe(event, resolve(cwd, file));
           notify(stream, event);
           events.push(event);
         }
@@ -179,7 +185,8 @@ export function dispatchTestFiles(options, env) {
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
         const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
         const budget = budgets.get(portableFile);
-        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit);
+        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit)
+          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms, lastRuntimes, events, runtimeCap));
         if (over) {
           process.stderr.write(`test file budget: ${over}\n`);
           events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
