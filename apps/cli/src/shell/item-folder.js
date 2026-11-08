@@ -144,8 +144,12 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const changes = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all']);
   if (changes.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
   if (!changes.stdout) {
+    // The session module loads only when a folder is adopted, keeping claim's import graph unchanged.
+    const session = await import('./cli/join.js');
+    const prior = session.endedItemFolderSession(board, me, tree.path);
     // Adopt: a move keeps the branch's commits and the folder itself, so nothing the ended seat left is lost (#3540).
     git(ctx.info.root, ['worktree', 'move', tree.path, desired]);
+    await session.adoptItemFolderSession(desired, me, prior);
     return true;
   }
   if (!holder) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has uncommitted changes and no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
@@ -182,6 +186,9 @@ export async function openItemFolder(ctx, me, id, options = {}) {
       const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
       if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
     }
+    // The folder may still be bound to an ended session of this seat path: the claimer takes it over (#3679).
+    const session = await import('./cli/join.js');
+    await session.adoptItemFolderSession(path, me, session.endedItemFolderSession(options.board, me, path));
     writeItemMarker(path, me.id, id);
     return path;
   }
