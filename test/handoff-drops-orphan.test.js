@@ -6,10 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { Refused, listResources, nativeBoardPorts, openBoard, openBoardForRead, submitHandoffClaimProblem, assertCurrentSubmitHandoff, takeResource } from '../apps/lib/index.js';
-import { cliContext$context as context } from '../apps/cli/index.js';
+import * as cli from '../apps/cli/index.js';
+import { bindSubmitHandoffPorts } from '../apps/lib/src/shell/submit-handoff-worker.js';
+import { submitHandoffPorts } from '../bin/gate-drive-worker.js';
 import * as store from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
+
+bindSubmitHandoffPorts(submitHandoffPorts(cli));
 
 const now = Date.now();
 const request = { item: 17, job: '123e4567-e89b-42d3-a456-426614174000', commit: 'a'.repeat(40) };
@@ -88,7 +92,7 @@ test('the real worker guard records one terminal stale result after a waiting ha
     store.startSubmitHandoff(board, id, { agentId: item.item_owner, job: queued.job.id });
     const request = { item: id, job: queued.job.id, commit };
     const nativeBoard = { openBoard, openBoardForRead, nativeBoardPorts };
-    const ctx = context({ cwd: box.web, nativeBoard, relayJson: true, say() {}, err() {} });
+    const ctx = cli.cliContext$context({ cwd: box.web, nativeBoard, relayJson: true, say() {}, err() {} });
     const waitingGate = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'occupying-runner',
       item: String(id), kind: 'submit', remote: false });
     let renewed = 0;
