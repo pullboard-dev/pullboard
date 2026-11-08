@@ -27,41 +27,52 @@ function sshEnvironment() {
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
 
-// One TCP connection per runner: every ssh call to a runner rides its control master (#3658). The master lives
-// ControlPersist seconds past its last session, so a burst of gate sessions costs one handshake, not one per file.
+// Shared connections per runner: every ssh call to a runner rides one of its control masters (#3658). A master lives
+// ControlPersist seconds past its last session, so a burst of gate sessions costs a handshake per ten, not one per file.
 const CONTROL_PERSIST_S = 60;
 // The master's own transport ceilings: connect, then notice a dead peer within 30 s.
 const MASTER_OPTIONS = '-T -o BatchMode=yes -o ForwardAgent=no -o ClearAllForwardings=yes -o "SendEnv=-*" '
   + '-o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3';
+// sshd's MaxSessions (default 10) caps the sessions one master carries; a refused session would dial its own connection.
+const SESSIONS_PER_MASTER = 10;
 // A Unix socket path is limited to 104 bytes on macOS, so the shell runs in the socket's folder and names it relatively.
-// One shell per call: if no live master answers, take a per-runner lock (a mkdir, shared across processes), start the
-// master once in the background, then exec the real session over it. Waiters poll the socket for up to 15 s; a
-// lock older than a minute is a dead holder's and is removed. If the master cannot start, ssh connects directly.
+// One shell per call, under a per-runner lock (a mkdir, shared across processes): count the live sessions on master
+// 0, 1, ... by their lease files (one per session, named by its pid, which the exec keeps), take the first master with
+// room, start it in the background if it is not up, then exec the real session over it. A new master opens only when
+// every existing one holds SESSIONS_PER_MASTER sessions. Waiters give up on the lock after 15 s; a lock older than a
+// minute is a dead holder's and is removed. If a master cannot start, ssh connects directly.
 const MULTIPLEX_SCRIPT = [
-  'd=$1; p=$2; h=$3; shift 3; held=',
+  'd=$1; b=$2; h=$3; shift 3; held=',
   'cd "$d" 2>/dev/null || exec ssh "$@"',
-  'up() { ssh -o ControlPath="$p" -O check -- "$h" </dev/null >/dev/null 2>&1; }',
-  'if ! up; then',
-  '  trap \'[ -n "$held" ] && rmdir "$p.lock" 2>/dev/null; exit 143\' TERM INT HUP',
-  '  n=0',
-  '  until mkdir "$p.lock" 2>/dev/null && held=1; do',
-  '    [ -n "$(find "$p.lock" -prune -mmin +1 2>/dev/null)" ] && rmdir "$p.lock" 2>/dev/null',
-  '    [ -e "$p" ] && up && break',
-  '    n=$((n+1)); [ "$n" -ge 150 ] && break',
-  '    sleep 0.1',
+  'trap \'[ -n "$held" ] && rmdir "$b.lock" 2>/dev/null; exit 143\' TERM INT HUP',
+  'n=0',
+  'until mkdir "$b.lock" 2>/dev/null && held=1; do',
+  '  [ -n "$(find "$b.lock" -prune -mmin +1 2>/dev/null)" ] && rmdir "$b.lock" 2>/dev/null',
+  '  n=$((n+1)); [ "$n" -ge 150 ] && break',
+  '  sleep 0.1',
+  'done',
+  's=0',
+  'while :; do',
+  '  c=0',
+  '  for f in "$b.$s".lease.*; do',
+  '    [ -e "$f" ] || continue',
+  '    if kill -0 "${f##*.}" 2>/dev/null; then c=$((c+1)); else rm -f "$f"; fi',
   '  done',
-  '  if [ -n "$held" ]; then',
-  `    up || { rm -f "$p"; ssh -f -N -o ControlMaster=yes -o ControlPath="$p" -o ControlPersist=${CONTROL_PERSIST_S} ${MASTER_OPTIONS} -- "$h" </dev/null >/dev/null 2>&1; }`,
-  '    rmdir "$p.lock" 2>/dev/null; held=',
-  '  fi',
-  '  trap - TERM INT HUP',
-  'fi',
+  `  [ "$c" -lt ${SESSIONS_PER_MASTER} ] && break`,
+  '  s=$((s+1))',
+  'done',
+  'p="$b.$s"',
+  ': > "$p.lease.$$"',
+  'ssh -o ControlPath="$p" -O check -- "$h" </dev/null >/dev/null 2>&1 || { rm -f "$p"; '
+    + `ssh -f -N -o ControlMaster=yes -o ControlPath="$p" -o ControlPersist=${CONTROL_PERSIST_S} ${MASTER_OPTIONS} -- "$h" </dev/null >/dev/null 2>&1; }`,
+  '[ -n "$held" ] && rmdir "$b.lock" 2>/dev/null; held=',
+  'trap - TERM INT HUP',
   'exec ssh -o ControlMaster=no -o ControlPath="$p" "$@"',
 ].join('\n');
 
 /**
- * The control socket for one runner: a hash of its destination under the machine home's ssh folder, so every
- * Pullboard process on this machine shares one master per runner. Null when there is no usable machine home.
+ * The control socket base for one runner: a hash of its destination under the machine home's ssh folder, so every
+ * Pullboard process on this machine shares the runner's masters (`<base>.0`, `<base>.1`, ...). Null when there is no usable machine home.
  *
  * @param {string} host - The runner's ssh destination.
  * @param {{ home?: string }} [options] - The machine home; defaults to PULLBOARD_MACHINE_HOME or ~/.pullboard.
@@ -76,7 +87,7 @@ export function sshControlPath(host, { home = process.env.PULLBOARD_MACHINE_HOME
 }
 
 /**
- * Spawn one ssh call to a runner over the runner's shared multiplexed connection. `args` are the call's own ssh
+ * Spawn one ssh call to a runner over one of the runner's shared multiplexed connections. `args` are the call's own ssh
  * arguments ending in `--`, the destination and the remote command; the child is asynchronous and behaves like a
  * plain ssh child (it execs ssh once the master is up), so callers keep their pipes, timers and kill paths.
  * Every Pullboard ssh call to a registered runner goes through here [C7].
