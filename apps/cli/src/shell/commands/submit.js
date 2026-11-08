@@ -1,4 +1,5 @@
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { toolingFor } from '../../../../../packages/pin/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
 import { tapTests } from '../../../../../packages/gate/index.js';
 import { jobbedFlakeObserver } from '../../../../../packages/drive/index.js';
@@ -10,6 +11,11 @@ import { mainReceipts } from '../../../../../packages/landing/index.js';
 import { runMachineryGuard } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
+import { itemFolderPath } from '../item-folder-identity.js';
+import { seatRoot } from '../item-folder-identity.js';
+import { writeItemMarker } from '../item-folder-identity.js';
+import { pushHostedItemBranch } from '../../../../../packages/runners/index.js';
+import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
@@ -57,6 +63,7 @@ import { checkNeedsGui } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { landedCutItemRows } from '../../../../../bin/cells-submit-checks.js';
 import {
+  existsSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -66,6 +73,7 @@ import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { remoteGateWanted } from '../submit-remote-gate.js';
 import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
+import { sharedRemoteAnalysis } from '../submit-remote-gate.js';
 import { acceptRunnerPlan } from '../submit-remote-gate.js';
 import { runSubmitGateWithRunnerPlan } from '../submit-remote-gate.js';
 import { gateWithRunnerPlan } from '../submit-remote-gate.js';
@@ -104,7 +112,6 @@ import { requireSubmitComposition } from '../../../../../packages/items/index.js
 import { composeAfterProof } from '../../../../../packages/items/index.js';
 import { trunkMoveFact } from '../../../../../packages/items/index.js';
 import { judgeTrunkMove } from '../../../../../packages/verify/index.js';
-import { frozenRowGates } from '../../../../../packages/verify/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { explicitCheckFiles } from '../../../../../packages/gate/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -202,6 +209,7 @@ import {
   context,
   filesSince,
   gateTestFiles,
+  namedProofTests,
   freezer,
   idArg,
   ordered,
@@ -490,7 +498,18 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  if (ctx.precheck) {
+    // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
+    withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
+    // Placement and lane are cheap reads too; a full submit defers both until after the gate, so only the precheck raises them here.
+    requirePlannedSource(root, trunk.commit, commit, { deferUnplaced: true });
+    if (ownershipRefusal) throw ownershipRefusal;
+    if (ctx.json) ctx.io.result({ precheck: true, item: id, commit });
+    else ctx.io.say(`precheck passed for #${id} at ${commit.slice(0, 12)}: no cheap refusal; cells and the gate were not started`);
+    return 0;
+  }
   const companion = await withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
@@ -557,22 +576,22 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
-  // Each trusted analysis part gets its own runner lease and a main-pinned private check.
-  const runRemotePart = (part, signal) => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
+  // The four trusted analysis parts run as one runner job on one lease and one main-pinned private check (#3379).
+  const runRemotePart = sharedRemoteAnalysis(signal => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
-      title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: part === 'selection' ? crossRun.tests : [],
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part], collectMachinery: true }, lease, ctx.submitHandoffOutput),
-    { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: `analysis-${part}`, ...gateAdmission,
+      title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks, crossRunTests: crossRun.tests,
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, perPart: true, collectMachinery: true }, lease, ctx.submitHandoffOutput),
+    { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission,
       onWait: queuedItemLease(ctx, held, me.id, 'build'), signal })),
-    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
+    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }));
   const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
-  // Each cited spec row's gate test runs with the proof, so its frozen clause has a named run to cite [V4].
-  crossRun.tests = [...new Set([...crossRun.tests, ...frozenRowGates(held).map(row => row.file).filter(file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0)])].sort();
+  // Each cited row's gate test and each test file the bar names run with the proof, whatever seal and tier selection say [V4,C7].
+  crossRun.tests = namedProofTests(root, held, commit, { crossRunTests: crossRun.tests });
   const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
@@ -695,7 +714,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const invariants = gate.submitInvariants?.length
     ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
   const scope = gate.testTiers ? testTierReport(gate.testTiers) : gate.deferred
-    ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
+    ? gate.deferredFiles ? `${invariants}${deferredSelectionNote(gate.deferredFiles)}`
+      : `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const registry = gate.registryGuards?.length
@@ -920,7 +940,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       refuseUnverifiedStack(root, board, store.getItem(board, id), submitted, currentTrunk);
       requireKernelApproval(board, { root, base: currentTrunk.commit, commit: submitted, item: id });
       submitPreflight(board, id, { agentId: me.id, commit: submitted, tree: headTree(root),
-        ...(size ? { submissionSize: size } : {}), inspectClauses },
+        ...(size ? { submissionSize: size } : {}), inspectClauses, ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) },
       { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit },
       { refuse: (observed, item) => refuseUnreviewable(observed, item,
         { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) });
@@ -975,7 +995,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     requireKernelApproval(board, { root, base: currentTrunk.commit, commit: companion?.commit ?? submitted, item: id });
-    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
+    const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...submitTooling(root, submitted), ...(infraRecord ? { infra: infraRecord } : {}),
       ...(inspectClauses ? { inspectClauses: true } : {}),
       ...(machineReceiptIds ? { machineReceiptIds } : {}),
       gateGreen: gate.isGreen && !waived && (!criterionMatched || mainOwnedGreen),
@@ -1161,14 +1181,67 @@ export async function recordCheckTicks(io, itemId) {
   });
 }
 
+/**
+ * The registered runner this seat's item folders live on, named by PULLBOARD_ITEM_FOLDER_RUNNER, or null for local folders [C7].
+ * @param {NodeJS.ProcessEnv} [env] The seat's environment.
+ * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
+ */
+function hostedSubmitRunner(env = process.env) {
+  const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
+  if (!host) return null;
+  const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
+  if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `item folder runner ${host} is not registered; run pullboard runner list, or unset PULLBOARD_ITEM_FOLDER_RUNNER`);
+  return runner;
+}
+
+/**
+ * Hand a runner-hosted item to the coordinator: the runner pushes the item branch to the coordinator repository, then the
+ * seat's coordinator-side item folder checks out the pushed commit, so the ordinary submit gates it and stays the one board writer [C7].
+ * Every refusal here (a folder off the claimed branch, a failed push) comes before any board write.
+ * Why: git refuses a push to a branch checked out in a worktree, so an existing local folder is detached for the push and reattached after.
+ * @param {any} ctx The submit context at the seat's checkout.
+ * @param {number} id The claimed item.
+ * @param {{ host: string }} runner The seat's item folder runner.
+ * @returns {Promise<string>} The coordinator-side item folder the ordinary submit runs in.
+ */
+async function handOffHostedSubmit(ctx, id, runner) {
+  const { me, local } = await withBoardRead(ctx, board => {
+    const who = whoAmI(ctx, board), item = store.getItem(board, id);
+    if (item?.item_status !== 'claimed' || item.item_owner !== who.id) throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
+    return { me: who, local: itemFolderPath(seatRoot(ctx, board, who), id) };
+  });
+  const branch = `${me.lane}/item-${id}`, root = ctx.info.root, existed = existsSync(local);
+  if (existed) {
+    const current = checkoutBranch(local);
+    if (current !== null && current !== branch) throw new Refused('HOSTED_BRANCH_MISMATCH', `item folder ${local} is on ${current}, not the claimed branch ${branch}; switch it back and submit again`);
+    if (!isClean(local)) throw new Refused('DIRTY', `item folder ${local} has uncommitted changes; build on the runner, and leave the coordinator folder untouched`);
+    git(local, ['checkout', '--quiet', '--detach']);
+  }
+  let pushed;
+  try { pushed = await pushHostedItemBranch(runner, { itemId: id, branch }); }
+  finally { if (existed) git(local, ['checkout', '--quiet', branch]); }
+  if (pushed.problem) throw new Refused(pushed.problem.code, pushed.problem.message);
+  const landed = tryGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]).stdout;
+  if (landed !== pushed.head) throw new Refused('HOSTED_PUSH_FAILED', `the coordinator branch ${branch} is at ${landed || 'nothing'}, not the runner's pushed ${pushed.head.slice(0, 12)}; submit again`);
+  if (!existed) git(root, ['worktree', 'add', '--quiet', local, branch]);
+  writeItemMarker(local, me.id, id);
+  ctx.io.say(`runner ${runner.host} pushed ${branch} at ${pushed.head.slice(0, 12)}; submitting it from ${local}`);
+  return local;
+}
+
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  const ctx = { ...context(io), submissionResult };
+  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
   const id = idArg(first);
   if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
   if (companionInput && (!companionInput.file || !companionInput.key || !companionInput.author)) {
     throw new Refused('USAGE', 'use pullboard submit <id> --companion <patch-file> --key <key> --author <owning-seat>');
+  }
+  const hostRunner = hostedSubmitRunner();
+  if (hostRunner) {
+    io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
+    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
@@ -1209,3 +1282,15 @@ export async function run(io, { first, values }) {
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/src/core/submission-size.js';
+
+/**
+ * The tooling tree that judged this submit (RFC 0007 SC7, SC8), recorded so review and landing reuse its receipt only
+ * under the same tooling; an unreadable pin records nothing and the receipt is never reused.
+ *
+ * @param {string} root - The item folder.
+ * @param {string} commit - The submitted commit.
+ * @returns {{ tooling?: string }} The field to spread into the submit record.
+ */
+function submitTooling(root, commit) {
+  try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
+}

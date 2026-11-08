@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Project-scoped view privacy checks against the real local server and Chrome [N26,P5]. */
 import assert from 'node:assert/strict';

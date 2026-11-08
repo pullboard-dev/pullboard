@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { driverRecord } from '../../../test/gate-driver-fixture.js';
 import { gateSettled } from '../../../test/submit-handoff-fixture.js';
 import { removeSandboxes } from '../../../test/submit-handoff-fixture.js';
@@ -95,11 +96,31 @@ function stepLog(view) {
   return view.steps.map(({ name, seq, payload }) => ({ name, seq, payload }));
 }
 
-test('launched gate driver completes a native queued request without unsettled await [V4,H16,E18,C7]', async t => {
+/**
+ * Queue one real gate for a committed fixture item and launch the real gate driver for it, as the dispatcher does.
+ * With `leak`, the driver process loads a module that keeps a handle open forever, the way a leaked board socket did
+ * on 4 Nov (#3108), so only an explicit exit ends it.
+ *
+ * @param {any} t - The running test, for cleanup.
+ * @param {{ leak?: boolean }} [options]
+ */
+async function launchQueuedGate(t, { leak = false } = {}) {
   const { box, board, id, commit, directory, request, owner } = admittedGate(t);
+  const env = { ...box.env };
+  if (leak) {
+    const leakModule = join(directory, 'leaked-handle.mjs');
+    // The leak stays in the driver alone: the gate's own children (git, the check) start without it.
+    writeFileSync(leakModule, 'delete process.env.NODE_OPTIONS;\nsetInterval(() => {}, 60_000);\n');
+    env.NODE_OPTIONS = `--import=${pathToFileURL(leakModule).href}`;
+  }
   // budget: the existing owned-worker hang ceiling; assertions concern exit and native results, not elapsed time.
   const result = await runFixtureChildAsync(process.execPath, [gateDriveWorkerEntry(), request, owner],
-    { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
+    { cwd: box.web, env, encoding: 'utf8', timeout: 120_000 });
+  return { result, exitedAt: Date.now(), board, id, commit, directory };
+}
+
+test('launched gate driver completes a native queued request without unsettled await [V4,H16,E18,C7]', async t => {
+  const { result, board, id, commit, directory } = await launchQueuedGate(t);
   assert.notEqual(result.status, 13, result.context);
   assert.equal(result.status, 0, result.context);
   assert.doesNotMatch(result.stderr, /unsettled top-level await/u);
@@ -212,6 +233,15 @@ test('clause 2: a gate driven over rows to the recorder writes the same job step
   assert.deepEqual(after, before, 'the same steps, sequences and payloads, in the same order');
   assert.equal(after.at(-1).payload.verdict, 'red');
   assert.equal(jobView(board.db, 'gate-row-sink').leaseOwner, null, 'the verdict row frees the lease as the board-handle verdict does');
+});
+
+test('clause 1: a gate driver that recorded its terminal result exits within 30 s despite a leaked handle, freeing its slot [C7]', async t => {
+  const { result, exitedAt, board, id } = await launchQueuedGate(t, { leak: true });
+  assert.equal(result.status, 0, result.context);
+  const job = submitHandoff(board, id);
+  assert.equal(job.state, 'green', JSON.stringify(job));
+  // budget: the criterion's 30 s bound from the recorded terminal result to the process's exit.
+  assert.ok(exitedAt - Date.parse(job.completedAt) < 30_000, `exited ${exitedAt - Date.parse(job.completedAt)} ms after its result`);
 });
 
 test('resubmitting an orphaned queue without request or worker launches a fresh captured job [V4,H16,E18]', async t => {

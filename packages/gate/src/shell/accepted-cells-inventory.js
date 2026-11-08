@@ -29,6 +29,7 @@ import {
 import {
   git,
   gitChildEnv,
+  gitExecFileSync,
 } from '../../../git/index.js';
 import { machineHome } from '../../../resources/index.js';
 import { withFileLock } from '../../../outbox/index.js';
@@ -98,7 +99,7 @@ function pinnedCheckerFingerprintFromGit(root, commit) {
     for (let index = 0; index < Math.min(a.length, b.length); index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
     return a.length - b.length;
   });
-  const out = rows.length ? execFileSync('git', ['-C', root, 'cat-file', '--batch'], { input: rows.map(row => `${row.sha}\n`).join(''), env, maxBuffer: 1 << 30 }) : Buffer.alloc(0);
+  const out = rows.length ? gitExecFileSync(['-C', root, 'cat-file', '--batch'], { input: rows.map(row => `${row.sha}\n`).join(''), env, maxBuffer: 1 << 30 }) : Buffer.alloc(0);
   const files = [];
   let offset = 0;
   for (const row of rows) {

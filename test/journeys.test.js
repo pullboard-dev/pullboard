@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The view's main journeys as real-input scenarios in Chrome [N26], and the two-home hosted journey through the real view, relay, browser client and item API [N40]. */
 import assert from 'node:assert/strict';

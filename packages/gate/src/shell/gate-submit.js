@@ -46,6 +46,7 @@ import { contains } from '../../../../src/git.js';
 import { mainPolicy } from '../../../sandbox/index.js';
 import {
   browserFreeChecksEnabled,
+  loadMachineSettings,
 } from '../../../config/index.js';
 import {
   selectAffectedTests,
@@ -70,10 +71,9 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './gate-execution.js';
-import { SHARD_ADMIT_MS } from './proof-shards.js';
+import { shardSlotOptions } from './proof-shards.js';
 import { freeRunnerSlots } from './proof-shards.js';
-import { mergeShardRuns } from './proof-shards.js';
-import { runProofShards } from './proof-shards.js';
+import { proveBatches } from './proof-shards.js';
 import { readFileTimes } from './test-value-timing.js';
 import {
   commandWord,
@@ -85,6 +85,20 @@ export function submitGateConfig(config, accepted) {
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
     registryGuards: accepted.registryGuards,
     ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
+}
+
+/**
+ * The command prefix that runs files submit adds beside its selection. Why: a project with no affectedTests runner
+ * still gets the test files its item bar names run, so Node's own test runner takes JavaScript files, as landing
+ * diagnosis does; a file it cannot run needs the project's affectedTests, so this names none [C7,V4].
+ *
+ * @param {string | undefined} configured - The project's affectedTests prefix, if any.
+ * @param {string[]} files - Repo-relative test files to run.
+ * @returns {string} The prefix, or '' when no runner can run every file.
+ */
+export function namedFileRunner(configured, files) {
+  if (configured?.trim()) return configured;
+  return files.length && files.every(file => /\.[cm]?js$/u.test(file)) ? 'node --test' : '';
 }
 
 /** Derive exact criterion/final phases once from accepted policy and the selected immutable Git source. */
@@ -106,7 +120,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');
   }
-  const testRunner = testTiers?.runner ?? config.affectedTests;
+  const testRunner = testTiers?.runner ?? namedFileRunner(config.affectedTests, crossRunTests);
   if (crossRunTests.length && !testRunner?.trim()) throw new Refused('BAD_CONFIG', 'call-adjacent work requires an affected-tests runner for cross-run tests');
   const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunTests])].sort();
   const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
@@ -178,6 +192,9 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     await runMachineryGuard(outputRoot, () => requireSealedSkips(root, plan.testTiers, { proofFiles, check }),
       { kind: 'selection', rule: requireSealedSkips.toString(), say: onMachineryNote });
     config = { ...config, affectedTests: plan.testRunner };
+  } else if (!config.affectedTests?.trim() && plan.testRunner?.trim()) {
+    // No configured runner: the bar-named files run with the plan's own runner [C7,V4].
+    config = { ...config, affectedTests: plan.testRunner };
   }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
@@ -221,8 +238,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
       const command = filesCommand(proofFiles);
       const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
-      // On a runner the files fan out across free slots; the one receipt still names the whole command [C7].
-      const run = { ...await (lease.runner && proofFiles.length > 1
+      // The files run from a queue of batches every slot the gate gets pulls from; the one receipt still names the whole command [C7].
+      const run = { ...await (proofFiles.length > 1
         ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
         : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
@@ -230,21 +247,25 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     /**
-     * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's
-     * one command when planFreeSlotShards gives a single shard. Shards beyond the first take slots of their own and
-     * carry no proof context, so the gate's lease writes the only receipt. Every shard reports its test account under
-     * the proof's one timing run id, so the merged output accounts for every selected file (TEST_SELECTION_UNVERIFIED).
+     * Run the proof's files from a queue of small batches and merge them into one run. The gate's own lease is the first
+     * lane; on a runner the gate keeps asking for more runner slots while batches remain, and each slot pulls batches
+     * until the queue is empty. Slot lanes carry no proof context, so the gate's lease writes the only receipt. Every
+     * batch reports its test account under the proof's one timing run id, so the merged output accounts for every
+     * selected file (TEST_SELECTION_UNVERIFIED). With no runner lease the one local lane runs every batch as today's
+     * command. A rerun of the same candidate tree after an infrastructure end runs only the batches with no recorded
+     * pass (#3699).
      */
     const proveShards = async (execution, filesCommand) => {
       const runners = execution.gateLease.executionServices.runners;
-      const runFirst = files => runners.runOnRunnerAsync(root, filesCommand(files), execution.remoteOptions);
       const shardOptions = shardLease => ({ ...execution.remoteOptions, runner: shardLease.runner, source: shardLease.source,
         runnerWaitDeadline: shardLease.runnerWaitDeadline, browser: shardLease.browser, byLaunch: shardLease.browserByLaunch,
         metadata: { ...execution.remoteOptions.metadata, ...(shardLease.runMetadata ?? {}), timingRunId: execution.remoteOptions.metadata.timingRunId } });
-      const runOther = files => withGateSlot(root, shardLease => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease)),
-        { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: SHARD_ADMIT_MS });
-      const shards = await runProofShards(proofFiles, { freeSlots: (planners.freeSlots ?? freeRunnerSlots)(), times: readFileTimes(root), root, runFirst, runOther });
-      return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
+      /** Take one more runner slot and let `lane` pull batches on it; the request ends once the queue has closed. */
+      const takeSlot = (lane, { closed }) => withGateSlot(root, shardLease => lane(files => runners.runOnRunnerAsync(root, filesCommand(files), shardOptions(shardLease))),
+        shardSlotOptions(slotOptions, { closed }));
+      // A browser proof opens only as many requests as runners have browser slots free, so none waits on its siblings [C7].
+      const freeSlots = !lease.runner ? 0 : planners.freeSlots ? planners.freeSlots() : freeRunnerSlots(undefined, { browser, gui, runners: runners.effectiveRunners(loadMachineSettings()) });
+      return proveBatches(root, execution, { files: proofFiles, filesCommand, takeSlot, freeSlots, times: readFileTimes(root), say: onMachineryNote });
     };
     lease.tracker?.mark('runAt');
     /** Retain completed check evidence even when the later proof refuses its runner. */
