@@ -176,7 +176,7 @@ test('full help is assembled from the independently editable command groups [C7,
   }
 });
 
-test('clause 1: help lists every edit option [C7,N26]', async t => {
+test('clause 1: help lists every edit option [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
