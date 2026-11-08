@@ -818,6 +818,34 @@ export function bareWorktreeFinding(cwd) {
 }
 
 /**
+ * One canonical spelling of a Git directory path, so the same repository compares equal whichever source named it.
+ *
+ * Windows paths come as C:\x\.git from realpathSync.native and as C:/x/.git from git rev-parse; both become
+ * C:/x/.git (upper-case drive, forward slashes, no trailing slash). Other paths are returned unchanged, because a
+ * backslash is an ordinary character in a POSIX file name.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+export function canonicalCommonDir(path) {
+  if (typeof path !== 'string' || !/^(?:[A-Za-z]:[\\/]|\\\\)/u.test(path)) return path;
+  let text = path.replace(/\\/gu, '/');
+  if (/^[a-z]:/u.test(text)) text = text[0].toUpperCase() + text.slice(1);
+  return text.length > 3 ? text.replace(/\/+$/u, '') : text;
+}
+
+/**
+ * Whether two common-dir paths name the same Git directory. Every commonDir comparison goes through this.
+ *
+ * @param {string|undefined|null} a
+ * @param {string|undefined|null} b
+ * @returns {boolean}
+ */
+export function sameCommonDir(a, b) {
+  return a != null && b != null && canonicalCommonDir(a) === canonicalCommonDir(b);
+}
+
+/**
  * The repo around `cwd`: its worktree root, the shared git dir, this worktree's git dir, and
  * whether this is the main checkout.
  *
@@ -863,7 +891,7 @@ function fileRepoInfo(cwd) {
     const facts = scopedFacts();
     facts.set(`headCommit:${resolve(top)}`, head);
     facts.set(`mainCheckout:${resolve(top)}`, main);
-    return { root: top, commonDir, gitDir, isMain: gitDir === commonDir };
+    return { root: top, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: gitDir === commonDir };
   } catch { return undefined; }
 }
 
@@ -915,7 +943,7 @@ function readRepoInfo(cwd, env) {
     throw new Refused('NOT_A_REPO', 'not inside a git work tree; run git init, or cd into a repo');
   }
   const [root, gitDir, commonDir] = fields;
-  return { root, commonDir, gitDir, isMain: realpathSync.native(commonDir) === realpathSync.native(gitDir) };
+  return { root, commonDir: canonicalCommonDir(commonDir), gitDir, isMain: realpathSync.native(commonDir) === realpathSync.native(gitDir) };
 }
 
 /** Determine code provenance without letting a caller's active hook redirect Git's repository.
