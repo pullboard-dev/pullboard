@@ -42,12 +42,15 @@ import { createJob } from '../../../../packages/jobs/index.js';
 import { nameJob } from '../../../../packages/jobs/index.js';
 import { finishJob } from '../../../../packages/jobs/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
+import { borrowGateCheckout } from './gate-checkout-pool.js';
+import { discardGateCheckout } from './gate-checkout-pool.js';
+import { returnGateCheckout } from './gate-checkout-pool.js';
+import { gateCheckoutPool } from './gate-checkout-pool.js';
 
-/** Keep Git operations on the native common repository even if the builder removes its checkout. */
-function jobGit(commonDir, args) {
-  const result = gitSpawnSync(['--git-dir', commonDir, ...args], { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-  if (result.status !== 0) throw new Refused('SUBMIT_HANDOFF_SOURCE', `queued source Git ${args[0]} failed: ${String(result.stderr ?? '').slice(0, 1000)}`);
-  return result.stdout.trim();
+/** Git for the gate's kept checkouts, without the caller's Git environment; a failure is returned, never thrown. */
+function gateGit(args) {
+  const result = gitSpawnSync(args, { env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  return { ok: result.status === 0, out: String(result.stdout ?? '').trim(), err: String(result.stderr ?? '') };
 }
 
 /** Read an owned request location without treating its paths as actor authority. */
@@ -275,8 +278,9 @@ async function settledWithin(running, ms) {
  *
  * @param {string} requestFile - The hand-off's captured request.json.
  * @param {{ nativeBoard: any, owner: string }} options - The board module, and the driver id the dispatcher admitted.
- * @returns {Promise<{ stalled: boolean } | undefined>} Whether a stalled run was ended on the way; its stage may still
- *   hold this process, so the entry ends the process once the result is recorded.
+ * @returns {Promise<{ stalled?: boolean, stopped?: boolean } | undefined>} `stopped` when a stop signal ended the driver,
+ *   whose handler frees the lease and exits the process; otherwise the result is recorded (`stalled` when a stalled run
+ *   was ended on the way) and the entry ends the process, so a leaked handle never holds its slot (#3108, #3661).
  */
 export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   if (typeof owner !== 'string' || !owner) throw new Refused('DRIVE_OWNER', 'a gate driver needs the owner the dispatcher admitted it under');
@@ -286,16 +290,20 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   const drive = gateDriveJobId(request.job);
   const stopper = new AbortController();
   const inflight = new Set();
-  /** Remove this driver's disposable checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
+  /** Discard this driver's checkout, once; a stopped driver keeps the tool snapshot its successor runs. */
   const removeCheckout = () => {
     if (!attached) return;
     attached = false;
-    jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
+    discardGateCheckout(gateGit, request.commonDir, root);
   };
-  /** Remove this driver's disposable checkout and its own tool snapshot, once the gate has ended. */
+  /**
+   * Give this driver's checkout back to the kept checkouts and remove its own tool snapshot, once the gate has ended.
+   * Only an exactly clean checkout at the candidate is kept; a dirty or broken one is discarded (#3700).
+   */
   const cleanup = () => {
     const owned = attached;
-    try { removeCheckout(); }
+    attached = false;
+    try { if (owned) returnGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
     finally { if (owned) cleanupToolSnapshot(request); }
   };
   /**
@@ -320,10 +328,14 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
   process.once('SIGINT', terminate('SIGINT'));
   let stalled = false;
   try {
-    // A killed driver can leave this job's own disposable checkout behind; the admitted driver replaces it.
-    if (existsSync(root)) jobGit(request.commonDir, ['worktree', 'remove', '--force', root]);
-    jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
+    // A killed driver can leave this job's own checkout behind in an unknown state; the admitted driver discards it.
+    if (existsSync(root)) discardGateCheckout(gateGit, request.commonDir, root);
+    // A kept checkout moved to the candidate writes only the files that differ, not the whole tree per gate (#3700).
+    let checkout;
+    try { checkout = borrowGateCheckout({ git: gateGit, commonDir: request.commonDir, pool: gateCheckoutPool(root), root, commit: request.commit }); }
+    catch (error) { throw new Refused('SUBMIT_HANDOFF_SOURCE', error.message); }
     attached = true;
+    process.stderr.write(`PULLBOARD_GATE_CHECKOUT ${JSON.stringify(checkout)}\n`);
     const binding = workerContext(request, directory, root, nativeBoard);
     ctx = binding.ctx;
     const { job } = binding;
@@ -357,11 +369,12 @@ export async function driveSubmitHandoff(requestFile, { nativeBoard, owner }) {
     return { stalled };
   } catch (error) {
     // A stopped driver records nothing: its job stays resumable, and the stop handler ends this process.
-    if (stopper.signal.aborted) return;
+    if (stopper.signal.aborted) return { stopped: true };
     await recordWorkerFailure(ctx, request, directory, handoffRefusedResult(error));
     throw error;
   } finally {
     // This process created the disposable checkout; generated files must not strand it.
     if (!stopper.signal.aborted) cleanup();
   }
+  return stopper.signal.aborted ? 'stopped' : 'settled';
 }
