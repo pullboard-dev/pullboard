@@ -1,5 +1,7 @@
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
+import { tapTests } from '../../../../../packages/gate/index.js';
+import { jobbedFlakeObserver } from '../../../../../packages/drive/index.js';
 import { runMachineryGuard } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
@@ -14,6 +16,8 @@ import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
+import { checkRunTickNotes } from '../../../../../packages/state/index.js';
+import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
 import { redGateReport } from '../../../../../packages/gate/index.js';
 import { runGateStages } from '../../../../../packages/gate/index.js';
@@ -49,6 +53,7 @@ import { landAfterAcceptance } from './land.js';
 import { landedCutItemRows } from '../../../../../bin/cells-submit-checks.js';
 import {
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -81,6 +86,8 @@ import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../../../../../packages/items/index.js';
 import { withItemPatchSubmit } from '../../../../../packages/items/index.js';
+import { normalizeItemPatch } from '../../../../../packages/items/index.js';
+import { validateItemPatchInput } from '../../../../../packages/items/index.js';
 import { boundedProofReason } from '../../../../../packages/state/src/core/submission-proof.js';
 import { completeMoveHandoff } from '../../../../../packages/verify/index.js';
 import {
@@ -189,6 +196,7 @@ import {
   browserAdmissionReporter,
   context,
   filesSince,
+  gateTestFiles,
   freezer,
   idArg,
   ordered,
@@ -201,11 +209,13 @@ import {
   claimOrdered,
   claimFreezer,
   withBoard,
+  actOn,
 } from '../cli.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
+import { criterionMainReceipts } from '../submit-main-receipt.js';
 import { cachedMainComparison } from '../../../../../packages/landing/index.js';
 import { proofMainFailures } from '../submit-neighbour-reds.js';
 import { redsAreMains } from '../submit-neighbour-reds.js';
@@ -219,6 +229,8 @@ import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
+import { runPreflight } from '../submit-preflight.js';
+import { reportPreflight } from '../submit-preflight.js';
 
 /** Report wall time without sharing the execution closures of unrelated submit stages. */
 function reportSubmitStage(ctx, name, start) {
@@ -255,6 +267,20 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
     if (!retaken.has(item.item_id)) retaken.set(item.item_id, retakeCheckBaseline(root, item.item_check, { main }));
   }
   return mainRedItemCases(failures, items, id, main, retaken);
+}
+
+/**
+ * The named failing cases of one red run, the same rows the flake observer diagnoses: failed, top-level tests with a
+ * file and a title. They key the run's flake-diagnose jobs.
+ *
+ * @param {{ output?: string, executionRoot?: string }} run
+ * @param {string} root
+ * @returns {{ file: string, case: string }[]}
+ */
+function failingCases(run, root) {
+  return tapTests(run.output ?? '', run.executionRoot ?? root)
+    .filter(row => !row.passed && row.type !== 'suite' && row.indent === 0 && row.file && row.name && !['subtestsFailed', 'cancelledByParent', 'testAborted'].includes(row.failureType))
+    .map(row => ({ file: row.file, case: row.name }));
 }
 
 /** Hash the candidate's net code diff against the same admitted main used for every red head. */
@@ -323,7 +349,7 @@ function requireRedSubmitProgress(root, board, id, digest, candidate, main) {
     `fix the two red test failures: ${named}; then commit the code change and submit again`);
 }
 
-export async function submitHere(ctx, id, infra) {
+export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
@@ -363,7 +389,7 @@ export async function submitHere(ctx, id, infra) {
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id)) : null;
+    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
     if (clauseProblem) throw clauseProblem;
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
@@ -461,6 +487,21 @@ export async function submitHere(ctx, id, infra) {
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
+    if (companionInput) {
+      let patchStat;
+      try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
+      if (!patchStat.isFile() || patchStat.size > 8 * 1024 * 1024) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular companion patch of at most eight MiB');
+      const patchBytes = readFileSync(companionInput.file);
+      const patchText = patchBytes.toString('utf8');
+      if (!Buffer.from(patchText, 'utf8').equals(patchBytes)) throw new Refused('ITEM_PATCH_FORMAT', 'companion patch must contain valid UTF8');
+      const patch = normalizeItemPatch(patchText);
+      const author = store.listAgents(board).find(seat => seat.agent_id === companionInput.author);
+      if (!author || author.agent_lane === held.item_lane) throw new Refused('ITEM_PATCH_AUTHOR', 'name a registered author in another owning lane');
+      const patchPolicy = itemPolicy(root, held);
+      validateItemPatchInput(board, patchPolicy.config, author.agent_id, patch, patchPolicy.commit);
+      await ordered(ctx, board, 'attachItemPatch', [id, { agentId: me.id, key: companionInput.key, commit, patch,
+        author: author.agent_id, presubmit: true, autoAttach: true }]);
+    }
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
@@ -479,7 +520,7 @@ export async function submitHere(ctx, id, infra) {
   });
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
   if (inspectClauses) await withBoard(ctx, async board => {
-    const summary = clauseInspectionSummary(held, store.itemThread(board, id));
+    const summary = clauseInspectionSummary(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, held) });
     if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
@@ -530,7 +571,9 @@ export async function submitHere(ctx, id, infra) {
   const runGate = (check, runnerPlan = {}, signal) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGateWithRunnerPlan(runSubmitGate, gateRoot, submitConfig, runnerPlan, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), signal,
     countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
-    onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+    // Flake diagnostics are flake-diagnose jobs keyed by (tree, file, case); the gate runs them after its result [C7].
+    onFailure: jobbedFlakeObserver(flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }),
+      { withDb: work => withBoard(ctx, board => work(board.db)), gate: { id: `submit:${id}:${companion?.commit ?? commit}`, item: Number(id), candidate: companion?.commit ?? commit }, repo: root, owner: me.id, cases: failingCases }) }));
   /** The runner selection stage's analysis, settled once for the test stage that needs its plan. */
   let settleSelection;
   const selectionResult = remoteMode ? new Promise((resolve, reject) => { settleSelection = { resolve, reject }; }) : null;
@@ -561,6 +604,8 @@ export async function submitHere(ctx, id, infra) {
   let criterionKnown = null;
   let criterionMatched = null;
   let criterionUnowned = [];
+  // Main's receipt per failing check file, as the gate result names them [C7,#3424].
+  let criterionReceipts = [];
   // Known main reds with several candidate owners and none naming the case alone; the refusal lists them (#2016).
   const ambiguous = [];
   /** The check and the proof can both see one case; it is reported once. */
@@ -571,9 +616,11 @@ export async function submitHere(ctx, id, infra) {
   const criterionCases = criterionRed && mainFailureBase && !companion ? failureSignatures(criterionRed, root) : null;
   if (criterionCases) {
     try {
-      comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
-        recordedRuns: withBoard(ctx, board => gateRuns(board)),
-        execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
+      // Main-red status is main's keyed receipt; a missing one queues a main-test job and refuses, never refreshes [C7,#3424].
+      const lookup = withBoard(ctx, board => criterionMainReceipts({ root, db: board.db, main: mainFailureBase, cases: criterionCases }));
+      if (!lookup.comparison) throw new Error(lookup.reason);
+      comparison = lookup.comparison;
+      criterionReceipts = lookup.classes.map(({ file, owner, receipt }) => ({ file, owner, receipt }));
       rememberComparison(comparison);
       criterionNotices = mainFailureNotices(root, criterionCases, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
@@ -704,12 +751,12 @@ export async function submitHere(ctx, id, infra) {
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });
   }
-  return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
+  return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
   };
   ctx.submitAttempt.stage = 'runner';
-  // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
+  // Independent stages start together; a red refuses immediately. A driven gate (ctx.runGateStages) records each stage [C7].
   // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
-  const stages = await runGateStages([
+  const stages = await (ctx.runGateStages ?? runGateStages)([
     { name: 'preflight', run: async signal => {
       if (remoteMode) return runRemotePart('preflight', signal);
       return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
@@ -794,7 +841,7 @@ export async function submitHere(ctx, id, infra) {
   for (const line of cells.warnings ?? []) ctx.io.say(line);
   const doctrine = stages.doctrine;
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
-  let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag } = stages.tests;
+  let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionReceipts, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag } = stages.tests;
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
@@ -946,15 +993,55 @@ export async function submitHere(ctx, id, infra) {
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })), mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : {}),
     ...(ambiguous.length ? { knownMainAmbiguous: ambiguous } : {}),
+    ...(criterionMatched && criterionReceipts.length ? { mainRedReceipts: criterionReceipts } : {}),
     ...(unowned.length && !autoMainReds ? { knownMainUnowned: unowned.flatMap(red => red.names.map(name => ({ file: red.file, name }))) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }
 
+/** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */
+async function preflightHere(ctx) {
+  const { root } = ctx.info;
+  const changed = tryGit(root, ['diff', '--name-only', '-z', 'refs/heads/main...HEAD']);
+  const files = changed.status === 0 ? changed.stdout.split('\0').filter(Boolean) : [];
+  return reportPreflight(await runPreflight(root, files), line => ctx.io.say(line));
+}
+
 /** Run `pullboard submit` and return its exit code. */
+/**
+ * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ */
+export async function recordClauseTicks(io, itemId, files) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
+/**
+ * Tick the claimed item's test clauses after a green `pullboard check` run of its frozen check, a test file or a shell command.
+ * Why: a check such as `test ! -e src/x.js` names no file `pullboard test` could run, yet proves its clauses [C7].
+ */
+export async function recordCheckTicks(io, itemId) {
+  await actOn(io, async (ctx, board, me) => {
+    const found = store.getItem(board, itemId);
+    if (found.item_owner !== me.id) return 0;
+    for (const text of checkRunTickNotes(found, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    return 0;
+  });
+}
+
 export async function run(io, { first, values }) {
   const submissionResult = {};
   const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
+  if (values.preflight) return preflightHere(ctx);
+  const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
+  if (companionInput && (!companionInput.file || !companionInput.key || !companionInput.author)) {
+    throw new Refused('USAGE', 'use pullboard submit <id> --companion <patch-file> --key <key> --author <owning-seat>');
+  }
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   const previous = io.onOrderedMove;
@@ -965,7 +1052,7 @@ export async function run(io, { first, values }) {
     if (event) submissionResult.event = { ...event };
   };
   let code;
-  try { code = await submitHere(ctx, id, values.infra); }
+  try { code = await submitHere(ctx, id, values.infra, companionInput); }
   catch (error) {
     if (error instanceof Refused && ctx.submitAttempt) {
       try {

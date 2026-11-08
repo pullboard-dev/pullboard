@@ -2,5 +2,10 @@
 export { createTransport, sharedTransport, connect, probe, startShard, fetchResult } from './src/shell/transport.js';
 export { runGate } from './src/shell/gate-run.js';
 export { sshAdapter } from './src/shell/ssh.js';
+export { pullAdapter, pullStatement } from './src/shell/pull.js';
+export { pullServer, pullRunner } from './src/shell/pull-http.js';
+export { mintJobToken, readJobToken } from './src/core/pull-token.js';
 export { shellWord, channelKey } from './src/core/frames.js';
 export { resultDigest, parseResult } from './src/core/result-file.js';
+export { probeStanding, QUARANTINE_GAP_MS } from './src/core/quarantine.js';
+export { ensureTooling, toolingFolder } from './src/shell/tooling-send.js';

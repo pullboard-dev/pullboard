@@ -7,7 +7,7 @@ export { captureBoardChanges, beginCapture } from './src/shell/board-capture.js'
 export { migrateEventLogVersion } from './src/shell/board-event-log-migrate.js';
 export { atomic, logEvent } from './src/shell/board-event-log.js';
 export { applyHealthFindings } from './src/shell/board-health.js';
-export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables } from './src/shell/board-jobs-schema.js';
+export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/shell/board-jobs-schema.js';
 export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/shell/board-hot.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/shell/board-inventory.js';
 export { validateItemDependencies } from './src/shell/board-item-dependencies.js';
@@ -29,7 +29,7 @@ export { recordNextIdle } from './src/core/board-stats.js';
 export { guardStore, refreshStoreDeclarations, suspendStoreGuards } from './src/shell/board-store-guards.js';
 export { prepareBoardWriteIdentity, configureBoardJournal, beginBoardWrite, noteBoardWriteItem, finishBoardWrite, closeBoardWrites, boardWriteHolderText } from './src/shell/board-write-lock.js';
 export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordUsageBatch, recordSharedUsage, recordProofRun, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, EVIDENCE_KINDS, inbox, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, activityInterruptWasDelivered, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/shell/board.js';
-export { diagnoseWanted } from './src/shell/board-next-for.js';
+export { diagnoseWanted, returnedRecord } from './src/shell/board-next-for.js';
 export { companionPlan, applyCompanionRequest } from './src/shell/companion.js';
 export { dispatchWork } from './src/shell/dispatch-eligibility.js';
 export { heldClaim } from './src/shell/held-claim.js';
@@ -103,7 +103,7 @@ export { nextIdleChanged } from './src/core/board-stats.js';
 export { prepareSubmit, sealStrictRenames } from './src/shell/board-submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/shell/board-checkpoint.js';
 
-export { endedSubmitHandoff } from './src/shell/submit-handoff-read.js';
+export { endedSubmitHandoff, handoffRecord, handoffRecords } from './src/shell/submit-handoff-read.js';
 export {
   repositoryOfBoardFile,
   withBoardRepositoryPolicy,
@@ -111,6 +111,7 @@ export {
 } from './src/shell/board-repository.js';
 
 export { boardWriteLog } from './src/shell/board-write-lock.js';
+export { objectItemPatch } from './src/shell/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/shell/board-ownership-wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/core/board-accepted-reland.js";
