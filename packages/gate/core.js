@@ -23,9 +23,17 @@ export function sourcePreparationFields(value) {
 }
 
 /**
+ * The test runner's own phase-timing line (bin/run-tests.js testRunPhaseClock), written to stderr as it exits.
+ * Why: a gate stage merges stderr into its output, so this line follows TAP's final count on every run-tests stage;
+ * read as an unknown trailer it left every red submit gate unaccounted, so no failure could ever be compared with
+ * main and red-on-main cases always went back to the builder (#3794). It reports time only, never a failure.
+ */
+const RUN_TESTS_PHASES = /^run-tests: phases (?:[a-z]+ \d+\.\ds, )+total \d+\.\ds$/u;
+
+/**
  * Read one stage's TAP strictly: test lines outside YAML blocks, each failure's file from its own
  * block, and a final `# fail N` that equals the failures read. Anything after that summary other
- * than summary counts or the package manager's own failure report means something else failed,
+ * than summary counts, the package manager's own failure report or the test runner's phase line means something else failed,
  * so the stage is unaccounted and null is returned [B3,R3].
  * Known-main comparisons alone may opt into cancelled children, with each cancellation explicitly counted.
  */
@@ -81,7 +89,7 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
   if (nativeLeaves && outcomes && (outcomes.filter(row => !row.passed && !row.skipped).length !== leaves.length
     || leaves.some(row => !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name && !outcome.passed && !outcome.skipped)))) return null;
   // Only the controller's authenticated component may name a native diagnostic invocation.
-  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || nativeLines.has(line));
+  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || RUN_TESTS_PHASES.test(line) || nativeLines.has(line));
   return trailer ? nativeLeaves ? leaves.map(({ name, file }) => ({ name, file })) : actual : null;
 }
 
