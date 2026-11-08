@@ -563,7 +563,8 @@ test('a write after a heartbeat uploads once [B3,H16]', {
   assert.equal(fresh.snapshotTrace.length, 1, 'fresh presence needs only the ordered checkpoint');
   assert.equal(aged.snapshotTrace.length, 1, 'the changed aged presentation is published once before the second write');
   assert.equal(stale.snapshotTrace.length, 1, 'the ordered checkpoint includes the refreshed presence without another upload');
-  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('withItemSession')), 'the sole checkpoint comes from the ordered write: ' + JSON.stringify(stale.snapshotTrace[0].callers));
+  // The write publishes through the command's one end-of-command sync, not through a second presence upload.
+  assert.ok(stale.snapshotTrace[0].callers.some(caller => caller.includes('retrySync')), 'the sole checkpoint comes from the command\'s sync after the write: ' + JSON.stringify(stale.snapshotTrace[0].callers));
   const observedAt = fixtureDatabase(presenceFile, db => db.prepare('SELECT at FROM heartbeat WHERE seat=?').get(heartbeat[0].seat).at);
   assert.notEqual(observedAt, agedAt, 'the successful native write really refreshed the heartbeat');
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -648,6 +649,8 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
   f.advance(1_800_000);
   await f.scan(false);
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'off preserves the ordinary lease');
+  // Twenty-one quiet minutes make the peer's sweep a late tick, so only the opt-in coordinator rule could take the claim.
+  f.advance(1_260_000);
   await f.scan(true, f.other);
   assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'a peer cannot perform coordinator maintenance');
   heartbeatSeat(f.board, f.owner);
