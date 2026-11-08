@@ -1,6 +1,6 @@
 /** A submit whose head changes nothing against main is refused before any gate is queued [C7]. */
-import { Refused } from '../packages/kernel/index.js';
-import { tryGit } from '../packages/git/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
+import { tryGit } from '../../../../packages/git/index.js';
 
 /**
  * The worktree folders of the repository that hold commits citing the item and differ from main.

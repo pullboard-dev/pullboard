@@ -1478,10 +1478,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/empty-submit.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/dead-handoff-retry-engine.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
@@ -3443,5 +3439,9 @@
         "seed"
       ]
     }
+  ],
+  "allowedEdges": [
+    "apps/cli->kernel",
+    "apps/cli->git"
   ]
 }

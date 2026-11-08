@@ -12,7 +12,7 @@ import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
+import { requireNonEmptySubmit } from '../empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
