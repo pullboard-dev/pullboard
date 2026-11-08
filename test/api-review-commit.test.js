@@ -14,8 +14,7 @@ test('[A2, N26] a review through the API needs the reviewer on the submitted com
   assert.equal((await box.call(box.path + '/moves', { verb: 'claim', item: id, agent: builder.agent })).status, 200);
   commitWork(box, builder, id);
   assert.equal((await box.call(box.path + '/moves', { verb: 'submit', item: id, agent: builder.agent })).status, 200);
-  const early = await box.call(box.path + '/moves', { verb: 'next', agent: verifier.agent, args: { verify: true } });
-  const refusal = early.status === 409 ? early : await box.call(box.path + '/moves', { verb: 'verify', item: id, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'not checked out' } });
+  const refusal = await box.call(box.path + '/moves', { verb: 'verify', item: id, agent: verifier.agent, args: { decision: 'accept', reason: 'CRITERION_MET', note: 'not checked out' } });
   assert.equal(refusal.status, 409, JSON.stringify(refusal.document));
   assert.equal(refusal.document.error.code, 'NOT_AT_COMMIT', 'the default refuses a reviewer who is not on the submitted commit');
   checkOutSubmitted(box, builder, verifier);
