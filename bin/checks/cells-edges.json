@@ -1093,7 +1093,7 @@
       "deep": 2
     },
     "bin/run-tests.js": {
-      "cells": 6,
+      "cells": 7,
       "deep": 29
     },
     "bin/runner-controller.js": {
