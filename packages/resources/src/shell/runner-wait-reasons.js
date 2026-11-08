@@ -1,9 +1,39 @@
 /** Explain why a queued run still waits, from the pool's own local facts and no network probe [C7,Q1,Q2]. */
 import { runnerRecoveryStatus } from './resource-recovery.js';
 
+/** The runner kept for timed checks, or '' when none is kept or this pool predates the reserve table. */
+function keptTimingRunner(db) {
+  try { return db.prepare('SELECT host FROM runner_timing_reserve WHERE singleton=1').get()?.host ?? ''; }
+  catch { return ''; }
+}
+
+/** Whether a timed check waits in the gate line for a runner, which stops the kept runner lending slots. */
+function timedCheckWaiting(db) {
+  return Boolean(db.prepare("SELECT 1 FROM waiter WHERE name = 'gate' AND timing = 1 AND remote = 1 LIMIT 1").get());
+}
+
+/**
+ * Name the kept-runner rule that admission applies on top of capacity, so a skipped runner never reads as
+ * queue priority [C7,#3500]. A timed check runs only on the kept runner; an ordinary run gets the kept runner
+ * only when no other runner is free and no timed check waits.
+ */
+function withTimingReserve(db, explained, waiter) {
+  const kept = keptTimingRunner(db);
+  if (!kept) return explained;
+  const timedWaiting = waiter.timing !== 1 && timedCheckWaiting(db);
+  const otherFree = explained.some(entry => entry.host !== kept && entry.reason === 'available');
+  return explained.map(entry => {
+    if (entry.reason !== 'available') return entry;
+    if (waiter.timing === 1 && entry.host !== kept) return { ...entry, reason: `unavailable (timed checks run only on ${kept}, the runner kept for them)` };
+    if (waiter.timing !== 1 && entry.host === kept && timedWaiting) return { ...entry, reason: 'kept for timed checks (a timed check is waiting)' };
+    if (waiter.timing !== 1 && entry.host === kept && otherFree) return { ...entry, reason: 'kept for timed checks (lent only when every other runner is full)' };
+    return entry;
+  });
+}
+
 /** Explain each registered runner from the same local facts used by admission; no network probe. */
 export function runnerWaitReasons(db, runners, waiter, unavailable) {
-  return runners.map(runner => {
+  return withTimingReserve(db, runners.map(runner => {
     const recorded = db.prepare('SELECT detail,failure FROM runner_unavailable WHERE host = ?').get(runner.host);
     const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
     const gui = observed ? observed.gui === 1 : runner.gui === true;
@@ -26,7 +56,7 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
       browser: { total: runner.browser, free: Math.max(0, runner.browser - holders.filter(holder => holder.browser === 1).length) },
       holders: holders.map(holder => ({ agent: holder.agent, item: holder.item || null, browser: holder.browser === 1, timing: holder.timing === 1 })),
       ...(drain ? { timingDrain: { own: drain.token === waiter.token, agent: drain.agent, item: drain.item || null } } : {}) };
-  });
+  }), waiter);
 }
 
 /** Report the same observed capacities and holders that the local admission queue used [Q1,Q2]. */

@@ -87,6 +87,7 @@ const OPTIONS = {
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
   affected: { type: 'boolean' },
+  'compare-main': { type: 'boolean' },
   waive: { type: 'string' },
   until: { type: 'string' },
   take: { type: 'string' },

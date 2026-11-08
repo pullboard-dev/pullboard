@@ -9,3 +9,8 @@ export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/co
 export { reclaimPass, lapsedGateJobs, FALLBACK_BUDGET_MS } from './src/shell/fallback-reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/shell/keyed-result.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/core/keyed-result.js';
+export { driveLanding } from './src/shell/drive-landing.js';
+export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/core/drive-landing.js';
+export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive } from './src/shell/gate-drive.js';
+export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverGone } from './src/core/gate-drive.js';
+export { createGateAdmission, gateDispatcherRow } from './src/shell/gate-admission.js';

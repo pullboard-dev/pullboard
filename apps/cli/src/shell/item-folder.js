@@ -82,24 +82,45 @@ function branchCheckout(root, ref) {
   return null;
 }
 
-/** Recover only a registered prior seat's own folder; archive and publish recovery before deletion. */
+/**
+ * Adopt or recover the folder that holds this item's branch at another seat's path.
+ * A clean folder (no tracked or untracked changes) is moved to the new seat path with git worktree move, keeping its
+ * commits, Git metadata and ignored files, whether its seat ended or was never registered (#3540). A dirty folder of a
+ * registered prior seat is archived and its recovery published before deletion; a dirty unregistered one is retained.
+ *
+ * @param {any} ctx
+ * @param {{ id: string }} me the claiming seat
+ * @param {number} id the item
+ * @param {string} desired this seat's item folder path
+ * @param {string} ref the item branch
+ * @param {{ board?: any, onArchive?: Function }} options
+ * @returns {Promise<boolean>} true when the prior folder was moved to `desired`
+ */
 async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive }) {
   const tree = branchCheckout(ctx.info.root, ref);
-  if (!tree || tree.path === desired) return;
+  if (!tree || tree.path === desired) return false;
   const suffix = `-item-${id}`;
   if (!board || !tree.path?.endsWith(suffix) || tree.locked) throw new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${tree.path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
-  const holder = agentAt(board, tree.path.slice(0, -suffix.length));
-  if (!holder || itemFolderPath(holder.agent_path, id) !== tree.path) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
+  const found = agentAt(board, tree.path.slice(0, -suffix.length));
+  const holder = found && itemFolderPath(found.agent_path, id) === tree.path ? found : null;
   /** Recheck ownership after every asynchronous archive notification, before touching the checkout. */
   const requireOwnership = () => {
     const item = getItem(board, id);
-    if (item.item_status === 'claimed' && item.item_owner === holder.agent_id) throw new Refused('HELD', `${holder.agent_id} still claims #${id} in ${tree.path}; its folder is retained`);
+    if (holder && item.item_status === 'claimed' && item.item_owner === holder.agent_id) throw new Refused('HELD', `${holder.agent_id} still claims #${id} in ${tree.path}; its folder is retained`);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('ITEM_LEASE_LOST', `claim #${id} changed before recovering ${tree.path}; its folder is retained`);
     const common = tryGit(tree.path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     const actual = tryGit(tree.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
     if (common.status !== 0 || common.stdout !== ctx.info.commonDir || actual.status !== 0 || actual.stdout !== ref) throw new Error(`item folder ${tree.path} changed repository or branch; retained`);
   };
   requireOwnership();
+  const changes = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all']);
+  if (changes.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
+  if (!changes.stdout) {
+    // Adopt: a move keeps the branch's commits and the folder itself, so nothing the ended seat left is lost (#3540).
+    git(ctx.info.root, ['worktree', 'move', tree.path, desired]);
+    return true;
+  }
+  if (!holder) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has uncommitted changes and no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
   const status = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
   if (status.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
   if (status.stdout) {
@@ -113,6 +134,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
     requireOwnership();
     git(ctx.info.root, ['worktree', 'remove', tree.path]);
   }
+  return false;
 }
 
 /** Whether two paths name one existing directory, however each was spelled. */
@@ -138,7 +160,10 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   const main = primaryCheckoutRoot(ctx.info);
   if (!main) throw new Error('cannot locate the primary checkout for the item folder');
   const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
-  if (exists) await recoverPriorFolder(ctx, me, id, path, ref, options);
+  if (exists && await recoverPriorFolder(ctx, me, id, path, ref, options)) {
+    writeItemMarker(path, me.id, id);
+    return path;
+  }
   git(root, exists ? ['worktree', 'add', path, ref] : ['worktree', 'add', '-b', ref, path, 'main']);
   writeItemMarker(path, me.id, id);
   return path;

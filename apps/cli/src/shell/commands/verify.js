@@ -1,5 +1,6 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
+import { toolsSnapshot } from '../submit-handoff.js';
 import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
@@ -619,6 +620,6 @@ export async function startAutomaticComparison(ctx, id) {
   try {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'bin/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
   } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }
