@@ -6,13 +6,14 @@ import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
 import { scaleWorkers } from '../apps/cli/src/shell/worker-scale.js';
 
 const MINUTE = 60_000;
+const SCALER_MODEL = 'Scaler fixture';
 const FAMILIES = ['anthropic', 'openai'];
 const waiting = (family, waitedMs, route = 'strong') => ({ family, waitedMs, route });
 
 /** Run one real supervisor cycle over an observed queue; return the seats it asked the worktree maker for. */
 async function supervise(t, observed) {
   const previous = process.env.PULLBOARD_MODEL;
-  process.env.PULLBOARD_MODEL = 'Scaler fixture';
+  process.env.PULLBOARD_MODEL = SCALER_MODEL;
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = previous; });
   const made = [], lines = [], children = [];
   const io = { say: line => lines.push(line), err: line => lines.push(line), result() {} };
