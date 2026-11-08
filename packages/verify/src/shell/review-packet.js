@@ -1,7 +1,7 @@
 /**
  * The review packet: one prepared page a reviewer reads instead of checking out and rerunning [V4,C7].
  *
- * It is built once, when an item's gate goes green, from what the gate already recorded: the
+ * It is built once, when an item's gate goes green (or red only in cases main fails by name), from what the gate already recorded: the
  * submit event's proof, the native proof receipts at that head, the known-main failures and the
  * check baseline. Git supplies the diff and the cells and lint baselines by reading objects only,
  * never by checking anything out. The packet is stored under the board's directory, keyed by item
@@ -13,11 +13,13 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { posix } from 'node:path';
 import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
 import { frozenRowGates } from '../core/frozen-clause.js';
+import { barTestFiles } from '../core/frozen-clause.js';
 import { wording } from '../core/frozen-clause.js';
 import { criterionClauses } from '../../../state/index.js';
 
@@ -87,7 +89,7 @@ function storeReviewPacket(commonDir, packet) {
  * The board records a packet needs: the item, its newest submit at the head, the proof receipts
  * at that head and the check baseline. Board reads only; no Git and no process.
  */
-function reviewPacketInputs(board, { getItem, events }, id) {
+function reviewPacketInputs(board, { getItem, events, eventsOfKinds }, id) {
   const item = getItem(board, id);
   const history = events(board, { itemId: id });
   const detailOf = event => { try { return JSON.parse(event.event_detail); } catch { return {}; } };
@@ -95,7 +97,39 @@ function reviewPacketInputs(board, { getItem, events }, id) {
   const receipts = history.filter(event => event.event_kind === 'proof-run').map(event => detailOf(event).receipt)
     .filter(receipt => receipt && receipt.item === Number(id) && receipt.commit === item.item_commit);
   const baseline = history.filter(event => event.event_kind === 'check-baseline').map(event => detailOf(event).checkBaseline).at(-1) ?? null;
-  return { item, submit, receipts, baseline };
+  // The main comparison runs recorded at the known main, read only for a gate red in main's named cases (#3449).
+  const known = submit?.gateGreen === false ? submit.submissionProof?.knownMainFailures : null;
+  const mainRuns = known && typeof eventsOfKinds === 'function' ? eventsOfKinds(board, ['gate-run']).map(event => detailOf(event).run)
+    .filter(run => run?.kind === 'main-red' && run.head === known.main).map(run => run.id) : [];
+  return { item, submit, receipts, baseline, mainRuns };
+}
+
+/**
+ * The submit's known main failures when every red its gate recorded at head is one of them by file and name, else null.
+ * Why: submit accepts a proof red only in cases main fails by name and records gateGreen false, but the packet was
+ * stored only for a green gate, so every such item met NO_REVIEW_PACKET and sat in review for hours (#3449) [V4,C7].
+ * A red receipt that names no failing case cannot be matched, so it leaves no packet.
+ */
+function excusedMainReds(submit, receipts) {
+  const known = submit?.submissionProof?.knownMainFailures;
+  if (submit?.gateGreen !== false || !SHA.test(known?.main ?? '') || !Array.isArray(known.failures) || !known.failures.length) return null;
+  const red = receipts.filter(receipt => receipt.exitCode !== 0 && receipt.green !== true);
+  if (red.some(receipt => !(receipt.failures ?? []).length)) return null;
+  const named = (row, failure) => row.file === failure.file && row.name === failure.name;
+  return red.flatMap(receipt => receipt.failures).every(failure => known.failures.some(row => named(row, failure))) ? known : null;
+}
+
+/** The id of the main comparison receipt at `main` that records this case failing, from the gate's own receipt files. */
+function mainReceiptFor(commonDir, ids, main, failure) {
+  for (const id of new Set(ids)) {
+    if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
+    try {
+      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${id}.json`), 'utf8'));
+      if (stored.id === id && stored.kind === 'main-red' && stored.head === main
+        && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
+    } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
+  }
+  return null;
 }
 
 /** Split the frozen bar into numbered clauses: the criterion's sentences, then each frozen row. */
@@ -129,6 +163,29 @@ function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   } catch { return []; }
 }
 
+/** Whether a test file's source imports the module at `target` (a repo path) by a relative specifier. */
+function importsModule(file, source, target) {
+  if (!source) return false;
+  for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+)\1/gu)) {
+    if (posix.join(posix.dirname(file), match[2]) === target) return true;
+  }
+  return false;
+}
+
+/**
+ * Attribute each outcome to a test file the receipt ran. Why: Node records a case at the file that called test(), so a
+ * case a test file loads from a .fixture.js module carries the fixture's path, and the packet matched none of those
+ * cases to a clause; #3222's 35 green cases mapped to nothing [V4,C7]. The owner is the ran file that imports the
+ * module, else the only file the receipt ran; `source` keeps the defining file.
+ */
+function ownedOutcomes(rows, ranFiles, sources) {
+  return rows.map(row => {
+    if (ranFiles.includes(row.file)) return row;
+    const owner = ranFiles.find(file => importsModule(file, sources.get(file), row.file)) ?? (ranFiles.length === 1 ? ranFiles[0] : null);
+    return owner ? { ...row, file: owner, source: row.file } : row;
+  });
+}
+
 /** Test-like paths named in a shell command or clause, in order. */
 function namedTestFiles(text) {
   return [...new Set([...String(text).matchAll(/[\w./-]+\.(?:test|spec)\.[cm]?js\b/gu)].map(match => match[0].replace(/^\.\//u, '')))];
@@ -143,6 +200,26 @@ function receiptFiles(receipt, index, { checkFiles, proofFiles }) {
   if (reported.length) return [...new Set(reported)];
   const criterion = receipt.submitPhase ? receipt.submitPhase === 'criterion' : index === 0;
   return criterion ? checkFiles : proofFiles;
+}
+
+/**
+ * A clause's evidence from the test files it names: the named cases each receipt executed in that file, those citing
+ * the clause when any do, else every executed case; a file-level row only for a receipt that recorded no case in it.
+ * Why: #3253's clause named both check files, so its packet showed two file-level passes (test: null) and review
+ * rejected INSUFFICIENT_EVIDENCE although the gate had run the clause 1 case green [C7,V4].
+ *
+ * @param {{n:number}} clause
+ * @param {{receipt:string,file:string}[]} fileRuns - the receipts' file-level rows for files the clause names
+ * @param {{receipt:string,file:string,test:string}[]} executed - every executed case the receipts recorded
+ * @param {(name:string, n:number) => boolean} citesClause
+ */
+function namedFileEvidence(clause, fileRuns, executed, citesClause) {
+  return fileRuns.flatMap(run => {
+    const cases = executed.filter(row => row.receipt === run.receipt && row.file === run.file && row.test.replace(/^\.\//u, '') !== run.file);
+    if (!cases.length) return [{ ...run, test: null, why: 'clause names the file' }];
+    const own = cases.filter(row => citesClause(row.test, clause.n));
+    return (own.length ? own : cases).map(row => ({ ...row, why: own.length ? 'test cites the clause' : 'case in the file the clause names' }));
+  });
 }
 
 /** The result one receipt recorded for one file. */
@@ -182,14 +259,16 @@ function cellsAt(root, commit) {
 }
 
 /**
- * Build the packet for an item whose gate went green at its head, or null when it has not. Reads
- * Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never starts a test.
- * It returns rather than refuses because submit and verify reach it; only show names the refusal.
+ * Build the packet for an item whose gate went green at its head, or went red only in cases main fails by name,
+ * or null otherwise. Reads Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never
+ * starts a test. It returns rather than refuses because submit and verify reach it; only show names the refusal.
+ * `mainReceiptIds` are the submit's main comparison receipts; the board's recorded main runs are tried too.
  */
-function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = new Date(), commonDir = null, errors = [] } = {}) {
+function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
-  if (!submit || submit.gateGreen !== true || !SHA.test(head ?? '')) return null;
+  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : null;
+  if (!submit || (submit.gateGreen !== true && !excused) || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
   const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
   const stat = gitRead(root, ['diff', '--stat', '--no-color', base, head]).trimEnd();
@@ -211,17 +290,25 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     .map(receipt => ({ receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null,
       file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
-  // Tests are matched in files this item changed or its check names: those are the tests written for this bar.
-  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
+  // The brief's Test: files, which submit runs with the proof; a [test] clause naming no file of its own cites them.
+  const briefFiles = barTestFiles(item).brief;
+  // Tests are matched in files this item changed or its check or bar names: those are the tests written for this bar.
+  const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || briefFiles.includes(file)
+    || clauses.some(clause => clause.text.includes(file) || clause.gate === file));
+  // A case defined in a fixture module counts for the ran test file that loads it (#3441).
+  const sources = new Map([...readBlobs(root, candidates.map(file => `${head}:${file}`))].map(([spec, text]) => [spec.slice(head.length + 1), text]));
+  const outcomesOf = (receipt, index, options) => ownedOutcomes(receiptOutcomes(commonDir, receipt, head, options),
+    receiptFiles(receipt, index, { checkFiles, proofFiles }), sources).filter(row => candidates.includes(row.file));
   // Each executed test the gate recorded, with its own result; a skipped or unrecorded test is never a run (#2451).
-  const executed = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head).filter(row => candidates.includes(row.file))
-    .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name })));
+  const executed = receipts.flatMap((receipt, index) => outcomesOf(receipt, index)
+    .map(row => ({ ...runOf(receipt), file: row.file, result: row.passed ? 'pass' : 'fail', test: row.name,
+      ...(row.source ? { source: row.source } : {}) })));
   // Every declared case, skipped ones included: a clause with a case written for it is judged by that case alone.
-  const declared = receipts.flatMap(receipt => receiptOutcomes(commonDir, receipt, head, { declared: true }).filter(row => candidates.includes(row.file)).map(row => row.name));
+  const declared = receipts.flatMap((receipt, index) => outcomesOf(receipt, index, { declared: true }).map(row => row.name));
   const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
-    let evidence = runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)).map(run => ({ ...run, test: null, why: 'clause names the file' }));
+    let evidence = namedFileEvidence(clause, runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)), executed, citesClause);
     // A frozen spec row is proved by the named, executed cases of the gate test its row names, which submit runs with
     // the proof [V4]. A file-level run proves nothing here: a skipped run has no executed cases, and a zero-case file
     // reports only a pseudo-case named for the file itself.
@@ -234,6 +321,11 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
       const testWords = words(run.test);
       const shared = [...testWords].filter(word => clauseWords.has(word)).length;
       if (cited || (shared >= 3 && shared * 2 >= testWords.size)) evidence.push({ ...run, why: cited ? 'test cites the clause' : `${shared} shared words` });
+    }
+    // A test clause that names no file of its own cites the brief's Test: files the exact-head gate ran, with their
+    // outcomes: submit runs those files whatever the selection says, so a green gate leaves no gap (#3533, #3253) [C7].
+    if (!evidence.length && clause.kind === 'test' && !namedTestFiles(clause.text).length) {
+      evidence = runs.filter(run => briefFiles.includes(run.file)).map(run => ({ ...run, test: null, why: "the brief's Test: list names the file" }));
     }
     // A test clause that names no file and no case still has the item's own check: the executed cases of the check's
     // files, run by the submit gate at this head, are its recorded run. Why: on 6 Nov 18 of 28 rejects in 90 minutes
@@ -250,11 +342,20 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     return { ...clause, runs: evidence, ...(evidence.length ? {} : { gap: gap ?? 'no recorded run' }) };
   });
   const seen = new Set();
-  const failures = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
+  const atHead = receipts.flatMap(receipt => (receipt.failures ?? []).map(failure => ({ ...failure, receipt: receipt.id })))
     .filter(failure => !seen.has(`${failure.file}\0${failure.name}`) && seen.add(`${failure.file}\0${failure.name}`))
     .map(failure => ({ file: failure.file, name: failure.name, receipt: failure.receipt,
       error: errors.find(row => row?.name === failure.name && (!row.file || row.file === failure.file))?.error ?? null,
       ...mainStatus(failure, { known: proof.knownMainFailures, baseline }) }));
+  // A gate red only in main's named cases keeps those cases apart from the item's own failures: they are listed with
+  // the main receipt that names each, and never read as this item's red, so the reviewer judges its own clauses (#3449).
+  const failures = excused ? [] : atHead;
+  const mainIds = [...mainReceiptIds, ...mainRuns];
+  const excusedMain = (excused ? atHead : []).map(failure => {
+    const repair = excused.failures.find(row => row.file === failure.file && row.name === failure.name)?.item;
+    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: mainReceiptFor(commonDir, mainIds, excused.main, failure),
+      ...(repair ? { repair } : {}) };
+  });
   const cellsBefore = cellsAt(root, base);
   const cellsAfter = cellsAt(root, head);
   const touched = [...new Set(changed.map(file => /^(?:apps|packages)\/[^/]+/u.exec(file)?.[0]).filter(Boolean))].sort();
@@ -263,7 +364,7 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     criterionDigest: submit.criterionDigest ?? item.item_frozen_digest ?? null,
     proof: { full: proof.full === true, deferred: proof.deferred === true, files: proofFiles.length, reason: proof.reason ?? '' },
     diff: { stat, patch, truncated, files: changed },
-    clauses: mapped, failures,
+    gate: excused ? 'red only in main reds' : 'green', clauses: mapped, failures, excusedMainReds: excusedMain,
     cells: { before: cellsBefore.size, after: cellsAfter.size, added: [...cellsAfter].filter(cell => !cellsBefore.has(cell)).sort(),
       removed: [...cellsBefore].filter(cell => !cellsAfter.has(cell)).sort(), touched },
     lints: { before: lintCounts(root, base), after: lintCounts(root, head) },
@@ -278,7 +379,7 @@ function reviewRerunClauses(packet) {
 /** The packet as lines, summary first and the full hunks last. */
 function renderReviewPacket(packet, { hunks = true } = {}) {
   const short = sha => (sha ? sha.slice(0, 12) : 'unknown');
-  const lines = [`review packet #${packet.item} at ${short(packet.head)}: base ${short(packet.base)}, main ${short(packet.main)}; built ${packet.builtAt} when the gate went green`];
+  const lines = [`review packet #${packet.item} at ${short(packet.head)}: base ${short(packet.base)}, main ${short(packet.main)}; built ${packet.builtAt} when the gate went ${packet.gate === 'red only in main reds' ? 'red only in cases main also fails by name' : 'green'}`];
   lines.push(`proof: ${packet.proof.full ? 'full suite' : packet.proof.deferred ? 'full suite deferred to the landing gate' : 'selected files'}; ${packet.proof.files} proof file(s)`);
   lines.push('clauses:');
   for (const clause of packet.clauses) {
@@ -292,6 +393,12 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   for (const failure of packet.failures) {
     lines.push(`  ${failure.file} :: ${failure.name}: ${failure.alsoRedOnMain ? `also red on main ${short(failure.main)}${failure.repair ? `, repair #${failure.repair}` : ''}` : `not red on main ${short(failure.main)}`}`,
       `     first error: ${failure.error ?? 'no error line recorded'}`);
+  }
+  // Main's own reds come after the item's clauses and failures, under their own heading, so none reads as the item's.
+  const excused = packet.excusedMainReds ?? [];
+  if (excused.length) lines.push(`excused main reds (not this item's: each fails on main by name, so they do not count against its clauses):`);
+  for (const red of excused) {
+    lines.push(`  ${red.file} :: ${red.name}: red on main ${short(red.main)}, main receipt ${red.mainReceipt ? red.mainReceipt.slice(0, 8) : 'not recorded'}${red.repair ? `, repair #${red.repair}` : ''}; head receipt ${String(red.receipt ?? 'unknown').slice(0, 8)}`);
   }
   const { cells } = packet;
   lines.push(`cells: ${cells.before} before, ${cells.after} after${cells.added.length ? `; added ${cells.added.join(', ')}` : ''}${cells.removed.length ? `; removed ${cells.removed.join(', ')}` : ''}; touched ${cells.touched.join(', ') || 'none'}`);
@@ -317,13 +424,14 @@ function loadReviewPacket(root, commonDir, inputs) {
 }
 
 /**
- * Store the packet right after a submit whose gate went green; a failure never fails the submit.
- * `errors` are the gate summary's failed cases, so each failure at head carries its first error line.
+ * Store the packet right after a submit whose gate went green, or red only in main's named cases; a failure never
+ * fails the submit. `errors` are the gate summary's failed cases, so each failure at head carries its first error
+ * line; `mainReceiptIds` are the main comparison receipts the submit ran, so each excused main red names its own.
  */
-export async function recordReviewPacket(ctx, id, readBoard, { errors = [] } = {}) {
+export async function recordReviewPacket(ctx, id, readBoard, { errors = [], mainReceiptIds = [] } = {}) {
   try {
     const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-    const packet = buildReviewPacket(ctx.info.root, inputs, { commonDir: ctx.info.commonDir, errors });
+    const packet = buildReviewPacket(ctx.info.root, inputs, { commonDir: ctx.info.commonDir, errors, mainReceiptIds });
     return packet && storeReviewPacket(ctx.info.commonDir, packet);
   } catch (error) {
     ctx.io.err(`review packet for #${id} was not stored (${error.message}); pullboard show ${id} --review builds it`);

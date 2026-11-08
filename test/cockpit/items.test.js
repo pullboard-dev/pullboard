@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit items checks, using the shared real-board fixtures [N26]. */
 import './upgrade-geometry.test.js';

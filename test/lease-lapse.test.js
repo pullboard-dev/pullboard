@@ -38,8 +38,12 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   store.claim(box.board, id, { agentId: box.seats.builder.id, lane: 'web', leaseMs,
     freeze: item => ({ text: item.item_title, digest: 'lease-lapse-fixture' }) });
   box.advance(62 * MINUTE);
-  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them.
-  for (const holder of prefixHolders) heartbeatSeat(box.board, holder);
+  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them. Each
+  // also records fresh work on its claim: a heartbeat alone no longer keeps a claim 40 minutes past its lease (#3446).
+  prefixHolders.forEach((holder, n) => {
+    heartbeatSeat(box.board, holder);
+    store.appendFact(box.board, unknownIds[n], { agentId: holder, kind: 'note', text: 'Prefix holder still working.' });
+  });
   return { box, id, unknownIds };
 }
 
@@ -53,6 +57,8 @@ test('clause 1: the next native write frees a lapsed idle claim with one origina
   assert.equal(Date.parse(window.until) - box.clock.now().getTime(), MINUTE, 'the original lease duration, not the stale age or current configuration');
   const report = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth: () => ({ findings: [] }) });
   assert.ok(report.waiting.some(entry => entry.cause === 'CLAIM_EXPIRED' && entry.item === id));
+  // The window waits only for a builder who can come back; a gone seat's window ends at once (#3447).
+  heartbeatSeat(box.board, box.seats.builder.id);
   assert.throws(() => store.claim(box.board, id, { agentId: box.seats.actor.id, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'new', digest: 'new' }) }),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER');
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');
@@ -75,7 +81,9 @@ test('a live holder heartbeat vetoes expiry, and a gone checkout with no activit
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write retains active holder.']);
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(itemById(box.board, id).item_status, 'claimed');
-  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims.length, 0);
+  // The live heartbeat vetoes lease-lapse expiry; the idle release for a holder with no work for 40 minutes is #3446's.
+  assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims
+    .filter(row => row.idle === undefined).length, 0);
   box.advance(62 * MINUTE);
   const missing = store.register(box.board, { lane: 'web', path: box.root + '-missing-worktree', family: 'Fixture unknown work' });
   store.release(box.board, id, box.seats.builder.id, 'Private fixture explicitly returns the original builder reservation.', undefined, 'OTHER');
@@ -168,17 +176,20 @@ test('automatic claim expiry records current reason codes while prior lease-laps
   assert.equal(snapshot.claims[0].id, id);
   const before = exportBoard(box.board);
   const args = [{ agentId: box.seats.actor.id, snapshot, health: box.config.health ?? {}, claimsOnly: true }];
+  // A current capture carries the stranded-dependency limit, which raises the floor; a genuine lease-lapse envelope predates it.
+  const { dependency: _dependency, ...legacyLimits } = snapshot.limits;
+  const legacyArgs = [{ ...args[0], snapshot: { ...snapshot, limits: legacyLimits } }];
   const move = prepareEngineMove(box.board, 'maintainStaleState', args);
   assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
   assert.ok(RELEASE_REASONS_ENGINE > LEASE_LAPSE_ENGINE);
-  assert.equal(minimumMoveEngine('maintainStaleState', args), LEASE_LAPSE_ENGINE,
+  assert.equal(minimumMoveEngine('maintainStaleState', legacyArgs), LEASE_LAPSE_ENGINE,
     'genuine accepted lease-lapse envelopes retain their original operation floor');
   const releaseRows = [];
   for (const [engine, coded] of [[move.engine, true], [LEASE_LAPSE_ENGINE, false]]) {
     const replica = openBoard(':memory:', box.clock);
     t.after(() => store.closeBoard(replica));
     importBoard(replica, before);
-    const applied = applyRelayMove(replica, { ...move, engine }, { sequence: appliedSequence(replica) + 1,
+    const applied = applyRelayMove(replica, { ...move, ...(coded ? {} : { args: legacyArgs }), engine }, { sequence: appliedSequence(replica) + 1,
       at: box.clock.now().toISOString(), kind: 'move',
       sender: { kind: 'agent', agent: box.seats.actor.id, userId: 'fixture-user' } });
     assert.equal(applied.error, undefined, JSON.stringify(applied));
@@ -212,7 +223,7 @@ test('clause 1: explicit stale CLI releases require a code before observation an
     const missing = await cli(box, box.root, ['release', String(id), '--stale', ...noteArgs, '--no-next']);
     assert.equal(missing.code, 1, missing.out + missing.err);
     assert.equal(missing.document.error.code, 'RELEASE_REASON');
-    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|OTHER/u);
+    assert.match(missing.document.error.message, /--reason INELIGIBLE\|ROUTED_ELSEWHERE\|BLOCKED\|BUDGET\|TAKEN_OVER\|DIAGNOSIS_WRONG\|INFRA\|OTHER/u);
     assert.deepEqual(exportBoard(box.board), before, 'missing code cannot observe, free or rewrite the claim');
   }
   const missingNote = await cli(box, box.root, ['release', String(id), '--stale', '--reason', 'BLOCKED', '--no-next']);

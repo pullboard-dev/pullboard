@@ -15,6 +15,7 @@ import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
 import { appendTrace } from '../cli-trace.js';
+import { extractWhy } from '../../core/why-flag.js';
 
 let startupMainTraced = false;
 
@@ -46,7 +47,7 @@ async function bindCheckoutSession(io, positionals, values) {
   }
   const writes = ['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
     'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
-  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
+  if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove', 'object'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
   await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
@@ -82,7 +83,8 @@ async function timedMain(argv, streams) {
 }
 
 /** Record local command wall time without sending timing data to the board. */
-export async function main(argv, streams) {
+export async function main(rawArgv, streams) {
+  const { argv, why } = extractWhy(rawArgv);
   const { beginSeatTiming, timingSeat } = await import('../../../../../src/seat-timing.js');
   const cwd = streams.cwd ?? process.cwd();
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
@@ -99,7 +101,7 @@ export async function main(argv, streams) {
   finally {
     finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
-    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null });
+    appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
   }
 }
 
@@ -263,8 +265,17 @@ async function runMain(argv, streams) {
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
         const worker = await import('../../../../../packages/landing/index.js');
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot);
+        // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
+        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
+        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
+        // One board read answers both: recovery and the bootstrap share the answer for the same record.
+        const answers = new Map();
+        const woken = async job => {
+          if (!answers.has(job.id)) answers.set(job.id, (await import('../../../../../bin/automatic-landing.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
+          return answers.get(job.id);
+        };
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url), { woken });
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }

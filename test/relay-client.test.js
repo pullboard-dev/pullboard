@@ -7,7 +7,7 @@ import { relayRecovered } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
@@ -36,7 +36,7 @@ import { captureSpecApprovalBaseline } from '../packages/spec/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { legacyMirrorQueueFragment } from './relay-client-legacy-case.js';
 import { assertBaselineResumeEvidence, assertOriginalBaselineEvidence } from './relay-client-baseline-case.js';
-import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, syncReplica } from './relay-client-replica-fixture.js';
+import { assertOriginalOutcomeDelivery, assertRecoveredStackUploads, assertReplicaClaimErrorEquality, localEvents, mergeCandidateForReview, receipts, relayUploadSummary, syncReplica } from './relay-client-replica-fixture.js';
 import { assertDroppedReplyConsumed, commitInitializedRepoFiles, enterLegacyAckPolicy } from './relay-client-policy-fixture.js';
 import { threeReplicaPhaseCapture } from './relay-client-timing.js';
 
@@ -184,19 +184,19 @@ async function relayServer(t, directory, auth, { legacyRelay = false } = {}) {
     advance(days) { now = Date.now() + days * 86400000; } };
 }
 
-
 /**
  * Copy this checkout's doctrine into a fixture repo, with every check script its rows run and the
  * scripts' own relative imports, so the fixture's Rigor checks count what the repository's do [D1,H3].
  * Reading the gates from the doctrine, not naming files here, keeps the next check that lands from
  * leaving a fixture without its script, which otherwise raises the ratchet and changes the refusal.
+ * A bin/pullboard.js row gets the CLI's whole runtime minus the cells plan: it imports lazily and reads skills from disk [C7].
  */
 function seedDoctrine(seed) {
   const repo = resolve(import.meta.dirname, '..');
   const text = readFileSync(join(repo, existsSync(join(repo, 'DOCTRINE.md')) ? 'DOCTRINE.md' : 'PRACTICE.md'), 'utf8');
   writeFileSync(join(seed, 'PRACTICE.md'), text);
-  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]);
-  const copied = new Set();
+  const pending = [...text.matchAll(/gate: check node (\S+\.m?js)/g)].map((match) => match[1]), copied = new Set();
+  if (pending.includes('bin/pullboard.js')) for (const part of ['bin', 'apps', 'packages', 'src', 'relay', 'skills', 'package.json']) cpSync(join(repo, part), join(seed, part), { recursive: true, filter: (from) => !from.endsWith('cells-plan.json') });
   while (pending.length) {
     const file = pending.pop();
     if (copied.has(file)) continue;
@@ -204,11 +204,11 @@ function seedDoctrine(seed) {
     const body = readFileSync(join(repo, file), 'utf8');
     mkdirSync(dirname(join(seed, file)), { recursive: true });
     writeFileSync(join(seed, file), body);
-    for (const match of body.matchAll(/from '(\.{1,2}\/[^']+)'/g)) pending.push(relative(repo, resolve(dirname(join(repo, file)), match[1])));
+    for (const match of body.matchAll(/from ['"](\.{1,2}\/[^'"]+)['"]/g)) pending.push(relative(repo, resolve(dirname(join(repo, file)), match[1])));
   }
 }
 
-test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offline moves, and off preserves the board (legacy relay)', async (t) => {
+test('clause 2: [H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offline moves, and off preserves the board (legacy relay)', async (t) => {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-client-')));
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
@@ -337,7 +337,7 @@ test('[H1,H3,H7,H15,H16] relay on snapshots and orders ciphertext, refuses offli
   await cli(root, relayEnv, 'add', lane, 'mirrored private move');
   await cli(root, relayEnv, 'shout', 'person', 'mirrored private shout');
   const firstMoves = localEvents(boardFile).slice(beforeLink.tables.event.length);
-  assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'shout']);
+  assert.deepEqual(firstMoves.map((row) => row.event_kind), ['add', 'milestone_placed', 'shout']);
   const nativeAfterMoves = await get(`/api/v1/boards/${boardId}/state`);
   assert.equal(nativeAfterMoves.body.state.sequence, 2, 'the checkpoint covers both acknowledged operations');
   const checkpoint = snapshotDocument(await unseal(key, Buffer.from(nativeAfterMoves.body.state.sealed, 'base64url'), { boardId, kind: 'snapshot', sequence: 2 }));
@@ -667,7 +667,7 @@ async function threeReplicaFixture(t, timing) {
   assert.ok(gitBinary, 'the fixture PATH contains git');
   symlinkSync(realpathSync(gitBinary), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
-  symlinkSync(realpathSync('/bin/sh'), join(privateBin, 'sh'));
+  for (const tool of ['sh', 'tar']) symlinkSync(realpathSync(process.env.PATH.split(delimiter).map((entry) => join(entry, tool)).find(existsSync)), join(privateBin, tool)); // `merged` smokes via git archive | tar
   symlinkSync(resolve(import.meta.dirname, '../bin/pullboard.js'), join(privateBin, 'pullboard'));
   const envs = homes.map((home) => {
     const env = { ...process.env, HOME: home, USERPROFILE: home, PULLBOARD_HOME: join(home, '.pullboard'), PATH: privateBin };
@@ -716,7 +716,7 @@ async function threeReplicaFixture(t, timing) {
   try {
     store.register(seedBoard, { lane: 'coordinator', path: seed });
     for (let index = 0; index < worktrees.length; index += 1) {
-      const seat = store.register(seedBoard, { lane: 'web', path: worktrees[index], route: 'light', createdBy: 'coordinator' });
+      const seat = store.register(seedBoard, { lane: 'web', path: worktrees[index], route: 'mid', createdBy: 'coordinator' });
       // The seed stands in for seats the coordinator enrolled through the relay, so they may verify (#579).
       seedBoard.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${seat}`, 'coordinator');
     }
@@ -724,7 +724,7 @@ async function threeReplicaFixture(t, timing) {
       store.addItem(seedBoard, {
         by: 'coordinator', lane: 'web', title: `Concurrent claim ${id}`,
         criterion: 'one clone claims this item once', specIds: ['G1'],
-        brief: 'Files: web/README.md\nTest: exactly one ordered claim event is recorded.', route: 'light', check: 'true',
+        brief: 'Files: web/README.md\nTest: exactly one ordered claim event is recorded.', route: 'mid', check: 'true',
       });
     }
     boardId = store.boardId(seedBoard);
@@ -1091,8 +1091,12 @@ async function recoverReplicaReplies(fixture, timing) {
     cli(worktrees[0], envs[0], 'status'));
   assert.equal(beforeLostSubmit.relay.linked, true);
   assert.deepEqual(beforeLostSubmit.relay.outbox ?? [], [], 'the armed submit reply loss cannot hit a queued setup move');
+  // Submit refuses an empty head (EMPTY_SUBMIT), so item 2 needs a commit before its submission can post.
+  writeFileSync(join(worktrees[0], 'web', 'lost-submit.txt'), 'the work whose submission reply is lost\n');
+  gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
+  gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
   relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
-  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2'));
+  const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
   assert.equal(lostSubmit.status, 1);
   assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE');
@@ -1113,7 +1117,7 @@ async function recoverReplicaReplies(fixture, timing) {
   assert.notEqual(gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD'), originalCommit);
   writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
   const afterSubmitRecoverySetup = relay.uploads.length;
-  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2'));
+  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
     const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
       boardId, kind: 'move', sequence: upload.sequence,
@@ -1145,21 +1149,21 @@ async function recoverReplicaReplies(fixture, timing) {
 
   mergeCandidateForReview(worktrees[1], envs[1], worktrees[0], originalCommit, gitAt);
   relay.dropNextReply({ offline: true, operation: 'verify', item: 2, key, boardId });
-  const lostVerify = await timing.wait('verify item 2 with its acknowledgement dropped', () => cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement'));
+  const lostVerify = await timing.wait('verify item 2 with its acknowledgement dropped', () => cliResult(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement', '--no-next'));
   assert.equal(lostVerify.status, 1);
   assert.equal(lostVerify.document.error.code, 'RELAY_UNAVAILABLE');
   assertDroppedReplyConsumed(relay, 'the lost item-2 verification reply');
   relay.failReads(false);
   await timing.wait('sync clone B after the lost verdict acknowledgement', () => cli(clones[1], envs[1], 'status'));
   const beforeVerifyRetry = relay.uploads.length;
-  const retriedVerify = await timing.wait('retry the already-accepted verdict', () => cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement'));
+  const retriedVerify = await timing.wait('retry the already-accepted verdict', () => cli(worktrees[1], envs[1], 'verify', '2', 'accept', '--note', 'Lost verdict acknowledgement', '--no-next'));
   assert.equal(retriedVerify.decision, 'ACCEPT');
-  assert.equal(relay.uploads.length, beforeVerifyRetry, 'verified-state preconditions also preserve the original outcome');
+  assert.deepEqual((await Promise.all(relay.uploads.slice(beforeVerifyRetry).map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence }))).operation))).filter(operation => operation === 'verify'), [], 'verified-state preconditions also preserve the original outcome, never a second verify');
 
   const lostEditBrief = join(clones[0], 'lost-edit-brief.md');
   writeFileSync(lostEditBrief, 'Files: web/README.md\nTest: the original edit is recovered once.\n');
   const beforeEdit = relay.uploads.length;
-  relay.dropNextReply({ offline: true });
+  relay.dropNextReply({ offline: true, operation: 'editItem', item: 1, key, boardId });
   const lostEdit = await timing.wait('edit item 1 with its relay reply dropped', () => cliResult(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief));
   assertDroppedReplyConsumed(relay, 'the lost item-1 edit reply');
   assert.equal(lostEdit.document.error.code, 'RELAY_UNAVAILABLE');
@@ -1168,7 +1172,7 @@ async function recoverReplicaReplies(fixture, timing) {
   rmSync(lostEditBrief);
   const editRetry = await timing.wait('retry the original edit after its brief file is removed', () => cli(clones[0], envs[0], 'edit', '1', '--brief-file', lostEditBrief));
   assert.equal(editRetry.item.item_brief, 'Files: web/README.md\nTest: the original edit is recovered once.');
-  assert.equal(relay.uploads.length, beforeEdit + 1, 'edit retries recover the original receipt after its brief disappears');
+  assert.deepEqual((await Promise.all(relay.uploads.slice(beforeEdit).map(async (upload) => JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(upload.sealed, 'base64url'), { boardId, kind: 'move', sequence: upload.sequence }))).operation))).filter(operation => operation === 'editItem'), ['editItem'], 'edit retries recover the original receipt after its brief disappears, never a second edit');
 
   const lostRef = 'lost-merge-reference';
   gitAt(clones[0], envs[0], 'merge', '--ff-only', originalCommit);
@@ -1178,14 +1182,14 @@ async function recoverReplicaReplies(fixture, timing) {
   const beforeMerge = relay.uploads.length;
   relay.dropNextReply({ offline: true, operation: 'merged', item: 2, key, boardId });
   const lostMerge = await timing.wait('merge the lost reference with its reply dropped', () => cliResult(clones[0], envs[0], 'merged', '2', lostRef));
-  assertDroppedReplyConsumed(relay, 'the lost merge reply');
+  assertDroppedReplyConsumed(relay, `the lost merge reply (merged exited ${lostMerge.status}; stdout ${JSON.stringify(lostMerge.document)}; stderr ${lostMerge.stderr})`);
   assert.equal(lostMerge.document.error.code, 'RELAY_UNAVAILABLE');
   relay.failReads(false);
   await timing.wait('sync clone A before retrying the merge', () => cli(clones[0], envs[0], 'status'));
   gitAt(clones[0], envs[0], 'tag', '-d', lostRef);
   const mergeRetry = await timing.wait('retry the original merge after its tag is removed', () => cli(clones[0], envs[0], 'merged', '2', lostRef));
   assert.equal(mergeRetry.commit, originalCommit);
-  assert.equal(relay.uploads.length, beforeMerge + 1, 'merge retries report the original full commit after its ref disappears');
+  assert.deepEqual((await relayUploadSummary(relay.uploads.slice(beforeMerge), key, boardId)).map(({ operation }) => operation).filter(operation => operation === 'merged'), ['merged'], 'merge retries report the original full commit after its ref disappears, never a second merge');
 
   // One main checkout coordinates at a time (E19, #347): clone C takes the coordinator before it adds.
   await timing.wait('pass the coordinator to clone C', () => cli(clones[2], envs[2], 'takeover'));
@@ -1194,7 +1198,7 @@ async function recoverReplicaReplies(fixture, timing) {
   const automatic = await timing.wait('recover a dropped reply automatically on clone C', () => cli(clones[2], envs[2], 'add', 'web', 'Automatically recovered reply'));
   assertDroppedReplyConsumed(relay, 'the automatically recovered add reply');
   assert.equal(automatic.item.item_title, 'Automatically recovered reply');
-  assert.equal(relay.uploads.length, beforeAutomatic + 1, 'automatic recovery keeps one ordered move');
+  assert.deepEqual((await relayUploadSummary(relay.uploads.slice(beforeAutomatic), key, boardId)).map(({ operation }) => operation).filter(operation => operation === 'addItem'), ['addItem'], 'automatic recovery keeps one ordered add move');
   assert.equal(JSON.parse(readFileSync(join(commonDir(clones[2], envs[2]), 'pullboard', 'relay.json'), 'utf8')).recovered,
     undefined, 'automatic success consumes its recovered outcome');
   await timing.wait('pass the coordinator back to clone A', () => cli(clones[0], envs[0], 'takeover'));
@@ -1205,9 +1209,9 @@ async function recoverReplicaReplies(fixture, timing) {
   // replica is behind. A third, receipt-missing recovered descriptor still takes the fresh guard.
   const stackBrief = join(scratch, 'recovered-stack-brief.md');
   writeFileSync(stackBrief, 'Files: web/\nTest: only an exact durable receipt bypasses the fresh stack guard.\n');
-  const stackedA = (await timing.wait('add the first recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack A', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
-  const stackedB = (await timing.wait('add the second recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack B', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
-  const freshB = (await timing.wait('add the receipt-missing recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Receipt-missing recovered stack', '--route', 'light', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
+  const stackedA = (await timing.wait('add the first recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack A', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
+  const stackedB = (await timing.wait('add the second recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Relay recovered stack B', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
+  const freshB = (await timing.wait('add the receipt-missing recovered-stack item', () => cli(clones[0], envs[0], 'add', 'web', 'Receipt-missing recovered stack', '--route', 'mid', '--brief-file', stackBrief, '--specs', 'G1', '--criterion', 'exact durable receipt preserves recovery and missing receipts enforce stacking', '--check', 'true'))).item.item_id;
   await timing.wait('claim recovered-stack item B on worktree A', () => cli(worktrees[0], envs[0], 'claim', String(stackedB)));
   await timing.wait('claim recovered-stack item A on worktree B', () => cli(worktrees[1], envs[1], 'claim', String(stackedA)));
   await timing.wait('claim receipt-missing stack item on worktree C', () => cli(worktrees[2], envs[2], 'claim', String(freshB)));
@@ -1255,7 +1259,7 @@ async function recoverReplicaReplies(fixture, timing) {
     bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery, beforeOutcomeRetry },
     key, boardId, replicaFiles, stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome,
   });
-  const originalOutcome = await timing.wait('read the durable original submission outcome for B', () => cli(worktrees[0], envs[0], 'submit', String(stackedB)));
+  const originalOutcome = await timing.wait('read the durable original submission outcome for B', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
   assert.equal(originalOutcome.commit, recoveredStackCommit);
   assert.match(originalOutcome.gate.report, /recovered the original submission/u);
   await assertOriginalOutcomeDelivery(relay.uploads.slice(beforeOutcomeRetry), key, boardId, stackOwnerB);
@@ -1343,7 +1347,7 @@ async function finalReplicaOrder(fixture, timing) {
   }
 }
 
-test('[H3,H16,V1,V17] three cloned linked replicas order competing claims', { timeout: 240_000 }, async (t) => { // 20 paired rounds (60 CLI spawns), six sync/registration spawns and three local API calls took 170s under load; setup fits the remaining ceiling.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims', { timeout: 240_000 }, async (t) => { // 20 paired rounds (60 CLI spawns), six sync/registration spawns and three local API calls took 170s under load; setup fits the remaining ceiling.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
@@ -1352,7 +1356,7 @@ test('[H3,H16,V1,V17] three cloned linked replicas order competing claims', { ti
   });
 });
 
-test('[H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 200_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas recover lost replies once', { timeout: 200_000 }, async (t) => { // 45 recovery/final-order CLI spawns at the captured ~4s per recovery wait, plus 20s for fixture setup; excludes the preceding 170s claims.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
@@ -1439,7 +1443,7 @@ test('relay read recovery stays bounded and preserves refusals, invalid bodies a
 });
 
 
-test('an accepted legacy approval baseline keeps its exact source through resume [H16,S1]', { timeout: 60_000 }, async t => { // budget: one lost setup reply and one real resume, bounded fixture cleanup.
+test('clause 2: an accepted legacy approval baseline keeps its exact source through resume [H16,S1]', { timeout: 60_000 }, async t => { // budget: one lost setup reply and one real resume, bounded fixture cleanup.
   const timing = threeReplicaPhaseCapture(t);
   await timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);

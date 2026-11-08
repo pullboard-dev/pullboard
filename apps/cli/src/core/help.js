@@ -1,6 +1,8 @@
 /** Help declarations and command phrases stay independent of CLI/server initialization [N26]. */
 import { VERSION } from '../../../../packages/config/index.js';
 import { ALL_HELP } from './help/sections.js';
+import { WHY_EXPLANATION } from './why-flag.js';
+import { WHY_FLAG } from './why-flag.js';
 export { VERSION };
 
 
@@ -115,6 +117,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--implies': 'each named item gets a fact citing this decision',
   '--landing': 'prioritizes a trunk landing in the machine gate queue',
   '--json': 'prints one versioned document',
+  '--why': WHY_EXPLANATION,
   '--note': 'what was checked stays with the receipt',
   '--note-file': 'keeps quotes, $ and backticks intact',
   '--private': 'keeps an added item in this device-local repo board, or selects that board for move IDs',
@@ -172,11 +175,11 @@ function commandHelpRows(fullHelp, commandNames) {
       return !next || next.startsWith('--') || next.startsWith('<') || next.startsWith('[') || next === '|';
     });
     const usages = alias && !alias.every ? [alias.usage] : matches.length ? [...new Set(matches.map((row) => `pullboard ${row.usage}`))] : [`pullboard ${name}`];
-    const foundFlags = [...matches.flatMap((row) => row.details.flatMap((line) => line.match(/--[a-z][a-z-]*(?:\s+(?:<[^>]+>|"[^"]*"|\[(?!-)[^\]]+\]|[A-Za-z][A-Za-z0-9|_-]*))?/gu) ?? [])), ...(alias?.extraFlags ?? []), '--json', '--help', ...(name === 'help' ? ['--all'] : [])];
+    const foundFlags = [...matches.flatMap((row) => row.details.flatMap((line) => line.match(/--[a-z][a-z-]*(?:\s+(?:<[^>]+>|"[^"]*"|\[(?!-)[^\]]+\]|[A-Za-z][A-Za-z0-9|_-]*))?/gu) ?? [])), ...(alias?.extraFlags ?? []), '--json', '--help', WHY_FLAG, ...(name === 'help' ? ['--all'] : [])];
     const flagMap = new Map();
     for (const flag of foundFlags) {
       const key = flag.split(/\s/u, 1)[0];
-      if (alias?.onlyFlags && !alias.onlyFlags.includes(key) && !['--json', '--help'].includes(key)) continue;
+      if (alias?.onlyFlags && !alias.onlyFlags.includes(key) && !['--json', '--help', '--why'].includes(key)) continue;
       if (!flagMap.has(key) || flagMap.get(key).length < flag.length) flagMap.set(key, flag);
     }
     const flags = [...flagMap.values()].map((flag) => {
@@ -208,7 +211,7 @@ export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.s
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
+    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
     example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
   })]));
 }

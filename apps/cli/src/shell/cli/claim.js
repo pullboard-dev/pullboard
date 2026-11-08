@@ -19,6 +19,7 @@ import { requestedCommandMove } from '../../../../../packages/state/index.js';
 import { barReadinessRequired } from '../../../../../packages/verify/index.js';
 import { barReadiness } from '../../../../../packages/verify/index.js';
 import { barCoverageCommand } from '../../../../../packages/verify/index.js';
+import { machineVerification } from '../../../../../packages/verify/index.js';
 import { barCoverageForPolicy } from '../../../../../packages/verify/index.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../../packages/config/index.js';
@@ -75,6 +76,7 @@ import { SEAT_LIVE_WINDOW_MS } from '../../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
 import { contains } from '../../../../../packages/git/index.js';
 import { isDeepStrictEqual } from 'node:util';
+import { sessionRoute } from '../model-tier-route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
@@ -108,6 +110,8 @@ const LAPSE_MAINTENANCE = new WeakSet();
 async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
     || operation === 'release' && args[3]?.staleClaim) return;
+  // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
+  if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
@@ -282,14 +286,24 @@ export async function claimOrdered(ctx, board, args) {
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
   const exitRules = accepted.exitRules;
-  const estimate = store.getItem(board, args[0]).item_expected_build_minutes;
+  const held = store.getItem(board, args[0]);
+  if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const refusal = (await import('../exit-rules-runtime.js')).contextCeilingRefusal(exitRules);
+    if (refusal) throw refusal;
+  }
+  const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
+  // The claiming session's declared model caps its seat's route, so a Haiku in a strong seat cannot claim strong work (#3678).
+  const seat = store.agentById(board, args[1].agentId);
+  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
+  const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: item => ({
       ...freezer(ctx, { captureVerifyPolicy: true, board })(item), policyRefreeze,
     }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
+    ...(routeCap ? { routeCap } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;
@@ -349,7 +363,8 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
     if (!policy) return frozen; // Legacy criteria retain their original digest and committed claim base.
     const signed = board && barReadinessRequired(board, item) ? barReadiness(board, item, {}, { itemCheckBaseline }).signed : null;
     const coverage = signed?.coverage ? barCoverageForPolicy(ctx.info.root, item, signed.coverage, { commit: policy.commit, config }) : null;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
+    const machine = board ? machineVerification(board, item) : null;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), policy });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }

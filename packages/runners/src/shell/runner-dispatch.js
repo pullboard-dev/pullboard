@@ -3,7 +3,7 @@ import { committedRunnerController } from './committed-tooling.js';
 /** How often a waiting controller re-reads its runner's lease before the job is READY. */
 const LEASE_WATCH_MS = 5_000;
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
-import { RunnerDropped } from '../../../gate/index.js';
+import { RunnerDropped } from '../../../gate/src/core/gate-policy-load.js';
 import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
@@ -220,6 +220,22 @@ export async function serveRunnerController(ports) {
   } finally { stopWatching(); custody.close(); }
 }
 
+/**
+ * The refusal of a job whose runner went unavailable while it waited for READY. Its diagnostic's reason is
+ * runner-unavailable: the gate requeues it as cleanup-unverified, and recordRunnerFailure keeps the runner's existing
+ * quarantine instead of writing a second one, so one drop is one quarantine (#3698) [C7].
+ *
+ * @param {{ runner: { host: string }, spec: { id: string } }} request
+ * @param {{ host: string, reason: string }} unavailable - The runner's lease observation.
+ * @returns {Refused}
+ */
+export function runnerUnavailableRefusal(request, unavailable) {
+  const error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
+  error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
+    unavailable, remoteCleanup: 'unknown' };
+  return error;
+}
+
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
@@ -253,9 +269,7 @@ async function runInController(root, command, options, ports) {
         try {
           const unavailable = deadline.unavailable();
           if (unavailable?.host === request.runner.host) {
-            error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
-            error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
-              unavailable, remoteCleanup: 'unknown' };
+            error = runnerUnavailableRefusal(request, unavailable);
             transport.stop();
           }
         } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }

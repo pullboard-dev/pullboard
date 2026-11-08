@@ -2,9 +2,12 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 import { retryableLandingBatch } from '../core/automatic-landing-retry.js';
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
+import { replayDeferredNotices } from './deferred-notices.js';
+import { cadenceApplies } from '../core/landing-cadence.js';
 import { cadenceDeferral } from '../core/landing-cadence.js';
 import { requireOutsideOwner } from '../../../items/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
+import { warnMainMoved } from '../../../merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -21,18 +24,20 @@ import { repoInfo } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
 import { takeLandingResource } from './landing-resource.js';
 import { requireConfirmedLanding } from '../../../../src/board-landing-lease.js';
-import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { checkLandingMessages } from '../core/landing-message.js';
 import { heldBatchEntries } from '../core/runner-source-hold.js';
 import { refusalRecord } from '../core/runner-source-hold.js';
+import { repeatedLandingHold } from '../core/runner-source-hold.js';
+import { repeatedLandingHoldCleared } from '../core/runner-source-hold.js';
 import { landingContext } from '../core/landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../../../sandbox/index.js';
 import { staleVerdictRefusal } from '../../../verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { relandAcceptedItems } from './accepted-reland.js';
+import { closePassedTestDefects } from './landing-step-selection.js';
 import { landingMaximum } from './landing-step-selection.js';
 import { singleItemLanding } from './landing-step-selection.js';
 import { oneItemBatch } from './landing-step-selection.js';
@@ -55,6 +60,8 @@ import { returnMergeConflicts } from './landing-step-diagnose.js';
 import { returnCulprit } from './landing-step-diagnose.js';
 import { namedFailures } from './landing-step-diagnose.js';
 import { returnRefusedItem } from './landing-step-diagnose.js';
+import { parkRepeatedItem } from './landing-step-diagnose.js';
+import { compareMainFailures } from './main-red.js';
 import { landingFault } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
@@ -64,6 +71,7 @@ import { publish } from './landing-step-publish.js';
 import { landsOnTrunk } from './landing-step-publish.js';
 import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
+import { flakeRatchetBeforeGate } from './landing-step-trunk.js';
 import { finishTrunk } from './landing-step-publish.js';
 import { timedPhase } from './landing-phase-timing.js';
 
@@ -76,9 +84,11 @@ function requireParallelGateAdmission(root, config) {
 
 /**
  * Refuse a merged tree that adds an unplaced bin/ or src/ path before main moves, with the same placement check submit
- * runs; false when it returned the adding items to their builders with the path [C7,#3210].
+ * runs; false when it returned the adding items to their builders with the path [C7,#3210]. A repository with no
+ * bin/cells-plan.json on base or in the merge has no placement rules to enforce, so the check passes there.
  */
 export async function placedMerge(state, items) {
+  if (!existsSync(join(state.root, 'bin/cells-plan.json')) || !existsSync(join(state.batch.root, 'bin/cells-plan.json'))) return true;
   const { unplanned, readPlan } = await import('../../../../bin/cells-plan.js');
   const { addedPlacementProblems } = await import('../../../../bin/cells-plan-cuts.js');
   const problems = addedPlacementProblems(state.root, state.batch.root, { unplanned, readPlan });
@@ -126,15 +136,21 @@ export async function land(options) {
   const trunk = mainCheckout(options.root);
   const branch = trunk?.branch;
   if (!branch) throw new Refused('LAND_TRUNK', 'landing needs the coordinator’s primary branch; return its checkout to the trunk');
+  if (trunk.commit && !options.dryRun && !options.adopt) {
+    await releaseClearedRepeatHolds(options.root, options.board, trunk, options.write, options.onWait);
+  }
+  let publishHold = null;
   if (trunk.commit) {
     const policy = policyAt(options.root, trunk.commit).config;
     requireParallelGateAdmission(options.root, policy);
-    requirePublishGreen(options.root, options.board, policy, options.landingPorts);
+    publishHold = requirePublishGreen(options.root, options.board, policy, options.landingPorts, { perItem: true });
   }
+  // A defect whose cases passed at this trunk closes for good, before any later landing moves the tip past that run (#3694).
+  if (trunk.commit) await closePassedTestDefects({ root: options.root, board: options.board, trunk, write: options.write, say: options.say });
   if (trunk.commit && !options.adopt) await relandAcceptedItems({ ...options, base: trunk.commit });
   if (trunk.commit && !options.adopt) {
     requireConfirmedLanding(options.board);
-    if (!options.due || idleLanding(options.board, trunk.commit)) {
+    if (cadenceApplies(options) && (!options.due || idleLanding(options.board, trunk.commit))) {
       const deferred = cadenceDeferral(options.board, policyAt(options.root, trunk.commit).config, branch, options.say, options.due);
       if (deferred) return deferred;
     }
@@ -144,9 +160,10 @@ export async function land(options) {
     // Only accepted trunk policy may inform this read-only preflight.
     const config = policyAt(options.root, trunk.commit).config;
     options.board.quarantineEnabled = () => config.flakes?.quarantine === true;
-    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [] });
+    const selected = candidates(options.board, options.root, trunk.commit, landingMaximum(options.board, config, options.maximum, options.automatic === true), { firstReady: true, landingPorts: options.landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
     invalidateGitFacts();
     const current = mainCheckout(options.root);
+    if (publishHold && !selected.ready.length) throw publishHold.refusal;
     if (!selected.ready.length && current?.commit === trunk.commit && current.branch === branch
       && idleLanding(options.board, trunk.commit)) {
       requireConfirmedLanding(options.board);
@@ -181,17 +198,18 @@ export async function land(options) {
     const batchOptions = { root: options.root, config: options.config, owner: options.owner, maximum: Number.isFinite(options.maximum) ? options.maximum : null,
       adopt: options.adopt, automatic: options.automatic === true, due: options.due, fence: lease.fence };
     if (batchOptions.maximum === null) delete batchOptions.maximum;
-    return await runLandingWorker(batchOptions, { write, checkLease, checkLeaseNow: lease.assertCurrent,
-      bindWorker: lease.bindWorker, watchDeadline: lease.watchDeadline, onWait: options.onWait, say: options.say, signal: controller.signal,
-      workerFile: options.landingWorkerFile, parseProcessCensus: options.landingPorts.parseProcessCensus,
-      onStall: async ({ batch, description }) => {
-        const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
-        if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
-        const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
-          refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
-        options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
-        return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true };
-      } });
+    /** A batch with no progress for the stall limit is recorded blocked; its items stay verified for the next batch. */
+    const onStall = async ({ batch, description }) => {
+      const current = store.landingBatches(options.board).findLast(row => row.id === batch.id);
+      if (!current) throw new Refused('LAND_STALLED', `${description}; its batch record is missing, inspect pullboard resume`);
+      const blocked = await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...current, state: 'blocked',
+        refusal: { code: 'LAND_STALLED', message: description, at: options.board.clock.now().toISOString() } }, revision: current.revision ?? 0 }]);
+      options.say(`landing stopped: ${description}; items remain verified and the next batch can start`);
+      return { batch: blocked, landed: [], conflicts: [], blocked: blocked.blocked ?? [], culprits: [], flakes: [], stalled: true, stallDescription: description };
+    };
+    // The batch runs in this process through the drive cell's runner; there is no spawned landing worker [C7].
+    if (typeof options.runBatch !== 'function') throw new Refused('LAND_RUNNER', 'landing needs its in-process batch runner: pass { runBatch: inProcessLandingBatch(...) }');
+    return await options.runBatch(batchOptions, { board: options.board, landingPorts: options.landingPorts, write, checkLease, checkLeaseNow: lease.assertCurrent, onWait: options.onWait, onStall, say: options.say, signal: controller.signal });
   } catch (error) { failed = true; throw error; }
   finally {
     try { await lease.release(); }
@@ -273,6 +291,10 @@ async function recordRefusal(state, error) {
   const held = record.refusal.code === 'RUNNER_SOURCE' ? heldBatchEntries(batches, next, id => store.getItem(state.board, id)) : [];
   await save(state, { ...record, ...(held.length ? { state: 'blocked', blocked: [...(state.batch.blocked ?? []), ...held] } : {}) });
   for (const entry of held) state.say(`${entry.code} #${entry.id}: ${entry.message}`);
+  for (const entry of state.batch.items ?? state.batch.candidates ?? []) {
+    const item = store.getItem(state.board, entry.id);
+    if (item) await parkRepeatedItem(state, { id: entry.id, item_commit: entry.commit, commit: entry.commit });
+  }
 }
 
 /**
@@ -305,7 +327,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
-  if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
+  const publishHold = !dryRun && trunk?.commit ? requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts, { perItem: true }) : null;
   const batches = store.landingBatches(board);
   let unfinished = batches.findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
   if (!unfinished && automatic) unfinished = batches.findLast(batch => retryableLandingBatch(batch, trunk?.commit));
@@ -325,14 +347,17 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   config ??= policyAt(root, trunk.commit).config;
   if (!dryRun) requireParallelGateAdmission(root, config);
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
+  // A main-moved notice that failed on an earlier wake is retried first, so a seat is not left without its stale-verdict notice (#3367).
+  if (!dryRun) await replayDeferredNotices({ root, say }, trunkCommit => warnMainMoved({ root, board, trunk: trunkCommit, write, say }, { listAgents: store.listAgents, listItems: store.listItems }));
   const environment = dryRun ? null : requireLandingHost(store.boardId(board), config);
   const testDefects = heldTestDefects(root, board, trunk, landingPorts);
   if (!dryRun && testDefects.length) throw new Refused('LAND_TEST_DEFECT', `this trunk is held by ${testDefects.map(defect => `#${defect.item} (${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`);
-  if ((!dryRun || due) && !adopt && !unfinished) {
+  if ((!dryRun || due) && !adopt && !unfinished && cadenceApplies({ automatic, due })) {
     const deferred = cadenceDeferral(board, config, trunk.branch, say, due);
     if (deferred) return deferred;
   }
-  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [] });
+  if (!dryRun && !adopt) await releaseClearedRepeatHolds(root, board, trunk, write, onWait);
+  const selected = candidates(board, root, trunk.commit, landingMaximum(board, config, maximum, automatic), { landingPorts, first: config.landing?.first ?? [], redFiles: publishHold?.files ?? [] });
   if (!dryRun) for (const item of selected.ready) requireOutsideOwner(board, item);
   checkLandingMessages(selected.ready, landingContext(root, trunk.commit, config, (item) => item.item_landing_commit));
   // A verdict gone stale under a main change returns to its lane at once, so next offers it to any builder. Why: on
@@ -340,6 +365,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   if (!dryRun) await returnStaleVerdicts(board, selected, write, say);
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (!selected.ready.length && stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
+  if (publishHold && !selected.ready.length) throw publishHold.refusal;
   if (dryRun) {
     if (selected.ready.length && !landsOnTrunk(config)) requirePushTarget(root, trunk.branch);
     const conflicts = [];
@@ -403,6 +429,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);
     else {
+      await flakeRatchetBeforeGate(state);
       const initialItems = (state.batch.candidates ?? state.batch.items)
         .filter((entry) => !state.culprits.some((culprit) => culprit.id === entry.id && culprit.commit === entry.commit));
       if (!existsSync(state.batch.root)) throw new Refused('LAND_WORKTREE', `the recorded landing worktree is missing at ${state.batch.root}; restore it before adopting`);
@@ -484,3 +511,24 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     conflicts: state.batch.conflicts ?? [], blocked: state.batch.blocked ?? [], culprits: state.culprits, flakes: state.batch.flakes ?? [] };
 }
 
+/** Lift only automatic repeat holds whose bound refusal context changed or exact case now passes on main. */
+async function releaseClearedRepeatHolds(root, board, trunk, write, onWait) {
+  for (const item of store.listItems(board, { all: true })) {
+    if (!item.item_hold_at || item.item_hold_by !== 'coordinator') continue;
+    const hold = repeatedLandingHold(item.item_hold_reason);
+    if (!hold) continue;
+    let comparison = null;
+    if (hold.kind === 'case') {
+      const [file] = hold.key.split('::');
+      if (!file) continue;
+      try {
+        comparison = await compareMainFailures(root, { tests: [{ file, passed: false }] }, onWait, '',
+          { commit: trunk.commit, detailed: true });
+      } catch { comparison = null; }
+    }
+    /** The refusal's own condition, read from the worktree the refusal named; a vanished worktree is no longer dirty. */
+    const facts = hold.kind === 'refusal' && hold.root
+      ? { worktreeDirty: existsSync(hold.root) && (!isClean(hold.root) || untracked(hold.root).length > 0) } : null;
+    if (repeatedLandingHoldCleared(hold, item, trunk.commit, comparison, facts)) await write('releaseItemHold', [item.item_id, { agentId: 'coordinator' }]);
+  }
+}

@@ -11,10 +11,12 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
     const evidence = row.evidence;
     if (!evidence) return [];
     const fields = [['Repeated cause', evidence.key], ['Cited items', (evidence.items ?? []).map(item => '#'+item.id).join(', ') || 'None recorded']];
+    // A full hash stays whole for the copy button, which shows its first 12; any other recorded commit is cut to 12 as before #1602.
+    const shown = commit => /^[a-f0-9]{40,64}$/u.test(commit ?? '') ? commit : String(commit ?? 'Unavailable').slice(0, 12);
     if (evidence.proof) fields.push(['Proof command', evidence.proof.check, true],
-      ['Red proof', String(evidence.proof.red?.commit ?? 'Unavailable')+' · exit '+evidence.proof.red?.exit, true,
+      ['Red proof', shown(evidence.proof.red?.commit)+' · exit '+evidence.proof.red?.exit, true,
         { title: evidence.proof.red?.commit, copy: evidence.proof.red?.commit }],
-      ['Green proof', String(evidence.proof.green?.commit ?? 'Unavailable')+' · exit '+evidence.proof.green?.exit, true,
+      ['Green proof', shown(evidence.proof.green?.commit)+' · exit '+evidence.proof.green?.exit, true,
         { title: evidence.proof.green?.commit, copy: evidence.proof.green?.commit }]);
     return fields;
   };

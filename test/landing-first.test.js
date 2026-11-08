@@ -5,6 +5,8 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { json } from './land-board-fixture.js';
+import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureJoin } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -15,8 +17,8 @@ function item(box, number) {
   const file = `web/land-${number}.test.js`;
   const path = join(box.dir, `land-${number}`);
   box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web', '--model', 'Fixture Model').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`, '--route', 'strong',
+  assert.equal(fixtureJoin(box.run, path, 'web', '--model', 'Fixture Model').code, 0);
+  const added = fixtureAdd(box.run, box.repo, 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`, '--route', 'strong',
     '--check', `${box.affected} ${file}`, '--json');
   assert.equal(added.code, 0, added.out + added.err);
   const id = JSON.parse(added.out).item.item_id;

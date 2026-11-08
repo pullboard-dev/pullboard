@@ -13,6 +13,7 @@ import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
 import { criterionClauses } from '../packages/state/index.js';
 import { configFromSource } from '../packages/config/index.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -109,7 +110,7 @@ test('a free-text criterion is unaffected [V4,B3]', t => {
 test('a real CLI submit refuses an unticked clause and accepts once every clause is ticked [V4,B3]', () => {
   const box = e2e.project();
   const criterion = 'the page is right when:\n1. the heading renders [test]\n2. the footer shows the count [command]\n3. the page is clear at 375px [screenshot]';
-  const added = box.run(box.repo, 'add', 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
