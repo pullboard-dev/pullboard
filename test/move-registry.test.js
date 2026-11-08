@@ -287,6 +287,14 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
 installStaleStateRegistryCases();
 
 /** Exercise each live invariant without mutating the accepted source or a historical oracle. */
+/** Proves the named 145 pair passes while any other duplicate engine number still fails [C7,V4]. */
+test('clause 1: a new duplicate engine number outside the named historical exception still fails [C7,V4]', () => {
+  const base = { registry: {}, sources: [], nextSteps: {} };
+  assert.deepEqual(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }] }), [], 'the named pair is the one exception');
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }, { name: 'THIRD_ENGINE', number: 145 }] }).join(), /duplicate or invalid engine number 145/u);
+  assert.match(registryProblems({ ...base, leaves: [{ name: 'NEW_ENGINE', number: 146 }, { name: 'OTHER_NEW_ENGINE', number: 146 }] }).join(), /duplicate or invalid engine number 146/u);
+});
+
 test('registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
   const declaration = { operation: 'sample', engine: 1, itemIdFirstArgument: true, nextSteps: { SAMPLE: 'repair the sample' } };
   const input = { registry: { sample: declaration }, leaves: [{ name: 'SAMPLE_ENGINE', number: 1 }],
