@@ -13,22 +13,59 @@ const NO_SLOT = new Set(['RUNNER_UNAVAILABLE', 'RUNNER_WAIT_DEADLINE', 'RUNNER_I
 /**
  * Count the runner slots free on this machine's pool right now: every runner's capacity, less the slots held and
  * the gates already waiting. Why waiters count: a free slot an earlier gate is about to take is not this gate's.
- * Any unreadable pool counts as none, so the proof runs as one command as before.
+ * A browser gate counts only slots whose runner also has a free browser slot, and only browser waiters: #3586's gate
+ * planned its shards from 66 free gate slots, took every browser slot itself, and its later shards then waited on
+ * the browser leases its own earlier shards held (7 Nov) [C7]. Any unreadable pool counts as none, so the proof
+ * runs as one command as before.
  *
  * @param {string} [file] - The machine resource pool.
+ * @param {{ browser?: boolean, gui?: boolean, runners?: Array<{host:string,slots:number,browser:number,gui?:boolean}>|null }} [needs]
+ *   - What each shard asks for and the registered runners; a browser gate without its runner list counts no free slot.
  * @returns {number}
  */
-export function freeRunnerSlots(file = join(machineHome(), 'resources.sqlite')) {
+export function freeRunnerSlots(file = join(machineHome(), 'resources.sqlite'), { browser = false, gui = false, runners = null } = {}) {
   if (!existsSync(file)) return 0;
+  if (browser && !Array.isArray(runners)) return 0;
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });
     db.exec('PRAGMA busy_timeout = 10000');
+    if (browser) return freeBrowserSlots(db, runners, gui);
     const capacity = db.prepare("SELECT COALESCE(SUM(capacity), 0) AS n FROM resource WHERE name GLOB 'runner:*'").get().n;
     const held = db.prepare("SELECT COUNT(*) AS n FROM holder WHERE name GLOB 'runner:*'").get().n;
     const waiting = db.prepare("SELECT COUNT(*) AS n FROM waiter WHERE name = 'gate' OR name GLOB 'runner:*'").get().n;
     return Math.max(0, Number(capacity) - Number(held) - Number(waiting));
   } catch { return 0; } finally { db?.close(); }
+}
+
+/**
+ * Sum, over runners that can take a browser shard, the slots free for both the gate and its browser, less the browser
+ * gates already waiting. Why the smaller of the two: a runner with gate slots free but every browser slot held
+ * cannot start a browser shard, so counting it plans a shard that only waits.
+ */
+function freeBrowserSlots(db, runners, gui) {
+  let free = 0;
+  for (const runner of runners) {
+    if (!(runner.browser >= 1) || gui && runner.gui === false) continue;
+    const held = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(browser = 1), 0) AS browsers FROM holder WHERE name = ?').get(`runner:${runner.host}`);
+    free += Math.max(0, Math.min(runner.slots - Number(held.n), runner.browser - Number(held.browsers)));
+  }
+  const waiting = db.prepare("SELECT COUNT(*) AS n FROM waiter WHERE name = 'gate' AND browser = 1").get().n;
+  return Math.max(0, free - Number(waiting));
+}
+
+/**
+ * The admission options for one shard beyond the gate's first: runner-only, no wait callback, and its own admission
+ * deadline. Why its own deadline: the shard inherited the submit's captured runnerDeadlineAt (30 min on the MacBook),
+ * so a shard with no slot waited out the whole submit budget instead of SHARD_ADMIT_MS, while the gate's own shards
+ * held the browser slots it waited for (#3586, 7 Nov). Ending in RUNNER_WAIT_DEADLINE sends it to the gate's lane.
+ *
+ * @param {object} slotOptions - The gate's own withGateSlot options.
+ * @param {{ now?: number, admitMs?: number }} [clock]
+ * @returns {object}
+ */
+export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHARD_ADMIT_MS } = {}) {
+  return { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: admitMs, runnerDeadlineAt: now + admitMs };
 }
 
 /**

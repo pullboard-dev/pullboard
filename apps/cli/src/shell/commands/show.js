@@ -57,6 +57,7 @@ import { relayStateExists } from '../../../../../packages/store/index.js';
 import { itemCost } from '../../../../../packages/stats/index.js';
 import { publicUsage } from '../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { itemFolderPath } from '../item-folder.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -117,7 +118,11 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
-    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
+    // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
+    const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
+    io.say(seatPath
+      ? `you hold #${item.item_id}; build and commit in its item folder ${itemFolderPath(seatPath, item.item_id)}, then run pullboard submit ${item.item_id} there`
+      : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
