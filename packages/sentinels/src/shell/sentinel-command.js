@@ -1,4 +1,5 @@
 import { wakeReviewCapacity } from './review-capacity-wake.js';
+import { shoutConflictedReviews } from "../../../health/index.js";
 import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
@@ -79,7 +80,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
         catch (error) { if (!(error instanceof Refused) || error.code !== 'HEALTH_SCAN_STALE') throw error; }
       }
     }
-    if (enabled && me.id === 'coordinator' && ctx.info.isMain) await wakeReviewCapacity(ctx, board, ordered);
+    if (enabled && me.id === 'coordinator' && ctx.info.isMain) { await wakeReviewCapacity(ctx, board, ordered); await shoutConflictedReviews(ctx, board, ordered); }
     const health = recordedHealthFindings(board);
     if (healthOnly || !enabled || !dueSentinels(board).length) {
       ctx.io.result?.({ sentinels: [], health });

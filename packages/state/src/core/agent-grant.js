@@ -20,6 +20,19 @@ function target(move, registry) {
 }
 
 /**
+ * The item's newest hand-off record from its gate jobs' steps, as the drive and jobs cells record it (#3476).
+ * Why here: the grant check runs inside the state cell, which reads the job tables but never writes them.
+ */
+function queuedGateRecord(db, itemId) {
+  const tables = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('job','job_step')").get().n;
+  if (tables < 2) return null;
+  const row = db.prepare(`SELECT s.job_step_payload AS payload FROM job j JOIN job_step s ON s.job_step_job = j.job_id
+    WHERE j.job_kind = 'gate' AND j.job_item = ? AND json_extract(s.job_step_payload, '$.record') IS NOT NULL
+    ORDER BY s.job_step_id DESC LIMIT 1`).get(itemId);
+  try { return row ? JSON.parse(row.payload).record : null; } catch { return null; }
+}
+
+/**
  * Whether this move starts the queued gate job this seat queued for the item it still holds. Why: a gate can wait in the
  * handoff queue longer than the claim's lease; the job was admitted under the live claim, so its start is not a new item
  * change, and refusing it AGENT_GRANT_EXPIRED left the gate never run and returned red (#3129). Another seat's claim
@@ -28,8 +41,7 @@ function target(move, registry) {
 function startsQueuedSubmit(board, move, item, actor) {
   if (move.engine < QUEUED_START_GRANT_ENGINE || move.operation !== 'startSubmitHandoff' || move.args?.[1]?.hookProjection
     || item?.item_status !== 'claimed' || item.item_owner !== actor) return false;
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${item.item_id}`);
-  const job = row ? JSON.parse(row.meta_value) : null;
+  const job = queuedGateRecord(board.db, item.item_id);
   return job?.state === 'queued' && job.agentId === actor && job.id === move.args?.[1]?.job;
 }
 
@@ -91,6 +103,10 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
     throw new Refused('AGENT_GRANT_EXPIRED', `${actor} has no live item claim; claim work before changing an item`,
       'claim the intended item, or shout the coordinator if its claim is unavailable');
   }
+  // The split step: a lane seat files the coordinator piece of a cross-ownership item --after its own live claimed
+  // item, and nothing else into the coordinator lane; every other add there still refuses AGENT_GRANT_LANE [C7,#3278].
+  if (move.operation === 'addItem' && scope.lane === 'coordinator'
+    && live.some(claim => [].concat(move.args?.[0]?.after ?? []).map(String).includes(String(claim.item_id)))) return;
   if ((claims.length && !own) || (live.length && scope.creating)) {
     throw new Refused('AGENT_GRANT_ITEM', `${actor} may change only its live claimed item${live.length === 1 ? ` #${live[0].item_id}` : 's'}`,
       'finish or release the claim, then claim the intended item; use shout for coordination');

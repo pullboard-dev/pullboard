@@ -99,6 +99,9 @@ test('every current operation selects its native actor credential without a seco
       baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
     }];
     if (['recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'finishLandingBatch'].includes(operation)) args = [options];
+    // Closing a trunk defect names its actor in its one argument, like recording one.
+    if (operation === 'closeLandingTestDefect') args = [{ agentId: actor, branch: 'main', test: 'test/credential-fixture.test.js',
+      item: 999999, commit: 'a'.repeat(40) }];
     if (operation === 'recordLandingWaiver') { args = [{ ...options, agentId: 'person', channel: 'terminal' }]; kind = 'person'; }
     if (operation === 'addMilestone') args = [{ agentId: actor, name: 'Credential fixture', items: [] }];
     if (['holdLane', 'releaseLane'].includes(operation)) args = [box.lane, options];
@@ -111,6 +114,8 @@ test('every current operation selects its native actor credential without a seco
     // A queue without an immutable captured job is refused by the genuine origin sealer before transport.
     if (operation === 'queueSubmitHandoff') return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
+    // An owner wait seals its proved source natively, so a missing item stops at that preparation before transport.
+    if (operation === 'deferOwnership') return { operation, args, kind, sent: false, expected: 'NO_ITEM' };
     // The earlier claim case now owns this row; a non-HEAD source must stop at native origin sealing.
     if (operation === 'followItemPatches') return { operation, args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
       kind, sent: false, expected: 'ITEM_PATCH_SOURCE', label: 'followItemPatches claimed row with invalid head' };
