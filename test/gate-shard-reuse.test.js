@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { proveRunnerShards, shardPassStore } from '../packages/gate/src/shell/proof-shards.js';
+import { proveBatches, shardPassStore } from '../packages/gate/src/shell/proof-shards.js';
 import { readTestOutcomes, formatTestOutcomes } from '../packages/gate/src/shell/test-outcomes.js';
 import { INFRASTRUCTURE_CODES, submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
 import { privateFixtureFiles } from './fixture-child.js';
@@ -30,7 +30,7 @@ function machine(t) {
 
 /**
  * One gate attempt's runner proof as gate-submit's proveShards builds it: a fresh timing run id per attempt, the gate's
- * lease running the first shard and every other shard in a slot of its own. `drop(files)` returns a refusal for a
+ * lease running the first batch and every other batch in a slot of its own, one file per batch. `drop(files)` returns a refusal for a
  * shard whose runner drops. Every shard run prints its files' outcome frames under the attempt's id, as a runner does.
  */
 function attempt({ tree = TREE, drop = () => null, calls }) {
@@ -47,9 +47,9 @@ function attempt({ tree = TREE, drop = () => null, calls }) {
     assert.equal(options.metadata.timingRunId, timingRunId, 'the gate lease runs under this attempt\'s timing run id');
     return run('gate', command.slice(COMMAND.length).split(' ').map(file => file.replace(/^\.\//u, '')));
   };
-  const execution = { gateLease: { executionServices: { runners: { runOnRunnerAsync } } }, remoteCommand: COMMAND + FILES.join(' '),
+  const execution = { gateLease: { runner: { host: 'fixture-gate' }, executionServices: { runners: { runOnRunnerAsync } } }, remoteCommand: COMMAND + FILES.join(' '),
     remoteOptions: { source: { commit: COMMIT, tree }, metadata: { timingRunId } } };
-  return { timingRunId, execution, runOther: files => run('slot', files) };
+  return { timingRunId, execution, takeSlot: lane => lane(files => run('slot', files)) };
 }
 
 /** The submit's file command, as gate-submit writes it. */
@@ -65,7 +65,7 @@ test('clause 1: a gate rerun after RUNNER_UNAVAILABLE runs only the shard with n
     const gate = attempt({ calls, drop: (files, lane) => number === 1 && lane === 'gate'
       ? Object.assign(new Error('runner fixture-a dropped'), { code: 'RUNNER_UNAVAILABLE', runnerHost: 'fixture-a' }) : null });
     attempts.push(gate);
-    return proveRunnerShards('/controller', gate.execution, { files: FILES, filesCommand, runOther: gate.runOther, freeSlots: FILES.length - 1, say: line => notes.push(line) });
+    return proveBatches('/controller', gate.execution, { files: FILES, filesCommand, takeSlot: gate.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, say: line => notes.push(line) });
   }, { healthy: async () => true, wait: async () => {} });
   assert.ok(INFRASTRUCTURE_CODES.has('RUNNER_UNAVAILABLE'));
   assert.deepEqual(settled.attempts.map(row => row.code), ['RUNNER_UNAVAILABLE'], 'the real rerun loop treated the drop as infrastructure');
@@ -95,17 +95,17 @@ test('clause 1: a different tree, or a red shard, reuses nothing and runs those 
   const calls = [];
   const red = attempt({ calls, drop: () => null });
   const store = shardPassStore(TREE, filesCommand([]), { folder: join(root, 'passes') });
-  const failing = { ...red, runOther: files => Promise.resolve({ isGreen: false, exitCode: 1, output: `not ok ${files[0]}` }) };
-  const first = await proveRunnerShards('/controller', failing.execution, { files: FILES, filesCommand, runOther: failing.runOther, freeSlots: FILES.length - 1, passes: store });
+  const failing = { ...red, takeSlot: lane => lane(files => Promise.resolve({ isGreen: false, exitCode: 1, output: `not ok ${files[0]}` })) };
+  const first = await proveBatches('/controller', failing.execution, { files: FILES, filesCommand, takeSlot: failing.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, passes: store });
   assert.equal(first.isGreen, false);
   assert.equal(store.read().length, 1, 'only the green shard is recorded');
   const again = attempt({ calls });
-  const rerun = await proveRunnerShards('/controller', again.execution, { files: FILES, filesCommand, runOther: again.runOther, freeSlots: FILES.length - 1, passes: store });
+  const rerun = await proveBatches('/controller', again.execution, { files: FILES, filesCommand, takeSlot: again.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1, passes: store });
   assert.equal(rerun.isGreen, true);
   assert.equal(calls.filter(call => call.timingRunId === again.timingRunId).length, FILES.length - 1, 'the red shards run again; only the green one is reused');
 
   const other = attempt({ calls, tree: 'e'.repeat(40) });
-  await proveRunnerShards('/controller', other.execution, { files: FILES, filesCommand, runOther: other.runOther, freeSlots: FILES.length - 1 });
+  await proveBatches('/controller', other.execution, { files: FILES, filesCommand, takeSlot: other.takeSlot, batchFiles: 1, freeSlots: FILES.length - 1 });
   assert.equal(calls.filter(call => call.timingRunId === other.timingRunId).length, FILES.length, 'another tree runs every shard');
   assert.equal(shardPassStore(null, filesCommand([])), null, 'a run with no pinned tree keeps no passes');
 });

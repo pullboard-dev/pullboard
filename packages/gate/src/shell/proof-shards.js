@@ -1,4 +1,4 @@
-/** A submit proof's test files fanned out across free runner slots, merged back into one run and one receipt [C7]. */
+/** A submit proof's test files pulled in small batches by every slot the gate gets, merged back into one run and one receipt [C7]. */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -10,6 +10,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../../resources/index.js';
+import { runShellAsync } from './shell-run.js';
 import { DatabaseSync } from 'node:sqlite';
 
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
@@ -87,8 +88,24 @@ function reusablePasses(passes, files, timingRunId) {
   return reused;
 }
 
-/** Admission codes that mean a shard found no slot in time, so it runs on the gate's own lease after its shard. */
-const NO_SLOT = new Set(['RUNNER_UNAVAILABLE', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED']);
+/** Proof files per queued batch: small, so every slot the gate gets during the proof takes a share of the work. */
+export const PROOF_BATCH_FILES = 3;
+
+/** How long a slot request that found no slot, or whose runner dropped, pauses before it asks again. */
+export const SHARD_RETRY_MS = 5_000;
+
+/**
+ * Codes that mean a slot request found no runner slot in time, or that a batch's runner dropped under it: the batch
+ * goes back on the queue and the request asks again while batches remain. Any other refusal is the proof's own.
+ */
+const NO_SLOT = new Set(['RUNNER_UNAVAILABLE', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED', 'RUNNER_JOB_LOST',
+  'RUNNER_SETUP', 'RUNNER_CLEANUP_TIMEOUT']);
+
+/** Whether an error means no slot or a dropped runner rather than a refusal of the proof itself. */
+const slotLost = error => NO_SLOT.has(error?.code) || error?.name === 'RunnerDropped';
+
+/** The refusal a queued slot request ends with once every batch has run, so it never holds a slot it no longer needs. */
+const QUEUE_DRAINED = 'PROOF_QUEUE_DRAINED';
 
 /**
  * Count the runner slots free on this machine's pool right now: every runner's capacity, less the slots held and
@@ -135,87 +152,189 @@ function freeBrowserSlots(db, runners, gui) {
 }
 
 /**
- * The admission options for one shard beyond the gate's first: runner-only, no wait callback, and its own admission
- * deadline. Why its own deadline: the shard inherited the submit's captured runnerDeadlineAt (30 min on the MacBook),
- * so a shard with no slot waited out the whole submit budget instead of SHARD_ADMIT_MS, while the gate's own shards
- * held the browser slots it waited for (#3586, 7 Nov). Ending in RUNNER_WAIT_DEADLINE sends it to the gate's lane.
+ * The admission options for one more runner slot for the proof queue: runner-only, its own admission deadline, and a
+ * wait callback only to end the request once the queue has closed. Why its own deadline: the shard inherited the
+ * submit's captured runnerDeadlineAt (30 min on the MacBook), so a shard with no slot waited out the whole submit budget
+ * instead of SHARD_ADMIT_MS, while the gate's own shards held the browser slots it waited for (#3586, 7 Nov). Ending in
+ * RUNNER_WAIT_DEADLINE only sends the request round to ask again; its batches stay on the queue for any lane.
  *
  * @param {object} slotOptions - The gate's own withGateSlot options.
- * @param {{ now?: number, admitMs?: number }} [clock]
+ * @param {{ now?: number, admitMs?: number, closed?: (() => boolean) | null }} [clock] - `closed` says every batch has run.
  * @returns {object}
  */
-export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHARD_ADMIT_MS } = {}) {
-  return { ...slotOptions, onWait: undefined, runnerOnly: true, runnerWaitMs: admitMs, runnerDeadlineAt: now + admitMs };
+export function shardSlotOptions(slotOptions, { now = Date.now(), admitMs = SHARD_ADMIT_MS, closed = null } = {}) {
+  const onWait = closed ? state => {
+    if (!state?.admitted && closed()) throw Object.assign(new Error('every proof batch has run; this slot request is no longer needed'), { code: QUEUE_DRAINED });
+  } : undefined;
+  return { ...slotOptions, onWait, runnerOnly: true, runnerWaitMs: admitMs, runnerDeadlineAt: now + admitMs };
 }
 
 /**
- * Split the proof files across the gate's own slot plus the free ones with planFreeSlotShards, and run every shard at
- * once: the first on the gate's lease, each other in a slot of its own. A shard that gets no slot in time runs on the
- * gate's lease after the first, so a busy pool only slows the proof, never refuses it. One shard returns null and the
- * caller runs today's single command.
- *
- * Why: #3400's 114 files ran as one command on one slot for 2.1 h while 56 of 66 runner slots idled.
- *
- * Given `passes` (shardPassStore for the candidate tree), every green shard is recorded as it settles, before any
- * other shard's refusal is thrown, and a run of the same tree plans only the files no recorded pass covers; the
- * reused shards follow the fresh ones unchanged. So a rerun after an infrastructure end (a runner drop, a lost job, a
- * stall) runs only what the drop cost, not the whole proof again (#3463, 8 Nov) [C7].
+ * Split proof files into the queue's batches of about `batchFiles` files, balanced by recorded file times through the
+ * landing planner and heaviest first, so the longest batches start soonest and no lane is left with a long tail.
  *
  * @param {string[]} files
- * @param {{ freeSlots: number, times?: Record<string, number>, root?: string|null,
- *   runFirst: (files: string[]) => Promise<object>, runOther: (files: string[]) => Promise<object>,
- *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void }} options
- * @returns {Promise<{ files: string[], run: object }[] | null>} Each shard's files and run, fresh in plan order, then reused.
+ * @param {Record<string, number>} [times]
+ * @param {string|null} [root]
+ * @param {number} [batchFiles]
+ * @returns {Promise<string[][]>}
  */
-export async function runProofShards(files, { freeSlots, times = {}, root = null, runFirst, runOther, passes = null, timingRunId = null, say = () => {} }) {
+export async function proofBatches(files, times = {}, root = null, batchFiles = PROOF_BATCH_FILES) {
+  const { planFreeSlotShards } = await import('../../../landing/index.js');
+  const { shards } = planFreeSlotShards(files, Math.ceil(files.length / Math.max(1, Math.floor(batchFiles) || 1)), times, root);
+  return shards.sort((a, b) => b.weight - a.weight).map(shard => shard.files);
+}
+
+/** Wait between slot requests. */
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Run the proof files from a queue of small batches. The gate's own lease is one lane; while batches remain the gate
+ * keeps asking for more runner slots with `takeSlot`, and each slot it gets is one more lane. Every lane pulls the
+ * next batch as soon as it is free, so no batch waits behind another while a slot is free, and a slot the pool frees
+ * mid-proof joins at once. A batch whose runner drops goes back on the queue for any lane; the gate's own lane stays
+ * until the queue is empty, so a busy pool only slows the proof, never refuses it. With no `takeSlot` (no runners),
+ * the one lane pulls every batch at once and runs them as one command, as a local gate always has. A single batch with
+ * nothing reused returns null, and the caller runs today's single command.
+ *
+ * Why: 15 gates each held exactly one runner slot while 93 of 120 slots idled, and #3660 ran its tests on one slot for
+ * 45+ min: the shards were planned once from the free slots at gate start, and a shard that found no slot within
+ * SHARD_ADMIT_MS ran serially on the gate's first lease even after the pool freed (8 Nov). #3400's 114 files ran on one
+ * slot for 2.1 h while 56 of 66 slots idled [C7].
+ *
+ * Given `passes` (shardPassStore for the candidate tree), every green batch is recorded as it settles, before any
+ * refusal is thrown, and a run of the same tree queues only the files no recorded pass covers; the reused shards
+ * follow the fresh ones unchanged. So a rerun after an infrastructure end (a runner drop, a lost job, a stall) runs
+ * only what the drop cost, not the whole proof again (#3463, 8 Nov) [C7].
+ *
+ * @param {string[]} files
+ * @param {{ freeSlots?: number, times?: Record<string, number>, root?: string|null,
+ *   runFirst: (files: string[]) => Promise<object>,
+ *   takeSlot?: ((lane: (run: (files: string[]) => Promise<object>) => Promise<void>, queue: { closed: () => boolean }) => Promise<unknown>) | null,
+ *   passes?: ReturnType<typeof shardPassStore>, timingRunId?: string|null, say?: (line: string) => void,
+ *   retryMs?: number, batchFiles?: number }} options - `freeSlots` is how many slot requests open at once; `takeSlot`
+ *   takes one runner slot, calls `lane` with that slot's run and releases the slot when `lane` settles.
+ * @returns {Promise<{ files: string[], run: object }[] | null>} Each batch's files and run in queue order, then reused.
+ */
+export async function runProofShards(files, { freeSlots = 0, times = {}, root = null, runFirst, takeSlot = null, passes = null,
+  timingRunId = null, say = () => {}, retryMs = SHARD_RETRY_MS, batchFiles = PROOF_BATCH_FILES }) {
   const reused = reusablePasses(passes, files, timingRunId);
   const covered = new Set(reused.flatMap(shard => shard.files));
   const owed = files.filter(file => !covered.has(file));
   if (reused.length) say(`proof reuses ${covered.size} of ${files.length} files that passed for tree ${passes.tree.slice(0, 12)}; running ${owed.length}`);
   if (!owed.length) return reused;
-  const { planFreeSlotShards } = await import('../../../landing/index.js');
-  const { shards } = planFreeSlotShards(owed, Math.max(0, freeSlots) + 1, times, root);
-  if (shards.length < 2 && !reused.length) return null;
-  /** Record a green shard for a later run of the same tree as soon as it settles. */
-  const settled = files => run => {
-    if (passes && run?.isGreen === true) passes.record({ files: [...files], run, timingRunId, at: new Date().toISOString() });
-    return { files, run };
+  const queue = (await proofBatches(owed, times, root, batchFiles)).map((batch, index) => ({ index, files: batch }));
+  if (queue.length < 2 && !reused.length) return null;
+  const batches = queue.length;
+  const settled = [];
+  let inflight = 0, failure = null, pending = 0, slots = 0, mostSlots = 0;
+  let wake = () => {};
+  let changed = new Promise(resolve => { wake = resolve; });
+  /** Wake every lane waiting on the queue: a batch settled or went back on it. */
+  const notify = () => { const resolve = wake; changed = new Promise(next => { wake = next; }); resolve(); };
+  /** The queue closes when the proof has failed, or when every batch has run and none is running. */
+  const closed = () => failure !== null || !queue.length && !inflight;
+  /**
+   * Run pulled batches on one lane in the original file order. A green run is recorded for a later run of the same tree
+   * as soon as it settles. A runner drop on a slot lane puts the batches back first in the queue and ends that lane.
+   */
+  const run = async (lane, pulled, requeue) => {
+    const wanted = new Set(pulled.flatMap(batch => batch.files));
+    const batchFiles = owed.filter(file => wanted.has(file));
+    inflight += 1;
+    try {
+      const result = await lane(batchFiles);
+      if (passes && result?.isGreen === true) passes.record({ files: [...batchFiles], run: result, timingRunId, at: new Date().toISOString() });
+      settled.push({ index: pulled[0].index, files: batchFiles, run: result });
+    } catch (error) {
+      if (requeue && slotLost(error)) { queue.unshift(...pulled); throw error; }
+      failure ??= error;
+    } finally { inflight -= 1; notify(); }
   };
-  // The gate's own lease is one lane: its shard first, then any shard that found no slot, one after another.
-  let lane = runFirst(shards[0].files);
-  const runs = [lane.then(settled(shards[0].files)), ...shards.slice(1).map(shard => runOther(shard.files)
-    .then(settled(shard.files), error => {
-      if (!NO_SLOT.has(error?.code)) throw error;
-      lane = lane.catch(() => {}).then(() => runFirst(shard.files));
-      return lane.then(settled(shard.files));
-    }))];
-  // Drain every shard before refusing, so each slot's receipt and lease stay accurate.
-  const outcomes = await Promise.allSettled(runs);
-  const failure = outcomes.find(outcome => outcome.status === 'rejected');
-  if (failure) throw failure.reason;
-  return [...outcomes.map(outcome => outcome.value), ...reused];
+  /** The gate's own lease: pulls until the queue closes, waiting while other lanes still run batches that may come back. */
+  const gateLane = async () => {
+    while (!closed()) {
+      if (!queue.length) { await changed; continue; }
+      await run(runFirst, queue.splice(0, takeSlot ? 1 : queue.length), false);
+    }
+  };
+  /** One more slot's lane: pulls the next batch until the queue is empty. */
+  const slotLane = async lane => {
+    slots += 1;
+    mostSlots = Math.max(mostSlots, slots);
+    try { while (!closed() && queue.length) await run(lane, queue.splice(0, 1), true); }
+    finally { slots -= 1; }
+  };
+  /** Ask for one more slot until a lane on it ends with the queue empty; no slot or a dropped runner asks again. */
+  const request = async () => {
+    pending += 1;
+    let waiting = true;
+    /** Count the request admitted once, and open another while batches outnumber the requests still waiting. */
+    const admitted = () => {
+      if (!waiting) return;
+      waiting = false;
+      pending -= 1;
+      grow();
+    };
+    try {
+      while (!closed() && queue.length) {
+        // The new lane takes its first batch before another request opens, so requests never outnumber the batches left.
+        try { await takeSlot(lane => { const work = slotLane(lane); admitted(); return work; }, { closed }); }
+        catch (error) {
+          if (closed()) return;
+          if (!slotLost(error)) {
+            say(`a proof slot request stopped (${error?.code ?? error?.message}); its batches stay on the queue`);
+            return;
+          }
+        }
+        if (!waiting) { waiting = true; pending += 1; }
+        if (!closed() && queue.length) await pause(retryMs);
+      }
+    } finally { if (waiting) pending -= 1; }
+  };
+  /** Open one more slot request while batches outnumber the requests already waiting. */
+  function grow() {
+    if (takeSlot && !closed() && queue.length > pending) request().catch(error => { failure ??= error; notify(); });
+  }
+  const gate = gateLane();
+  const opening = Number.isFinite(freeSlots) ? Math.max(1, Math.floor(freeSlots)) : 1;
+  for (let count = 0; count < opening; count += 1) grow();
+  await gate;
+  // Drain every running batch before refusing, so each slot's receipt and lease stay accurate.
+  while (inflight) await changed;
+  if (failure) throw failure;
+  if (takeSlot) say(`proof ran ${batches} batches on the gate's lane and up to ${mostSlots} more runner slots`);
+  return [...settled.sort((a, b) => a.index - b.index).map(({ files: batchFiles, run: result }) => ({ files: batchFiles, run: result })), ...reused];
 }
 
 /**
- * Run a runner proof's files as shards across the free runner slots and merge them into one run, or as today's one
- * command when planFreeSlotShards gives a single shard and nothing was reused. The first shard runs on the gate's own
- * lease (`execution`); `runOther` takes a slot of its own. The shard passes are kept per candidate tree, the source the
- * gate's lease sent, so a rerun of the same tree after an infrastructure end runs only the shards with no pass.
+ * Run a proof's files from the batch queue and merge them into the one run the receipt records, or as today's one
+ * command when the files make a single batch and nothing was reused. The gate's own lease (`execution`) is the first
+ * lane: on a runner, `takeSlot` adds a lane per runner slot it gets; with no runner lease (no runners registered),
+ * the one local lane pulls every batch through the same queue as one command. The shard passes are kept per
+ * candidate tree, the source the gate's lease sent, so a rerun of the same tree after an infrastructure end runs only
+ * the batches with no pass (#3699).
  *
  * @param {string} root
- * @param {{ gateLease: { executionServices: { runners: { runOnRunnerAsync: Function } } }, remoteCommand: string,
- *   remoteOptions: { source?: { tree?: string }, metadata: { timingRunId?: string } } }} execution - The proof's profiled execution.
- * @param {{ files: string[], filesCommand: (files: string[]) => string, runOther: (files: string[]) => Promise<object>,
- *   freeSlots: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void }} options
+ * @param {{ gateLease: { runner?: object, executionServices: { runners: { runOnRunnerAsync: Function } } }, remoteCommand?: string,
+ *   remoteOptions?: { source?: { tree?: string }, metadata: { timingRunId?: string } }, localOptions?: object }} execution - The proof's profiled execution.
+ * @param {{ files: string[], filesCommand: (files: string[]) => string, takeSlot?: Parameters<typeof runProofShards>[1]['takeSlot'],
+ *   freeSlots?: number, times?: Record<string, number>, passes?: ReturnType<typeof shardPassStore>, say?: (line: string) => void,
+ *   retryMs?: number, batchFiles?: number }} options
  * @returns {Promise<object>} The one run the proof receipt records.
  */
-export async function proveRunnerShards(root, execution, { files, filesCommand, runOther, freeSlots, times = {}, say,
+export async function proveBatches(root, execution, { files, filesCommand, takeSlot = null, freeSlots = 0, times = {}, say, retryMs, batchFiles,
   passes = shardPassStore(execution.remoteOptions?.source?.tree, filesCommand([])) }) {
-  const runners = execution.gateLease.executionServices.runners;
-  const runFirst = shardFiles => runners.runOnRunnerAsync(root, filesCommand(shardFiles), execution.remoteOptions);
-  const shards = await runProofShards(files, { freeSlots, times, root, runFirst, runOther, passes,
-    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say });
-  return shards ? mergeShardRuns(shards) : runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions);
+  const onRunner = Boolean(execution.gateLease?.runner);
+  const runners = execution.gateLease?.executionServices?.runners;
+  const runFirst = onRunner
+    ? batch => runners.runOnRunnerAsync(root, filesCommand(batch), execution.remoteOptions)
+    : batch => runShellAsync(root, filesCommand(batch), execution.localOptions);
+  const shards = await runProofShards(files, { freeSlots, times, root, runFirst, takeSlot: onRunner ? takeSlot : null, passes,
+    timingRunId: execution.remoteOptions?.metadata?.timingRunId ?? null, say, retryMs, batchFiles });
+  if (!shards) return onRunner ? runners.runOnRunnerAsync(root, execution.remoteCommand, execution.remoteOptions) : runFirst(files);
+  // The one local lane's single run is today's command over every file; it is the run, not a merge of one.
+  return shards.length === 1 && shards[0].files.length === files.length ? shards[0].run : mergeShardRuns(shards);
 }
 
 /**
