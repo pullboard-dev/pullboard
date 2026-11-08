@@ -49,7 +49,7 @@ function check(root) {
   return runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
 }
 
-test('clause 1: a landed new bin/checks file outside the engine and move-history rules is placed by rule in the landing commit [C7]', t => {
+test('clause 1: a landed new bin/ or src/ file outside the engine and move-history rules is placed by rule [C7]', t => {
   const files = ['bin/checks/demo-tool.js', 'bin/demo-top.js', 'src/demo-feature.js'];
   const { root, merge } = fixture(t, files);
   const before = check(root);
