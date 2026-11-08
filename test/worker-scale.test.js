@@ -10,6 +10,7 @@ import * as store from '../src/board.js';
 import { parseWorkerBudget } from '../packages/config/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { openGatedWebBoard } from './worker-scale-fixture.js';
 import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 import { planWorkerScale } from '../apps/cli/src/shell/worker-scale.js';
 import { scaleCycle } from '../apps/cli/src/shell/worker-scale.js';
@@ -226,10 +227,7 @@ function queueGate(board, id, commit, at) {
 
 test("clause 1: observeWorkers counts a build only when nextFor would offer it to a fresh seat on the scaler's lane and route: holds, dependencies, collisions and queued or green gates excluded [B26,C7]", t => {
   const at = Date.parse('2026-10-28T12:00:00Z');
-  const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
-  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
-  const ids = [];
-  for (let index = 0; index < 30; index += 1) ids.push(store.addItem(board, { by: 'coordinator', lane: 'web', title: `gated ${index}`, brief: `Files: web/gated${index}.js` }));
+  const { board, ids } = openGatedWebBoard(t, at, 30);
   assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
   board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, '50');
   assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 29, 'an item over the 30-minute build budget is not a build next would offer');
@@ -250,10 +248,7 @@ test("clause 1: observeWorkers counts a build only when nextFor would offer it t
 
 test('clause 2: With 30 open items that are all gated or held, one cycle plans 0 launches [B26,C7]', t => {
   const at = Date.parse('2026-10-28T12:00:00Z');
-  const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
-  store.register(board, { lane: 'coordinator', path: '/fixture/main' });
-  const ids = [];
-  for (let index = 0; index < 30; index += 1) ids.push(store.addItem(board, { by: 'coordinator', lane: 'web', title: `gated ${index}`, brief: `Files: web/gated${index}.js` }));
+  const { board, ids } = openGatedWebBoard(t, at, 30);
   assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
   const commit = id => String(id).padStart(40, 'c');
   for (const id of ids) {
