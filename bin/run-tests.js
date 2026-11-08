@@ -1351,7 +1351,7 @@ async function main(args) {
         return;
       }
     }
-    if (process.env[LANDING_RUN_ENV] !== '1' && !shardLabel && await (await import('./run-ordinary-shards.js')).runOrdinaryShards({ root: process.cwd(), runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot })) return;
+    if (process.env[LANDING_RUN_ENV] !== '1' && !shardLabel && await (await import('../packages/landing/index.js')).runOrdinaryShards({ root: process.cwd(), runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot, gate: await import('../packages/gate/index.js'), parseProcessCensus: (await import('../packages/kernel/src/core/process-census.js')).parseProcessCensus, browserBoundFiles: (await import('../packages/gate/src/shell/browser-admission.js')).browserBoundFiles, readFileTimes: (await import('../packages/gate/src/shell/test-value-timing.js')).readFileTimes, narrowsSelection, optionTakesValue, knownNodeOption, explicitTestFiles })) return;
     if (scopedMarker) {
       const inherited = inheritedGateSlot({ root: process.cwd(), browser, namedFiles: shortEligible });
       if (inherited && (!runnerOnly || inherited.runnerExecution)) await run(gateSlotEnvironment(inherited));

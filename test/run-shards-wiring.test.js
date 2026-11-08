@@ -15,7 +15,7 @@ test('clause 1: bin/run-tests.js shards an ordinary run through the planner over
   assert.equal(plan.length, 2);
   assert.deepEqual(plan.flatMap(shard => shard.files).sort(), [...FILES].sort(), 'every selected file is in exactly one shard');
   const source = readFileSync(join(import.meta.dirname, '..', 'bin', 'run-tests.js'), 'utf8');
-  assert.match(source, /!shardLabel && await \(await import\('\.\/run-ordinary-shards\.js'\)\)\.runOrdinaryShards\(/u, 'the runner entry hands every non-landing, non-shard run to the helper');
+  assert.match(source, /!shardLabel && await \(await import\('\.\.\/packages\/landing\/index\.js'\)\)\.runOrdinaryShards\(/u, 'the runner entry hands every non-landing, non-shard run to the helper');
 });
 
 test('clause 2: landing stays first and a run takes only the slots free after landings [test] [C7]', () => {
