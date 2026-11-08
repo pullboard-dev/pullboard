@@ -46,8 +46,19 @@ export function tellFirstRefusal(board, item, detail, persistShout) {
     text: `Item #${item.item_id} waits for you until ${window.until}; claim it to resume, or run pullboard release ${item.item_id} --reason ROUTED_ELSEWHERE to let another builder take it.` });
 }
 
-/** Copy only enabled coordinator policy into ordered moves before they are sealed for replay. */
+/**
+ * Copy only enabled coordinator policy into ordered moves before they are sealed for replay. With claim.returnToBoard
+ * on, a reject seals zero minutes, so the rejected work goes back to the board with no builder first refusal (#3541).
+ *
+ * @param {string} operation the ordered move
+ * @param {any[]} args its arguments
+ * @param {any} config the coordinator's configuration
+ * @returns {any[]} the arguments to seal
+ */
 export function firstRefusalArgs(operation, args, config) {
+  if (config.claim?.returnToBoard === true && operation === 'verify' && args[1]?.decision === 'REJECT') {
+    return [args[0], { ...args[1], reopenFirstRefusalMinutes: 0 }, ...args.slice(2)];
+  }
   const minutes = config.claim?.reopenFirstRefusalMinutes;
   if (!minutes || !['verify', 'reopen'].includes(operation)) return args;
   if (operation === 'verify' && args[1]?.decision !== 'REJECT') return args;
