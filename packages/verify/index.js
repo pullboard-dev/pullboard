@@ -6,7 +6,7 @@ export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPat
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/shell/bar-readiness.js';
 export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/shell/evidence.js';
-export { frozenRowGates } from './src/core/frozen-clause.js';
+export { barTestFiles, frozenRowGates } from './src/core/frozen-clause.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/core/next-review.js';
 export { completeMoveHandoff } from './src/core/post-move-handoff.js';
 export { recordNativeProof } from './src/core/proof-cli.js';
