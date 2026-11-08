@@ -28,8 +28,6 @@ import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -61,6 +59,9 @@ import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../../../../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
+import { advanceIdleToolTree } from './tools-snapshot-advance.js';
+import { keepToolsIndex } from './tools-snapshot-advance.js';
+import { checkoutCommittedTools } from './tools-snapshot-advance.js';
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
 export function copyTools(toolRoot, target) {
@@ -69,13 +70,12 @@ export function copyTools(toolRoot, target) {
 }
 
 /**
- * Copy the tool root's committed HEAD tree, never its working tree, into `target`. Why: a seat runs Pullboard from its
- * own item worktree, which is usually dirty, and an uncommitted edit must never leak into a snapshot other gates share [C7].
+ * Write the tool root's committed tree, never its working tree, into `target`, with the index a later tooling commit
+ * moves it by (#3663). Why: a seat runs Pullboard from its own item worktree, which is usually dirty, and an
+ * uncommitted edit must never leak into a snapshot other gates share [C7].
  */
 export function copyCommittedTools(toolRoot, target, commit = 'HEAD') {
-  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', toolRoot, target, commit],
-    { encoding: 'utf8', env: cleanGitEnvironment() });
-  if (run.status !== 0) throw new Error(`tools snapshot of the committed tree failed: ${String(run.stderr ?? '').slice(0, 500)}`);
+  if (!checkoutCommittedTools(toolRoot, target, commit)) throw new Error(`tools snapshot of the committed tree ${commit} failed`);
 }
 
 /**
@@ -120,10 +120,10 @@ function toolingDigest(toolRoot) {
  * @param {string} toolRoot
  * @param {string} job
  * @param {string} [commonDir]
- * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string } }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716)
+ * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string }, advance?: typeof advanceIdleToolTree }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716); advance moves an idle snapshot instead of a whole copy (#3663)
  * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild } = {}) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild, advance = advanceIdleToolTree } = {}) {
   copy ??= copyTools;
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
@@ -142,9 +142,12 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
     copy(toolRoot, tools);
     return tools;
   }
-  const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
+  // An idle kept snapshot moved to this commit writes only the files that differ, proved by tree id (#3663).
+  const commit = rebuild?.commit ?? head.stdout;
+  const advanced = rebuild ? null : advance({ toolRoot, commit, job, temp: tmpdir() });
+  const staging = advanced?.path ?? mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copyCommitted(toolRoot, staging, rebuild?.commit);
+    if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
