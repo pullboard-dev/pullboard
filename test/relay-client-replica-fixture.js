@@ -41,7 +41,7 @@ export async function relayUploadSummary(uploads, key, boardId) {
   return Promise.all(uploads.map(async ({ sequence, sealed }) => {
     const plain = await unseal(key, Buffer.from(sealed, 'base64url'), { boardId, kind: 'move', sequence });
     const move = JSON.parse(new TextDecoder().decode(plain));
-    return { sequence, operation: move.operation, moveId: move.id, args: move.operation === 'appendFact' ? move.args : null,
+    return { sequence, operation: move.operation, moveId: move.id,
       itemId: move.operation === 'recordProofRun' ? move.args?.[0]?.itemId
         : move.operation === 'submit' && Number.isSafeInteger(move.args?.[0]) ? move.args[0] : null,
       commit: move.operation === 'submit' ? move.args?.[1]?.commit ?? null : null,
@@ -126,26 +126,21 @@ export async function assertOriginalOutcomeDelivery(uploads, key, boardId, submi
 }
 
 /**
- * Require a refused receipt-missing submit to reach the relay with exactly one usage move.
- * Since the usage cap (22f7703ed1, 0ef9c1a9c2) a refused lifecycle move orders one usage summary;
- * it never orders a submit or a proof run. A detached sender can land that usage upload after the CLI
- * returns, so the count is taken only once a status round trip finds the outbox empty and the
- * upload count unchanged twice in a row [H16,C7].
+ * Count the relay uploads once earlier commands have finished sending. A detached sender can land a
+ * move from an earlier command (for example the review comparison fact `pullboard verify` appends,
+ * apps/cli/src/shell/commands/verify.js) inside a later window, so the count is taken only after
+ * status round trips find the outbox empty and the upload count unchanged twice in a row [H16,C7].
  */
-export async function assertRefusalUploadsOneUsageMove({ relay, before, key, boardId, status }) {
+export async function settledUploadCount(relay, status) {
   let stable = 0;
   let seen = -1;
   for (let attempt = 0; attempt < 40 && stable < 2; attempt += 1) {
     const { relay: link } = await status();
-    const settled = (link?.outbox ?? []).length === 0 && relay.uploads.length === seen;
-    stable = settled ? stable + 1 : 0;
+    stable = (link?.outbox ?? []).length === 0 && relay.uploads.length === seen ? stable + 1 : 0;
     seen = relay.uploads.length;
   }
-  assert.equal(stable, 2, 'the refused submit leaves a settled outbox');
-  const moves = await relayUploadSummary(relay.uploads.slice(before), key, boardId);
-  const operations = moves.map(({ operation }) => operation);
-  assert.equal(operations.length, 1, `a receipt-missing recovered descriptor is refused before relay upload; only one usage move follows (saw ${operations.join(', ') || 'nothing'})`);
-  assert.match(operations[0], /^recordUsage(Batch)?$/u, `the one upload after the refusal is a usage move (saw ${operations[0]}: ${JSON.stringify(moves[0].args)})`);
+  assert.equal(stable, 2, 'the relay outbox settles');
+  return relay.uploads.length;
 }
 
 /** Make a submitted commit locally verifiable by the other replica's real Git history. */
