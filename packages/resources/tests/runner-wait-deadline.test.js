@@ -71,7 +71,8 @@ require('node:module').syncBuiltinESMExports();\n`);
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
   writeFileSync(settingsFile, JSON.stringify({ ...settings, gateSlots: 1, browserSlots: 1,
-    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false } }));
+    // Pinned off: the default load-aware dispatch (4a04010085) reads the busy test machine through the stand-in and can refuse the fixture runner.
+    gate: { ...settings.gate, runnerWaitMs, runnersFirst: false, loadAwareDispatch: false } }));
   return { ...box, requests, starts, stderrLog, settingsFile };
 }
 
@@ -115,7 +116,7 @@ test('a first lost transport requeues the run onto the same runner without a qua
     const calls = readFileSync(box.requests, 'utf8').trim().split('\n').map(line => JSON.parse(line));
     assert.equal(calls.filter(call => call.dropped).length, 1, 'only the first transport is dropped');
     assert.ok(calls.filter(call => !call.healthProbeFailed && !call.dropped).length >= 1, 'a single lost transport does not quarantine the runner: the run is dispatched to it again');
-    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline');
+    assert.doesNotMatch(result.stderr, /runner wait deadline/iu, 'the run never reached its runner deadline' + ' DEBUGCALLS ' + JSON.stringify(calls) + readFileSync(box.requests + '.phases', 'utf8'));
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.doesNotMatch(resources.stdout, /runner wait deadline/iu, 'no run is overdue, so public resources names no deadline');
