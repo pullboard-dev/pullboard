@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /**
  * Every shape of opening a board through pullboard.dev, in real Chromium and real WebKit [H5,H17,N26].

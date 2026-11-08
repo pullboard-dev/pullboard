@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-loads test/relay-client-fixture.js */
 /** Cockpit prose checks, using the shared real-board fixtures [N26]. */

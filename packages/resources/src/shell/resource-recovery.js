@@ -18,6 +18,28 @@ export const CONFIRM_PROBE_RETRIES = 3;
 export const RECOVERY_RETRY_MAX_MS = 30_000;
 /** How long a recovery pass reserves its row: covers a retried transport probe so two passes do not probe one host at once. */
 const RECOVERY_RESERVE_MS = 45_000;
+/** How far back a runner's earlier readiness failures that a probe lifted count toward holding it out again. */
+export const READINESS_FLAP_WINDOW_MS = 30 * 60_000;
+/** The first hold after a lifted readiness failure recurs; each further recurrence in the window doubles it. */
+export const READINESS_HOLD_MS = 60_000;
+/** The longest a recurring readiness failure holds a runner out before its next probe. */
+export const READINESS_HOLD_MAX_MS = 30 * 60_000;
+
+/**
+ * How long a runner whose worker just failed readiness stays out before any probe may lift it, and how many lifted
+ * readiness failures preceded this one [C7,#3692]. Why: on 7 Nov the Studio's worker missed READY again and again, yet
+ * each idle proof (no live job, root writable) returned it within seconds, and every pass took more shards that then
+ * missed READY. A first failure is probed at once; a recurrence waits 1, 2, 4 ... up to 30 minutes.
+ */
+export function readinessHold(db, host, now = Date.now()) {
+  const since = new Date(now - READINESS_FLAP_WINDOW_MS).toISOString();
+  let lifted = 0;
+  try {
+    lifted = db.prepare(`SELECT COUNT(*) AS n FROM runner_recovery_event WHERE host=? AND kind='available' AND at>=?
+      AND json_extract(detail,'$.priorReason')='WORKER_UNRESPONSIVE'`).get(host, since).n;
+  } catch { lifted = 0; }
+  return { recurrences: lifted, holdMs: lifted ? Math.min(READINESS_HOLD_MAX_MS, READINESS_HOLD_MS * 2 ** Math.min(16, lifted - 1)) : 0 };
+}
 
 /** Wait the given milliseconds without holding the event loop. */
 function pause(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -110,6 +132,7 @@ export function runnerExcluded(db, row, { charges, slots, now = Date.now() }) {
 export function runnerRecoveryStatus(failure) {
   let value;
   try { value = JSON.parse(failure); } catch { value = {}; }
+  if (value.readinessHold && !value.latestProbe) return { step: 'readiness', reason: `missed READY again after ${value.readinessHold.recurrences} lifted readiness failure(s) in 30 minutes; held out until ${value.readinessHold.until}` };
   if (value.latestProbe) return { ...value.latestProbe, step: value.latestProbe.step ?? 'health' };
   const pending = value?.pending ?? [value?.original?.recovery];
   if (!pending.length || !pending.every(recoveryIdentity)) return { step: 'idle proof', reason: 'missing exact request ID or completion record; waiting for pinned-worker idle and writable proof or the existing manual runner command' };
@@ -129,25 +152,58 @@ function auditedChange(db, write) {
   }
 }
 
+/**
+ * A job stopped because its runner was already out (runner-dispatch's RUNNER_UNAVAILABLE, reason runner-unavailable)
+ * on a runner still in runner_unavailable: keep that quarantine as it is. No unavailable event is written and the
+ * row's since, detail and probe fields stay, so its idle proof is not restarted; the job's exact recovery identity
+ * only joins the row's pending jobs, so the proof still covers its cleanup. False when the runner is not out.
+ *
+ * Why: one drop marked every job waiting on that runner cleanup-unverified, and each re-quarantined the runner
+ * already out: about 250 of about 700 unavailable events in 6 h on 8 Nov were this cascade (#3698) [C7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} host
+ * @param {{ recovery?: object }} diagnostic
+ * @returns {boolean} True when the runner was already out and nothing more is recorded.
+ */
+function keepQuarantine(db, host, diagnostic) {
+  return auditedChange(db, () => {
+    const row = db.prepare('SELECT failure FROM runner_unavailable WHERE host=?').get(host);
+    if (!row) return false;
+    if (!recoveryIdentity(diagnostic.recovery)) return true;
+    let failure;
+    try { failure = JSON.parse(row.failure); } catch { return true; }
+    const pending = Array.isArray(failure?.pending) ? failure.pending : [failure?.original?.recovery ?? null];
+    const job = diagnostic.recovery;
+    if (pending.some(entry => recoveryIdentity(entry) && entry.request === job.request && entry.nonce === job.nonce) || pending.length >= 128) return true;
+    db.prepare('UPDATE runner_unavailable SET failure=? WHERE host=?').run(JSON.stringify({ ...failure, pending: [...pending, job] }), host);
+    return true;
+  });
+}
+
 /** Record the failed call and confirming health result together, resetting only this host's recovery generation. */
 export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine = true } = {}) {
   if (diagnostic) db.prepare(`INSERT INTO runner_transport_error(host,at,diagnostic) VALUES(?,?,?)
     ON CONFLICT(host) DO UPDATE SET at=excluded.at,diagnostic=excluded.diagnostic`)
     .run(host, new Date().toISOString(), JSON.stringify(diagnostic));
   if (!quarantine && reason !== 'cleanup-unverified') return;
+  if (reason === 'cleanup-unverified' && diagnostic?.reason === 'runner-unavailable' && keepQuarantine(db, host, diagnostic)) return;
   return auditedChange(db, () => {
   const old = db.prepare('SELECT failure FROM runner_unavailable WHERE host=?').get(host);
   let prior;
   try { prior = old ? JSON.parse(old.failure) : null; } catch { prior = null; }
   const pending = [...(old ? prior?.pending ?? [prior?.original?.recovery ?? null] : []), diagnostic?.recovery ?? null];
-  const failure = { original: diagnostic ?? null, pending: pending.length <= 128 ? pending : [null] };
+  const now = Date.now();
+  const hold = reason === 'worker-unresponsive' ? readinessHold(db, host, now) : { recurrences: 0, holdMs: 0 };
+  const failure = { original: diagnostic ?? null, pending: pending.length <= 128 ? pending : [null],
+    ...(hold.holdMs ? { readinessHold: { recurrences: hold.recurrences, until: new Date(now + hold.holdMs).toISOString() } } : {}) };
   db.prepare('INSERT INTO runner_recovery_event VALUES(?,?,?,?,?)').run(randomUUID(), host, new Date().toISOString(), 'unavailable', JSON.stringify({ reason, failure }));
   db.prepare(`INSERT INTO runner_unavailable(host,since,detail,failure,probe_after,probe_token,probe_until)
     VALUES(?,?,?,?,?,'',0) ON CONFLICT(host) DO UPDATE SET since=excluded.since,detail=excluded.detail,
     failure=excluded.failure,probe_after=excluded.probe_after,probe_token='',probe_until=0,probe_attempts=0`)
     .run(host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED'
       : reason === 'worker-unresponsive' ? 'WORKER_UNRESPONSIVE' : 'TRANSPORT_UNVERIFIED',
-      JSON.stringify(failure), Date.now() + (reason === 'worker-unresponsive' ? 0 : 1_000));
+      JSON.stringify(failure), now + (reason === 'worker-unresponsive' ? hold.holdMs : 1_000));
   });
 }
 

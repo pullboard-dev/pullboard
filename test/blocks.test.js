@@ -3,6 +3,8 @@ import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/index.js';
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
@@ -22,6 +24,7 @@ import {
 import { relayPresentation } from '../packages/pages/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { privateFixtureFiles } from './fixture-child.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -237,4 +240,33 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   const swept = new Set(personNeedsState(box.repo).needs.filter(row => row.kind === 'block' && row.id.includes(' pullboard sweep ')).map(row => row.id.split(' ')[0].slice('block:'.length)));
   assert.deepEqual([...swept].sort(), [...personCodes].sort());
   assert.ok((await apiNeeds(api, box.repo)).needs.some(row => row.id.startsWith('block:B26_PERSON_APPROVAL ')));
+});
+
+test('clause 1: readBlocks with a since bound parses no line older than the bound and reads a 20 MB ledger in under 20 ms [C7]', t => {
+  const commonDir = privateFixtureFiles('pullboard-blocks-tail-').root;
+  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  fs.mkdirSync(join(commonDir, 'pullboard'));
+  const now = Date.parse('2026-11-06T12:00:00Z'), line = (i, at, extra = {}) => JSON.stringify({ at: new Date(at).toISOString(), code: 'B1', id: `b${i}`, command: 'x'.repeat(180), ...extra });
+  const old = [];
+  for (let i = 0; i < 90_000; i++) old.push(line(i, now - 3 * 86_400_000 + i));
+  const recent = [line('r1', now - 3_600_000), line('r2', now - 1_800_000), JSON.stringify({ kind: 'clear', ids: ['br1'] }), line('r3', now - 60_000)];
+  const file = join(commonDir, 'pullboard', 'blocks.jsonl');
+  fs.writeFileSync(file, [...old, ...recent].join('\n') + '\n');
+  assert.ok(fs.statSync(file).size > 20_000_000, 'the ledger is 20 MB');
+  const since = new Date(now - 86_400_000), parse = JSON.parse; let parsed = 0, best = Infinity, blocks;
+  let oldParsed = 0;
+  JSON.parse = function(...args) { parsed++; if (/"id":"b\d/u.test(String(args[0]))) oldParsed++; return parse.apply(this, args); };
+  try {
+    for (let run = 0; run < 5; run++) {
+      parsed = 0;
+      const begun = process.hrtime.bigint();
+      blocks = readBlocks(commonDir, { since });
+      best = Math.min(best, Number(process.hrtime.bigint() - begun) / 1e6);
+    }
+  } finally { JSON.parse = parse; }
+  assert.deepEqual(blocks.map(block => block.id), ['br2', 'br3'], 'recent blocks survive and the cleared one is gone');
+  assert.equal(oldParsed, 0, 'no line older than the bound was parsed');
+  assert.ok(parsed < 5_000, `only the tail was parsed, not ${parsed} lines`);
+  assert.ok(best < 20, `a 20 MB ledger read in ${best.toFixed(1)} ms`);
+  assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');
 });

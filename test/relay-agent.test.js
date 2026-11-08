@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 import { viewApiPorts } from '../apps/view/index.js';
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */

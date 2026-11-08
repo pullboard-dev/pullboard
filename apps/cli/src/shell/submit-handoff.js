@@ -18,6 +18,8 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { exactStart } from '../../../../packages/gate/index.js';
 import { ensureDispatcher } from '../../../../packages/drive/index.js';
 import { DISPATCHER_JOB } from '../../../../packages/drive/index.js';
+/** The drive cell's detector for gate drives that renew their lease with no step; the sentinel command shouts each as Stuck (#3661). */
+export { stalledGateDriveFindings } from '../../../../packages/drive/index.js';
 import { releaseLease } from '../../../../packages/jobs/index.js';
 import { openBoard as openRawBoard } from '../../../../apps/lib/index.js';
 import { closeBoard as closeRawBoard } from '../../../../apps/lib/index.js';
@@ -26,6 +28,8 @@ import { readWorkerRecord } from './handoff-worker-alive.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -48,6 +52,7 @@ import { tmpdir } from 'node:os';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { refusalDocument } from '../core/next-step-words.js';
 import { submitHandoff } from '../../../../packages/store/index.js';
+import { INFRASTRUCTURE_RETRY_LIMIT } from '../../../../packages/store/index.js';
 import { itemUrgent } from '../../../../packages/store/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { handoffRecords } from '../../../../packages/store/index.js';
@@ -61,6 +66,35 @@ import { submitHandoffRoot } from './submit-handoff-origin.js';
 export function copyTools(toolRoot, target) {
   cpSync(toolRoot, target, { recursive: true, mode: constants.COPYFILE_FICLONE,
     filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+}
+
+/**
+ * Copy the tool root's committed HEAD tree, never its working tree, into `target`. Why: a seat runs Pullboard from its
+ * own item worktree, which is usually dirty, and an uncommitted edit must never leak into a snapshot other gates share [C7].
+ */
+export function copyCommittedTools(toolRoot, target, commit = 'HEAD') {
+  const run = spawnSync('/bin/sh', ['-c', 'git -C "$1" archive --format=tar "$3" | tar -xf - -C "$2"', 'sh', toolRoot, target, commit],
+    { encoding: 'utf8', env: cleanGitEnvironment() });
+  if (run.status !== 0) throw new Error(`tools snapshot of the committed tree failed: ${String(run.stderr ?? '').slice(0, 500)}`);
+}
+
+/**
+ * Rebuild a retry's vanished tools folder from the Pullboard commit its request captured.
+ * Why: a retry whose tools were swept must not end GATE_INFRA_EXHAUSTED; the captured tooling commit is enough (#3716).
+ *
+ * @param {string} directory - The stopped job's folder holding request.json.
+ * @returns {boolean} Whether the captured tools folder exists afterwards.
+ */
+export function rebuildCapturedTools(directory) {
+  let request;
+  try { request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8')); } catch { return false; }
+  const { tools, toolRoot, toolsCommit } = request;
+  if (typeof tools !== 'string') return false;
+  if (existsSync(tools)) return true;
+  if (!/^[0-9a-f]{40}$/u.test(toolsCommit ?? '') || typeof toolRoot !== 'string' || dirname(tools) !== tmpdir()
+    || !handoffToolsAllowed(tools, request.job)) return false;
+  try { toolsSnapshot(toolRoot, request.job, request.commonDir, { rebuild: { tools, commit: toolsCommit } }); } catch { /* The retry then retains the evidence. */ }
+  return existsSync(tools);
 }
 
 /** Folders and files whose git ids decide which tooling a worker runs; tests and docs are not among them. */
@@ -78,24 +112,24 @@ function toolingDigest(toolRoot) {
 }
 
 /**
- * The tools folder a gate runs from. A clean git checkout of Pullboard shares one snapshot per tooling tree under the OS
- * temp dir, copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else
- * gets a private per-job copy. Why: every submit copied 3,762 files, and keying by commit still copied one per submit
+ * The tools folder a gate runs from. A git checkout of Pullboard, clean or dirty, shares one snapshot per tooling tree under the OS
+ * temp dir, built from its committed HEAD tree and copied only when absent (into a temp sibling, then renamed, so no submit sees half a copy); anything else
+ * gets a private per-job copy (only a tool root with no resolvable HEAD does). Why: 71% of submits on 6 Nov copied privately because seat roots were dirty; every submit copied 3,762 files, and keying by commit still copied one per submit
  * because each submit merges main first; the tooling trees change only a few times a day [C7].
  *
  * @param {string} toolRoot
  * @param {string} job
  * @param {string} [commonDir]
- * @param {{ copy?: (toolRoot: string, target: string) => void }} [options] copy is injectable so a test can count copies
+ * @param {{ copy?: (toolRoot: string, target: string) => void, rebuild?: { tools: string, commit: string } }} [options] copy is injectable so a test can count copies; rebuild restores a vanished folder from a captured commit (#3716)
  * @returns {string}
  */
-export function toolsSnapshot(toolRoot, job, commonDir, { copy = copyTools } = {}) {
+export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = copy ?? copyCommittedTools, rebuild } = {}) {
+  copy ??= copyTools;
   const head = tryGit(toolRoot, ['rev-parse', 'HEAD']);
   const top = tryGit(toolRoot, ['rev-parse', '--show-toplevel']);
-  const clean = head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
-    && realpathSync(top.stdout) === realpathSync(toolRoot)
-    && tryGit(toolRoot, ['status', '--porcelain']).stdout === '';
-  const shared = clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null;
+  const clean = rebuild !== undefined || head.status === 0 && /^[0-9a-f]{40}$/u.test(head.stdout) && top.status === 0
+    && realpathSync(top.stdout) === realpathSync(toolRoot);
+  const shared = rebuild?.tools ?? (clean ? join(tmpdir(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`) : null);
   if (shared && existsSync(shared)) {
     touchToolTree(shared);
     // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
@@ -110,7 +144,7 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy = copyTools } = {
   }
   const staging = mkdtempSync(join(tmpdir(), `pullboard-handoff-staging-${job}-`));
   try {
-    copy(toolRoot, staging);
+    copyCommitted(toolRoot, staging, rebuild?.commit);
     renameSync(staging, shared);
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });
@@ -150,7 +184,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     const tools = toolsSnapshot(toolRoot, result.job.id, ctx.info.commonDir);
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
-      companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
+      companion: candidate.companion, tools, toolRoot, toolsCommit: tryGit(toolRoot, ['rev-parse', 'HEAD']).stdout }) + '\n', { flag: 'wx', mode: 0o600 });
     await launchCapturedWorker(directory, tools, ctx.info.commonDir, result.job, 0, result.reservation);
   } else {
     await recoverSubmitHandoff(ctx, item.item_id, me.id, result.job);
@@ -326,7 +360,7 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     const gone = goneHandoff(current);
     let retry = null;
     if (owned && (current.state === 'running' || gone) && ENGINE_VERSION < INFRA_HANDOFF_RECOVERY_ENGINE) {
-      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
       catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
     }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
@@ -519,7 +553,7 @@ export async function replaceSubmitHandoff(ctx, itemId, actor, job) {
 export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExecutor, launch = launchCapturedWorker } = {}) {
   const jobs = withBoardRead(ctx, board => boardHandoffs(board)
     .filter(({ job }) => job.state === 'infrastructure' && ['GATE_INFRA_EXHAUSTED', 'SUBMIT_HANDOFF_DEAD'].includes(job.error?.code)
-      && (job.infrastructureRetries ?? 0) < 2));
+      && (job.infrastructureRetries ?? 0) < INFRASTRUCTURE_RETRY_LIMIT));
   if (!jobs.length || !(await healthy())) return 0;
   let recovered = 0;
   for (const { itemId, job } of jobs) {
@@ -533,8 +567,8 @@ export async function recoverInfrastructureHandoffs(ctx, { healthy = healthyExec
       });
       if (!current) return;
       let retry;
-      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
-        { limit: 2, retries: current.infrastructureRetries ?? 0 }); }
+      try { rebuildCapturedTools(directory); retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory,
+        { limit: INFRASTRUCTURE_RETRY_LIMIT, retries: current.infrastructureRetries ?? 0 }); }
       catch (error) {
         ctx.io.err(`stopped submit #${itemId} retains captured evidence: ${error.message}`);
         await withBoard(ctx, board => ordered(ctx, board, 'startSubmitHandoff', [itemId, { agentId: job.agentId, job: job.id, unrecoverable: error.message }]));

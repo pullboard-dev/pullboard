@@ -36,6 +36,7 @@ export const FIXTURE_HELPERS = {
   tempdir: 'test/fixture-child.js',
   'raw-cli': 'test/testkit-fixture.js',
   model: 'test/testkit-fixture.js',
+  'hand-policy': 'test/testkit-fixture.js',
 };
 
 const MESSAGES = {
@@ -45,7 +46,7 @@ const MESSAGES = {
   'repo-read': 'reads a repository file from the test own directory outside a world-pin comment; declare @pullboard-world-pin or use a fixture',
   hex64: 'holds a 64-character hex literal; keep it in a shared fixture helper or list it as a world pin',
   'env-spread': 'spreads process.env next to a PULLBOARD_ key in a file that spawns bin/pullboard.js; build the child environment with kit.env()',
-  'hand-policy': 'writes pullboard.json, SPEC.md, bin/cells-plan.json or settings.json by hand; declare the policy with kit.world({ policy })',
+  'hand-policy': `writes pullboard.json, SPEC.md, bin/cells-plan.json or settings.json by hand; declare the policy with fixtureProjectPolicy in ${FIXTURE_HELPERS['hand-policy']}`,
   'raw-board': 'opens a board or adds an item in process outside the kit; use kit.board(), or mark a store unit test of addItem with // fixture-subject: addItem',
 };
 
@@ -199,6 +200,32 @@ export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = comp
     }
   }
   return fixtureGrowth(problems, ceilings).map(({ path, line, kind, text }) => ({ path, line, text: `${kind}: ${text}` }));
+}
+
+/**
+ * The same growth as fixtureProblems, judged on just the named files and read through `text`, so the commit hook can
+ * judge staged bytes in milliseconds. A file's allowance is the greater of its ceiling and the count its own text has at
+ * `previous` (accepted main, '' when main lacks it), as the gate's composition base allows. Paths the gate's tree walk
+ * would skip are skipped here too [C7].
+ *
+ * @param {string[]} files - Repo-relative changed or staged paths.
+ * @param {{ text: (path: string) => string, previous: (path: string) => string, ceilings: () => Record<string, Record<string, number>> }} options
+ *   `ceilings` is read only when a named file is a test source, so a commit with no test files reads and scans nothing.
+ * @returns {{ path: string, line: number, text: string }[]} The rows the gate static stage prints, as `kind: message`.
+ */
+export function fixtureGrowthIn(files, { text, previous, ceilings }) {
+  const tests = files.filter(path => TEST_SOURCE.test(path) && !path.split('/').some(part => part === 'node_modules' || part === 'work' || part.startsWith('.')));
+  if (!tests.length) return [];
+  const committed = ceilings();
+  const problems = tests.flatMap(path => fixtureSites(text(path), path));
+  const allowed = { ...committed };
+  for (const path of new Set(fixtureGrowth(problems, committed).map(row => row.path))) {
+    const inherited = fixtureCounts(fixtureSites(previous(path), path))[path] ?? {};
+    const merged = { ...(committed[path] ?? {}) };
+    for (const [kind, count] of Object.entries(inherited)) merged[kind] = Math.max(merged[kind] ?? 0, count);
+    allowed[path] = merged;
+  }
+  return fixtureGrowth(problems, allowed).map(({ path, line, kind, text: message }) => ({ path, line, text: `${kind}: ${message}` }));
 }
 
 /**
