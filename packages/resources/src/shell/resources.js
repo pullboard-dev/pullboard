@@ -25,6 +25,7 @@ import {
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import {
+  basename,
   dirname,
   join,
   resolve,
