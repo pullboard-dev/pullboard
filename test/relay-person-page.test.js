@@ -98,6 +98,22 @@ test('a phone shows its account quota warning while its already-linked board sti
   assert.equal(shown.text.includes('pullboard relay on --all'), false, 'a linked board is not asked to share again');
 });
 
+/**
+ * A page condition that holds once the control keeps the same box and screen across three polls.
+ * Why: the approval panel moves between the first screen and the board shell while the page settles, and a tap aimed before that move lands on empty space.
+ */
+function settled(selector) {
+  return `(() => {
+    const button = document.querySelector(${JSON.stringify(selector)});
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    const key = [rect.x, rect.y, rect.width, rect.height, document.documentElement.dataset.relayScreen].join();
+    window.settledRun = window.settledKey === key ? (window.settledRun ?? 0) + 1 : 0;
+    window.settledKey = key;
+    return window.settledRun >= 2 && rect.width > 0;
+  })()`;
+}
+
 /** Wait for a private native setup transition without repeating its command or weakening an assertion. */
 async function phoneSetupState(read, message) {
   const deadline = Date.now() + 20_000; // budget: declared hang ceiling for a private enrollment/approval metadata transition.
@@ -167,6 +183,7 @@ window.fetch = async (input, options) => {
   await chrome.navigate('about:blank');
   await chrome.navigate(box.origin);
   await chrome.waitFor(`document.querySelector(${JSON.stringify(selector)}) !== null && Array.isArray(data?.projects)`);
+  await chrome.waitFor(settled(selector));
   const before = await chrome.evaluate(`(() => {
     const button = document.querySelector(${JSON.stringify(selector)});
     const rect = button.getBoundingClientRect();
@@ -179,6 +196,7 @@ window.fetch = async (input, options) => {
   assert.equal(run.child.exitCode, null, 'the native foreground command is still waiting for the person');
   assert.equal(before.shown, true, 'the pending native approval must be visible, not merely present under the hidden board shell');
   await chrome.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
+  await chrome.waitFor(settled(selector));
   const point = await chrome.evaluate(`(() => {
     const button = document.querySelector(${JSON.stringify(selector)}); const rect = button.getBoundingClientRect();
     const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
@@ -195,7 +213,7 @@ window.fetch = async (input, options) => {
   assert.equal(box.calls.filter(call => call.path.endsWith('/authorize')).length - authorizations, 1, 'one tap authorizes exactly once');
 });
 
-test('a phone draws its saved board while the approvals read never answers [N26,H5,H17]', chromeOptions, async t => {
+test('a phone draws its saved board while the approvals read never answers [N26,H5,H17] [clause 1]', chromeOptions, async t => {
   const box = await relayClientFixture(t);
   const marker = 'READABLE_BOARD_WITH_PENDING_REQUESTS_899';
   assert.equal((await box.cli('add', box.lane, marker)).code, 0);
@@ -229,6 +247,8 @@ window.fetch = (input, options) => {
   });
   await chrome.navigate(box.origin);
   await chrome.waitFor("document.readyState === 'complete'");
+  await chrome.waitFor("!!document.querySelector('[data-tab=items]')");
+  await chrome.evaluate("document.querySelector('[data-tab=items]').click(); true");
   const panelOwnership = await chrome.send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `(async () => {
     const { phoneApprovalStatus, placePhoneApprovals, forgetPhoneApprovals } = await import('/relay/browser-approval-card.js');
     const doc = document.implementation.createHTMLDocument('Private approval ownership');
@@ -513,14 +533,23 @@ test('the actual relay page seals its shout and refuses generic direct moves [H1
   assert.equal(cookie.success, true);
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
   await chrome.waitFor('typeof data !== "undefined" && !!data?.project && !!transport');
-  const capability = await chrome.evaluate('({readOnly,requests,snapshot,display:getComputedStyle(document.querySelector("#shout-form")).display})');
-  assert.deepEqual(capability, { readOnly: true, requests: true, snapshot: false, display: 'flex' });
+  const capability = await chrome.evaluate('({readOnly,requests,snapshot})');
+  assert.deepEqual(capability, { readOnly: true, requests: true, snapshot: false });
   const before = (await box.cli('export')).document;
   const callsBefore = box.calls.length;
   const direct = await chrome.evaluate(`api(boardPath(view.root) + '/moves', {verb:'claim',item:1}).then(() => 'allowed', error => error.message)`);
   assert.match(direct, /read-only view/);
   assert.equal(box.calls.slice(callsBefore).some(call => call.method === 'POST'), false, 'the generic direct move never reaches the relay');
-  await chrome.evaluate(`document.querySelector('[data-tab=shouts]').click(); document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='RELAY_PAGE_SEALED_SHOUT'; document.querySelector('#shout-form').requestSubmit(); true`);
+  await chrome.evaluate("document.querySelector('[data-tab=shouts]').click(); true");
+  await chrome.waitFor("document.querySelector('#shout-form')?.getClientRects().length > 0 && document.querySelector('#shout-text')?.getClientRects().length > 0");
+  const composer = await chrome.evaluate(`(() => {
+    const form = document.querySelector('#shout-form'), text = document.querySelector('#shout-text'), send = document.querySelector('#shout-send');
+    return { formVisible: form.getClientRects().length > 0, textVisible: text.getClientRects().length > 0,
+      sendVisible: send.getClientRects().length > 0, sendEnabled: !send.disabled && !text.disabled };
+  })()`);
+  assert.deepEqual(composer, { formVisible: true, textVisible: true, sendVisible: true, sendEnabled: true },
+    'read-only page provides usable visible shout controls');
+  await chrome.evaluate(`document.querySelector('#shout-to').value='coordinator'; document.querySelector('#shout-text').value='RELAY_PAGE_SEALED_SHOUT'; document.querySelector('#shout-form').requestSubmit(); true`);
   await chrome.waitFor('data.project.personRequests?.some(row => row.move?.args?.text === "RELAY_PAGE_SEALED_SHOUT")');
 
   const request = await chrome.evaluate('data.project.personRequests.find(row => row.move?.args?.text === "RELAY_PAGE_SEALED_SHOUT")');

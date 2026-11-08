@@ -3,6 +3,7 @@ import { processCensus } from './runner-custody.js';
 import { runnerPolicyRecord } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
 import { runnerPublicKeyProblem } from '../../../../packages/runners/src/core/runner-signature.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
+import { analysisArtifactDescriptor } from '../../../../packages/resources/index.js';
 import { recoveryIdentity } from '../../../../packages/resources/index.js';
 import { claimRunnerWorker } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { createHash } from 'node:crypto';
@@ -89,6 +90,9 @@ export async function readSpec(S) {
     const mode = privateCheckEnvelope(value.trustedMode);
     if (mode.policyCommit.length !== value.commit.length || value.command !== mode.check || value.landing === true || value.stageMarker !== undefined) throw new Error('invalid trusted private-check source');
     value.trustedMode = mode;
+  }
+  if (value.analysisArtifact !== undefined) {
+    value.analysisArtifact = analysisArtifactDescriptor(value.analysisArtifact, value.trustedMode?.sha256);
   }
   if (value.trunk !== undefined) {
     if (value.trustedMode) throw new Error('ambiguous runner policy context');

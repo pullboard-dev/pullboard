@@ -11,6 +11,7 @@ import { pendingRelayCanaryNotices } from '../packages/link/index.js';
 import { startRelayCanaryWatch, RELAY_CANARY_INTERVAL_MS, runRelayCanary } from '../packages/link/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { apiBoardOpeners } from './board-fixture.js';
 
 /** Capture the scheduler callback so cadence tests advance time without sleeping. */
 function fakeInterval() {
@@ -165,18 +166,18 @@ test('a pending alert notice retries after delivery failure and is removed only 
   const config = { enabled: true, root: seat.root, agentId: seat.agentId, deadlineMs: 5_000 };
   let now = Date.now();
   const attemptIds = [];
-  await withFixtureEnvironment(box.env, () => runRelayCanary(config, { now: () => now,
+  await withFixtureEnvironment(box.env, () => runRelayCanary(config, { io: apiBoardOpeners, now: () => now,
     notify: async notice => { attemptIds.push(notice.id); } }));
 
   now += 60_000;
-  await assert.rejects(withFixtureEnvironment(box.env, () => runRelayCanary(config, { now: () => now,
+  await assert.rejects(withFixtureEnvironment(box.env, () => runRelayCanary(config, { io: apiBoardOpeners, now: () => now,
     notify: async notice => { attemptIds.push(notice.id); throw new Error('fixture delivery failure'); } })), /fixture delivery failure/u);
   const pending = pendingRelayCanaryNotices(box.root);
   assert.equal(pending.length, 1, 'the unrecorded alert stays durable after delivery throws');
   assert.equal(attemptIds.length, 1, 'the first failed probe did not create a notification');
 
   now += 60_000;
-  const delivered = await withFixtureEnvironment(box.env, () => runRelayCanary(config, { now: () => now,
+  const delivered = await withFixtureEnvironment(box.env, () => runRelayCanary(config, { io: apiBoardOpeners, now: () => now,
     notify: async notice => { attemptIds.push(notice.id); } }));
   assert.equal(delivered.health.pendingNotifications, 0, 'returned status reflects completed notice recording');
   assert.deepEqual(attemptIds, [pending[0].id, pending[0].id], 'retry uses the same durable notice identity');
@@ -217,11 +218,11 @@ test('a stalled real board route is bounded by the probe deadline [H5,H17]', { t
   box.stallApi();
   const started = performance.now();
   let result;
-  try { result = await withFixtureEnvironment(box.env, () => probeRelayCanary(seat.root, { agentId: seat.agentId, deadlineMs: 250 })); }
+  try { result = await withFixtureEnvironment(box.env, () => probeRelayCanary(seat.root, { io: apiBoardOpeners, agentId: seat.agentId, deadlineMs: 250 })); }
   finally { box.stallApi(false); }
   assert.equal(result.ok, false, 'an unanswered board route is never a healthy round trip');
   assert.ok(['push', 'pull'].includes(result.step), JSON.stringify(result));
   assert.ok(performance.now() - started < 5000, 'the probe drains before its normal ceiling'); // budget: the declared five-second probe ceiling bounds a stalled request.
-  const healthy = await withFixtureEnvironment(box.env, () => probeRelayCanary(seat.root, { agentId: seat.agentId }));
+  const healthy = await withFixtureEnvironment(box.env, () => probeRelayCanary(seat.root, { io: apiBoardOpeners, agentId: seat.agentId }));
   assert.equal(healthy.ok, true, JSON.stringify(healthy));
 });

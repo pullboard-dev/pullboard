@@ -75,7 +75,7 @@ test('both retained landing-shards diagnostics match noise-only variations witho
   const before = retainedRun(fixture.blocks, fixture.executionRoot);
   assert.equal(before?.length, 2);
   assert.ok(before.every(row => row.firstError && !row.firstError.includes(fixture.executionRoot)), 'retained errors omit the checkout path');
-  const changedRoot = '/Users/fixture/.pullboard-runner/jobs/11111111-2222-4333-8444-555555555555-AbCdEf/checkout';
+  const changedRoot = '/Users/user/.pullboard-runner/jobs/11111111-2222-4333-8444-555555555555-AbCdEf/checkout';
   const blocks = fixture.blocks.map(block => block.replaceAll(fixture.executionRoot, changedRoot)
     .replaceAll(fixture.executionRoot.replace(/\/checkout$/u, ''), changedRoot.replace(/\/checkout$/u, ''))
     .replaceAll('pZOEPl', 'aBcDeF').replaceAll('Kw5Une', 'bCdEfG').replaceAll('sr48g6', 'cDeFgH')

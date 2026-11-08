@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { configFromSource } from '../src/shell/config.js';
+import { fixtureAdd } from '../../../test/testkit-fixture.js';
 
 /** Submit a real committed change under the board's configured budget and inspect its public result. */
 function submitSized(helpers, lines, budget) {
@@ -25,7 +26,7 @@ process.exit(fs.existsSync('web/big.txt') ? 0 : 1);
   box.git(box.repo, 'add', 'check.cjs', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: record size fixture check [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const added = box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs');
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs');
   assert.equal(added.code, 0, added.out + added.err);
   const claimed = box.run(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.out + claimed.err);

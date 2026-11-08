@@ -1,5 +1,9 @@
 import { cellRoots } from './cell-lint-roots.js';
-import { readPathMap } from '../core/path-map.js';
+import {
+  readPathMap,
+  pathMapFromFiles,
+} from '../core/path-map.js';
+import { cellSourceSnapshot } from './cell-source-snapshot.js';
 import { exportReachability } from './cell-lint-exports.js';
 /** Report migration debt from accepted RFC 0006; report reads never initialize or rewrite ratchets [C7,CD64]. */
 import { cellInventory } from './cell-lint-inventory.js';
@@ -101,7 +105,9 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
   for (const row of unknown) add('unknown', `${row.file}:${row.specifier ?? ''}:${row.reason}`, 1, row.reason);
   for (const value of Object.values(metrics)) value.findings.sort((a, b) => a.key.localeCompare(b.key));
   const hasPathMap = files.has('path-map.json') || [...files.keys()].some(file => file.startsWith('bin/cells-plan/path-map/'));
-  const pathMap = hasPathMap ? Object.fromEntries(readPathMap(root)) : {};
+  const snapshot = cellSourceSnapshot(root);
+  const pathMap = snapshot ? Object.fromEntries(pathMapFromFiles(snapshot.files, snapshot.entries))
+    : hasPathMap ? Object.fromEntries(readPathMap(root)) : {};
   // #1527 ends at the first committed package move; #1781's exact marker preserves advisory growth until #1770 deletes it.
   const witness = Object.entries(pathMap).find(([, target]) => target.startsWith('packages/')) ?? null;
   const transition = marker.active

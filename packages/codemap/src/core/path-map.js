@@ -24,7 +24,6 @@ function relativeFile(value) {
 export function readPathMap(root, { commit = 'HEAD' } = {}) {
   const listed = tryGit(root, ['ls-tree', '-r', '-z', commit, '--', 'path-map.json', 'bin/cells-plan/path-map']);
   if (listed.status !== 0) throw invalidMap();
-  const map = new Map();
   const shards = listed.stdout.split('\0').filter(Boolean).map((entry) => {
     const match = /^100(?:644|755) blob ([a-f0-9]+)\t(.+)$/u.exec(entry);
     if (!match || !(match[2] === 'path-map.json' || /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(match[2]))) throw invalidMap();
@@ -46,9 +45,15 @@ export function readPathMap(root, { commit = 'HEAD' } = {}) {
     shard.text = blobs.toString('utf8', end + 1, end + 1 + size);
     at = end + 1 + size + 1;
   }
-  for (const shard of shards) {
+  return parsePathMaps(shards.map(shard => shard.text));
+}
+
+/** Validate and flatten all map shards using the same rules for committed and snapshot reads. */
+function parsePathMaps(shards) {
+  const map = new Map();
+  for (const text of shards) {
     let data;
-    try { data = JSON.parse(shard.text); } catch { throw invalidMap(); }
+    try { data = JSON.parse(text); } catch { throw invalidMap(); }
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw invalidMap();
     for (const [from, to] of Object.entries(data)) {
       if (!relativeFile(from) || !relativeFile(to) || map.has(from)) throw invalidMap();
@@ -67,6 +72,21 @@ export function readPathMap(root, { commit = 'HEAD' } = {}) {
     resolved.set(from, path);
   }
   return resolved;
+}
+
+/** Read the exact selected snapshot's map files and reject invalid names or nonregular entries. */
+export function pathMapFromFiles(files, entries = files) {
+  if (!(files instanceof Map) || !(entries instanceof Map)) throw invalidMap();
+  const names = [...new Set([...entries.keys(), ...files.keys()])].filter(path => typeof path === 'string'
+    && (path === 'path-map.json' || path === 'bin/cells-plan/path-map' || path.startsWith('bin/cells-plan/path-map/'))).sort();
+  const shards = names.map(path => {
+    if (!(path === 'path-map.json' || /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(path))) throw invalidMap();
+    const entry = entries.get(path), bytes = files.get(path);
+    if (entries !== files && (!entry || !['100644', '100755'].includes(entry.mode))) throw invalidMap();
+    if (!Buffer.isBuffer(bytes)) throw invalidMap();
+    return bytes.toString('utf8');
+  });
+  return parsePathMaps(shards);
 }
 
 /** History readers share the primary branch's map even when called from an older worktree. */

@@ -11,6 +11,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - P4 [approved, must] Every refusal names its rule, shows what it saw, and gives the next step. | gate: review
 - P5 [approved, must] The core names no model or vendor, and opens no connection except the sync you turn on. | gate: test/boundary.test.js
 - P6 [approved, must] A person's own moves (approving rows, answering decisions, signing off) come only from the person: their own terminal, the view in their own browser (local or on pullboard.dev), or a signed person move; never through an agent interface such as MCP, the API, or a CLI run in an agent's shell. | gate: test/mcp.test.js
+- P7 [draft, must] No process is load-bearing: every activity that takes time is a job with saved steps and a heartbeat lease that any driver resumes, and every derived result is keyed by content (a tree id, or a tree plus a command). Killing any process at any moment loses no work and never blocks the board. | gate: test/durable-chaos-26.test.js
 
 ## B · Board
 - B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: test/e2e.test.js

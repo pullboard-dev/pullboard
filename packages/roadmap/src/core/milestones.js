@@ -15,7 +15,7 @@ import {
   ENGINE_VERSION,
   MILESTONE_RANK_ENGINE,
   WITHDRAW_MILESTONE_ENGINE,
-} from "../../../../src/machine.js";
+} from "../../../state/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";

@@ -1,3 +1,4 @@
+import { STRANDED_DEPENDENCY_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
@@ -67,7 +68,7 @@ function activity(board, item, actor, anchor, kind, seats, workObservation, now,
 }
 
 /** Board events that renew or restate a claim; none of them is work on it. */
-const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
+export const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
 /** A claim shows as stalled after this much idle time, and is released at the second (#1225). */
 export const CLAIM_STALL_MS = 20 * 60_000;
 /** A holder who committed this recently is never returned by the progress rule (#2251). */
@@ -176,7 +177,7 @@ function reviewRow(board, item, limits, now, seats, options) {
 export function staleStateSnapshotWith(withSeatPresence, board, config = {}, { now = board.clock.now(),
   workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats, items: suppliedItems, claimsOnly = false } = {}) {
   const at = now.getTime();
-  const limits = staleStateLimits(config);
+  const limits = staleStateLimits(config, { dependency: (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE });
   const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
   const seats = suppliedSeats === undefined ? observedSeats(withSeatPresence, board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
   const options = { workObservation, blocker };

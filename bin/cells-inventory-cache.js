@@ -1,3 +1,4 @@
+import { validateAcceptedInventory } from '../packages/codemap/index.js';
 /** Cache immutable base inventories on the machine and incrementally inspect a candidate [C7,D3]. */
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
@@ -22,8 +23,10 @@ import { machineHome } from '../packages/resources/index.js';
 import { receiptDigest } from '../packages/git/index.js';
 import { checkCommandDefinition } from '../packages/git/index.js';
 import { fileURLToPath } from 'node:url';
-import { git } from '../src/git.js';
+import { git } from './cells-snapshot-git.js';
 import { Refused } from '../packages/kernel/index.js';
+import { readAcceptedCells } from '../packages/gate/index.js';
+import { temporaryCellEdges } from '../packages/codemap/index.js';
 
 /** A cache is never evidence for a moved or dirty immutable source. */
 function unchanged(checkout, commit) {
@@ -92,13 +95,37 @@ export function publishCacheEntry(directory, file, bytes) {
 }
 
 /** Share only complete immutable inventories under their exact commit and checker identity. */
-export function inventoryCache(root, key, parsers, onMode = () => {}, eligible = () => true) {
+export function inventoryCache(root, key, parsers, onMode = () => {}, eligible = () => true, { acceptedMain, artifact, artifacts, strict = false } = {}) {
   const memory = new Map();
   const checker = inventoryChecker(key);
   /** Read or construct the pinned base once; a malformed cache is never evidence. */
   function base(checkout, commit) {
     unchanged(checkout, commit);
     if (memory.has(commit)) return memory.get(commit);
+    if (strict) {
+      const tree = git(checkout, ['rev-parse', 'HEAD^{tree}']).trim();
+      if (!artifact?.available) throw inventoryPending('the accepted tree has no completed inventory');
+      let value;
+      if (tree === artifact.descriptor.tree) {
+        value = artifact.inventory;
+        onMode('base-cache');
+      } else {
+        const paths = git(checkout, ['diff', '--no-renames', '--name-only', '-z', acceptedMain, commit]).split('\0').filter(Boolean);
+        if (needsFullCensus(paths)) {
+          const historical = artifacts?.get(commit) ?? readAcceptedCells(root, commit);
+          if (!historical.available) throw inventoryPending(`merge base ${commit} needs an off-path inventory after discovery changed`, commit);
+          value = historical.inventory;
+          onMode('base-cache', 'historical discovery policy');
+        } else {
+          value = updateCellInventory(checkout, parsers, artifact.inventory, paths);
+          onMode('base-derived', 'reverse diff from accepted tree');
+        }
+      }
+      unchanged(checkout, commit);
+      memory.set(commit, value);
+      return value;
+    }
+
     const directory = cellsCacheDirectory('inventory');
     const file = inventoryCacheFile(key, commit);
     let inventory = file && eligible() ? read(file, commit) : null;
@@ -156,10 +183,16 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
   /** Update only the changed, added and deleted paths; package.json, the kernel front door and discovery.js keep the full census. */
   function candidate(checkout, prior, changed) {
     const fallback = needsFullCensus(changed);
-    onMode(fallback ? 'candidate-full-fallback' : 'candidate-incremental');
+    const cause = fallback ? [...changed].filter(file => needsFullCensus([file])).join(', ') : undefined;
+    onMode(fallback ? 'candidate-full-fallback' : 'candidate-incremental', cause);
     return fallback ? cellInventory(checkout, parsers) : updateCellInventory(checkout, parsers, prior, changed);
   }
-  return { base, candidate };
+  /** A completed main report shares its immutable source while expiring temporary authority is read now. */
+  function report(checkout, commit) {
+    if (!strict || !artifact?.available || git(checkout, ['rev-parse', `${commit}^{tree}`]).trim() !== artifact.descriptor.tree) return null;
+    return currentInventoryReport(artifact.report, artifact.inventory);
+  }
+  return { base, candidate, report };
 }
 
 /**
@@ -211,4 +244,53 @@ export function observationCache(root, key, eligible = () => false) {
     } catch { /* Optional observations never replace a real analysis. */ }
   }
   return { values, commit };
+}
+
+/** A missing accepted inventory is machinery still warming, never a builder's cell failure. */
+export function inventoryPending(message, commit) {
+  return Object.assign(new Error(`accepted cells inventory is not ready: ${message}; the background main inventory producer must complete before retry`),
+    { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, inventoryCommit: commit });
+}
+
+/** Refresh only date-dependent temporary edges; immutable source/report findings stay cached. */
+function currentInventoryReport(report, inventory) {
+  const temporary = temporaryCellEdges(inventory.files);
+  const metrics = Object.fromEntries(Object.entries(report.metrics).map(([name, value]) => [name, { ...value,
+    findings: value.findings.filter(row => name === 'shims' ? !row.key.startsWith('temporary:')
+      : name !== 'unknown' || !row.key.startsWith('bin/cells-plan/temporary-edges.json:')) }]));
+  const unknown = report.unknown.filter(row => row.file !== 'bin/cells-plan/temporary-edges.json');
+  for (const row of temporary.edges) metrics.shims.findings.push({ key: `temporary:${row.importer}->${row.target}`, count: 1,
+    detail: `contract #${row.contractItem}; expires ${row.expires} UTC` });
+  for (const reason of temporary.problems) {
+    unknown.push({ file: 'bin/cells-plan/temporary-edges.json', reason });
+    metrics.unknown.findings.push({ key: `bin/cells-plan/temporary-edges.json::${reason}`, count: 1, detail: reason });
+  }
+  for (const value of Object.values(metrics)) {
+    value.findings.sort((a, b) => a.key.localeCompare(b.key));
+    value.count = value.findings.reduce((sum, row) => sum + row.count, 0);
+  }
+  return { ...report, metrics, unknown };
+}
+
+/** Verify one bounded streamed bundle against the exact descriptors bound by the native check command. */
+export function transferredCellsInventories(bytes, expected) {
+  try {
+    if (!Buffer.isBuffer(bytes) || bytes.length > 64 * 1024 ** 2 || expected?.version !== 1
+      || !/^[a-f0-9]{64}$/u.test(expected.digest ?? '') || createHash('sha256').update(bytes).digest('hex') !== expected.digest
+      || !Array.isArray(expected.sources) || expected.sources.length < 1 || expected.sources.length > 2) throw new Error('bundle identity mismatch');
+    const value = deserialize(bytes);
+    if (value?.version !== 1 || !Array.isArray(value.artifacts) || value.artifacts.length !== expected.sources.length) throw new Error('bundle shape mismatch');
+    const artifacts = new Map();
+    for (const [index, entry] of value.artifacts.entries()) {
+      const source = expected.sources[index];
+      if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '') || entry.commit !== source.commit || artifacts.has(entry.commit)) throw new Error('bundle source mismatch');
+      const artifact = validateAcceptedInventory(entry.bytes, source.descriptor);
+      if (!artifact.available) throw new Error('inventory identity mismatch');
+      artifacts.set(entry.commit, artifact);
+    }
+    return artifacts;
+  } catch (cause) {
+    throw Object.assign(new Error(`accepted inventory transfer is invalid: ${cause.message}`),
+      { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_INVALID', retryable: true });
+  }
 }
