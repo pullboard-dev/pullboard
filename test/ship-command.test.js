@@ -72,7 +72,7 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   const value = JSON.parse(submitted.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const lines = [];
-  const io = { cwd: box.web, nativeBoard, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  const io = { cwd: box.web, nativeBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
     { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
     { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
