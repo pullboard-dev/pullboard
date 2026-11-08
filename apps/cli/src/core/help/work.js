@@ -20,6 +20,9 @@ export const workHelp = `Work
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>]
+                [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--sensitive]           select Strict review; edit can set it while open
+                [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
@@ -98,7 +101,9 @@ export const workHelp = `Work
                                         the command and its author print first; the project gate is pullboard gate
   pullboard test <files>                run named test files on the runner pool with the per-file timeout, uncommitted
                                         changes included; a red file is compared with main and named known or new
+                                        one file skips the main comparison; --compare-main runs it
                                         --affected selects the change and its accepted registry guards; no files needed
+                                        with no runner registered it starts here only under one load per core, and says so
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill

@@ -18,8 +18,10 @@ import { invalidateUnknownFamilies } from "./family-declaration.js";
 import { familyAliasesOf } from "../../core.js";
 import { familyName } from "../../core.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
-import { saveAgentParent } from "../../../seats/src/shell/seats.js";
-import { saveAgentSession } from "../../../seats/src/shell/seats.js";
+import {
+  saveAgentParent,
+  saveAgentSession,
+} from "../../../seats/index.js";
 
 /** Accept an opaque identity, never a path, whitespace, credential or arbitrary session metadata. */
 export function parentIdentity(value) {

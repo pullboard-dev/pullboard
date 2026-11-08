@@ -32,7 +32,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   }
   if (!info.isMain) return;
   const primary = mainCheckout(info.root);
-  if (primary?.branch) (await import('../../../../../packages/git/src/shell/git-trunk-ref.js')).trunkRef(info.root, primary.branch);
+  if (primary?.branch) (await import('../../../../../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
 }
 
 /**
@@ -62,7 +62,7 @@ async function timedMain(argv, streams) {
   }
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
-  const { withGitFacts } = await import('../../../../../packages/git/src/shell/git.js');
+  const { withGitFacts } = await import('../../../../../packages/git/index.js');
   let command;
   try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
   if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
@@ -179,7 +179,7 @@ async function runMain(argv, streams) {
     await io.prepareProcessPorts();
     return (await import('../../../../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  const git = needsRepo ? await import('../../../../../packages/git/src/shell/git.js') : null;
+  const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
     try {
@@ -221,9 +221,7 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
-      if (!sync) return null;
-      const { repoInfo } = git ?? await import('../../../../../packages/git/src/shell/git.js');
-      if (!(await import('../../../../../packages/store/src/shell/sync-may-act.js')).syncMayAct(io.cwd, repoInfo)) return null;
+      if (!sync || !(await import('../../../../../packages/store/index.js')).syncMayAct(io.cwd)) return null;
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('../cli-sync.js');
@@ -252,7 +250,7 @@ async function runMain(argv, streams) {
       automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/src/shell/blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/src/shell/person.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
@@ -260,16 +258,24 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
-    if (automaticLandingAfterCommand && await landingWakeMayAct(automaticLandingAfterCommand)) {
+    if (automaticLandingAfterCommand) {
       // A release run from an item folder removes that folder before this wake; the pending record names the
       // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
       const { info } = automaticLandingAfterCommand;
       const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
       try {
         const worker = await import('../../../../../packages/landing/index.js');
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
         // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
-        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics: automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set() });
+        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
+        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
+        // One board read answers both: recovery and the bootstrap share the answer for the same record.
+        const answers = new Map();
+        const woken = async job => {
+          if (!answers.has(job.id)) answers.set(job.id, (await import('../../../../../bin/automatic-landing.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
+          return answers.get(job.id);
+        };
+        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../../../../../bin/automatic-landing.js', import.meta.url), { woken });
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
       }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
@@ -307,21 +313,6 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
-}
-
-/**
- * Whether an automatic-landing wake could act: a pending record exists, or accepted work waits to land.
- * With neither, a read command never loads the landing package and the gate behind it [C7]. Any doubt answers yes,
- * so the full wake keeps its own guards and reports its own failures.
- */
-async function landingWakeMayAct({ info, file }) {
-  if (existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))) return true;
-  if (!existsSync(file)) return false;
-  try {
-    const db = (await import('../../../../../packages/store/src/shell/board-read-open.js')).openBoardReadOnly(file);
-    try { return Boolean(db.prepare("SELECT 1 FROM item WHERE item_status = 'verified' AND item_merged_commit IS NULL LIMIT 1").get()); }
-    finally { db.close(); }
-  } catch { return true; }
 }
 
 /** The trunk checkout the pending landing record names, or null when there is no readable record. */

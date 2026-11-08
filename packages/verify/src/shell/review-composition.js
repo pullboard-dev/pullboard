@@ -2,12 +2,12 @@
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from '../../../../src/review-head-builder-family-engine.js';
 import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
-import { itemPatchAuthors } from '../../../items/src/shell/item-patch-state.js';
-import { itemPatches } from '../../../items/src/shell/item-patch-state.js';
+import { itemPatchAuthors } from '../../../items/index.js';
+import { itemPatches } from '../../../items/index.js';
 import { itemReviewPolicy } from '../core/review-policy.js';
 import { familyName } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
-import { seatFamily } from '../../../items/src/shell/family-declaration.js';
+import { seatFamily } from '../../../items/index.js';
 
 /** Genuine historical moves retain their recorded exclusion rules. */
 export function compositionReviews(board) {

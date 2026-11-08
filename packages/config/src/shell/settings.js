@@ -7,8 +7,10 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { setResourceCapacity } from '../../../resources/src/shell/resources.js';
-import { updateRunnerSettings } from '../../../resources/src/shell/resources.js';
+import {
+  setResourceCapacity,
+  updateRunnerSettings,
+} from '../../../resources/index.js';
 import { validateRunner } from '../core/settings-read.js';
 import { loadMachineSettings } from '../core/settings-read.js';
 export { loadMachineSettings };
@@ -23,7 +25,7 @@ import {
   readGateQueueSettings,
   readMachineSettingsFile,
 } from '../../../queue/index.js';
-import { machineSettingsFile } from '../../../resources/src/shell/machine-home.js';
+import { machineSettingsFile } from '../../../resources/index.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };

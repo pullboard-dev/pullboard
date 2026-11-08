@@ -4,8 +4,11 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { driverRecord } from './gate-driver-fixture.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { gateSettled } from './submit-handoff-fixture.js';
+import { removeSandboxes } from './submit-handoff-fixture.js';
 import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../packages/store/index.js';
@@ -67,7 +70,9 @@ function fixture(t) {
   t.after(async () => {
     writeFileSync(release, 'release\n');
     await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
-    helpers.cleanup();
+    // The driver and dispatcher still write for a moment after the job ends; remove the tree only once they are done.
+    await gateSettled(helpers, box, state(box, id).job?.id);
+    await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, started };
 }
@@ -79,7 +84,7 @@ test('submitting head B while head A gates cancels A, frees its slot and queues 
   await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
   const first = state(box, box.id).job;
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', first.id);
-  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  const owner = driverRecord(box.boardFile, first.id);
 
   assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'pass\n', 'feat(web): next candidate [G1]').status, 0);
   const next = box.run(box.web, 'submit', String(box.id), '--no-next', '--json');

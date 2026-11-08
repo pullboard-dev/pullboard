@@ -9,10 +9,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE } from '../../../config/src/shell/config.js';
-import { COORDINATOR } from '../../../config/src/shell/config.js';
-import { configFromSource } from '../../../config/src/shell/config.js';
-import { loadConfig } from '../../../config/src/shell/config.js';
+import {
+  CONFIG_FILE,
+  COORDINATOR,
+  configFromSource,
+  loadConfig,
+} from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { laneOf } from '../core/lane-of.js';
 

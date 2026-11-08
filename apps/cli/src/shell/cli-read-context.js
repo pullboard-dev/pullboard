@@ -1,7 +1,9 @@
 import { itemFolderIdentity } from './item-folder-identity.js';
-import { seatFamily } from '../../../../packages/items/src/shell/family-declaration.js';
-import { dependencyReferences } from '../../../../packages/items/src/core/item-dependencies.js';
-import { dependencyLabel } from '../../../../packages/items/src/core/item-dependencies.js';
+import { seatFamily } from '../../../../packages/items/index.js';
+import {
+  dependencyReferences,
+  dependencyLabel,
+} from '../../../../packages/items/index.js';
 /**
  * What every command shares and a read needs: the checkout's context, the board opened around one piece of work,
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
@@ -15,12 +17,14 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from '../../../../packages/seats/src/core/agent-names.js';
-import * as store from './cli-read-store.js';
-import { CONFIG_FILE } from '../../../../packages/config/src/shell/config.js';
-import { COORDINATOR } from '../../../../packages/config/src/shell/config.js';
-import { loadConfig } from '../../../../packages/config/src/shell/config.js';
-import { loadDoctrine } from '../../../../packages/doctrine/src/shell/doctrine.js';
+import { displayAgentName } from '../../../../packages/seats/index.js';
+import * as store from '../../../../packages/store/index.js';
+import {
+  CONFIG_FILE,
+  COORDINATOR,
+  loadConfig,
+} from '../../../../packages/config/index.js';
+import { loadDoctrine } from '../../../../packages/doctrine/index.js';
 import {
   codeIsFromMain,
   differFromHead,
@@ -33,11 +37,14 @@ import {
   tryGit,
 } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { mainPolicy } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
-import { policyAt } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
-import { trunkRef } from '../../../../packages/sandbox/src/shell/trusted-policy-read.js';
-import { familyIndex } from '../../../../packages/verify/src/core/review-policy.js';
-import { MAIN_MERGE_LABEL } from '../../../../packages/merge/src/shell/trunk-conflict.js';
+import {
+  mainPolicy,
+  policyAt,
+  trunkRef,
+} from '../../../../packages/sandbox/index.js';
+import { familyIndex } from '../../../../packages/verify/index.js';
+import { MAIN_MERGE_LABEL } from '../../../../packages/merge/index.js';
+import { sessionRoute } from './model-tier-route.js';
 
 /**
  * A comma list of spec ids from a flag.
@@ -406,7 +413,7 @@ export function withOpenedBoard(ctx, work, board) {
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   const seat = environmentAgent(ctx.info.root, board);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: seat.agent_route, family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -421,5 +428,6 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
-  return { id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
+  // The route follows the model this session declares, not only the one the seat joined with (#3678).
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
 }

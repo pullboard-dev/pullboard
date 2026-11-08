@@ -130,7 +130,7 @@ console.log(JSON.stringify({scoped,uncached,count}));`;
   return { run, runIn, worktree, repo, gitAt, facts };
 }
 
-test('clause 1: show reads only its read store and list reads only its read store [C7]', async (t) => {
+test('a read command loads only its own modules [C7]', async (t) => {
   const box = fixture(t);
   const version = box.run('--version');
   assert.match(version.stdout, /^\d+\.\d+\.\d+/u);
@@ -139,9 +139,38 @@ test('clause 1: show reads only its read store and list reads only its read stor
   const show = box.run('show', '1');
   assert.match(show.stdout, /^#1 {2}/u);
   assert.deepEqual(show.modules.filter((path) => HEAVY.includes(path)), [], 'show loads no gate, relay or land module');
+  assert.ok(show.gitCalls.length <= 2, `show started ${show.gitCalls.length} Git processes: ${show.gitCalls.join(' | ')}`);
+  const status = box.run('status', '--json');
+  assert.equal(JSON.parse(status.stdout).stats.items.open, 1);
+  assert.deepEqual(status.modules.filter((path) => HEAVY.includes(path)), [], 'offline status loads no gate, relay or land module');
+  // Status prints its review-queue line without the move registry, which loads every move and the engines behind them.
+  assert.deepEqual(status.modules.filter((path) => path === 'src/move-registry.js' || path.startsWith('src/moves/') || path.startsWith('packages/moves/src/')), [],
+    'offline status loads no move module');
   const list = box.run('list', '--json');
   assert.equal(JSON.parse(list.stdout).items.length, 1);
   assert.deepEqual(list.modules.filter((path) => HEAVY.includes(path)), [], 'list loads no gate, relay or land module');
+  // One rev-parse in the worktree answers top level, Git dirs, HEAD and the primary checkout for the whole process;
+  // the only other is the code's own checkout, asked once where the running code came from.
+  mkdirSync(join(box.worktree, 'src'));
+  writeFileSync(join(box.worktree, 'src', 'own-head.js'), 'export const fixture = true;\n');
+  box.gitAt(box.worktree, 'add', 'src/own-head.js');
+  box.gitAt(box.worktree, 'commit', '-q', '-m', 'feat(core): distinguish the worker head [C7]');
+  const worker = box.facts(box.worktree);
+  assert.notEqual(worker.scoped.head, worker.scoped.primary.commit, 'the current head is not silently replaced by the primary head');
+  assert.equal(worker.scoped.primary.branch, 'refs/heads/main');
+  assert.equal(worker.count, 1, 'one combined query returns paths, the worker commit and the primary branch/commit');
+  const claim = box.runIn(box.worktree, 'claim', '1');
+  assert.match(claim.stdout, /claimed #1/u);
+  const revParses = claim.gitCalls.filter((call) => /\brev-parse\b/u.test(call));
+  const here = revParses.filter((call) => call.startsWith(`${box.worktree}\t`));
+  assert.equal(here.length, 1, `claim asked the worktree for repo facts ${here.length} times: ${here.join(' | ')}`);
+  assert.ok(revParses.length <= 2, `claim started ${revParses.length} rev-parse processes: ${revParses.join(' | ')}`);
+  assert.ok(claim.gitCalls.length <= 10, `claim started ${claim.gitCalls.length} Git processes: ${claim.gitCalls.join(' | ')}`);
+  box.gitAt(box.repo, 'switch', '--quiet', '--detach', 'main');
+  assert.equal(box.facts(box.worktree).scoped.primary, null, 'a detached primary keeps the existing null contract');
+  box.gitAt(box.repo, 'switch', '--quiet', '--orphan', 'unborn');
+  assert.deepEqual(box.facts(box.worktree).scoped.primary, { branch: 'refs/heads/unborn', commit: null },
+    'an unborn primary is a known branch without an invented commit');
 });
 
 test('startup budget keeps fresh read medians under 100 ms [C7]', async (t) => {

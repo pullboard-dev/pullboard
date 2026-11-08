@@ -1,15 +1,16 @@
 import { reviewPatchAuthors } from '../shell/review-composition.js';
 import { compositionFamilyFallback } from '../shell/review-composition.js';
-import { seatFamily } from '../../../items/src/shell/family-declaration.js';
+import { seatFamily } from '../../../items/index.js';
+import { withFamilyReads } from '../../../items/index.js';
 import { committedItemAuthors } from '../shell/review-independence.js';
 import { strictReviewProblem as strictAuthorProblem } from '../shell/review-independence.js';
 /** The show command and review queue use the native rules rather than an agent's lineage notes [V4,B26]. */
 import { strictReviewProblem } from '../shell/review-routing.js';
-import { itemAuthorProblem } from '../../../items/src/shell/item-authors.js';
+import { itemAuthorProblem } from '../../../items/index.js';
 import { itemReviewPolicy } from '../shell/review-independence.js';
 import { reviewFamilyProblem } from '../shell/review-independence.js';
 import { twoTierReviews } from '../shell/review-independence.js';
-import { canTake } from '../../../seats/src/core/route-escalation.js';
+import { canTake } from '../../../seats/index.js';
 import { requiredReviewFamilyProblem } from './required-review-family.js';
 import { familiesDiffer } from './review-policy.js';
 import { builderFamilyOf } from '../shell/review-routing.js';
@@ -62,7 +63,7 @@ function withReviewFacts(board, work) {
   // A read-only savepoint also keeps peer writes from mixing different snapshots inside one result.
   board.db.exec('SAVEPOINT review_eligibility');
   // The spread copies only enumerable properties, so the explicit alias index is carried across the snapshot [#1762].
-  try { return work({ ...board, db, familyAliases: board.familyAliases }); }
+  try { const observed = { ...board, db, familyAliases: board.familyAliases }; return withFamilyReads(observed, () => work(observed)); }
   finally { board.db.exec('RELEASE review_eligibility'); }
 }
 

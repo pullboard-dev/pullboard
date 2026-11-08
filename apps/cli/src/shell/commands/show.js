@@ -1,37 +1,49 @@
-import { recordedVerificationComparison } from '../../../../../packages/verify/src/shell/verify-compare.js';
-import { renderVerificationComparison } from '../../../../../packages/verify/src/shell/verify-compare.js';
-import { itemProgress } from '../../../../../packages/roadmap/src/core/work-progress.js';
-import { progressLine } from '../../../../../packages/roadmap/src/core/work-progress.js';
-import { submitHandoff } from '../../../../../packages/store/src/shell/submit-handoff-read.js';
-import { loadMachineSettings } from '../../../../../packages/config/src/core/settings-read.js';
-import { localUsage } from '../../../../../packages/config/core.js';
-import { dollarText } from '../../../../../packages/config/core.js';
-import { trunkRef } from '../../../../../packages/sandbox/src/shell/trusted-policy-read.js';
-import { verifiedPasskeyRowDecision } from '../../../../../packages/person/src/shell/person-row-proof.js';
-import { reviewEligibility } from '../../../../../packages/verify/src/core/review-eligibility.js';
-import { showReviewPacket } from '../../../../../packages/verify/src/shell/review-packet.js';
-import { machineVerification } from '../../../../../packages/verify/src/shell/machine-verification.js';
-import { gatePanel } from '../../../../../packages/jobs/src/shell/gate-panel.js';
+import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
+import { machineVerification } from '../../../../../packages/verify/index.js';
+import { itemProgress } from '../../../../../packages/roadmap/index.js';
+import { progressLine } from '../../../../../packages/roadmap/index.js';
+import { submitHandoff } from '../../../../../packages/store/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { localUsage } from '../../../../../packages/config/index.js';
+import { dollarText } from '../../../../../packages/config/index.js';
+import { trunkRef } from '../../../../../packages/sandbox/index.js';
+import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
+import { reviewEligibility } from '../../../../../packages/verify/index.js';
+import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { handoffWorkerAlive } from '../handoff-worker-alive.js';
+import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../cli-board-read.js';
-import { testRuntimeEnvironment } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
-import { testRuntimeRows } from '../../../../../packages/sandbox/src/shell/execution-environment.js';
+import {
+  testRuntimeEnvironment,
+  testRuntimeRows,
+} from '../../../../../packages/sandbox/index.js';
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
-import { displayAgentName } from '../../../../../packages/seats/src/core/agent-names.js';
+import {
+  displayAgentName,
+} from '../../../../../packages/seats/index.js';
 import {
   barCorrectionLine,
   barCorrections,
 } from '../../../../../src/bar-corrections.js';
-import * as store from '../cli-read-store.js';
-import { agentApprovalLine } from '../../../../../packages/spec/src/shell/spec-approval.js';
-import { itemAgentApprovals } from '../../../../../packages/spec/src/shell/spec-approval.js';
-import { specApprovalState } from '../../../../../packages/spec/src/shell/spec-approval.js';
-import { sayCheckBaseline } from '../../../../../packages/gate/src/core/check-baseline-format.js';
-import { mainMergeFor } from '../../../../../packages/merge/src/shell/trunk-conflict.js';
-import { mainMergeLines } from '../../../../../packages/merge/src/shell/trunk-conflict.js';
-import { staleVerdictRefusal } from '../../../../../packages/verify/src/shell/verdict-freshness.js';
-import { verdictProjector } from '../../../../../packages/verify/src/shell/verdict-freshness.js';
-import { retainedGateAssertions } from '../../../../../packages/gate/src/shell/test-output-summary.js';
+import * as store from '../../../../../packages/store/index.js';
+import {
+  agentApprovalLine,
+  itemAgentApprovals,
+  specApprovalState,
+} from '../../../../../packages/spec/index.js';
+import {
+  retainedGateAssertions,
+  sayCheckBaseline,
+} from '../../../../../packages/gate/index.js';
+import {
+  mainMergeFor,
+  mainMergeLines,
+} from '../../../../../packages/merge/index.js';
+import {
+  staleVerdictRefusal,
+  verdictProjector,
+} from '../../../../../packages/verify/index.js';
 import {
   agentDisplayName,
   context,
@@ -41,10 +53,11 @@ import {
   itemLine,
   sayBrief,
 } from '../cli-read-context.js';
-import { relayStateExists } from '../../../../../packages/store/src/shell/local-state.js';
-import { itemCost } from '../../../../../packages/stats/src/shell/cost-read.js';
-import { publicUsage } from '../../../../../packages/stats/src/shell/cost-read.js';
+import { relayStateExists } from '../../../../../packages/store/index.js';
+import { itemCost } from '../../../../../packages/stats/index.js';
+import { publicUsage } from '../../../../../packages/stats/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { itemFolderPath } from '../item-folder.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -63,7 +76,7 @@ export async function run(io, { first, values }) {
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(ctx.info.commonDir, job) }) : null;
+    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
@@ -105,7 +118,11 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
-    io.say(`you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
+    // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
+    const seatPath = agents.find((agent) => agent.agent_id === callerId)?.agent_path;
+    io.say(seatPath
+      ? `you hold #${item.item_id}; build and commit in its item folder ${itemFolderPath(seatPath, item.item_id)}, then run pullboard submit ${item.item_id} there`
+      : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
   if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
@@ -129,7 +146,7 @@ export async function run(io, { first, values }) {
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
   if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
-  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : ''}; --detail`);
+  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : ''}${dollarText(cost)}; --detail`);
   if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
   if (checkText) {
     io.say(`check: ${checkText}`);

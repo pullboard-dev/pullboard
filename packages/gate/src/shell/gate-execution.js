@@ -101,6 +101,7 @@ import {
 } from './gate-run-receipt.js';
 import {
   committedTest,
+  singleFileTapOutcomes,
   tapTests,
 } from './tap-tests.js';
 import { readTestOutcomes } from './test-outcomes.js';
@@ -117,7 +118,9 @@ import {
 import {
   logLines,
 } from './timing.js';
-import { safeLog } from './test-output-summary.js';
+import {
+  secretsIn,
+} from '../../../commits/index.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
@@ -188,7 +191,14 @@ export function refuseSandboxBlocked(run) {
     `The environment refused ${run.sandboxBlocked}. Ask the coordinator to bring this operation to the person, or run the gate outside the sandbox; keep the tests unchanged.`);
 }
 
-export { safeLog };
+/** Replace a possible secret-bearing line before persisting a direct item-check log. */
+export function safeLog(output) {
+  return output.split('\n').map((line, index) => {
+    if (Buffer.byteLength(line, 'utf8') > 64 * 1024) return '[redacted output line exceeds 64 KiB safe-scan limit]';
+    const findings = secretsIn([{ path: 'item check output', line: index + 1, text: line }]);
+    return findings.length ? `[redacted ${findings.map(finding => finding.slice(0, finding.lastIndexOf(' at '))).join(', ')}]` : line;
+  }).join('\n');
+}
 
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
@@ -243,7 +253,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     ? sandboxBlockedOperation(root, run.output, { includeFilePaths: false })
     : sandboxBlockedOperation(root, run.output));
   const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? pinnedSource?.head ?? headCommit(root),
-    readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
+    readTestOutcomes(safeLog(run.output ?? ''), id) ?? singleFileTapOutcomes(command, safeLog(run.output ?? '')), tryGit);
   const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
   if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
   const profile = writeTimingProfile(profilePath, {
@@ -348,7 +358,8 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   if (gateLease) gateLease.testOutcomeRunId = outcomeId;
   let result = checkAtCommit(root, item, { gateLease, waitMs });
   const testOutcomes = result.executed && result.executionSourceUnchanged !== false
-    ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId), tryGit) : null;
+    ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId)
+      ?? singleFileTapOutcomes(result.executionCommand ?? frozenCheck(item), result.outputPath ? [...logLines(result.outputPath)].join('\n') : result.output ?? ''), tryGit) : null;
   if (testOutcomes) {
     result.testOutcomes = testOutcomes;
     if (result.profilePath) result.profile = { ...writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes }), profilePath: result.profilePath };
