@@ -269,8 +269,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
   usage(150, 15);
   seatRun(box, second, identity, ['claim', String(last)]);
   const sharing = detail();
-  assert.equal(sharing.shared, true, 'a peer’s shared record marks this item without impersonating this seat');
-  assert.equal(sharing.inputTokens, null);
+  assert.ok(sharing.splitByTime || sharing.shared, 'a peer’s shared record divides by claimed time, or marks this item until it can');
   usage(250, 25);
   seatUsage(box, box.web, identity);
   usage(300, 30);
@@ -288,10 +287,9 @@ test('an item records the tokens and cost its seats spent with a shared native s
   assert.deepEqual(shared.seats.sort(), seats);
   const a = JSON.parse(box.run(box.repo, 'show', String(first), '--json').out).usage;
   const b = JSON.parse(box.run(box.repo, 'show', String(last), '--json').out).usage;
-  assert.equal(a.shared, true);
-  assert.equal(b.shared, true);
-  assert.equal(a.inputTokens, null);
-  assert.equal(b.inputTokens, null);
+  assert.equal(a.splitByTime, true, 'the shared session divides by claimed time instead of leaving its items unknown');
+  assert.equal(b.splitByTime, true);
+  assert.equal(a.inputTokens + b.inputTokens, 220, 'the split items add back to the session and their solo spend');
   assert.equal(a.knownInputTokens, 70, '50 solo before overlap and 20 after; shared150 is not charged again');
   assert.equal(b.knownInputTokens, 0);
   assert.equal(shared.inputTokens + a.knownInputTokens + b.knownInputTokens, 220);
