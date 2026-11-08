@@ -26,6 +26,7 @@ import { promisify } from 'node:util';
 import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
+import { staleHeadLines } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
 import { checkRunTickNotes } from '../../../../../packages/state/index.js';
 import { testRunTickNotes } from '../../../../../packages/state/index.js';
@@ -404,6 +405,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item) }) : null;
     if (clauseProblem) throw clauseProblem;
+    // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
+    if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
       await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
