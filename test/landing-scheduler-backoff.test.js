@@ -22,7 +22,8 @@ const { landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFix
 
 /** The test file whose recorded defect holds the fixture trunk. */
 const HELD = 'web/held.test.js';
-const HELD_TEXT = "import test from 'node:test'; test('held case', () => { throw new Error('the recorded defect'); });\n";
+// The fixture runner reads RED and NAME: from the file text, so the held case is red for real when landing measures it (#3719).
+const HELD_TEXT = "// RED NAME:held-case\nimport test from 'node:test'; test('held case', () => {});\n";
 
 /** Read one of the fixture's private wake records, or null. */
 function record(box, name = 'pending.json') {
@@ -70,7 +71,7 @@ function heldTrunk(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the fixture test the defect holds');
   const blob = box.git(box.repo, 'rev-parse', `HEAD:${HELD}`);
   onBoard(box, board => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: HELD,
-    hash: createHash('sha256').update(HELD_TEXT).digest('hex'), blob, trunkBlob: blob, names: ['held case'], lane: 'web',
+    hash: createHash('sha256').update(HELD_TEXT).digest('hex'), blob, trunkBlob: blob, names: ['held-case'], lane: 'web',
     batchId: randomUUID(), branch: box.git(box.repo, 'symbolic-ref', 'HEAD') }));
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
