@@ -185,7 +185,8 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
   const landed = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(landed.landed, [good.id], JSON.stringify(landed));
+  const gateLogs = (landed.batch?.gateResults ?? []).map(row => existsSync(row.logPath) ? readFileSync(row.logPath, 'utf8') : 'no log').join('\n---\n');
+  assert.deepEqual(landed.landed, [good.id], `${gateLogs}\n${JSON.stringify(landed)}`);
   assert.deepEqual(landed.culprits.map(row => row.id), [bad.id]);
   assert.equal(landed.culprits[0].tests[0].file, 'test/journey.test.js');
   const logs = landed.batch.gateResults.map(row => readFileSync(row.logPath, 'utf8'));
