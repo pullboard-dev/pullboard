@@ -8,7 +8,7 @@ import { board as store } from '../apps/lib/index.js';
 import { registerProject } from '../packages/seats/index.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
-import { apiHttpFixture as fixture, apiHttpBox as httpBox, shellWord } from './api-fixture.js';
+import { apiHttpFixture as fixture, apiHttpBox as httpBox, shellWord, FIXTURE_BRIEF } from './api-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
@@ -61,7 +61,7 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   const box = await httpBox(t);
   const one = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-one');
   const two = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-two');
-  const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1' } });
+  const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1', brief: FIXTURE_BRIEF } });
   assert.equal(added.status, 200);
   assert.equal(added.document.event.event_kind, 'add');
   const id = added.document.result.item.item_id;
@@ -350,6 +350,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   renameSync(unavailableRoot, external.root);
   await changedOnce('external-restored');
 
+  box.cli(box.root, 'shout', 'app', 'unread by the joined agent'); assert.equal((await nextFrame()).data.event.event_kind, 'shout'); await changedOnce('unread-shout-state'); // the inbox advances its cursor only past an unread shout
   const localBoardPath = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const cursorBefore = store.openBoard(localBoardPath);
   let beforeSeen;

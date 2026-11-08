@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import {
   readMachineMemory,
   memoryVerdict,
-} from '../src/shell/resources.js';
+} from '../src/shell/memory-admission.js';
 import { toolSourcePath } from '../../runners/index.js';
 import { cleanupFailureReport } from '../../../test/cleanup-diagnostics.js';
 

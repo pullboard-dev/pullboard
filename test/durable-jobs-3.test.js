@@ -60,7 +60,7 @@ test('clause 1: queueing a hand-off creates a job row and every state change wri
   } finally { board.db.close(); }
 });
 
-test('clause 1: a board without the job tables keeps its hand-off unchanged [C7]', (t) => {
+test('clause 1: a board without the job tables refuses a hand-off it has nowhere to record [C7]', (t) => {
   const { box, id, commit } = queued(t);
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
   try {
@@ -70,8 +70,8 @@ test('clause 1: a board without the job tables keeps its hand-off unchanged [C7]
     const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
       commit, tree, executionCommit: commit, executionTree: tree, digest: item.item_frozen_digest,
       companionDigest: null, leaseMs: 7_200_000 };
-    const result = writeBoardCommand(board, 'queueSubmitHandoff', [id, options], item.item_owner);
-    assert.equal(result.created, true);
-    assert.equal(result.job.state, 'queued');
+    // The job row is the only copy of the record (#3476), so the queue refuses rather than lose it.
+    assert.throws(() => writeBoardCommand(board, 'queueSubmitHandoff', [id, options], item.item_owner), { code: 'JOB_TABLES_MISSING' });
+    assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").get().n, 0);
   } finally { board.db.close(); }
 });

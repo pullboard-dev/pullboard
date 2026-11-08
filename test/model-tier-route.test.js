@@ -69,10 +69,10 @@ test('clause 2: scale takes the declared model and tier from the current environ
   let launched;
   const deps = {
     context: () => ({ info: { isMain: true, root: box.repo }, config }),
-    workerBudget: () => ({ seatHours: 1000, window: 'day' }),
+    workerBudget: () => ({ spend: 1000, window: 'day' }),
     withBoard: (_ctx, read) => read({}),
     observe: () => ({ worth: 1, workers: [], reviews: 0, builds: 1 }),
-    ledger: { record: () => ({ usedHours: 0, spent: null }) },
+    ledger: { record: () => ({ spend: 0, spent: null }) },
     worktreeFor: (io, lane, route, family, model) => {
       launched = { lane, route, family, model };
       io.result({ agent: 'fixture-worker', path: box.repo, prompt: 'fixture prompt' });
