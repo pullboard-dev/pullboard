@@ -1,11 +1,9 @@
 /** Withdrawing an item ends its queued or running gate hand-off and removes its place in line [C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { openBoard } from '../apps/lib/index.js';
 import { getItem } from '../packages/store/index.js';
 import { writeBoardCommand } from '../packages/store/index.js';
 import { startSubmitHandoff } from '../packages/store/index.js';
@@ -14,6 +12,8 @@ import { handoffTicketWaiting } from '../packages/resources/index.js';
 import { queueHandoffLaunch } from '../packages/resources/index.js';
 import { reserveHandoffTicket } from '../packages/resources/index.js';
 import { fixtureAdd } from './testkit-fixture.js';
+import { fixtureHandoffPolicy } from './testkit-fixture.js';
+import { fixtureOpenBoard } from './testkit-fixture.js';
 
 /**
  * Build a project with a claimed item and one committed candidate, ready to queue.
@@ -25,11 +25,7 @@ function claimed(t) {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true', helpers.sandbox());
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: 'true', submit: { handoff: true } }, null, 2) + '\n');
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  box.boardFile = fixtureHandoffPolicy(box, helpers.CONFIG);
   const added = fixtureAdd(box.run, box.repo, 'web', 'Withdrawn hand-off source', '--specs', 'G1',
     '--criterion', 'The candidate passes.', '--check', 'true', '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
@@ -64,7 +60,7 @@ for (const running of [false, true]) {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
     t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
-    let board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+    let board = fixtureOpenBoard(box);
     let options;
     try {
       options = queue(box, board, id, commit);
@@ -76,7 +72,7 @@ for (const running of [false, true]) {
     } finally { board.db.close(); }
     const withdrawn = box.run(box.repo, 'withdraw', String(id), 'obsolete');
     assert.equal(withdrawn.code, 0, `${withdrawn.err}\n${withdrawn.out}`);
-    board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+    board = fixtureOpenBoard(box);
     try {
       const ended = submitHandoff(board, id);
       assert.equal(ended.state, 'ended');
