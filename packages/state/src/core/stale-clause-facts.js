@@ -28,15 +28,16 @@ export function namedEvidence(evidence) {
  * Every clause fact (a note ticking `clause <n> [kind]: ...`) that cites a head other than `head`, for a numbered
  * criterion. Why: a builder's run at an earlier head is real evidence, but a reviewer needs the exact-head
  * receipt's outcome next to it; and the builder needs to know before queuing which clause rests on an old head.
- * A clause with any tick that cites no head or the exact head is not listed: its evidence is current.
+ * By default a clause with any tick that cites no head or the exact head is not listed: its evidence is current.
+ * With `everyEarlier` every fact that cites an earlier head is listed even then, which is what a reviewer sees.
  *
  * @param {{ item_criterion?: string, item_owner?: string }} item
  * @param {{ type: string, kind?: string, by?: string, text?: string, id?: string }[]} thread
  * @param {string} head - The exact head commit.
- * @param {{ anyAuthor?: boolean }} [options] - Read facts by any author, not only the item's owner.
+ * @param {{ anyAuthor?: boolean, everyEarlier?: boolean }} [options] - Read facts by any author; list every earlier-head fact.
  * @returns {{ clause: number, kind: string, fact: string|null, cited: string, evidence: string, files: string[], cases: string[] }[]}
  */
-export function earlierHeadFacts(item, thread, head, { anyAuthor = true } = {}) {
+export function earlierHeadFacts(item, thread, head, { anyAuthor = true, everyEarlier = false } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length || !head) return [];
   const byClause = new Map();
@@ -53,9 +54,10 @@ export function earlierHeadFacts(item, thread, head, { anyAuthor = true } = {}) 
   for (const clause of clauses) {
     const rows = byClause.get(clause.number) ?? [];
     if (!rows.length) continue;
-    const current = rows.some(row => !row.heads.length || row.heads.some(cited => isExactHead(cited, head)));
-    if (current) continue;
+    const isCurrent = row => !row.heads.length || row.heads.some(cited => isExactHead(cited, head));
+    if (!everyEarlier && rows.some(isCurrent)) continue;
     for (const row of rows) {
+      if (isCurrent(row)) continue;
       const { cases, files } = namedEvidence(row.evidence);
       found.push({ clause: row.clause, kind: row.kind, fact: row.fact, cited: row.heads[0], evidence: row.evidence, files, cases });
     }

@@ -43,7 +43,8 @@ test('clause 1: a fact at an earlier head is listed, one at the exact head or at
   const head = 'b'.repeat(40);
   const facts = earlierHeadFacts(item, thread('clause 1 [test]: "a greeting case passes" passed at aaaaaaaaaa', 'clause 2 [test]: "a name case passes" passed at bbbbbbbbbb'), head);
   assert.deepEqual(facts.map(row => [row.clause, row.cited, row.cases]), [[1, 'aaaaaaaaaa', ['a greeting case passes']]]);
-  assert.deepEqual(earlierHeadFacts(item, thread('clause 1 [test]: green run at aaaaaaaaaa', 'clause 1 [test]: green run at bbbbbbbbbb'), head), [], 'a clause with current evidence is not listed');
+  assert.deepEqual(earlierHeadFacts(item, thread('clause 1 [test]: green run at aaaaaaaaaa', 'clause 1 [test]: green run at bbbbbbbbbb'), head), [], 'a clause with current evidence is not listed for the builder');
+  assert.deepEqual(earlierHeadFacts(item, thread('clause 1 [test]: green run at aaaaaaaaaa', 'clause 1 [test]: green run at bbbbbbbbbb'), head, { everyEarlier: true }).map(row => row.cited), ['aaaaaaaaaa'], 'a reviewer still sees the earlier-head fact beside a current one');
   assert.deepEqual(earlierHeadFacts(item, thread('clause 1 [test]: green run with no head'), head), []);
   const linked = linkEarlierFacts(facts, [{ file: 'f.test.js', test: 'a greeting case passes', result: 'pass' }], []);
   assert.equal(linked[0].stale, false);

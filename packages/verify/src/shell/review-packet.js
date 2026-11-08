@@ -319,7 +319,7 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   const citesClause = (name, n) => [...String(name ?? '').matchAll(/\bclause\s+(\d+)\b/giu)].some(match => Number(match[1]) === n);
   // Clause facts citing an earlier head, each matched to the exact-head receipt's outcome for the same named cases;
   // a named case missing from the exact-head receipt makes its clause stale (#3752).
-  const linked = linkEarlierFacts(earlierHeadFacts(item, thread, head), executed, runs);
+  const linked = linkEarlierFacts(earlierHeadFacts(item, thread, head, { everyEarlier: true }), executed, runs);
   const mapped = clauses.map(clause => {
     const clauseWords = words(clause.text);
     let evidence = namedFileEvidence(clause, runs.filter(run => candidates.includes(run.file) && clause.text.includes(run.file)), executed, citesClause);
