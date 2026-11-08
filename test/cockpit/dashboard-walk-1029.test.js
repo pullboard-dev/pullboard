@@ -32,7 +32,7 @@ test('clause 1: the Dashboard matches the 29 Oct walk at desktop and phone width
   for (const id of itemIds) {
     const lane = id === 1 ? 'web' : 'ops';
     box.run(alpha.repo, 'add', lane, `Dashboard walk item ${id}`, '--specs', 'G1', '--route', 'strong',
-      '--criterion', 'The Dashboard shows the real board state.', '--check', 'test -f pullboard.json');
+      '--criterion', 'The Dashboard shows the real board state.', '--check', 'true');
   }
   box.run(alpha.repo, 'add', 'web', 'Dashboard walk active build', '--specs', 'G1', '--route', 'strong',
     '--criterion', 'The active builder remains visible.', '--check', 'true');
