@@ -29,6 +29,17 @@ import { fixtureJoin } from './testkit-fixture.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
+/**
+ * A project whose web worktree is not joined yet, so each case joins it with its own provider model. Why: the kit's
+ * project joins web-1 as fixture-model, and a second join with another model is refused ALREADY_JOINED (#2095).
+ */
+function unjoinedProject() {
+  const box = helpers.project('true', undefined, { withWorktree: false });
+  const web = join(box.dir, 'web-1');
+  box.git(box.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
+  return { ...box, web };
+}
+
 /** Write one native-shaped JSONL record; fixture data is not claimed provider execution. */
 function record(file, row) {
   appendFileSync(file, JSON.stringify({ timestamp: new Date().toISOString(), ...row }) + '\n');
@@ -62,7 +73,7 @@ function seatUsage(box, cwd, identity) {
 }
 
 test('an item records the tokens and cost its seats spent [N2]', () => {
-  const box = helpers.project('true');
+  const box = unjoinedProject();
   assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
@@ -170,7 +181,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
 });
 
 test('an item records the tokens and cost its seats spent when a checkpoint fails [N2]', () => {
-  const box = helpers.project('true');
+  const box = unjoinedProject();
   assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
@@ -234,7 +245,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
 });
 
 test('an item records the tokens and cost its seats spent with a shared native session [N2]', () => {
-  const box = helpers.project('true');
+  const box = unjoinedProject();
   assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-codex').code, 0);
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
@@ -304,7 +315,7 @@ test('an item records the tokens and cost its seats spent with a shared native s
 
 
 test('an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', () => {
-  const box = helpers.project('true');
+  const box = unjoinedProject();
   assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', 'fixture-claude').code, 0);
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
@@ -395,7 +406,7 @@ test('an item records the tokens and cost its seats spent when metadata precedes
 
 test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', () => {
   for (const provider of ['claude', 'codex']) {
-    const box = helpers.project('true');
+    const box = unjoinedProject();
     const model = `fixture-${provider}`;
     assert.equal(fixtureJoin(box.run, box.web, 'web', '--model', model).code, 0);
     // @pullboard-board-file journey: the real CLI seats share this repository board file.
