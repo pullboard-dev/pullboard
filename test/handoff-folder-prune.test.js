@@ -7,11 +7,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { HANDOFF_FOLDER_KEEP_MS, pruneFinishedHandoffs } from '../packages/resources/index.js';
 
-/** Make a handoff folder whose result file was written `ageMs` ago; `result` is the file name or null for none. */
-function folder(root, name, result, ageMs, worker = { version: 1, job: name, pid: null }) {
+/**
+ * Make a handoff folder whose result file was written `ageMs` ago; `result` is the file name or null for none. The
+ * gate's driver is recorded on the board, never in the folder, so a folder holds only its request, output and result.
+ */
+function folder(root, name, result, ageMs) {
   const directory = join(root, name);
   mkdirSync(join(directory, 'output'), { recursive: true });
-  writeFileSync(join(directory, 'worker.json'), JSON.stringify(worker));
   if (result) {
     writeFileSync(join(directory, result), '{}');
     const at = new Date(Date.now() - ageMs);
@@ -26,14 +28,14 @@ test('clause 1: A submit-handoffs folder whose gate ended (green, red or infra) 
   const old = HANDOFF_FOLDER_KEEP_MS + 60_000;
   const green = folder(root, 'green', 'submission.json', old);
   const red = folder(root, 'red', 'refusal.json', old);
-  const infra = folder(root, 'infra', null, old, { version: 1, job: 'infra', pid: null, unstarted: { code: 'X' } });
-  const infraFile = join(infra, 'worker.json');
-  utimesSync(infraFile, new Date(Date.now() - old), new Date(Date.now() - old));
+  // A gate whose driver never started ends with the sweep's refusal.json, like any infrastructure stop.
+  const infra = folder(root, 'infra', 'refusal.json', old);
   const recent = folder(root, 'recent', 'submission.json', 60_000);
   const queued = folder(root, 'queued', null, 0);
-  const running = folder(root, 'running', 'submission.json', old, { version: 1, job: 'running', pid: process.pid });
+  // A running gate is in the dispatcher's protect set until its driver exits, even after it wrote its result.
+  const running = folder(root, 'running', 'submission.json', old);
   const spared = folder(root, 'spared', 'refusal.json', old);
-  const removed = pruneFinishedHandoffs([root], { protect: new Set(['spared']) });
+  const removed = pruneFinishedHandoffs([root], { protect: new Set(['spared', 'running']) });
   assert.deepEqual(removed.sort(), [green, infra, red].sort());
   for (const kept of [recent, queued, running, spared]) assert.ok(existsSync(kept), kept);
 });

@@ -15,6 +15,7 @@ import { saveMainAudit } from '../../../gate/index.js';
 import { scheduleMainAudit } from '../../../gate/index.js';
 import { waitMainAudit } from '../../../gate/index.js';
 import { withFileLock } from '../../../outbox/index.js';
+import { nextLandingBackoff } from '../core/automatic-landing-retry.js';
 
 /** Wait for a record's own due time, so a deferral this landing wrote keeps its cadence. */
 async function dueBy(dueAt) {
@@ -62,9 +63,10 @@ export function mainLandingWorker(root, workerUrl) {
 /**
  * Persist the obligation before starting its authenticated detached timer. A landing already running keeps its
  * custody: the newer record carries it, and that run lands the new work when it finishes instead of a second
- * landing racing it (#2541).
+ * landing racing it (#2541). Only a backed-off landing passes `backoff`, so its record keeps the wait for the attempt
+ * after; an accept, a green gate or a test correction schedules without it and starts the waits again [C7].
  */
-export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now, expectedId } = {}) {
+export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now, expectedId, backoff } = {}) {
   if (!Number.isFinite(Date.parse(dueAt))) throw new TypeError('automatic landing needs its native deferred time');
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('automatic landing needs its actual worker entry');
   workerUrl = mainLandingWorker(root, workerUrl);
@@ -76,7 +78,7 @@ export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedul
     const current = readMainAudit(file);
     // A main observer may not replace an accept that arrived while it was reading Git.
     if (expectedId !== undefined && (current?.id ?? null) !== expectedId) return null;
-    const next = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at, by: process.pid,
+    const next = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at, by: process.pid, ...(backoff ? { backoff } : {}),
       ...(current?.running && running(current.running) ? { running: current.running } : {}) };
     saveMainAudit(file, next);
     return next;
@@ -90,8 +92,11 @@ export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedul
  * Resume only an authenticated wake, retaining failed work and any newer deferral written by landing. A wake that
  * finds another live landing leaves the record to it; the running landing repeats once per newer record, so
  * accepts that arrive together or mid-landing coalesce into the one landing worker (#2541).
+ * `run` gets the back-off the record carries and an `onBackoff` that writes a new one into the record, so a lander that
+ * dies while backing off is recovered at its backed-off time, not at once. A run that throws is backed off the same way:
+ * 60 s, doubling up to 5 minutes while the same error repeats [C7].
  */
-export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = waitMainAudit, schedule = scheduleAutomaticLanding } = {}) {
+export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = waitMainAudit, schedule = scheduleAutomaticLanding, now = Date.now, marks = () => null } = {}) {
   const directory = automaticLandingDirectory(root);
   if (!await wait(directory, token, dueAt)) return false;
   const file = join(directory, 'pending.json');
@@ -106,9 +111,21 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   if (!job) return false;
   while (job) {
     let outcome;
-    try { outcome = await run(job.root); }
+    const attempt = job;
+    const onBackoff = backoff => withPending(directory, () => {
+      const saved = readMainAudit(file);
+      // The attempt's own record, or the deferral its landing just wrote, carries the back-off; a newer accept never does.
+      if (!saved || saved.id !== attempt.id && saved.by !== process.pid) return;
+      saveMainAudit(file, { ...saved, dueAt: backoff.retryAt, backoff });
+    });
+    try { outcome = await run(job.root, { backoff: job.backoff ?? null, onBackoff }); }
     catch (error) {
-      const failed = { ...job, error: error.message };
+      const code = String(error.code ?? error.name);
+      const backoffMs = nextLandingBackoff(job.backoff, code);
+      let observed = null;
+      try { observed = marks(job.root); } catch { /* an unreadable board leaves the back-off to its own time */ }
+      const retryAt = new Date(now() + backoffMs).toISOString();
+      const failed = { ...job, error: error.message, dueAt: retryAt, backoff: { outcome: code, backoffMs, retryAt, marks: observed } };
       delete failed.running;
       await withPending(directory, () => { if (readMainAudit(file)?.id === failed.id) saveMainAudit(file, failed); });
       throw error;
@@ -123,9 +140,13 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
         saveMainAudit(file, next);
         return next;
       });
-      if (deferred) await schedule(root,
-        new Date(Math.max(Date.parse(outcome.reloadAt), Date.parse(deferred.dueAt))).toISOString(), outcome.workerUrl,
-        { expectedId: deferred.id });
+      if (deferred) {
+        // Only this run's own record or its own deferral keeps the back-off; a newer accept starts at once, and a wake
+        // that cut a back-off short is not held to the backed-off time its record still names.
+        const keeps = outcome.backoff && (deferred.id === job.id || deferred.by === process.pid);
+        const due = !outcome.backoff && deferred.backoff ? Date.parse(outcome.reloadAt) : Math.max(Date.parse(outcome.reloadAt), Date.parse(deferred.dueAt));
+        await schedule(root, new Date(due).toISOString(), outcome.workerUrl, { expectedId: deferred.id, ...(keeps ? { backoff: outcome.backoff } : {}) });
+      }
       return true;
     }
     const finished = job;
@@ -146,15 +167,27 @@ export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = w
   return true;
 }
 
-/** Recover a durable obligation after a worker disappears; a live or uncertain timer keeps its custody. */
-export async function recoverAutomaticLanding(root, workerUrl) {
+/**
+ * Recover a durable obligation after a worker disappears; a live or uncertain timer keeps its custody. A backed-off
+ * record is restarted at its backed-off time, never at once, unless `woken` reports that an accept, a green gate or a
+ * held-test correction happened since the back-off began: then the record is replaced by an immediate wake.
+ * Why: every command restarted a failed lander at once, 124 crashing landings in 10 minutes on 6 Nov [C7].
+ *
+ * @param {string} root
+ * @param {URL} workerUrl
+ * @param {{ schedule?: typeof scheduleAutomaticLanding, woken?: (job: object) => (boolean | Promise<boolean>) }} [options]
+ * @returns {Promise<boolean>} true when this call scheduled a wake
+ */
+export async function recoverAutomaticLanding(root, workerUrl, { schedule = scheduleAutomaticLanding, woken = () => false } = {}) {
   const directory = automaticLandingDirectory(root);
   const job = readMainAudit(join(directory, 'pending.json'));
   if (!job) return false;
   if (job.version !== 1 || repoInfo(job.root).commonDir !== repoInfo(root).commonDir) throw new Error('automatic landing repository changed');
   if (job.running && running(job.running)) return false;
+  // An earlier wake replaces the backed-off timer: the scheduler starts a new timer whenever the new due time is sooner.
+  if (job.backoff && await woken(job)) return Boolean(await schedule(job.root, new Date().toISOString(), workerUrl, { expectedId: job.id }));
   const timer = readMainAudit(join(directory, 'timer.json'));
   if (timer && running(timer)) return false;
-  await scheduleAutomaticLanding(job.root, job.dueAt, workerUrl);
+  await schedule(job.root, job.dueAt, workerUrl, job.backoff ? { backoff: job.backoff } : {});
   return true;
 }
