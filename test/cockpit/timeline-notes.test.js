@@ -69,7 +69,8 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await press(chrome, `document.querySelector(${JSON.stringify(noteSelector + ' [data-timeline-more]')})`);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector)}).classList.contains('expanded')`), true);
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' .tl-body')}).textContent`), /Line 8: the complete note remains available after expansion/u);
-    const timelineHash = '#detail .tl button.hash-copy';
+    // The history lists other hashes too (claim base, frozen bar); this journey checks the one for the submitted commit.
+    const timelineHash = `#detail .tl button.hash-copy[data-copy="${commit}"]`;
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
