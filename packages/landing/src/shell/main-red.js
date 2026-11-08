@@ -262,7 +262,10 @@ function comparisonObservationMatches(receipt, environment, browser) {
     && typeof browser === 'boolean' && receipt.runner.capabilities.browser === browser;
 }
 
-/** Select only registered peers with a fresh physical runtime and browser observation matching the red executor. */
+/**
+ * Select the red run host, plus only registered peers with a fresh physical runtime and browser observation matching
+ * the red executor. A peer whose recorded environment differs is never chosen; the red host itself is the fallback.
+ */
 export function comparisonExecutor(root, execution) {
   const original = requiredExecutorOf(execution?.executor);
   if (original?.kind !== 'ssh') return { requiredExecutor: original, browser: null };
@@ -281,7 +284,8 @@ export function comparisonExecutor(root, execution) {
   const browser = red?.runner?.capabilities?.browser;
   const redMatches = comparisonObservationMatches(red, execution.environment, browser);
   const hosts = registered.filter(runner => {
-    if (runner.host === original.host) return !red || redMatches && (runner.browser > 0) === browser;
+    // The red run host always qualifies: when no receipt matches, the comparison runs there rather than refusing [#3670].
+    if (runner.host === original.host) return true;
     const peer = observed.get(runner.host)?.receipt;
     return redMatches && comparisonObservationMatches(peer, execution.environment, browser) && (runner.browser > 0) === browser;
   }).map(runner => runner.host);

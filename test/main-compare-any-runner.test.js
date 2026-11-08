@@ -42,8 +42,10 @@ test('main comparison selects a matching registered peer only when the preferred
     }, 'the original runner stays first and the wrong-Node peer is excluded');
 
     recordReceipt(box.root, receipt(box.root, A, { ...environment, node: '0.0.1' }));
-    assert.throws(() => comparisonExecutor(box.root, execution), /no registered runner has the candidate comparison environment/u,
-      'a newer changed runtime on A cannot be masked by its earlier matching receipt');
+    assert.deepEqual(comparisonExecutor(box.root, execution), {
+      requiredExecutor: { kind: 'ssh', host: A, hosts: [A] },
+      browser: null,
+    }, 'a changed runtime on A runs the comparison on A itself and peer B is not chosen');
 
     recordReceipt(box.root, receipt(box.root, A, environment));
     recordReceipt(box.root, receipt(box.root, B, null));
@@ -105,6 +107,44 @@ test('main comparison selects a matching registered peer only when the preferred
   const workers = requests.filter(row => row.workerStarted);
   assert.deepEqual(workers.map(row => row.host), [A, B, A], 'candidate, alternate comparison and preferred comparison run on their expected hosts');
   assert.ok(requests.every(row => row.host !== C), 'the wrong-Node runner never receives a comparison');
+});
+
+/** Run comparisonExecutor against a fixture pool with the given recorded receipts, restoring the machine environment. */
+function selectWith(t, record) {
+  const box = fixture(t);
+  const environment = executionEnvironment();
+  const prior = { machine: process.env.PULLBOARD_MACHINE_HOME, home: process.env.PULLBOARD_HOME };
+  Object.assign(process.env, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine });
+  try {
+    record(box.root, environment);
+    return comparisonExecutor(box.root, { executor: { kind: 'ssh', host: A }, environment });
+  } finally {
+    for (const [key, value] of [['PULLBOARD_HOME', prior.home], ['PULLBOARD_MACHINE_HOME', prior.machine]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+}
+
+test('clause 1: registered runners with no matching receipts run the comparison on the red host, never BAD_RUNNER_POOL', t => {
+  const none = selectWith(t, () => {});
+  assert.deepEqual(none, { requiredExecutor: { kind: 'ssh', host: A, hosts: [A] }, browser: null },
+    'no receipts at all selects the red run host');
+  const stale = selectWith(t, (root, environment) => {
+    recordReceipt(root, receipt(root, A, { ...environment, node: '0.0.1' }));
+    recordReceipt(root, receipt(root, B, { ...environment, node: '0.0.2' }));
+  });
+  assert.deepEqual(stale, { requiredExecutor: { kind: 'ssh', host: A, hosts: [A] }, browser: null },
+    'receipts that do not match the red environment still select the red run host');
+});
+
+test('clause 2: a peer whose recorded environment differs from the red run is never chosen', t => {
+  const picked = selectWith(t, (root, environment) => {
+    recordReceipt(root, receipt(root, A, environment));
+    recordReceipt(root, receipt(root, B, environment));
+    recordReceipt(root, receipt(root, C, { ...environment, node: '0.0.0' }));
+  });
+  assert.deepEqual(picked.requiredExecutor.hosts, [A, B], 'only the matching peer joins the red host');
+  assert.ok(!picked.requiredExecutor.hosts.includes(C), 'the wrong-Node peer C is excluded');
 });
 
 after(() => {
