@@ -9,9 +9,9 @@ import { fixture } from './next-take-fixture.js';
 const MINUTE = 60_000;
 
 /** Run the real next and capture everything it prints. */
-async function next(box) {
+async function next(box, ...flags) {
   let out = '', err = '';
-  const code = await main(['next'], { cwd: box.seats.actor.path, clock: box.clock,
+  const code = await main(['next', ...flags], { cwd: box.seats.actor.path, clock: box.clock,
     stdout: { isTTY: false, write: part => { out += part; } },
     stderr: { write: part => { err += part; } } });
   return { code, text: `${out}${err}` };
@@ -58,4 +58,15 @@ test('calloutLine is quiet below the threshold and pluralizes [N2,C7]', () => {
   const now = Date.parse('2026-11-08T12:00:00Z');
   assert.equal(calloutLine([{ at: '2026-11-08T11:50:00Z' }], now, true), null);
   assert.match(calloutLine([{ at: '2026-11-08T09:50:00Z' }, { at: '2026-11-08T10:00:00Z' }], now, true), /^2 unanswered call-outs to the coordinator, oldest 2 h 10 min; .*them; tell whoever runs the coordinator$/u);
+});
+
+test('clause 2: a next that ends in a refusal still prints the line [N2,C7]', async t => {
+  const box = await fixture(t);
+  const held = box.add('Held item');
+  store.holdItem(box.board, held, { agentId: 'coordinator', reason: 'fixture hold' });
+  store.shout(box.board, { from: box.seats.actor.id, to: 'coordinator', text: `#${held} needs a sharper bar`, lanes: ['web'] });
+  box.advance(20 * MINUTE);
+  const result = await next(box, '--verify');
+  assert.notEqual(result.code, 0, 'a verify next with nothing to review is refused');
+  assert.match(result.text, /1 unanswered call-out to the coordinator, oldest 20 min/u, result.text);
 });

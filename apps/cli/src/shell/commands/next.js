@@ -118,6 +118,11 @@ export async function nextHere(io, values) {
     sayCoordinatorCallouts(io);
     return code;
   }
+  catch (error) {
+    // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    sayCoordinatorCallouts(io);
+    throw error;
+  }
   finally {
     progress.stop(); await monitor?.close();
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
