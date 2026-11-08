@@ -239,6 +239,22 @@ export function handoffTicketWaiting(job) {
 }
 
 /**
+ * Remove a job's place in line, reserved or filled, so the dispatcher never starts it.
+ *
+ * @param {string} job - The job id the place belongs to.
+ * @returns {number} How many place files were removed.
+ */
+export function dropHandoffTicket(job) {
+  let removed = 0;
+  for (const name of waitingTickets()) {
+    if (name.replace(/\.(json|reserved)$/u, '').replace(/\.urgent$/u, '').replace(/^\d+-/u, '') !== job) continue;
+    rmSync(join(handoffQueueDirectory(), name), { force: true });
+    removed += 1;
+  }
+  return removed;
+}
+
+/**
  * Whether any place in line waits, reserved or filled, for any repository on this machine.
  * Why: a dispatcher that freed its board row after its last ticket check must look once more, because a submit that
  * saw the row still held queued its ticket without launching a dispatcher (#3495).
