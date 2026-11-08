@@ -91,7 +91,8 @@ test('retention over a size limit removes the oldest unreferenced entries first 
   const dir = fixture(t);
   writeFileSync(join(dir, 'disk-policy.json'), JSON.stringify({ retention: { 'test actions': { maxAgeDays: 3650, maxBytes: 7 * MB } } }));
   const dry = pruneDisk(dir, { now: NOW, dryRun: true });
-  assert.equal(dry.removed.length, 1);
+  assert.deepEqual(dry.removed.filter(row => row.store === 'test actions').map(row => row.entry), ['action-old-2222.log']);
+  assert.ok(existsSync(join(dir, 'worktree-archives', 'arch-old-1111')), 'a dry run removes nothing');
   assert.ok(existsSync(join(dir, 'test-actions', 'action-old-2222.log')));
   const real = pruneDisk(dir, { now: NOW });
   assert.ok(real.removed.some(row => row.entry === 'action-old-2222.log' && /over its/u.test(row.reason)));
