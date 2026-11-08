@@ -62,7 +62,9 @@ try {
   run('tar', ['-xf', '-', '-C', directory], { input: archive });
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
-  const child = spawnSync(process.execPath, [entry, root], { cwd: root, env, input: JSON.stringify(request.data), stdio: ['pipe', 'inherit', 'inherit'] });
+  // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.
+  const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', entry, root], { cwd: root, env, input: JSON.stringify(request.data), maxBuffer: 256 * 1024 ** 2, stdio: ['pipe', 'inherit', 'pipe'] });
+  if (child.stderr?.length) process.stderr.write(child.stderr);
   status = child.status ?? 1;
 } finally { rmSync(directory, { recursive: true, force: true }); }
 process.exitCode = status;
