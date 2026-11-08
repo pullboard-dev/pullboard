@@ -18,6 +18,8 @@ import { writeItemMarker } from './item-folder-identity.js';
 export { itemFolderIdentity, itemFolderPath } from './item-folder-identity.js';
 import { itemFolderPath } from './item-folder-identity.js';
 import { seatRoot } from './item-folder-identity.js';
+import { itemFolderRunner } from './commands/runner.js';
+import { openHostedItemFolder } from './commands/runner.js';
 
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
@@ -144,8 +146,12 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   const changes = tryGit(tree.path, ['status', '--porcelain', '--untracked-files=all']);
   if (changes.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
   if (!changes.stdout) {
+    // The session module loads only when a folder is adopted, keeping claim's import graph unchanged.
+    const session = await import('./cli/join.js');
+    const prior = session.endedItemFolderSession(board, me, tree.path);
     // Adopt: a move keeps the branch's commits and the folder itself, so nothing the ended seat left is lost (#3540).
     git(ctx.info.root, ['worktree', 'move', tree.path, desired]);
+    await session.adoptItemFolderSession(desired, me, prior);
     return true;
   }
   if (!holder) throw new Refused('ITEM_FOLDER_UNREGISTERED', `item folder ${tree.path} has uncommitted changes and no registered prior holder; it is retained. The coordinator archives or removes the folder, or the seat continues in its own folder`);
@@ -165,14 +171,44 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   return false;
 }
 
+/**
+ * The ITEM_FOLDER_SESSION_LIVE refusal claiming this item's folder would meet, or null, read without moving, binding or
+ * creating anything (#3688). Why: next claimed first and opened the folder after, so a folder another live session holds
+ * refused every next on the same item; next asks this before claiming and selects another item instead.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ id: string, lane: string }} me the seat about to claim
+ * @param {number} id the item
+ * @returns {Promise<Refused|null>}
+ */
+export async function liveFolderRefusal(ctx, board, me, id) {
+  if (me.id === 'coordinator') return null;
+  const path = itemFolderPath(seatRoot(ctx, board, me), id);
+  const folder = existsSync(path) ? path : branchCheckout(ctx.info.root, branch(me.lane, id))?.path;
+  if (!folder || !existsSync(folder)) return null;
+  const session = await import('./cli/join.js');
+  try { session.endedItemFolderSession(board, me, folder); return null; }
+  catch (error) {
+    if (error instanceof Refused && error.code === 'ITEM_FOLDER_SESSION_LIVE') return error;
+    throw error;
+  }
+}
+
 /** Whether two paths name one existing directory, however each was spelled. */
 function sameDirectory(first, second) {
   try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
 }
 
-/** Open or reuse this item's branch, starting a new branch at the current primary main. */
+/** Open or reuse this item's branch, starting a new branch at the current primary main; a runner-hosted seat's folder lives only on its runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
+  const runner = itemFolderRunner();
+  if (runner) {
+    const hooks = tryGit(ctx.info.root, ['config', '--get', 'core.hooksPath']);
+    return openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
+      hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
+  }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
   if (existsSync(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
@@ -182,6 +218,9 @@ export async function openItemFolder(ctx, me, id, options = {}) {
       const dirty = status.stdout.split('\n').filter(Boolean).map(line => line.slice(3));
       if (dirty.length) throw new Refused('ITEM_FOLDER_DIRTY', `item folder ${path} has dirty files ${dirty.join(', ')}; preserve or recover them before claiming again`);
     }
+    // The folder may still be bound to an ended session of this seat path: the claimer takes it over (#3679).
+    const session = await import('./cli/join.js');
+    await session.adoptItemFolderSession(path, me, session.endedItemFolderSession(options.board, me, path));
     writeItemMarker(path, me.id, id);
     return path;
   }
