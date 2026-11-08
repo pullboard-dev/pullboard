@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { addItem, claim, logEvent, getItem, register } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { policyRepository } from './board-submit-fixture.js';
-import { captureLapsedClaims } from '../packages/health/index.js';
+import { captureLapsedClaims, sweepClaims } from '../packages/health/index.js';
 import { privateFixtureFiles, runFixtureGit } from './fixture-child.js';
 import { machineStalled } from '../packages/health/src/core/machine-stall.js';
 
@@ -70,4 +70,34 @@ test('clause 1: a single seat that misses alone is still released [B4,N2]', t =>
   const snapshot = f.capture();
   assert.equal(f.ctx.machineStall, undefined, 'one quiet seat of two is not the machine');
   assert.deepEqual(snapshot.claims.filter(row => row.idle === 'seat-gone').map(row => row.id), [f.holders[0].id]);
+});
+
+test('clause 1: a sentinel tick that runs late is a machine stall even when one seat alone is quiet [B4,N2]', () => {
+  const minute = 60_000;
+  assert.equal(machineStalled({ claimed: 7, quiet: 1, gapMs: 10 * minute }), null, 'an on-time tick with one quiet seat is a dead seat');
+  assert.equal(machineStalled({ claimed: 7, quiet: 0, gapMs: 40 * minute }), null, 'a late tick with every seat alive holds nothing');
+  assert.deepEqual(machineStalled({ claimed: 7, quiet: 1, gapMs: 40 * minute }), { claimed: 7, quiet: 1, lateByMs: 30 * minute });
+});
+
+test('clause 1: the real sweep releases a lone silent seat on time and holds it, with one machine-stall shout, when its own tick ran late [B4,N2]', async t => {
+  const minute = 60_000;
+  /** Run the real sweep as if the previous sweep started `previousMinutesAgo` minutes earlier. */
+  const sweep = async previousMinutesAgo => {
+    const f = fixture(t, 2);
+    logEvent(f.board, f.holders[1].holder, 'fact', f.holders[1].id, { id: 'alive', kind: 'note', text: 'running the tests', ref: null, supersedes: null });
+    const previous = new Date(f.ctx.clock.now().getTime() - previousMinutesAgo * minute).toISOString();
+    f.board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run('claim_sweep_at', previous);
+    const shouts = [];
+    const snapshot = await sweepClaims(f.ctx, f.board, f.helper, async () => ({}), {
+      recordClaimWorktrees() {}, captureClaimWatchdogSnapshot() { return null; }, runScheduledClaimWatchdog() {}, shout: message => shouts.push(message) });
+    return { f, shouts, released: (snapshot?.claims ?? []).filter(row => row.idle === 'seat-gone').map(row => row.id) };
+  };
+  const onTime = await sweep(10);
+  assert.deepEqual(onTime.released, [onTime.f.holders[0].id], 'on time, the lone silent seat is released as before');
+  assert.equal(onTime.shouts.length, 0);
+  const late = await sweep(40);
+  assert.deepEqual(late.released, [], 'with the sentinel tick late, no claim is released for a missed heartbeat');
+  assert.equal(late.shouts.length, 1, 'one machine-stall shout');
+  assert.match(late.shouts[0].text, /sentinel tick ran 30 minutes late/u);
+  for (const { holder, id } of late.f.holders) assert.equal(getItem(late.f.board, id).item_owner, holder);
 });

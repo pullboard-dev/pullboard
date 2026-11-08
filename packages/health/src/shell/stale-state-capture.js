@@ -141,7 +141,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   };
   // Most claimed seats going quiet in the same window is the machine stalling, not those seats dying (8 Nov: 21 releases
   // in 3 h clustered with a coordinator stall): no claim is released for this window, and one shout says so.
-  const stall = machineStalled({ claimed: snapshot.claims.length, quiet: snapshot.claims.filter(quietSeat).length });
+  const stall = machineStalled({ claimed: snapshot.claims.length, quiet: snapshot.claims.filter(quietSeat).length, gapMs: ctx.sweepGapMs ?? 0 });
   if (stall) ctx.machineStall = { ...stall, observedAt: at.toISOString() };
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
