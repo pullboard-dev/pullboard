@@ -91,3 +91,27 @@ test('clause 1: the same cleanup on a runner that is not unavailable still quara
   assert.equal(events.length, 2, 'a first runner-unavailable cleanup quarantines, and a real cleanup timeout on an out runner still records');
   assert.equal(row.detail, 'CLEANUP_UNVERIFIED');
 });
+
+test('clause 2: a reproduction of one runner drop with eight waiting jobs writes one unavailable event after the fix, against nine before [C7]', { timeout: 30_000 }, async t => {
+  const box = machine(t);
+  (await takeResource(gateOptions(box))).release();
+  const jobs = 8;
+  const db = new DatabaseSync(box.pool);
+  try {
+    // Before the fix every cleanup of a job on a runner already out wrote its own event: a cleanup whose recorded reason is not runner-unavailable takes that path, so it stands in for the old behaviour.
+    // After the fix the same cleanups carry the runner-unavailable reason runner-dispatch gives them.
+    for (const [host, standIn] of [['fixture-a', true], ['fixture-b', false]]) {
+      recordRunnerFailure(db, host, 'transport-lost', { reason: 'completion unavailable', recovery: recovery(1) });
+      for (let n = 0; n < jobs; n++) {
+        const refusal = runnerUnavailableRefusal({ runner: { host }, spec: { id: `job-${n}`, recovery: recovery(n + 2) }, phase: 'connect', args: [] }, { host, reason: 'TRANSPORT_UNVERIFIED' });
+        recordRunnerFailure(db, host, 'cleanup-unverified', standIn ? { ...refusal.diagnostic, reason: 'cleanup-unverified' } : refusal.diagnostic);
+      }
+    }
+  } finally { db.close(); }
+  const before = observe(box.pool, 'fixture-a').events.length;
+  const after = observe(box.pool, 'fixture-b').events.length;
+  t.diagnostic(`unavailable events for one drop with ${jobs} waiting jobs: before ${before}, after ${after}`);
+  console.log(`MEASURED reproduction: unavailable events for one drop with ${jobs} waiting jobs: before ${before}, after ${after}`);
+  assert.equal(after, 1, 'after the fix one drop is one unavailable event');
+  assert.ok(before > after, `before the fix the same drop wrote ${before} events`);
+});
