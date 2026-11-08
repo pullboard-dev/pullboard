@@ -35,7 +35,7 @@ test('clause 1, clause 2: a dead landing worker mid-batch is replaced and the ad
   assert.ok(pending(root).adopted.gapSeconds >= 100, 'the unattended gap is recorded in seconds');
   assert.equal(pending(root).running, undefined, 'the dead worker no longer holds custody');
   let seen;
-  await resumeAutomaticLanding(root, 'fixture-token', dueAt, async (_root, adopted) => { seen = adopted; }, { wait: async () => true });
+  await resumeAutomaticLanding(root, 'fixture-token', dueAt, async (_root, _wake, adopted) => { seen = adopted; }, { wait: async () => true });
   assert.equal(seen.pid, gone, 'the replacement receives the adoption to record on the batch');
 });
 
