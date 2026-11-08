@@ -1,3 +1,4 @@
+import { warnIdleReady } from './idle-ready-warn.js';
 import { wakeReviewCapacity } from './review-capacity-wake.js';
 import { shoutConflictedReviews } from "../../../health/index.js";
 import { specApprovalBaselineExists } from "../../../store/index.js";
@@ -6,6 +7,9 @@ import { prepareStaleObservation } from "../../../health/index.js";
 import { sweepClaims } from "../../../health/index.js";
 import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
 import { atomic } from "../../../store/index.js";
+import { dispatchWork } from "../../../store/index.js";
+import { listAgents } from "../../../store/index.js";
+import { withLocalSeatPresence } from "../../../store/index.js";
 import { checkpointBoard } from "../../../store/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
@@ -81,6 +85,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
       }
     }
     if (enabled && me.id === 'coordinator' && ctx.info.isMain) { await wakeReviewCapacity(ctx, board, ordered); await shoutConflictedReviews(ctx, board, ordered); }
+    if (enabled && me.id === 'coordinator' && ctx.info.isMain) await warnIdleReady(ctx, board, ordered, { listAgents, withLocalSeatPresence, dispatchWork });
     const health = recordedHealthFindings(board);
     if (healthOnly || !enabled || !dueSentinels(board).length) {
       ctx.io.result?.({ sentinels: [], health });

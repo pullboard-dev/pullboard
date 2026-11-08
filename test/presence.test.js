@@ -730,3 +730,29 @@ test('native and ordered gone releases retain coded evidence and historical even
     if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
   }
 });
+
+test('ready work waiting past the limit while agents are idle warns the coordinator once [B3,N2,C7]', async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const { fixtureOpenBoard, fileFixtureItem } = await import('./testkit-fixture.js');
+  const { warnIdleReady, REVIEW_WAKE_WAIT_MS } = await import('../packages/sentinels/index.js');
+  const { listAgents, withLocalSeatPresence, dispatchWork } = await import('../packages/store/index.js');
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const ports = { listAgents, withLocalSeatPresence, dispatchWork };
+  const ready = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Ready control', criterion: 'A seat takes it' }).item_id;
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waiting control', criterion: 'Waits on the ready control', args: ['--after', String(ready)] });
+  const board = fixtureOpenBoard({ boardFile: join(box.repo, '.git/pullboard/board.sqlite'), web: box.web });
+  t.after(() => store.closeBoard(board));
+  const ordered = async (ctx, target, operation, args) => store[operation](target, ...args);
+  const warnings = () => board.db.prepare("SELECT shout_from, shout_text FROM shout WHERE shout_to='coordinator' ORDER BY shout_id").all();
+  await warnIdleReady({ config: {} }, board, ordered, ports);
+  assert.deepEqual(warnings(), [], 'a seat idle under the five-minute limit is not reported');
+  await warnIdleReady({ config: {} }, board, ordered, ports, -1);
+  const first = warnings();
+  assert.equal(first.length, 1, 'only the seat beside ready work is reported');
+  assert.match(first[0].shout_text, new RegExp(`^web-1 has held nothing for \\d+ min while #${ready} is ready`, 'u'));
+  assert.ok(REVIEW_WAKE_WAIT_MS >= 5 * 60_000, 'the default wait is five minutes');
+  await warnIdleReady({ config: {} }, board, ordered, ports, -1);
+  assert.equal(warnings().length, 1, 'the same idle spell is reported once');
+});
