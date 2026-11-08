@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Agent-approved rows remain readable and actionable in the person view [B26,N26,S1,P6]. */

@@ -15,6 +15,7 @@ async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listIt
     try {
       let found = await nextOnce(ctx, { omitIds });
       if (found.context) ctx = found.context;
+      if (found.skipItem) omitIds.push(found.skipItem); // its folder is another live session's (#3688)
       if (found.retry) continue;
       let review = Boolean(found.review);
       if (found.offer) {
