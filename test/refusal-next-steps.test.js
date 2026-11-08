@@ -28,7 +28,7 @@ function addBuild(box, repo, title, check) {
   return JSON.parse(result.out).item.item_id;
 }
 
-test('every refusal names a next step that works [P4,I1,I2]', async () => {
+test('clause 2: every refusal names a next step that works [P4,I1,I2]', async () => {
   const sourceRoot = resolve(import.meta.dirname, '../src');
   const codes = new Set(['API_LISTEN', 'CORE_BARE', 'VIEW_SIGN_IN_STOPPED']);
   for (const file of readdirSync(sourceRoot).filter(name => name.endsWith('.js'))) {
@@ -100,7 +100,8 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   assert.match(mainError.next, /reviewer.*(?:did not|not).*build/iu, 'the step requires an independent reviewer');
   const reviewer = join(repo, '.claude', 'worktrees', 'reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
-  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model'));
+  // Item #1 was filed on the strong route, so its reviewer joins strong to be offered the review [V4].
+  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model', '--route', 'strong'));
   const selected = succeeded(box.run(reviewer, 'next', '--verify', String(id), '--json'));
   assert.equal(JSON.parse(selected.out).item.item_id, id, 'the recovery reaches review without SELF_VERIFY');
 
@@ -126,7 +127,8 @@ test('every refusal names a next step that works [P4,I1,I2]', async () => {
   succeeded(gateBox.run(gateWeb, 'submit', String(redId)));
 
   box.env.CODEX_THREAD_ID = 'main-owner-session';
-  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model'));
+  // The coordinator is always strong; join refuses BAD_ROUTE when its model maps to no tier and the route defaults to mid.
+  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model', '--route', 'strong'));
   const bindingPath = join(repo, '.git', 'pullboard-checkout-session.json');
   const binding = readFileSync(bindingPath, 'utf8');
   box.env.CODEX_THREAD_ID = 'new-agent-session';

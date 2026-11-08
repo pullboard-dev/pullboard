@@ -62,7 +62,7 @@ export async function run(io, { first, values }) {
   if (ctx.info.isMain) {
     if (first !== COORDINATOR) throw new Refused('MAIN_IS_COORDINATOR', 'the main checkout is the coordinator; join from a worktree: git worktree add ../<dir>');
     const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
-    const route = values.route ?? modelTierRoute(model, ctx.config.modelTiers);
+    const route = values.route ?? 'strong'; // The coordinator is always strong, whatever tier its model name maps to.
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
     const joined = await withBoard(ctx, async (board) => {
       const id = await ordered(ctx, board, 'register', [

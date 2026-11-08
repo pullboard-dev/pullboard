@@ -25,6 +25,7 @@ import {
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import {
+  basename,
   dirname,
   join,
   resolve,
@@ -59,6 +60,11 @@ import { reservedTimingRunner } from './runner-timing-reserve.js';
 import { timingReserveAllows } from './runner-timing-reserve.js';
 import { platformIdentity } from './holder-liveness.js';
 import { differentStart } from './holder-liveness.js';
+import { pollingNow } from './runner-placement.js';
+import { requiredRunnerHosts } from './runner-placement.js';
+import { runnerAllowed } from './runner-placement.js';
+import { runnerAllowedNow } from './runner-placement.js';
+export { ADMISSION_POLL_FRESH_MS } from './runner-placement.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
@@ -198,6 +204,7 @@ function openQueue(file) {
       if (table === 'waiter' && !columns.includes('runner_deadline')) db.exec('ALTER TABLE waiter ADD COLUMN runner_deadline INTEGER NOT NULL DEFAULT 0');
       if (table === 'waiter' && !columns.includes('runner_wait_branch')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_branch TEXT NOT NULL DEFAULT ''");
       if (table === 'waiter' && !columns.includes('runner_wait_reasons')) db.exec("ALTER TABLE waiter ADD COLUMN runner_wait_reasons TEXT NOT NULL DEFAULT '[]'");
+      if (table === 'waiter' && !columns.includes('polled')) db.exec('ALTER TABLE waiter ADD COLUMN polled INTEGER NOT NULL DEFAULT 0');
     }
     pinLegacyReclaimInputs(db); // Older reclaim timers never fire [#3164]. Older clients insert the default zero. A trigger witnesses short legacy
     // arrivals between the timing owner's polls; no old client has to understand the new flag.
@@ -419,7 +426,7 @@ function queueOrder(scope) {
 
 /** Read the complete resource line with the metadata every admission view orders identically. */
 function queuedWaiters(db, name) {
-  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons FROM waiter WHERE name = ?').all(name);
+  return db.prepare('SELECT ticket, token, pid, agent, repo, since, landing, item_check AS itemCheck, diagnostic, browser, gui, remote, runner_only AS runnerOnly, required_executor AS requiredExecutor, item, kind, lease_until AS leaseUntil, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible AS shortEligible, timing, memory_held AS memoryHeld, runner_deadline AS runnerDeadlineAt, runner_wait_branch AS runnerWaitBranch, runner_wait_reasons AS runnerWaitReasons, polled FROM waiter WHERE name = ?').all(name);
 }
 
 /** Current holders and the waiting line in admission order, each waiter naming its class (aged only while class order is on). */
@@ -445,7 +452,7 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
   const ageMs = order.reviewsFirst ? order.ageMs : Infinity;
   const line = orderedWaiters(queued, now, order)
     .filter(entry => name !== 'browser' || entry.browser === 1)
-    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, ...entry }) => {
+    .map(({ ticket, token, pid, classed, release_aware, board_key, release_rank, queue_ticket, polled, ...entry }) => {
       const current = queueClass(entry, now, ageMs);
       return { ...project(entry), queueClass: current.name, ...(current.effective < current.base ? { agedFrom: current.declared } : {}) };
     });
@@ -574,7 +581,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
-        if (!runnerAllowed(waiter, runner) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
+        if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -657,6 +664,8 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     }
   }
   for (const waiter of waiters) {
+    // An earlier waiter that is not polling cannot take a slot now, so it never holds one from a later waiter [C7,#3692].
+    if (waiter.ticket !== ticket && !pollingNow(waiter, now)) continue;
     const executor = available(waiter);
     if (executor) {
       if (waiter.ticket !== ticket) {
@@ -750,16 +759,6 @@ function unavailableRunnerHosts(db, now, runners = []) {
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
-
-/** Return the durable runner allowlist; legacy restrictions continue to name only their preferred host. */
-function requiredRunnerHosts(waiter) {
-  if (!waiter?.requiredExecutor) return null;
-  const restriction = typeof waiter.requiredExecutor === 'string' ? JSON.parse(waiter.requiredExecutor) : waiter.requiredExecutor;
-  if (restriction?.kind !== 'ssh') return null;
-  return restriction.hosts ?? [restriction.host];
-}
-/** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
-function runnerAllowed(waiter, runner) { const hosts = requiredRunnerHosts(waiter); return hosts === null || hosts.includes(runner.host); }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
@@ -866,7 +865,7 @@ export function requiredExecutorOf(value) {
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
- * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
  */
 export async function takeResource(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false, loopHeartbeat = false } = options;
@@ -1050,8 +1049,8 @@ export async function takeResource(options) {
         // A first free runner gets one admission opportunity at the expired queue boundary.
         // A previous dispatch or a prior fallback decision never restarts the runner wait.
         const remoteEligible = remote && (!runnerDeadlinePassed || readinessFailover || !runnerDispatched && !lateAdmissionClosed);
-        db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
-          .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
+        db.prepare('UPDATE waiter SET heartbeat = ?, polled = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
+          .run(Date.now(), now, classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
         const unavailable = unavailableRunnerHosts(db, now, runners);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
@@ -1061,7 +1060,7 @@ export async function takeResource(options) {
         let runnerDeadline;
         if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
           const state = snapshot(db, name, order, now);
-          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
           runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable),
             branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
@@ -1102,7 +1101,7 @@ export async function takeResource(options) {
         }
         let runnerWait;
         if (name === 'gate' && waiter.remote === 1) {
-          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
           runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
           db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
         }
@@ -1173,6 +1172,28 @@ export async function takeResource(options) {
             throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           }
         };
+        /**
+         * Name another live process as this lease's holder, so the slot is kept while that process lives and freed when
+         * it ends, whatever becomes of the process that took it. Returns false when the process's start identity cannot
+         * be read; the lease then stays with its taker. Why: the hand-off dispatcher took each gate worker's slot in its
+         * own name, so a dispatcher exit freed every running worker's slot at once and its successor started a second
+         * full set of workers beside them (8 Nov) [C7].
+         *
+         * @param {number} holderPid - The process that now holds the slot.
+         * @returns {boolean}
+         */
+        const handOver = holderPid => {
+          if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          const holderStarted = Number.isSafeInteger(holderPid) && holderPid > 1 ? processStarted(holderPid) : '';
+          if (!holderStarted) return false;
+          const changed = update(db, () => db.prepare('UPDATE holder SET pid = ?, started = ? WHERE token = ?').run(holderPid, holderStarted, token).changes);
+          if (!changed) {
+            lost = true;
+            clearInterval(heartbeat);
+            throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
+          }
+          return true;
+        };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
         const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
           infrastructureRetryCount = 0, infrastructureAttempts: priorInfrastructureAttempts = [] } = {}) => {
@@ -1233,7 +1254,7 @@ export async function takeResource(options) {
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
           ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
           waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
-          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
+          ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, handOver, timingEvidence,
           ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
       }
       if (acquired.state.runnerWait) {
