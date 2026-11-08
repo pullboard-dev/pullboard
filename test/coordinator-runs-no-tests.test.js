@@ -27,7 +27,7 @@ function runnerProject({ healthDown = false } = {}) {
   mkdirSync(join(box.repo, 'packages/landing/src/shell'), { recursive: true });
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
   writeFileSync(join(box.repo, 'web/land-1.test.js'), '// RED NAME:main-red-case\n');
-  fixtureCellsPlan(box.repo, '{"cells":[]}\n');
+  fixtureCellsPlan(box.repo, '{"placed":[]}\n');
   // Each script leaves a marker only when it runs under this machine's HOME, so a local fallback is visible.
   const mark = `import { writeFileSync } from 'node:fs'; if (process.env.HOME === ${JSON.stringify(box.env.HOME)}) writeFileSync(${JSON.stringify(marker)}, 'local');`;
   writeFileSync(join(box.repo, 'bin/cells-plan.js'), `${mark}\nconsole.log('not in bin/cells-plan.json: ran-at:' + process.env.HOME);\nprocess.exit(1);\n`);
