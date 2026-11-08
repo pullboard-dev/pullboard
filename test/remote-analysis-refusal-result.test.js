@@ -1,14 +1,13 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { privateFixtureFiles } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
 import { remoteSubmitCells } from '../apps/cli/src/shell/submit-cells-remote.js';
 import { submitCellsRemoteCommand } from '../apps/cli/src/shell/submit-cells-remote.js';
 import { submitUntilSettled } from '../apps/lib/src/shell/submit-infra-requeue.js';
@@ -19,9 +18,9 @@ import { infrastructureFailure } from '../apps/lib/src/shell/submit-infra-requeu
  * receipt that authenticates exactly those bytes, so only the remote step's own output varies between cases.
  */
 function fixture(stdout, stderr, code) {
-  const root = mkdtempSync(join(tmpdir(), 'refusal-result-'));
+  const root = privateFixtureFiles('refusal-result-').root;
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
-  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
   git('init', '--quiet', '-b', 'main'); git('config', 'pullboard.trunk', 'refs/heads/main');
   writeFileSync(join(root, 'a.txt'), 'x\n');
   git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'one');
