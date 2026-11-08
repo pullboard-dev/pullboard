@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { listAgents } from './board-query.js';
+
 /**
  * The release cooldown for next (#2587): a seat that released a build item is not offered it again for
  * claims.releaseCooldownMinutes, unless nothing else is open for it. On 2 Nov next kept handing one item back to
@@ -104,6 +107,8 @@ export const RESCOPE_REASONS = Object.freeze(['BLOCKED', 'ROUTED_ELSEWHERE', 'IN
  * @returns {{id: number, reasons: string[]}[]}
  */
 export function itemsNeedingRescope(board, lane, route) {
+  const seats = new Map(listAgents(board).map(seat => [seat.agent_id, seat]));
+  const clock = board.clock.now().getTime();
   const rows = board.db.prepare(`SELECT e.event_id, e.event_at, e.item_id, e.event_by, e.event_detail FROM event e JOIN item i ON i.item_id = e.item_id
     JOIN agent a ON a.agent_id = e.event_by
     WHERE e.event_kind = 'release' AND i.item_status = 'open' AND a.agent_lane = ? AND a.agent_route = ? ORDER BY e.event_id`).all(lane, route);
@@ -112,19 +117,46 @@ export function itemsNeedingRescope(board, lane, route) {
     let detail = {};
     try { detail = JSON.parse(row.event_detail); } catch { detail = {}; }
     if (detail?.review === true || !RESCOPE_REASONS.includes(detail?.reasonCode)) continue;
+    if (rescopeExpired(detail, row, seats.get(row.event_by), clock)) { byItem.delete(row.item_id); continue; }
     const changed = board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_id > ? AND event_kind IN ('edit','refreeze','route','reroute') LIMIT 1").get(row.item_id, row.event_id);
     if (changed) { byItem.delete(row.item_id); continue; }
     const open = detail.reasonCode === 'BLOCKED' && Array.isArray(detail.blockedOn) && detail.blockedOn.length
       ? detail.blockedOn.filter(id => { const dep = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id); return dep && dep.item_status !== 'withdrawn' && !dep.item_merged_commit; }) : null;
     if (open && !open.length) { byItem.delete(row.item_id); continue; }
     const entry = byItem.get(row.item_id) ?? { id: row.item_id, since: row.event_at, reasons: [] };
-    entry.reasons.push(`${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`);
+    entry.reasons.push(`${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}, released ${Math.max(0, Math.round((clock - Date.parse(row.event_at)) / 60_000))} min ago`);
     byItem.set(row.item_id, entry);
   }
   return [...byItem.values()];
 }
 
-/** The items to leave out of one seat's next: those needing re-scope for its own lane and route. */
+/** How long a BLOCKED release that names no blocker hides the item before next offers it again (#3742). */
+export const RESCOPE_BLOCKED_COOLDOWN_MINUTES = 60;
+
+/** How long a seat may be silent and still count as a live session holding its folder (#3742). */
+export const RESCOPE_SESSION_MINUTES = 45;
+
+/**
+ * Whether a release's exclusion has ended without the item being edited (#3742): a BLOCKED release that names no
+ * blocker ends after a bounded cooldown, and a ROUTED_ELSEWHERE release ends once the releasing seat's session is
+ * gone or its folder is gone. A BLOCKED release naming blockers ends only when they land, and INELIGIBLE only on an edit.
+ *
+ * @param {any} detail - The release event's detail.
+ * @param {{ event_at: string }} row - The release event.
+ * @param {any} seat - The releasing seat's record, if it still exists.
+ * @param {number} clock - The board clock's time in ms.
+ * @returns {boolean}
+ */
+function rescopeExpired(detail, row, seat, clock) {
+  if (detail.reasonCode === 'BLOCKED' && !(Array.isArray(detail.blockedOn) && detail.blockedOn.length)) {
+    return clock - Date.parse(row.event_at) >= RESCOPE_BLOCKED_COOLDOWN_MINUTES * 60_000;
+  }
+  if (detail.reasonCode !== 'ROUTED_ELSEWHERE') return false;
+  const beat = Date.parse(seat?.heartbeatAt ?? '');
+  return !seat || !seat.agent_path || !existsSync(seat.agent_path) || !(clock - beat < RESCOPE_SESSION_MINUTES * 60_000);
+}
+
+/** The items to leave out of one seat's next: those released for re-scope for its own lane and route and not yet expired. */
 function scopedOutFor(board, agentId) {
   const seat = board.db.prepare('SELECT agent_lane, agent_route FROM agent WHERE agent_id=?').get(agentId);
   return seat ? itemsNeedingRescope(board, seat.agent_lane, seat.agent_route) : [];
