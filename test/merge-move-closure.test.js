@@ -63,3 +63,9 @@ test('conflict shim preserves the accepted main move closure and the broad index
   assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the exact moved body');
   assert.ok(broad.native.includes('node:child_process'), 'the negative control reaches actual process launchers');
 });
+
+test('clause 1: this file pins no hash digest of the live conflict body or package.json', () => {
+  const own = readFileSync(new URL(import.meta.url), 'utf8');
+  assert.doesNotMatch(own, /\b[0-9a-f]{64}\b/u, 'no 64-hex digest literal remains');
+  assert.doesNotMatch(own, new RegExp(['create' + 'Hash', 'sha' + '256'].join('|'), 'u'), 'no hashing of the live implementation body remains');
+});
