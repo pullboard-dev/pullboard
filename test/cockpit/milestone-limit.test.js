@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real roadmap capacity labels remain visible for active, empty and shipped milestones [N26]. */
 import assert from 'node:assert/strict';

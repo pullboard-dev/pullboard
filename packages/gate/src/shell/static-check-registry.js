@@ -11,6 +11,7 @@ import { testWaitSites } from '../../../../bin/checks/test-waits.js';
 import { testWaitGrowth } from '../../../../bin/checks/test-waits.js';
 import { relayBoundaryProblems } from '../../../../bin/checks/relay-boundary.js';
 import { cellsEdgeProblems } from '../../../../bin/checks/cells-edges.js';
+import { syncSpawnProblems } from '../../../../bin/checks/sync-spawn-in-leases.js';
 import { fixedWallMargins } from './wall-clock-budgets.js';
 import { LOAD_BEARING_CEILINGS } from '../core/load-bearing.js';
 import { loadBearingFailures } from '../core/load-bearing.js';
@@ -67,6 +68,9 @@ export const STATIC_CHECKS = Object.freeze([
     .map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A new cross-cell import or deep import past a cell's index needs a plan declaration (bin/checks/cells-edges.js).
   { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (bin/checks/sync-spawn-in-leases.js).
+  { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
