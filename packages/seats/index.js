@@ -114,6 +114,7 @@ export {
 export {
   ROUTES,
   canTake,
+  cappedRoute,
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/core/route-escalation.js';
