@@ -1325,7 +1325,6 @@ async function main(args) {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../packages/resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
     const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1';
-    const gateIndex = await import('../packages/gate/index.js'), { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
     if (process.env[LANDING_RUN_ENV] === '1' && !shardLabel) {
@@ -1340,7 +1339,8 @@ async function main(args) {
         if (!files.length) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         const inherited = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser }) : null;
         const { runLandingShards } = await import('../src/landing-shards.js');
-        const { browserBoundFiles } = gateIndex;
+        const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
+        const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
         // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
         const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
@@ -1351,7 +1351,7 @@ async function main(args) {
         return;
       }
     }
-    if (process.env[LANDING_RUN_ENV] !== '1' && !shardLabel && await (await import('../packages/landing/index.js')).runOrdinaryShards({ root: process.cwd(), runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot, gate: gateIndex, parseProcessCensus, browserBoundFiles: gateIndex.browserBoundFiles, readFileTimes: gateIndex.readFileTimes, narrowsSelection, optionTakesValue, knownNodeOption, explicitTestFiles })) return;
+    if (process.env[LANDING_RUN_ENV] !== '1' && !shardLabel && await (await import('../packages/landing/index.js')).runOrdinaryShards({ root: process.cwd(), runner, fullSuite, actions, args, scopedMarker, browser, runnerAdmission, runnerOnly, timing, inheritedGateSlot, gate: await import('../packages/gate/index.js'), parseProcessCensus: (await import('../packages/kernel/src/core/process-census.js')).parseProcessCensus, browserBoundFiles: (await import('../packages/gate/src/shell/browser-admission.js')).browserBoundFiles, readFileTimes: (await import('../packages/gate/src/shell/test-value-timing.js')).readFileTimes, narrowsSelection, optionTakesValue, knownNodeOption, explicitTestFiles })) return;
     if (scopedMarker) {
       const inherited = inheritedGateSlot({ root: process.cwd(), browser, namedFiles: shortEligible });
       if (inherited && (!runnerOnly || inherited.runnerExecution)) await run(gateSlotEnvironment(inherited));
