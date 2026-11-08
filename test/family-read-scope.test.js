@@ -2,12 +2,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureBoard } from './board-fixture.js';
+import { cli, fixture } from './next-take-fixture.js';
 import { seatFamily, withFamilyReads } from '../packages/items/index.js';
 
 const SEATS = 1_900;
 
 /** Seed SEATS joined seats; every fifth also has a family event, and pairs share a session. */
-function seed(board) {
+function seed(owner) {
+  const board = owner.board ?? owner;
   const meta = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)');
   const seat = board.db.prepare('INSERT INTO agent(agent_id,agent_lane,agent_path,agent_family,agent_created_at) VALUES(?,?,?,?,?)');
   const event = board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,event_detail) VALUES(?,?,?,?)');
@@ -39,4 +41,26 @@ test('clause 1: inbox, status and heartbeat on a board with 1,900 agent rows spe
   assert.deepEqual(scoped, expected, 'the snapshot derives the same family for every seat');
   assert.ok(prepared.length < 20, `${prepared.length} statements prepared for ${SEATS} seats`);
   assert.ok(elapsed < 100, `${SEATS} seats took ${elapsed.toFixed(1)} ms`); // budget: ceiling declared by #3251's frozen bar
+});
+
+/** Count prepared statements that read the event table while the real command parser runs, across every database handle it opens. */
+async function eventQueries(work) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const original = DatabaseSync.prototype.prepare;
+  let count = 0;
+  DatabaseSync.prototype.prepare = function (sql, ...rest) { if (/\bevent\b/iu.test(String(sql))) count += 1; return original.call(this, sql, ...rest); };
+  try { await work(); } finally { DatabaseSync.prototype.prepare = original; }
+  return count;
+}
+
+test('clause 1: the real inbox, status and heartbeat commands on 1,900 agent rows read families from one snapshot, not an event query per seat [C7,#3251]', async t => {
+  const box = await fixture(t);
+  seed(box);
+  for (const args of [['inbox'], ['status'], ['heartbeat']]) {
+    const queries = await eventQueries(async () => {
+      const result = await cli(box, box.seats.actor.path, args);
+      assert.equal(result.code, 0, `${args[0]}: ${result.out}${result.err}`);
+    });
+    assert.ok(queries < 60, `${args[0]} prepared ${queries} event statements for ${SEATS} seats; one per seat would be over ${SEATS}`);
+  }
 });
