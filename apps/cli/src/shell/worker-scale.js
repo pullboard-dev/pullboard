@@ -1,9 +1,5 @@
 import { currentProofCounters } from '../../../../packages/verify/index.js';
 import { proofCounter } from '../../../../packages/verify/index.js';
-import { localDependencyIds } from '../../../../packages/items/index.js';
-import { dependencyLabel } from '../../../../packages/items/index.js';
-import { itemFileCollisions } from '../../../../packages/items/index.js';
-import { expectedBuildProblem } from '../../../../packages/items/index.js';
 import { exitedSession } from '../../../../packages/store/index.js';
 /**
  * `pullboard run --scale` (B26,C7): the board runs as many agents as are worth running, within one budget the
@@ -29,7 +25,6 @@ import * as store from '../../../../packages/store/index.js';
 import { readCapacity } from '../../../../packages/stats/index.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
 import { machineHome } from '../../../../packages/resources/index.js';
-import { readyItems } from '../../../../src/queue-readiness.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { modelTierRoute } from './model-tier-route.js';
@@ -166,6 +161,25 @@ export function liveLocalSeats(board) {
     .map(seat => seat.agent_id);
 }
 
+/** The seat id the scaler asks nextFor as: no registration, so it holds no claim and nextFor treats it as a fresh seat. */
+const PROBE_SEAT = 'scaler-probe';
+
+/**
+ * How many open builds nextFor would offer a fresh seat on this lane and route, by asking nextFor itself: each answer
+ * is left out of the next ask until it offers nothing. Holds, dependencies, collisions, gates at the head and the
+ * expected-build budget are nextFor's own rules, never a second copy of them (#2884).
+ */
+function offeredBuilds(board, { lane, route, buildBudgetMinutes }) {
+  const omitIds = [];
+  const total = store.listItems(board).length;
+  while (omitIds.length <= total) {
+    const { item } = store.nextFor(board, { agentId: PROBE_SEAT, lane, routeCap: route, buildBudgetMinutes, omitIds });
+    if (!item || item.item_status !== 'open' || omitIds.includes(item.item_id)) break;
+    omitIds.push(item.item_id);
+  }
+  return omitIds.length;
+}
+
 /** Observe the planner's queue inputs and seats from one board read; a build counts only when next would offer it, so an item whose gate already covers its head, or whose estimate is over the board's configured build budget (itemBuildBudgetMinutes, 30 by default, the same figure next passes nextFor), adds no seat (#2884); managed seats count even before they beat. */
 export function observeWorkers(board, { lane, managed, inactive = [], route = 'strong', now = Date.now(), buildBudgetMinutes = 30 }) {
   const items = store.listItems(board);
@@ -181,7 +195,7 @@ export function observeWorkers(board, { lane, managed, inactive = [], route = 's
     worth: readCapacity(board, now, { currentProofCounters, proofCounter }).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item) && store.canTake(route, item.item_route)).length,
-    builds: readyItems(board, store.foreignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions }).filter(item => item.item_lane === lane && store.canTake(route, item.item_route) && !store.gateAtHead(board, item) && !expectedBuildProblem(item, buildBudgetMinutes)).length,
+    builds: offeredBuilds(board, { lane, route, buildBudgetMinutes }),
   };
 }
 

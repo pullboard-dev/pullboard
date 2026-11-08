@@ -228,22 +228,36 @@ function queueGate(board, id, commit, at) {
 test("clause 1: observeWorkers counts a build only when nextFor would offer it to a fresh seat on the scaler's lane and route: holds, dependencies, collisions and queued or green gates excluded [B26,C7]", t => {
   const at = Date.parse('2026-10-28T12:00:00Z');
   const { board, ids } = openGatedWebBoard(t, at, 30);
-  assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
-  board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, '50');
-  assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 29, 'an item over the 30-minute build budget is not a build next would offer');
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_expected_build_minutes:${ids[0]}`);
+  const seat = fixtureRegister(board, { lane: 'web', path: '/fixture/web' });
+  const seatId = typeof seat === 'string' ? seat : seat.agent_id ?? seat.id;
+  /** The items a real fresh seat is offered by nextFor itself, one ask after another, each answer left out of the next. */
+  const offeredByNextFor = budget => {
+    const omitIds = [];
+    for (;;) {
+      const { item } = store.nextFor(board, { agentId: seatId, lane: 'web', buildBudgetMinutes: budget, omitIds });
+      if (!item || omitIds.includes(item.item_id)) return omitIds.length;
+      omitIds.push(item.item_id);
+    }
+  };
+  const scaled = budget => observeWorkers(board, { lane: 'web', managed: [], now: at, buildBudgetMinutes: budget }).builds;
+  assert.equal(scaled(30), 30, 'ungated open items are builds');
+  assert.equal(scaled(30), offeredByNextFor(30));
   for (const [minutes, budget, expected] of [['20', 15, 29], ['20', 60, 30], ['50', 15, 29], ['50', 60, 30], ['70', 60, 29]]) {
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)').run(`item_expected_build_minutes:${ids[0]}`, minutes);
-    const offered = observeWorkers(board, { lane: 'web', managed: [], now: at, buildBudgetMinutes: budget }).builds;
-    assert.equal(offered, expected, `a ${minutes}-minute estimate at a ${budget}-minute budget`);
+    assert.equal(scaled(budget), offeredByNextFor(budget), `the scaler's count equals what nextFor offers for a ${minutes}-minute estimate at a ${budget}-minute budget`);
+    assert.equal(scaled(budget), expected, `a ${minutes}-minute estimate at a ${budget}-minute budget`);
     board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run(`item_expected_build_minutes:${ids[0]}`);
   }
+  store.holdItem(board, ids[1], { agentId: 'coordinator', reason: 'held for the clause 1 case' });
+  assert.equal(scaled(30), offeredByNextFor(30), 'a held item is no build for either');
+  assert.equal(scaled(30), 29);
   const commit = id => String(id).padStart(40, 'c');
   for (const id of ids) {
     board.db.prepare('UPDATE item SET item_commit = ? WHERE item_id = ?').run(commit(id), id);
     queueGate(board, id, commit(id), at - 1000);
   }
-  assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 0, 'a queued gate at the head leaves nothing to build');
+  assert.equal(scaled(30), 0, 'a queued gate at the head leaves nothing to build');
+  assert.equal(offeredByNextFor(30), 0, 'and nextFor offers nothing either');
 });
 
 test('clause 2: With 30 open items that are all gated or held, one cycle plans 0 launches [B26,C7]', t => {
