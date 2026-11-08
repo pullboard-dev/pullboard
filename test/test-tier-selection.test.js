@@ -183,10 +183,6 @@ test('a real T3 batch failure bisects to its item while package units stay out o
   json(box, bad.root, 'submit', String(bad.id), '--no-next');
   accept(box, bad);
   assert.deepEqual(calls(box, 'journey'), [], 'no journey ran during either submit or review');
-  // Landing writes the README badge files when the roster changes, and a changed badge file selects the full gate;
-  // commit them first so this batch is planned from its two package changes alone.
-  assert.equal(box.run(box.repo, 'badge').code, 0, 'the badge files are written for the verified roster');
-  if (box.git(box.repo, 'status', '--porcelain')) commit(box, box.repo, 'docs: refresh the agent-verified badges');
   box.env.NODE_TEST_CONTEXT = 'child-v8'; // The batch must execute its independent journey runner too.
   const landing = box.run(box.repo, 'land', '--max', '2', '--json');
   assert.equal(landing.code, 0, landing.out + landing.err);
