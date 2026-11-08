@@ -99,6 +99,26 @@ function git(root, args, env) {
 }
 
 /**
+ * One line naming the tracked files with uncommitted changes, or null for a clean checkout.
+ *
+ * Why: the runners test the committed source, so an uncommitted edit (a debug line, a stricter assertion, a fixed
+ * test) is not under test, and four builders read a result as proof of an edit it never ran (#3733).
+ *
+ * @param {string} root - The checkout `pullboard test` runs from.
+ * @returns {string | null}
+ */
+export function uncommittedNotice(root) {
+  try {
+    const head = headCommit(root);
+    if (!head) return null;
+    const files = git(root, ['diff', '--name-only', 'HEAD'], cleanGitEnvironment()).split('\n').filter(Boolean);
+    if (!files.length) return null;
+    const shown = files.length > 5 ? `${files.slice(0, 5).join(', ')} and ${files.length - 5} more` : files.join(', ');
+    return `pullboard test: uncommitted changes in ${shown}; the runner tests the committed source at ${head.slice(0, 10)}, so these edits are not under test; commit them and run again`;
+  } catch { return null; /* an unreadable tree is reported by the snapshot step that follows */ }
+}
+
+/**
  * The commit a runner checks out: HEAD when the tree is clean, else a snapshot commit of the working tree, made
  * with a private index so the checkout's own index and branches stay as they are. Ignored files stay out.
  */
@@ -184,6 +204,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   if (typeof compareMainFailures !== 'function' || typeof withMainCheckout !== 'function') throw new TypeError('test files need an explicit accepted-main comparison');
   const { runProfiledShellAsync, withGateSlot } = await import('./gate.js');
   const started = Date.now();
+  const uncommitted = uncommittedNotice(root);
+  if (uncommitted) process.stderr.write(uncommitted + '\n');
   const admission = testRunnerAdmission();
   const noRunners = !(loadMachineSettings().runners ?? []).length;
   const loadStart = noRunners && !admission.runnerOnly ? await localLoadStart({ onWait }) : null;
