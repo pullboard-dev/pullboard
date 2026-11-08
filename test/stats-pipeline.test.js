@@ -81,7 +81,7 @@ test('pipeline retains every recorded retry/reopen cause and unknown without pro
     [108, 'reopen', 1, { code: 'RUNNER_INFRA_RETRY_EXHAUSTED' }], [109, 'reopen', 1, { code: 'ITEM_PATCH_CHANGED' }]);
   const { history } = fixture(t, rows);
   const report = pipelineStats(history);
-  assert.deepEqual(report.causes, { 'runner-wait': 1, flake: 1, 'main-red': 1, 'bar-change': 1, conflict: 1, 'companion-wait': 1, 'test-failure': 0, other: 0, unknown: 3 });
+  assert.deepEqual(report.causes, { 'runner-wait': 1, flake: 1, 'main-red': 1, 'bar-change': 1, conflict: 1, 'companion-wait': 1, 'test-failure': 0, 'host-busy': 0, other: 0, unknown: 3 });
   assert.equal(report.items[0].retries.length, 9);
   assert.match(pipelineLines(report).join('\n'), /unknown 3/u);
 });
