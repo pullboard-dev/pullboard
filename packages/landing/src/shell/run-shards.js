@@ -1,5 +1,5 @@
 /** Split a test run's selected files across free runner slots by recorded per-file time [C7]. */
-import { planLandingShards } from '../../../landing/index.js';
+import { planLandingShards } from './landing-shards.js';
 
 /**
  * Plan the shards of one test run: the selected files split across the free runner slots, balanced

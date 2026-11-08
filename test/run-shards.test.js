@@ -1,7 +1,7 @@
 /** The run shard planner splits selected test files across free runner slots by recorded time [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planRunShards } from '../packages/resources/src/shell/runner-shards.js';
+import { planRunShards } from '../packages/landing/index.js';
 
 test('clause 1: a run shard planner on top of landing-shards splits N selected test files across the free runner slots balanced by recorded per-file times [C7]', () => {
   const files = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
