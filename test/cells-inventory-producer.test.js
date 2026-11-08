@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** @pullboard-world-pin: clause 1 reads the shipped producer source to prove it never blocks the lease renewal timer. */
 /** A cells-inventory producer job reaches a result, or its lease lapses and another driver resumes it [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
@@ -32,7 +33,7 @@ async function withBoard(name, body) {
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: a producer that dies after produce.started lets its lease lapse and another driver resumes the job to a result, and a producer that throws frees the job at once', async () => {
+test('clause 1: a producer that dies after produce.started lets its lease lapse and another driver resumes the job to a result, and a producer that throws frees the job at once [C7]', async () => {
   await withBoard('clause-1', async db => {
     const tree = treeOf(fixture.root, fixture.commit);
     const id = keyedJobId(CELLS_INVENTORY_KIND, tree);
@@ -61,12 +62,12 @@ test('clause 1: a producer that dies after produce.started lets its lease lapse 
   });
 });
 
-test('clause 1: the pinned producer runs asynchronously so the lease renewal timer keeps firing while it works', () => {
+test('clause 1: the pinned producer runs asynchronously so the lease renewal timer keeps firing while it works [C7]', () => {
   const code = readFileSync(new URL('../apps/lib/src/shell/main-audit-produce.js', import.meta.url), 'utf8');
   assert.doesNotMatch(code, /spawnSync/u, 'a blocking spawn froze the renewal timer and let the lease of a live producer lapse');
 });
 
-test('clause 2: with a fresh main commit and a cold inventory, a gate gets a ready inventory through the job within the producer run, past a dead driver\'s lapsed lease', async () => {
+test('clause 2: with a fresh main commit and a cold inventory, a gate gets a ready inventory through the job within the producer run, past a dead driver\'s lapsed lease [C7]', async () => {
   await withBoard('clause-2', async db => {
     const tree = treeOf(fixture.root, fixture.commit);
     const id = keyedJobId(CELLS_INVENTORY_KIND, tree);
