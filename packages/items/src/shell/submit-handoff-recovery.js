@@ -69,14 +69,33 @@ export function toolTreeHasLiveOwner(path) {
   return listing.status === 0 && listing.stdout.includes(path);
 }
 
+/** How long a gate stopped on infrastructure keeps its tools folder while it waits for the recovery retry [C7]. */
+const RECOVERY_RETRY_WINDOW_MS = 24 * 60 * 60_000;
+
+/**
+ * Whether a stopped job's refusal says the gate died on infrastructure, so a health-sweep retry still needs its tools.
+ * Why: the retry runs from the captured tools; the worker is gone and the job is no longer queued, so only this refusal names the folder (#3716).
+ *
+ * @param {string} file - The job's refusal.json.
+ * @param {(file: string) => any} read - A tolerant JSON reader.
+ * @param {number} now - The clock.
+ * @returns {boolean}
+ */
+function awaitsRecoveryRetry(file, read, now) {
+  const refusal = read(file);
+  const code = refusal?.error?.code ?? refusal?.code;
+  if (!['SUBMIT_HANDOFF_DEAD', 'GATE_INFRA_EXHAUSTED'].includes(code)) return false;
+  try { return now - statSync(file).mtimeMs <= RECOVERY_RETRY_WINDOW_MS; } catch { return false; }
+}
+
 /**
  * The tool paths named by a queued launch ticket or by an unfinished submit-handoff request.json: owners with no process.
  * Why: a queued gate waits for the dispatcher with no worker, so `ps` alone would let the sweep delete the tools it will run from.
  *
- * @param {{ queue?: string, commonDirs?: string[] }} [options] - The machine queue and extra repositories to scan.
+ * @param {{ queue?: string, commonDirs?: string[], now?: number }} [options] - The machine queue, extra repositories to scan and the clock.
  * @returns {Set<string>}
  */
-export function queuedToolOwners({ queue = handoffQueueDirectory(), commonDirs = [] } = {}) {
+export function queuedToolOwners({ queue = handoffQueueDirectory(), commonDirs = [], now = Date.now() } = {}) {
   const owned = new Set();
   const roots = new Set(commonDirs);
   /** Read one JSON file, ignoring anything missing or damaged. */
@@ -96,7 +115,8 @@ export function queuedToolOwners({ queue = handoffQueueDirectory(), commonDirs =
     try { names = readdirSync(jobs); } catch { continue; }
     for (const job of names) {
       const directory = join(jobs, job);
-      if (existsSync(join(directory, 'submission.json')) || existsSync(join(directory, 'refusal.json'))) continue;
+      if (existsSync(join(directory, 'submission.json'))) continue;
+      if (existsSync(join(directory, 'refusal.json')) && !awaitsRecoveryRetry(join(directory, 'refusal.json'), read, now)) continue;
       own(read(join(directory, 'request.json'))?.tools);
     }
   }
@@ -121,7 +141,7 @@ export function touchToolTree(path) {
  */
 export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, queue, commonDirs = [], live } = {}) {
   const removed = [];
-  const queued = live ? new Set() : queuedToolOwners({ queue, commonDirs });
+  const queued = live ? new Set() : queuedToolOwners({ queue, commonDirs, now });
   const owned = live ?? (path => queued.has(path) || toolTreeHasLiveOwner(path));
   let names;
   try { names = readdirSync(temp).filter(name => TOOL_TREE_NAME.test(name)); } catch { return removed; }

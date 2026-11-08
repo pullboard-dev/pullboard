@@ -176,7 +176,7 @@ export function dispatchTestFiles(options, env) {
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
-          testOutcomes.observe(event);
+          testOutcomes.observe(event, resolve(cwd, file));
           notify(stream, event);
           events.push(event);
         }

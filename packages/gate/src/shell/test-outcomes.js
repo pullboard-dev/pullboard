@@ -1,5 +1,6 @@
 /** Structured native test outcomes retain identity without inferring passes from a green command [C7,H16]. */
 import { relative } from 'node:path';
+import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
 const PREFIX = '# pullboard test outcomes ';
@@ -8,24 +9,43 @@ const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
 import { testOutcomeFields } from '../../../verify/core.js';
 export { testOutcomeFields } from '../../../verify/core.js';
 
+/** A repository-relative, slash-separated path. */
+function portable(root, file) {
+  return relative(root, file).split(sep).join('/');
+}
+
 /** Observe the controller's actual Node events before public reporters can interpret their output. */
 export function testOutcomeCollector(root) {
   const rows = [];
+  const owners = [];
   let invalid = false;
   return {
-    /** Preserve actual test identities; suites and cancelled work never become positive verdicts. */
-    observe(event) {
+    /**
+     * Preserve actual test identities; suites and cancelled work never become positive verdicts. `testFile` is the
+     * test file the dispatcher ran this event's worker for, when it knows one.
+     */
+    observe(event, testFile = null) {
       if (!['test:pass', 'test:fail'].includes(event.type) || event.data?.details?.type === 'suite') return;
       const { file, name, skip, todo, details } = event.data;
       if (!file || ['cancelledByParent', 'testAborted', 'subtestsFailed'].includes(details?.error?.failureType)) {
         invalid = true; return;
       }
-      rows.push({ file: relative(root, file).split(sep).join('/'), name,
+      rows.push({ file: portable(root, file), name,
         passed: event.type === 'test:pass', skipped: skip !== undefined || todo !== undefined });
+      owners.push(testFile ? portable(root, resolve(root, testFile)) : null);
     },
-    /** Publish only after all selected native file workers and their reporters have drained. */
+    /**
+     * Publish only after all selected native file workers and their reporters have drained. A case defined once in a
+     * shared fixture module and run by two test files reaches Node under the fixture's path both times; those rows
+     * take the test file that ran each, so the run keeps every case instead of failing closed on the duplicate. Why:
+     * #3253's two check files load one fixture, and its receipts kept no case outcome at all [C7,V4].
+     */
     finish(complete, tests) {
-      return complete && !invalid && tests === rows.length ? testOutcomeFields(rows) : null;
+      if (!complete || invalid || tests !== rows.length) return null;
+      const key = row => JSON.stringify([row.file, row.name]);
+      const seen = new Map();
+      for (const row of rows) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
+      return testOutcomeFields(rows.map((row, index) => (seen.get(key(row)) > 1 && owners[index] ? { ...row, file: owners[index] } : row)));
     },
   };
 }

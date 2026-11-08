@@ -46,3 +46,34 @@ export function committedTest(root, commit, file) {
   const result = tryGit(root, ['--literal-pathspecs', 'ls-tree', '-z', commit, '--', file]);
   return result.status === 0 && /^(?:100644|100755) blob [a-f0-9]+\t/u.test(result.stdout) && result.stdout.split('\0').filter(Boolean).length === 1;
 }
+
+const SINGLE_FILE_CHECK = /^node --test(?: --test-force-exit)? (?:\.\/)?([A-Za-z0-9_][A-Za-z0-9_./-]*\.test\.[cm]?js)$/u;
+const SKIPPED = /\s+#\s*(?:SKIP|TODO)\b.*$/iu;
+
+/** Node's TAP escapes a name's backslash, hash and line breaks; restore the name the test declared. */
+function tapName(text) {
+  return text.replace(SKIPPED, '').replace(/\\(.)/gu, (_, char) => (char === 'n' ? '\n' : char === 'r' ? '\r' : char));
+}
+
+/**
+ * The executed cases of a check that is exactly `node --test <one file>`, read from the gate's own TAP output, or null.
+ * Why: a plain `node --test` check prints no outcome frames, so its exact-head receipt kept file-level passes only and
+ * review could not see the clause case pass (five INSUFFICIENT_EVIDENCE rejects in 45 minutes, 7 Nov) [C7,V4]. Node's
+ * TAP names a passing case's file only through the one file the check runs, so a check of several files stays null.
+ * Every leaf case must be accounted for: the rows must equal the run's own `# tests` trailer, and a cancelled case,
+ * a nested selector or a name TAP cannot carry leaves the whole run unread rather than partly read.
+ *
+ * @param {string} command - the exact command the gate ran
+ * @param {string} output - that run's captured output
+ * @returns {{file:string,name:string,passed:boolean,skipped:boolean}[] | null}
+ */
+export function singleFileTapOutcomes(command, output) {
+  const file = SINGLE_FILE_CHECK.exec(String(command ?? '').trim())?.[1];
+  if (!file || typeof output !== 'string') return null;
+  const trailers = [...output.matchAll(/^# tests (\d+)$/gmu)];
+  if (trailers.length !== 1) return null;
+  const rows = tapTests(output, process.cwd()).filter(row => row.type !== 'suite');
+  if (rows.length !== Number(trailers[0][1])
+    || rows.some(row => row.indent !== 0 && row.indent % 4 !== 0 || ['cancelledByParent', 'testAborted', 'subtestsFailed'].includes(row.failureType))) return null;
+  return rows.map(row => ({ file, name: tapName(row.name), passed: row.passed, skipped: row.skip }));
+}
