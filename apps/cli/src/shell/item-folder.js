@@ -35,21 +35,40 @@ function canonical(path) {
   try { return realpathSync(path); } catch { return null; }
 }
 
-/** Map each registered worktree path to its branch, from one Git launch for the whole repository. */
+/**
+ * Map each registered worktree path to its branch and commit, from one Git launch for the whole repository.
+ * @param {string} root The repository root.
+ * @returns {Map<string, string> & { commits: Map<string, string>, mainCommit: string|null }} Branch by path, with each path's commit and main's commit when main is checked out.
+ */
 function worktreeBranches(root) {
   const branches = new Map();
+  branches.commits = new Map();
+  branches.mainCommit = null;
   for (const row of git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')) {
     const fields = row.split('\0');
     const path = fields.find(field => field.startsWith('worktree '))?.slice(9);
     const head = fields.find(field => field.startsWith('branch refs/heads/'))?.slice(18);
+    const commit = fields.find(field => field.startsWith('HEAD '))?.slice(5);
+    if (head === 'main' && commit) branches.mainCommit = commit;
     if (path && head) branches.set(path, head);
+    if (path && commit) branches.commits.set(path, commit);
   }
   return branches;
 }
 
-/** Whether the item's branch has a commit main lacks and the item is neither merged nor withdrawn, so its folder is the only checkout of that work [C7]. */
-function holdsUnlandedWork(root, item, ref) {
+/**
+ * Whether the item's branch has a commit main lacks and the item is neither merged nor withdrawn, so its folder is the only checkout of that work [C7].
+ * A folder whose commit is main's own commit holds nothing unlanded, so the common clean folder costs no extra Git launch.
+ * @param {string} root The repository root.
+ * @param {object} item The board item.
+ * @param {string} ref The item branch.
+ * @param {string|undefined} commit The folder's commit from the worktree list.
+ * @param {string|null} mainCommit Main's commit from the same worktree list.
+ * @returns {boolean} True when the folder must be kept.
+ */
+function holdsUnlandedWork(root, item, ref, commit, mainCommit) {
   if (item.item_status === 'withdrawn' || item.item_merged_commit) return false;
+  if (commit && mainCommit && commit === mainCommit) return false;
   const ahead = tryGit(root, ['rev-list', '--count', `main..${ref}`]);
   return ahead.status !== 0 || Number(ahead.stdout) > 0;
 }
@@ -72,7 +91,8 @@ export function cleanItemFolders(ctx, board, me) {
     if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) continue;
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
-    if (holdsUnlandedWork(ctx.info.root, item, ref)) continue;
+    const commit = branches.commits.get(path) ?? branches.commits.get(canonical(path));
+    if (holdsUnlandedWork(ctx.info.root, item, ref, commit, branches.mainCommit)) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
     if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
   }
