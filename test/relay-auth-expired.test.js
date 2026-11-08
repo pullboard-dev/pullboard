@@ -210,7 +210,7 @@ test('moves stay local while the machine credential expires, then replay after s
   writeFileSync(box.linkFile, orderedLink, { mode: 0o600 });
 
   const queued = await box.cli('add', box.lane, 'local work waits for machine sign-in');
-  assert.equal(queued.code, 0, queued.failure ?? 'the expired relay credential does not block the local move');
+  assert.equal(queued.code, 0, queued.failure ?? JSON.stringify(queued.document?.error ?? queued.document) ?? 'the expired relay credential does not block the local move');
   assert.equal(queued.document.item.item_title, 'local work waits for machine sign-in');
   const queuedId = queued.document.item.item_id;
   const locallyRecorded = (await box.cli('export')).document.tables;
