@@ -8,13 +8,13 @@ import { reusableSubmitFiles } from '../packages/landing/src/shell/landing-recei
 
 const proof = { files: ['test/a.test.js', 'test/b.test.js', 'test/j.test.js'], deferredFiles: ['test/j.test.js'], deferred: true };
 
-test('a deferred proof reuses unchanged-closure files and reruns only the deferred journey [C7,#3801]', () => {
+test('clause 1: a deferred proof reuses unchanged-closure files and reruns only the deferred journey [C7,#3801]', () => {
   const { reuse, rerun } = reusableSubmitFiles({ proof, closureUnchanged: () => true });
   assert.deepEqual(reuse, ['test/a.test.js', 'test/b.test.js']);
   assert.deepEqual(rerun, ['test/j.test.js']);
 });
 
-test('a file whose closure changed between submit and landing is rerun [C7,#3801]', () => {
+test('clause 2: a file whose closure changed between submit and landing is rerun [C7,#3801]', () => {
   const { reuse, rerun } = reusableSubmitFiles({ proof, closureUnchanged: file => file !== 'test/b.test.js' });
   assert.deepEqual(reuse, ['test/a.test.js']);
   assert.deepEqual(rerun, ['test/b.test.js', 'test/j.test.js']);
