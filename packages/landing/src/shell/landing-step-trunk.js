@@ -21,6 +21,7 @@ import { unwaivedFailures } from './landing-step-failures.js';
 import { bisectableFailures } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
+import { splitRedBatch } from './landing-step-split.js';
 import { returnCulprits } from './landing-step-diagnose.js';
 import { deferredSelections } from './landing-step-gate.js';
 import { mergeGroup } from './landing-step-merge.js';
@@ -102,7 +103,7 @@ async function followMovedTrunk(state, gate) {
     if (shared.length) throw new Refused('LAND_TRUNK_MOVED', `main moved during the landing and changed ${shared.slice(0, 3).join(', ')}; rebuild the batch from its new tip`);
     state.say(`main moved to ${moved.slice(0, 12)} outside this batch's files; rebuilding the batch on it`);
     const previous = state.batch.base;
-    await save(state, { base: moved });
+    await save(state, { base: moved, rebasedFrom: previous });
     const rebuilt = await mergeGroup(state, state.batch.items);
     await save(state, { ...rebuilt });
     const affected = selectAffectedTests(state.root, { base: previous, commit: moved });
@@ -169,6 +170,7 @@ export async function landOnTrunk(state) {
       const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);
       const flakyFiles = await diagnose(state, own, gate);
       if (flakyFiles.length) { await fileFlakes(state, gate, flakyFiles); state.flaky = true; return; }
+      if (await splitRedBatch(state, gate)) return;
       const green = await bisect(state, state.batch.items, own, 'local-split', quickGuards);
       if (state.flaky || !green.length) {
         if (!state.flaky) await save(state, { state: 'blocked', culprits: state.culprits });

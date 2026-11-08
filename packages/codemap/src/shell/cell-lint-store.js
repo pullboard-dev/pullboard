@@ -1,8 +1,10 @@
 /** Store exact falling allowances in bounded, hash-bound metadata shards; incomplete generations refuse [C7,CD64]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import {
+  cellExistsSync,
+  cellReadFileSync,
+} from './cell-source-snapshot.js';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { rmdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
@@ -48,7 +50,7 @@ export function cellLintFiles(baseline) {
 /** Read only complete, hash-bound generations; no missing shard ever becomes a lower allowance. */
 function readLegacyCellLintBaseline(root) {
   try {
-    const descriptor = JSON.parse(readFileSync(join(root, DESCRIPTOR), 'utf8'));
+    const descriptor = JSON.parse(cellReadFileSync(join(root, DESCRIPTOR), 'utf8'));
     if (descriptor?.version !== 2 || !descriptor.metrics || Object.keys(descriptor.metrics).sort().join() !== [...CELL_METRICS].sort().join()) throw new Error('invalid descriptor');
     const baseline = { version: 1, metrics: {} }, seen = new Set();
     for (const metric of CELL_METRICS) {
@@ -57,7 +59,7 @@ function readLegacyCellLintBaseline(root) {
       for (const [index, reference] of row.shards.entries()) {
         if (!/^[a-f0-9]{64}$/u.test(reference.sha256) || reference.file !== `${DIRECTORY}/${metric}-${String(index + 1).padStart(3, '0')}.json` || seen.has(reference.file)) throw new Error('invalid shard reference');
         seen.add(reference.file);
-        const bytes = readFileSync(join(root, reference.file)), shard = JSON.parse(bytes);
+        const bytes = cellReadFileSync(join(root, reference.file)), shard = JSON.parse(bytes);
         if (digest(bytes) !== reference.sha256 || shard?.version !== 1 || shard.metric !== metric || !shard.allowances || Array.isArray(shard.allowances)) throw new Error('unbound shard');
         for (const [key, count] of Object.entries(shard.allowances)) {
           if (Object.hasOwn(allowances, key)) throw new Error('duplicate allowance');
@@ -89,15 +91,15 @@ export function initializeCellLintCellShards(root) {
 /** Capture only the validated generation's actual bytes for precise planning and rollback. */
 export function storedCellLintFiles(root) {
   readCellLintBaseline(root);
-  const descriptor = readFileSync(join(root, DESCRIPTOR)), parsed = JSON.parse(descriptor);
-  const legacy = [[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, readFileSync(join(root, file))]))];
-  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`).filter(file => existsSync(join(root, file)));
-  return new Map([...legacy, ...cells.map(file => [file, readFileSync(join(root, file))])]);
+  const descriptor = cellReadFileSync(join(root, DESCRIPTOR)), parsed = JSON.parse(descriptor);
+  const legacy = [[DESCRIPTOR, descriptor], ...Object.values(parsed.metrics).flatMap(row => row.shards.map(({ file }) => [file, cellReadFileSync(join(root, file))]))];
+  const cells = cellLintCells(root).map(cell => `${DIRECTORY}/cells/${cell}.json`).filter(file => cellExistsSync(join(root, file)));
+  return new Map([...legacy, ...cells.map(file => [file, cellReadFileSync(join(root, file))])]);
 }
 
 /** Publish bounded shards and an atomic descriptor; failed final verification restores the exact prior generation. */
 export function writeCellLintBaseline(root, baseline, { initialize = false, verify = () => true, previous = null } = {}) {
-  if (cellLintCells(root).length && existsSync(join(root, DESCRIPTOR))) {
+  if (cellLintCells(root).length && cellExistsSync(join(root, DESCRIPTOR))) {
     if (initialize) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
     const base = readLegacyCellLintBaseline(root);
     if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read the current per-cell generation');
@@ -112,10 +114,10 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
   let before, pendingCreated = false;
   const written = new Set();
   try {
-    if (initialize && existsSync(descriptor)) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
+    if (initialize && cellExistsSync(descriptor)) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
     before = initialize ? new Map() : storedCellLintFiles(root);
     if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read and plan the current generation');
-    for (const file of files.keys()) if (!before.has(file) && existsSync(join(root, file))) throw new Refused('CELL_BASELINE', `refuse overwriting unowned metadata ${file}`);
+    for (const file of files.keys()) if (!before.has(file) && cellExistsSync(join(root, file))) throw new Refused('CELL_BASELINE', `refuse overwriting unowned metadata ${file}`);
     for (const [file, bytes] of files) if (file !== DESCRIPTOR) { written.add(file); writeFileSync(join(root, file), bytes); }
     writeFileSync(pending, files.get(DESCRIPTOR), { flag: 'wx' });
     pendingCreated = true;
@@ -127,11 +129,11 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
   } catch (error) {
     if (before) {
       for (const [file, bytes] of before) writeFileSync(join(root, file), bytes);
-      for (const file of written) if (!before.has(file) && existsSync(join(root, file))) unlinkSync(join(root, file));
+      for (const file of written) if (!before.has(file) && cellExistsSync(join(root, file))) unlinkSync(join(root, file));
     }
     throw error;
   } finally {
-    if (pendingCreated && existsSync(pending)) unlinkSync(pending);
+    if (pendingCreated && cellExistsSync(pending)) unlinkSync(pending);
     rmdirSync(lock);
   }
 }

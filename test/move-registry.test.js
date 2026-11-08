@@ -309,3 +309,11 @@ test('shipped engine records and the legacy replay retain their first committed 
 });
 
 installRegistryMergeCase();
+
+/** Proves the seven formerly unregistered refusal codes each carry a non-empty recovery step [C7]. */
+test('clause 1: seven refusal codes each have a recovery next step [C7]', () => {
+  for (const code of ['BAD_IDLE_SKIPS', 'WRONG_BRANCH', 'ITEM_FOLDER_DIRTY', 'SUBMIT_HANDOFF_NOT_LAUNCHED', 'LAND_STALLED', 'RUNNER_RESULT_SIGNATURE', 'RUNNER_RESULT_SOURCE']) {
+    assert.equal(typeof NEXT_STEPS[code], 'string', code);
+    assert.notEqual(NEXT_STEPS[code].trim(), '', code);
+  }
+});

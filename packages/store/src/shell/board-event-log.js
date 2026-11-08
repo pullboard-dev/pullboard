@@ -1,5 +1,6 @@
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { now } from "./board-query.js";
+import { liftInfraHold } from "../core/board-infra-release.js";
 import { liftConditionalHold } from "../core/board-conditional-holds.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
@@ -191,6 +192,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
+    liftInfraHold(board, event, logEvent, setItem);
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
       notifyUnblocked(board, event, logEvent);
     }

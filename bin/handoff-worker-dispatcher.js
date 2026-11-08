@@ -7,14 +7,18 @@ import { effectiveRunners } from '../packages/runners/index.js';
 import { fileURLToPath } from 'node:url';
 
 /** The worker cap from the current machine settings; unreadable settings count as no runners, leaving the local cap. */
-export function currentCapacity() {
+export function currentCapacity(env = {}) {
+  // The dispatcher is launched by whichever seat submits first and would inherit that seat's environment: on 6 Nov a
+  // seat script exporting PULLBOARD_HANDOFF_WORKERS=6 capped the whole machine at 6 workers for six hours while 54
+  // gates queued and 41 runner slots sat free. The machine's cap comes from its settings; an override is passed in
+  // explicitly, never read from the inherited environment [C7].
   let settings;
   try { settings = loadMachineSettings(); }
-  catch { return handoffWorkerCapacity(); /* no runners readable: the local core cap still applies */ }
+  catch { return handoffWorkerCapacity({ env }); /* no runners readable: the local core cap still applies */ }
   let runnerSlots = 0;
   try { runnerSlots = effectiveRunners(settings).reduce((sum, runner) => sum + runner.slots, 0); }
   catch { runnerSlots = 0; /* no runners readable: the local core cap still applies */ }
-  return handoffWorkerCapacity({ runnerSlots, runnersOnly: settings.gate?.runnersOnly === true });
+  return handoffWorkerCapacity({ env, runnerSlots, runnersOnly: settings.gate?.runnersOnly === true });
 }
 
 // The cap is read on every dispatch pass, so a raised runner fleet or runnersOnly takes effect without a restart.

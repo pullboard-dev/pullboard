@@ -71,6 +71,8 @@ export function builderRepo(box, additionalOwned = []) {
   config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
+  // Joining declares a model (MODEL_REQUIRED); a fixture builder names its own rather than inheriting the host's.
+  box.env.PULLBOARD_MODEL ??= 'fixture-model';
   const made = box.run('worktree', 'build', '--json');
   assert.equal(made.code, 0, made.err);
   const root = JSON.parse(made.out).path;

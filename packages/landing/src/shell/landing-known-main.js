@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { completeGate } from './landing-completion.js';
+import { carriedMainOutcome } from './main-red.js';
 import { compareMainFailures } from './main-red.js';
 import { sameTestInputs } from './main-red.js';
 import { failureSignatures } from './main-failure-matches.js';
@@ -30,12 +31,16 @@ export async function knownMainAccount(state, gate) {
   // The files compare at once, bounded by the gate slots the comparisons take; one after another, six red files cost
   // six comparisons' wall time while the runners sat idle [C7].
   const files = [...new Set(failures.map(failure => failure.file))];
+  changed = changedFiles(state);
   const comparisons = await Promise.all(files.map(async file => {
     try {
+      // A file the batch did not touch keeps main's newest measured outcome: no rerun on this main, the refresh behind
+      // the landing re-measures it [C7]. A touched file is compared on this exact main.
+      const carried = changed && !changed.has(file) ? carriedMainOutcome(state.batch.root, file) : null;
       // The accounted failures name the file even when the reporter's profile carries no per-test rows.
       // A content-keyed main red excuses this file only when the batch left its inputs as main has them [C7,#3166].
-      const unchanged = await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
-      const comparison = await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
+      const unchanged = carried ? true : await sameTestInputs(state.batch.root, state.batch.base, 'HEAD', file);
+      const comparison = carried ?? await compareMainFailures(state.batch.root, { format: gate.profile?.format, tests: [{ file, passed: false }] }, state.onWait, '',
         // A landing's comparison waits as a landing, ahead of seat submits in the slot line; as a plain diagnostic it
         // queued 5.6 minutes behind four builders' analysis runs on 6 Nov [C7].
         { commit: state.batch.base, detailed: true, allowCancelled: true, contentCache: unchanged, runnerAdmission: { landing: true } });
@@ -44,14 +49,14 @@ export async function knownMainAccount(state, gate) {
         // Keep the answer for the base split: it ran the same file on main a second time on 6 Nov, 3 minutes each [C7].
         (state.mainComparisons ??= new Map()).set(file, comparison);
         const row = comparison?.files?.find(entry => entry.file === file);
-        state.say?.(`main comparison for ${file} at ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
+        state.say?.(`main comparison for ${file} ${carried ? 'carried from' : 'at'} ${comparison?.main?.slice(0, 12) ?? 'unknown'}: ${row ? `${row.result}, ${(row.failures ?? []).length} failing case(s)` : 'no row for this file'}`);
       }
       return comparison;
     } catch (error) { state.say?.(`main comparison unavailable for ${file}: ${error?.code ?? 'ERROR'} ${String(error?.message ?? '').slice(0, 160)}`); return null; /* An unavailable comparison never excuses a red case. */ }
   }));
   for (const [index, file] of files.entries()) {
     const comparison = comparisons[index];
-    for (const failure of failures.filter(entry => entry.file === file)) (comparison && (matchingMainFailures([failure], comparison, state.batch.base, { byCase: true })
+    for (const failure of failures.filter(entry => entry.file === file)) (comparison && (matchingMainFailures([failure], comparison, comparison.main, { byCase: true })
       || redOnMainUntouched(failure, comparison, changed ??= changedFiles(state))) ? known : remaining).push(failure);
   }
   if (!known.length) return null;
@@ -126,7 +131,7 @@ export function redOnMainUntouched(failure, comparison, changed) {
 }
 
 /** The files the batch's merged tree changed against its base, or null when Git cannot say. */
-function changedFiles(state) {
+export function changedFiles(state) {
   const diff = spawnSync('git', ['--no-replace-objects', 'diff', '--name-only', '-z', `${state.batch.base}...HEAD`], { cwd: state.batch.root, encoding: 'utf8' });
   return diff.status === 0 ? new Set(diff.stdout.split('\0').filter(Boolean)) : null;
 }

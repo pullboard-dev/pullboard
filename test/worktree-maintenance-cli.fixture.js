@@ -45,7 +45,7 @@ export function registerMaintenanceCliTests() {
     assert.equal(JSON.parse(json.out).enabled, false);
   });
 
-  test('ordinary release archives dirty owner work before cleaning and records its recovery fact [B3,C7,N26]', t => {
+  test('clause 1: ordinary release archives dirty owner work before cleaning and records its recovery fact [B3,C7,N26]', t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
     enable(box);
@@ -62,7 +62,8 @@ export function registerMaintenanceCliTests() {
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
     fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
-    const released = box.run(owner, 'release', String(id), '--no-next', '--json');
+    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER',
+      '--note', 'Release fixture work after archival.', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
     assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, released.err);
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');

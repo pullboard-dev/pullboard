@@ -264,7 +264,10 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         result.claims.push(row.id);
       }
     }
-    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || result.claimScan) {
+    // A scan that found nothing and moved nothing is not a board event: with a seat command every few seconds, the
+    // empty record was written 3,609 times on 6 Nov, each one a board write every reader waited behind [C7].
+    const scanned = result.claimScan && result.claimScan.previous !== result.claimScan.next;
+    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || scanned) {
       logEvent(board, agentId, 'stale_maintenance', null, { observedAt: snapshot.observedAt, ...result });
     }
     return result;

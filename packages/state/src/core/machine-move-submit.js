@@ -20,6 +20,8 @@ export const MOVES = [
       { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },
       { code: 'SEAL_REVISION', rule: 'test selection reads an existing committed seal revision', next: 'restore the named Git revision and objects' },
       { code: 'SEAL_STALE', rule: 'every skipped package retains its current native seal receipt', next: 'run tests of unsealed packages and derive a fresh selection' },
+      { code: 'LANE_CHECK_FOREIGN', rule: 'a lane seat\'s frozen check names only test files its own lane owns', next: 'shout the owning lane or the coordinator to set a check that names the file' },
+      { code: 'WRONG_BRANCH', rule: 'the new commits at the head name this item, not another', next: 'submit the other item from here, or switch to the branch built for this item' },
       { code: 'UNKNOWN_SPEC', rule: 'the submitted criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },

@@ -3,6 +3,7 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { join } from 'node:path';
@@ -122,12 +123,44 @@ export async function runLandingWorker(options, { write, checkLease, checkLeaseN
     return [...rows.values()].filter(row => descendants.has(row.pid) && row.pid !== child.pid && row.pid !== member?.pid)
       .map(row => `${row.pid}:${row.started}:${row.processSha256}`);
   };
-  /** Block a batch only after its revision, runner processes and active log have all stopped advancing. */
+  /**
+   * CPU milliseconds the worker's descendants have used: one asynchronous ps call at most every 5 s, never blocking
+   * the sampler, so a 5 ms test poll and the 10 s production poll both stay on time. An unreadable sample keeps the
+   * last count [B3,R3].
+   */
+  let cpuSampledAt = -Infinity, cpuSampled = 0, cpuPending = false;
+  const descendantCpuMs = rows => {
+    if (!rows || !child.pid) return 0;
+    if (cpuPending || now() - cpuSampledAt < 5_000) return cpuSampled;
+    const descendants = new Set([child.pid]);
+    let changed;
+    do {
+      changed = false;
+      for (const row of rows.values()) if (descendants.has(row.ppid) && !descendants.has(row.pid)) { descendants.add(row.pid); changed = true; }
+    } while (changed);
+    const pids = [...descendants].filter(pid => pid !== child.pid);
+    if (!pids.length) return cpuSampled;
+    cpuPending = true;
+    cpuSampledAt = now();
+    execFile('/bin/ps', ['-o', 'time=', '-p', pids.join(',')], { encoding: 'utf8', timeout: 5_000 }, (error, out) => {
+      cpuPending = false;
+      if (error) return;
+      cpuSampled = String(out).split('\n').reduce((sum, line) => {
+        const parts = line.trim().split(/[:.]/u).map(Number);
+        if (parts.length < 2 || parts.some(Number.isNaN)) return sum;
+        const [seconds, minutes, hours] = [parts.at(-1), parts.at(-2), parts.length > 2 ? parts.at(-3) : 0];
+        return sum + ((hours * 60 + minutes) * 60 + seconds) * 1000;
+      }, 0);
+    });
+    return cpuSampled;
+  };
+  /** Block a batch only after its revision, runner processes, active log and descendant CPU time have all stopped advancing. */
   const sampleProgress = async () => {
     if (sampling || stalled || !latestBatch || ['blocked', 'landed'].includes(latestBatch.state)) return;
     sampling = true;
     try {
-      const current = landingProgressSnapshot(latestBatch, { logBytes: logBytes(latestBatch), runnerJobs: runnerJobs(read()) });
+      const rows = read();
+      const current = landingProgressSnapshot(latestBatch, { logBytes: logBytes(latestBatch), runnerJobs: runnerJobs(rows), cpuMs: descendantCpuMs(rows) });
       if (landingProgressed(lastSnapshot, current)) {
         lastSnapshot = current;
         lastProgressAt = now();

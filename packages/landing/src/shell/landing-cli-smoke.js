@@ -63,7 +63,7 @@ export function runLandingCliSmoke(candidate) {
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
-    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke');
+    pullboard(seat, 'join', 'join', 'core', '--model', 'smoke', '--route', 'strong');
     pullboard(repo, 'add', 'add', 'core', 'Smoke item', '--specs', 'G1', '--criterion', 'the smoke item exists');
     pullboard(seat, 'list', 'list');
     pullboard(seat, 'show', 'show', '1');

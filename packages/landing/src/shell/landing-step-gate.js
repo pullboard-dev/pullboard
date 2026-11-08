@@ -7,6 +7,7 @@ import { packageHashesAt } from '../../../gate/index.js';
 import { TEST_TIERS_FILE } from '../../../gate/index.js';
 import { testTierCommand } from '../../../gate/index.js';
 import { VALUE_GATE } from '../../../gate/index.js';
+import { gateStages } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -49,6 +50,7 @@ import { knownMainLine } from './landing-known-main.js';
 import { fileKnownMainReds } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
+import { timedPhase } from './landing-phase-timing.js';
 import { landingOperations } from './landing-step-merge.js';
 
 /** Quote a command argument without allowing shell interpolation. */
@@ -83,9 +85,14 @@ function batchAffectedTests(state, readEvents, readItem) {
     const explicit = submitted?.filter(file => !testTiers.units.includes(file)) ?? [];
     return { full: false, mandatory, testTiers, files: [...new Set([...files, ...explicit, ...deferred, ...mandatory])].sort() };
   }
-  const selection = submitted !== null ? { full: false, files: submitted } : state.config.affectedTests
-    ? selectAffectedTests(root, { base: state.batch.base, commit })
-    : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
+  // The submit's files are a floor: a later accepted-trunk importer of a file the merged batch changed is found only
+  // on the merged tree, so its selection is added to the submitted union [C7,V4].
+  let selection;
+  if (!state.config.affectedTests) selection = submitted !== null ? { full: false, files: submitted } : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
+  else {
+    const merged = selectAffectedTests(root, { base: state.batch.base, commit });
+    selection = submitted === null ? merged : { ...merged, files: [...new Set([...submitted, ...merged.files])].sort() };
+  }
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
 }
 
@@ -148,7 +155,10 @@ function selectedGatePlan(state, { readEvents = id => store.events(state.board, 
   if (selection.full && selection.reason !== 'the change reaches every test file') return fullGatePlan(state);
   const { files, left } = auditOnlySplit(state.config, [...new Set([...selection.files, ...deferred])]);
   if (left.length) state.say?.(`left to the audit (landing.auditOnly): ${left.join(', ')}`);
-  const command = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  const affectedCommand = files.length ? `${state.config.affectedTests.trimEnd()} ${files.map(file => quote('./' + file)).join(' ')}` : 'true';
+  // An opaque configured gate (one the stage reader cannot split) still runs, ahead of the affected phase, and no stage
+  // of it is guessed: a waiver names only the affected phase's accounted failures [C7,V4].
+  const command = !gateStages(state.config.gate) && files.length ? `(\n${state.config.gate}\n) && ${affectedCommand}` : affectedCommand;
   const config = { ...state.config, gate: command, [VALUE_GATE]: true };
   return { config, files, subset: false, affectedGate: createHash('sha256').update(command).digest('hex') };
 }
@@ -224,8 +234,13 @@ function smokeTree(state, tree) {
   state.smoked.add(tree);
 }
 
+/** Run one source-pinned gate or selective floor and say how long it took, so a slow landing names its gate [C7]. */
+export function gateGroup(state, label, options) {
+  return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
-export async function gateGroup(state, label, options) {
+async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   smokeTree(state, tree);
   const commit = headCommit(state.batch.root);

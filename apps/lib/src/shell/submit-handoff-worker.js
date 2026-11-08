@@ -77,9 +77,14 @@ async function recordWorkerFailure(ctx, request, directory, failure) {
   }
 }
 
-/** Remove only the executing job's own temporary tool snapshot, including aliased temporary roots. */
-function cleanupToolSnapshot(request) {
-  const tools = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
+/**
+ * Remove only the executing job's own temporary tool snapshot, including aliased temporary roots. A shared commit
+ * snapshot is never named for one job, so it stays for every other queued or running gate that names it [C7].
+ *
+ * @param {{ job: string, tools?: string }} request - The executing job's captured request.
+ * @param {string} [tools] - The running tools folder; defaults to the folder this module was loaded from.
+ */
+export function cleanupToolSnapshot(request, tools = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))))) {
   if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
     && dirname(realpathSync(tools)) === realpathSync(tmpdir())
     && request.tools && realpathSync(request.tools) === realpathSync(tools)) {

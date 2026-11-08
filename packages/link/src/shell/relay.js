@@ -40,6 +40,7 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -50,6 +51,7 @@ import {
   basename,
   dirname,
   join,
+  resolve,
 } from 'node:path';
 import {
   gunzipSync,
@@ -159,7 +161,27 @@ export async function assertRehomeSourceItemOrdered(root, itemId, io) {
   await locked(file, async () => requireAuthoritativeRehomeItem(file, loadLink(file), itemId, io), io);
 }
 /** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
-function linkFile(root) { return relayFiles(repoInfo(root).commonDir).link; }
+function linkFile(root) { return relayFiles(quickCommonDir(root)).link; }
+
+/**
+ * Find the shared git directory by reading `.git` (and `commondir` for a linked worktree) instead of starting git.
+ * Why: every read command asked git for this just to learn the link path, about 200 ms each [C7].
+ * Anything unusual falls back to the git-backed answer.
+ */
+function quickCommonDir(root) {
+  try {
+    const dotGit = join(root, '.git');
+    const stat = lstatSync(dotGit);
+    if (stat.isDirectory()) return realpathSync(dotGit);
+    const match = /^gitdir:\s*(.+)\s*$/mu.exec(readFileSync(dotGit, 'utf8'));
+    if (match) {
+      const gitDir = resolve(root, match[1]);
+      const common = readFileSync(join(gitDir, 'commondir'), 'utf8').trim();
+      return realpathSync(resolve(gitDir, common));
+    }
+  } catch { /* Not a plain checkout root: ask git. */ }
+  return repoInfo(root).commonDir;
+}
 
 /** Locate the credential-free reason an independently deleted copy no longer syncs. */
 function deletedLinkFile(root) { return relayFiles(repoInfo(root).commonDir).deleted; }

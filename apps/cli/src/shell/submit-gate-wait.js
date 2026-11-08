@@ -1,9 +1,11 @@
 /** Follow only the exact queued gate, never an unrelated later review verdict [V4,H16,E18]. */
 import { setTimeout as pause } from 'node:timers/promises';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { exactStart } from '../../../../packages/gate/index.js';
+import { handoffTicketWaiting } from '../../../../packages/resources/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
@@ -82,6 +84,8 @@ export async function waitForSubmitGate(ctx, id, acknowledgment, jobId, ports) {
     // Observe native completion again after checking process death: completion can race the last worker exit.
     try { requireWorker(directory, jobId, id); }
     catch (error) {
+      // A job still holding its place in line has no worker yet; the dispatcher starts it, so keep waiting [V4].
+      if (!existsSync(join(directory, 'worker.json')) && handoffTicketWaiting(jobId)) { await pause(250); continue; }
       const final = observeJob(ctx, id, acknowledgment, jobId, ports);
       if (['green', 'submitted', 'red', 'incomplete'].includes(final.job.state)) continue;
       throw error;

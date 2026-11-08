@@ -23,7 +23,7 @@ const { landProject } = makeLandProjectFixtures({ ...e2e,
 test('a refused spec reports only fixed rule text, and the controller records it [C7]', () => {
   assert.equal(specRefusalRule(new Error('invalid landing timeout')), 'invalid landing timeout');
   assert.equal(specRefusalRule(new SyntaxError('Unexpected token \'x\', "/secret/path" is not valid JSON')), 'work specification is not valid JSON');
-  assert.equal(specRefusalRule(new Error('/Users/someone/secret')), 'work specification could not be read');
+  assert.equal(specRefusalRule(new Error('/Users/user/secret')), 'work specification could not be read');
   const request = { runner: { host: HOST }, spec: { id: 'a' } };
   const refusal = (() => { try { resultFrom(request, { status: 1, stdout: Buffer.alloc(0),
     stderr: 'PULLBOARD_RUNNER_SPEC_REFUSED invalid work specification\nPULLBOARD_RUNNER_SPEC_RULE invalid landing timeout\n' }, {}); } catch (error) { return error; } })();

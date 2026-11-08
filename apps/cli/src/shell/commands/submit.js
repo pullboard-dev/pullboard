@@ -369,9 +369,11 @@ export async function submitHere(ctx, id, infra) {
   const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit-handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx) && !pending) {
-    mainMerge = mergeSubmissionMain(root, acceptedMain.commit);
-    commit = mainMerge.commit;
-    if (mainMerge.merged) {
+    // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
+    try { mainMerge = mergeSubmissionMain(root, acceptedMain.commit); }
+    catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
+    if (mainMerge) commit = mainMerge.commit;
+    if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
@@ -764,7 +766,7 @@ export async function submitHere(ctx, id, infra) {
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
-  for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
+  for (const line of cells.warnings ?? []) ctx.io.say(line);
   const doctrine = stages.doctrine;
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
   let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag } = stages.tests;

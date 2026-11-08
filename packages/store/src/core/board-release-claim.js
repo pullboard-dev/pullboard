@@ -6,6 +6,8 @@ import { validateNativeDependencies } from '../../../seats/core.js';
 import { localDependencyIds } from '../../../seats/core.js';
 import { releaseReasonProblem } from "./release-reasons.js";
 import { releaseExitClaim } from "./exit-rules-state.js";
+import { infraRelease } from './board-infra-release.js';
+import { lastChosenReleases } from './board-infra-release.js';
 import { staleClaimRelease } from "./board-stale-claim-release.js";
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
 import { Refused } from "../../../kernel/core.js";
@@ -43,7 +45,7 @@ function goneRelease(board, item, actor, observation) {
 function chosenQualityRelease(board, id, row, detail) {
   if (!['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(detail.reasonCode)
     || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim
-    || detail.untouchedAutoClaim || detail.exitHandoff) return false;
+    || detail.untouchedAutoClaim || detail.exitHandoff || infraRelease(board, id, row, detail)) return false;
   const previous = board.db.prepare(`SELECT event_kind, event_by FROM event WHERE item_id=? AND event_id<?
     AND event_kind IN ('claim','release','submit','withdraw','merged','reopen') ORDER BY event_id DESC LIMIT 1`).get(id, row.event_id);
   return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
@@ -134,13 +136,8 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     }
     if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
-      const releases = board.db.prepare(`SELECT event_id, event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
-        AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)
-        ORDER BY event_id DESC`).all(id, id).filter(row => {
-          const detail = JSON.parse(row.event_detail);
-          return qualityHolds ? chosenQualityRelease(board, id, row, detail)
-            : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
-        }).slice(0, 2);
+      const releases = lastChosenReleases(board, id, (row, detail) => qualityHolds ? chosenQualityRelease(board, id, row, detail)
+        : detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff);
       if (releases.length === 2) {
         const reasons = releases.reverse().map(row => {
           const detail = JSON.parse(row.event_detail);

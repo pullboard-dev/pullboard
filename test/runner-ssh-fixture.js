@@ -14,11 +14,11 @@ export function shellQuote(value) {
  * Make a local ssh stand-in that executes the actual worker command in a second private machine.
  * It appends "dispatched" and "returned" to <requests>.phases so a round trip can be timed by phase,
  * and `hold` ('dispatch', 'run' or 'return') keeps it alive at that phase, as a stuck runner would.
- * `workerHealthDown` also fails every pinned-worker recovery probe, as an unreachable host does; `healthDown` alone fails only non-worker commands.
+ * `workerHealthDown` also fails every pinned-worker recovery probe, as an unreachable host does; `healthDown` alone fails only non-worker commands, and `registrationDown` fails the registration and measurement probes.
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
   const ssh = join(bin, 'ssh');
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -76,6 +76,9 @@ if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`
 }
 // Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
 const workerCommand = remoteCommand.includes(' --input-type=module -e ');
+if (${JSON.stringify(registrationDown)} && registrationGuiProbe) {
+  record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
+}
 if (${JSON.stringify(healthDown)} && !registrationGuiProbe && !workerCommand) {
   record({ healthProbeFailed: true, stdinBytes }); process.exit(255);
 }

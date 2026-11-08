@@ -9,11 +9,19 @@ import { gitChildEnv } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { mainAuditDirectory } from './main-audit-state.js';
 import { readMainAudit } from './main-audit-state.js';
+import {
+  nudgeAcceptedCells,
+  recordAcceptedCellsFailure,
+} from './accepted-cells-inventory.js';
 
 /** Call only after foreground checkout/landing leases release; never await an audit or gate admission. */
 export async function nudgeMainAudit(root, workerUrl) {
   const info = repoInfo(root);
   if (!info.isMain || !codeIsFromMain()) return null;
+  if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('main audit nudge requires its actual process entry URL');
+  const main = git(info.root, ['rev-parse', 'refs/heads/main'], { env: gitChildEnv(info.root) }).trim();
+  try { await nudgeAcceptedCells(info.root, workerUrl, main); }
+  catch (error) { try { recordAcceptedCellsFailure(info.root, main, error); } catch { /* Audit remains independent. */ } }
   // An unactivated repository has no audit work; avoid starting a detached no-op child.
   // Malformed/unreadable state still follows the worker's ordinary diagnostic path.
   try { if (!readMainAudit(join(mainAuditDirectory(info), 'activation.json'))) return null; }

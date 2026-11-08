@@ -38,8 +38,8 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
   box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6', '--reason', 'Arrange the fixture releases');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5', '--reason', 'Arrange the fixture releases');
   box.run(alpha.repo, 'milestone', 'ship', '0.9.3', '--next', '0.9.4: Restructure for Speed and Cost');
   const roadmap = JSON.parse(box.run(alpha.repo, 'roadmap', '--json'));
   const shipped = roadmap.milestones.find(milestone => milestone.name === '0.9.3');
@@ -75,7 +75,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
         const rowFor=id=>rows.find(row=>row.dataset.roadmapKey==='i:#'+id);
         return {width:innerWidth,cardName:card.querySelector('.release-name')?.textContent||'',itemCount:card.querySelectorAll('.milestone-limit').length,
           pace:rect(forecast),paceLineHeight:parseFloat(getComputedStyle(forecast).lineHeight),paceFits:forecast.scrollWidth<=forecast.clientWidth,name:rect(card.querySelector('.release-name')),
-          rows:rows.map(row=>({id:row.querySelector('.id')?.textContent||'',label:row.querySelector('.roadmap-stage-chip')?.textContent||row.querySelector('.chip')?.textContent||'',
+          rows:rows.map(row=>({id:row.querySelector('.id')?.textContent||'',back:!!row.querySelector('.stage-mark.no, .roadmap-state.back'),label:row.querySelector('.stage-word')?.textContent||row.querySelector('.roadmap-stage-chip')?.textContent||'',
             order:row.querySelector('.queue-position')?.textContent||'',icon:!!row.querySelector('.roadmap-state svg'),after:row.querySelector('.roadmap-after')?.textContent.trim()||'',
             afterHref:row.querySelector('.roadmap-after a')?.getAttribute('href')||'',blockDots:row.querySelectorAll('.block-dot').length,titleLines:row.querySelector('.milestone-title')?.getClientRects().length||0,
             title:row.querySelector('.milestone-title')?.textContent||''})),
@@ -93,7 +93,9 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1 && result.paceFits, `desktop pace stays on one shared header line without clipping: ${JSON.stringify({ rect: result.pace, lineHeight: result.paceLineHeight, fits: result.paceFits })}`);
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
-      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: each item has its approved plain lifecycle chip`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Gated', 'Building', 'In review', 'Ready'], `${width}: each item shows its approved plain lifecycle stage`);
+      // The shared stage model shows a returned item as Ready with a sent-back mark, not a Sent back stage.
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.back), [false, false, false, false, true], `${width}: only the returned item carries the sent-back mark`);
       assert.equal(queuePositionById.size, 5, `${width}: the roadmap API gives every release item a queue position`);
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.order), ['#1', '#2', '#3', '#4', '#5'].map(id => queuePositionById.get(id)), `${width}: each item shows its authoritative queue position`);
       assert.ok(result.rows.every(row => row.icon && row.titleLines === 1), `${width}: each row has a state icon and one-line title`);
