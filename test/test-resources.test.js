@@ -235,9 +235,11 @@ function runnerFixture(t, tests) {
     Object.assign(env, { PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_FIXTURE_MARKERS: join(root, 'markers'),
       PULLBOARD_FIXTURE_LAUNCHES: join(root, 'launches'), FIXTURE_BROWSER: chrome });
     const result = spawnSync(process.execPath, ['bin/run-tests.js', ...files], { cwd: root, env, encoding: 'utf8' });
-    /** Read one record file the fixture tests append to, empty when nothing wrote it. */
-    const lines = name => existsSync(join(root, name)) ? readFileSync(join(root, name), 'utf8').split('\n').filter(Boolean) : [];
-    return { status: result.status, output: `${result.stdout}\n${result.stderr}`, markers: lines('markers').sort(), launches: lines('launches').sort() };
+    /** Split one record file the fixture tests append to into its lines. */
+    const lines = text => text.split('\n').filter(Boolean).sort();
+    const markers = existsSync(join(root, 'markers')) ? lines(readFileSync(join(root, 'markers'), 'utf8')) : [];
+    const launches = existsSync(join(root, 'launches')) ? lines(readFileSync(join(root, 'launches'), 'utf8')) : [];
+    return { status: result.status, output: `${result.stdout}\n${result.stderr}`, markers, launches };
   }
   return { root, run };
 }
@@ -312,11 +314,26 @@ test('spawned starts a Node child that starts the browser', () => {
 });
 
 /** Shared-launcher calls: a module that makes one, other than the launchers themselves, starts a browser. */
-const LAUNCH_CALL = /\b(?:startChrome|launchChromeProcess|requireBrowserSlot)\s*\(/u;
+const LAUNCH_CALL = '(^|[^[:alnum:]_])(startChrome|launchChromeProcess|requireBrowserSlot)[[:space:]]*\\(';
 /** View-fixture calls that start Chrome through test/cockpit/fixture.js's startSnapshotChrome. */
-const VIEW_LAUNCH_CALL = /\b(?:startSnapshotChrome|openSnapshotChrome|searchFor)\s*\(/u;
+const VIEW_LAUNCH_CALL = '(^|[^[:alnum:]_])(startSnapshotChrome|openSnapshotChrome|searchFor)[[:space:]]*\\(';
 /** Relative module requests in static and literal dynamic imports. */
-const RELATIVE_IMPORT = /(?:from\s*|import\s*\(\s*|import\s+)['"](\.[^'"]+)['"]/gu;
+const RELATIVE_IMPORT = `(from[[:space:]]*|import[[:space:]]*\\([[:space:]]*|import[[:space:]]+)['"]\\.[^'"]+['"]`;
+
+/**
+ * Search every tracked module in the working tree with one git grep, so the scan follows whatever paths are
+ * tracked today and names none of its own. Exit 1 is git grep's "no match".
+ *
+ * @param {string} repository
+ * @param {string[]} args
+ * @returns {string}
+ */
+function grepModules(repository, args) {
+  const result = spawnSync('git', ['grep', '-z', '-I', ...args, '--', '*.js', '*.mjs', '*.cjs'],
+    { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  assert.ok(result.status === 0 || result.status === 1, result.stderr);
+  return result.stdout;
+}
 
 /**
  * Tracked test files whose own source, or a tracked module they import by relative path, calls a shared
@@ -329,17 +346,21 @@ function chromeLaunchingTests(repository) {
   const listed = spawnSync('git', ['ls-files', '-z'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
   assert.equal(listed.status, 0, listed.stderr);
   const modules = new Set(listed.stdout.split('\0').filter(path => /\.(?:m?js|cjs)$/u.test(path)));
-  const sources = new Map();
-  /** Read one tracked module once. */
-  const source = path => {
-    if (!sources.has(path)) sources.set(path, readFileSync(join(repository, path), 'utf8'));
-    return sources.get(path);
-  };
+  /** The tracked modules whose source matches one pattern. */
+  const matching = (...args) => new Set(grepModules(repository, ['-l', ...args]).split('\0').filter(Boolean));
+  const viewFixture = matching('-F', '-e', 'cockpit/fixture.js');
+  const launchers = new Set([...matching('-E', '-e', LAUNCH_CALL), ...[...matching('-E', '-e', VIEW_LAUNCH_CALL)].filter(path => viewFixture.has(path))]);
+  const requests = new Map();
+  for (const line of grepModules(repository, ['-o', '-E', '-e', RELATIVE_IMPORT]).split('\n')) {
+    const split = line.indexOf('\0');
+    if (split < 0) continue;
+    const request = /['"](\.[^'"]+)['"]$/u.exec(line.slice(split + 1))?.[1];
+    if (request) requests.set(line.slice(0, split), [...requests.get(line.slice(0, split)) ?? [], request]);
+  }
   /** Resolve a relative request the way the test files write them: with or without a .js or .mjs suffix. */
   const target = (importer, request) => [request, `${request}.js`, `${request}.mjs`]
     .map(candidate => join(dirname(importer), candidate)).find(candidate => modules.has(candidate));
-  const launches = path => !['test/chrome-fixture.js', 'test/cockpit/fixture.js'].includes(path)
-    && (LAUNCH_CALL.test(source(path)) || (VIEW_LAUNCH_CALL.test(source(path)) && source(path).includes('cockpit/fixture.js')));
+  const launches = path => !['test/chrome-fixture.js', 'test/cockpit/fixture.js'].includes(path) && launchers.has(path);
   return [...modules].filter(path => /\.test\.m?js$/u.test(path)).filter(test => {
     const seen = new Set();
     const stack = [test];
@@ -348,7 +369,7 @@ function chromeLaunchingTests(repository) {
       if (seen.has(path)) continue;
       seen.add(path);
       if (launches(path)) return true;
-      for (const [, request] of source(path).matchAll(RELATIVE_IMPORT)) {
+      for (const request of requests.get(path) ?? []) {
         const next = target(path, request);
         if (next) stack.push(next);
       }
@@ -357,12 +378,13 @@ function chromeLaunchingTests(repository) {
   }).sort();
 }
 
-test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', () => {
+test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {
   const repository = resolve(import.meta.dirname, '..');
   // This file's own launches are fixture sources run by nested runners with their own declarations.
   const launching = chromeLaunchingTests(repository).filter(file => file !== 'test/test-resources.test.js');
   assert.ok(launching.length > 20, `the scan finds the real Chrome journeys: ${launching.length}`);
-  const undeclared = launching.filter(file => !declaresBrowser(readFileSync(join(repository, file), 'utf8')));
+  const declared = new Set(await browserBoundFiles(repository, launching));
+  const undeclared = launching.filter(file => !declared.has(file));
   assert.deepEqual(undeclared, [], `make the first line of each ${BROWSER_MARKER}`);
   for (const file of ['test/journeys.test.js', 'test/relay-pairing.test.js', 'test/cockpit/stable.test.js', 'test/cockpit/chrome-owner-probe.mjs',
     'packages/kernel/tests/seal.test.js', 'docs/shots/shots.test.js', 'test/hosted-shapes.test.js']) {
