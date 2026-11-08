@@ -21,12 +21,12 @@ function project(t) {
     staticChecks: `${MARK(markers.staticCheck)} && node --experimental-vm-modules bin/static-style-checks.js`, shared: ['pullboard.json'] }));
   put(box.root, 'bin/checks/test-waits-baseline.json', '{}\n');
   put(box.root, 'bin/static-style-checks.js', `import { importStyleViolations } from ${JSON.stringify(GATE_FRONT_DOOR)};\nprocess.exitCode = importStyleViolations([]).length;\n`);
-  put(box.root, 'packages/x/src/a.js', 'export const a = 1;\n');
+  put(box.root, 'src/a.js', 'export const a = 1;\n');
   put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
   put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Order\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
-  assert.equal(builder.coordinator('add', 'build', 'Preflight order fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: packages/x/src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item)).code, 0);
+  assert.equal(builder.coordinator('add', 'build', 'Preflight order fixture', '--criterion', 'the fixture change is submitted or refused', '--brief', 'Files: src/a.js\nTest: submit refuses or reaches the gate', '--check', MARK(markers.item)).code, 0);
   assert.equal(builder.run('claim', '1').code, 0);
   // Adding the item ran its check once to baseline it; only runs after this point count.
   for (const path of Object.values(markers)) rmSync(path, { force: true });
@@ -35,18 +35,19 @@ function project(t) {
 
 test('clause 1: a static failure in preflight refuses before the static, doctrine, item-check and gate stages start [V4,C7]', { timeout: 180_000 }, t => {
   const { box, markers } = project(t);
-  put(box.root, 'packages/x/src/a.js', "import { b, c } from './b.js';\nexport const a = [b, c];\n");
-  commitAll(box, 'feat(core): change source with bad import style [G1]');
+  // A fixed wait in a test is a registered static failure, and test is the build lane's own folder.
+  put(box.root, 'test/w.test.js', 'await new Promise(resolve => setTimeout(resolve, 500));\n');
+  commitAll(box, 'feat(core): add a test with a fixed wait [G1]');
   const refused = box.run('submit', '1', '--json', '--infra', 'preflight order fixture');
   assert.notEqual(refused.code, 0, refused.err + refused.out);
-  assert.match(refused.err + refused.out, /preflight is red; no runner was queued[\s\S]*packages\/x\/src\/a\.js:1: one import binding per line/u);
+  assert.match(refused.err + refused.out, /preflight is red; no runner was queued[\s\S]*test-waits: /u);
   for (const [name, path] of Object.entries(markers)) assert.equal(existsSync(path), false, `${name} never started after a preflight red`);
   assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
 });
 
 test('clause 2: a clean change passes preflight and proceeds to the item check and the doctrine rule [V4,C7]', { timeout: 180_000 }, t => {
   const { box, markers } = project(t);
-  put(box.root, 'packages/x/src/a.js', 'export const a = 2;\n');
+  put(box.root, 'src/a.js', 'export const a = 2;\n');
   commitAll(box, 'feat(core): change source cleanly [G1]');
   const accepted = box.run('submit', '1', '--json', '--infra', 'preflight order fixture');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
