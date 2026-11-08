@@ -5,6 +5,7 @@ import { overdueSeatTestsFirst } from './seat-test-admission.js';
 import { seatTestRepo } from './seat-test-admission.js';
 import { beginResourceWrite } from './resource-write-lock.js';
 import { resourceWriteError } from './resource-write-lock.js';
+import { retainConnection } from './resource-connections.js';
 import { renewWithBeat } from './renewal-beat.js';
 import { createControllerCustody } from './controller-custody.js';
 import { controllerLeaseHealth } from './controller-custody.js';
@@ -147,10 +148,8 @@ function canonicalResourceFile(file) {
   }
 }
 
-/** Open and initialize the small durable queue database. */
-function open(file, machine = false) {
-  return machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file);
-}
+/** Open and initialize the small durable queue database, or hand back the process's one retained connection when reuse is on [C7,#3338]. */
+function open(file, machine = false) { return retainConnection(file, () => machine ? withMachineHomeWrite(machineHome(), () => openQueue(file)) : openQueue(file)); }
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {

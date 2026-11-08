@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'nod
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { SLOT_DB_LOCK_ENV, drainHandoffQueue } from '../packages/resources/index.js';
+import { SLOT_DB_LOCK_ENV, closeResourceConnections, drainHandoffQueue, listResources, reuseResourceConnections, takeResource } from '../packages/resources/index.js';
 import { temporaryDirectory } from './board-fixture.js';
 
 /** Build a private machine home and put the environment back afterwards. */
@@ -50,7 +50,7 @@ test('clause 2: a pass whose slot call throws SLOT_DB_LOCKED leaves no extra con
   try {
     await drainHandoffQueue({ capacity: 4, pollMs: 1 });
     const blocker = new DatabaseSync(box.file);
-    blocker.exec('PRAGMA busy_timeout = 0; PRAGMA locking_mode = EXCLUSIVE; BEGIN EXCLUSIVE; SELECT count(*) FROM resource');
+    blocker.exec('PRAGMA busy_timeout = 0; BEGIN IMMEDIATE');
     try {
       await drainHandoffQueue({ capacity: 4, pollMs: 1 });
       const first = openHandles(box.file);
@@ -58,4 +58,22 @@ test('clause 2: a pass whose slot call throws SLOT_DB_LOCKED leaves no extra con
       assert.equal(openHandles(box.file), first, 'locked passes leaked connections');
     } finally { blocker.exec('ROLLBACK'); blocker.close(); }
   } finally { box.cleanup(); }
+});
+
+test('clause 1: takeResource, listResources, renew and release reuse one connection opened once and closed on exit [C7,#3338]', async () => {
+  const box = fixture();
+  try {
+    reuseResourceConnections();
+    listResources({ scope: 'machine' });
+    assert.equal(openHandles(box.file), 1, 'the first call opens the one connection');
+    for (let round = 0; round < 25; round++) {
+      const lease = await takeResource({ name: 'reuse-probe', capacity: 1, scope: 'machine', agent: 'reuse' });
+      listResources({ scope: 'machine' });
+      lease.renew();
+      lease.release();
+    }
+    assert.equal(openHandles(box.file), 1, 'twenty-five rounds of every slot call still use the one connection');
+    closeResourceConnections();
+    assert.equal(openHandles(box.file), 0, 'closing the process connections releases the handle');
+  } finally { closeResourceConnections(); box.cleanup(); }
 });

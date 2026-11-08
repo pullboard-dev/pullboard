@@ -22,6 +22,7 @@ import {
   listResources,
   takeResource,
 } from './resources.js';
+import { reuseResourceConnections } from './resource-connections.js';
 import { machineHome } from './machine-home.js';
 import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -387,6 +388,7 @@ function endUnstarted(file, name, launch, error, admission = NO_ADMISSION) {
  *   dispatcher held the machine, which then drains every repository's tickets.
  */
 export async function drainHandoffQueue({ capacity = handoffWorkerCapacity(), pollMs = 500, startOf = () => '', resultGraceMs = HANDOFF_RESULT_GRACE_MS, releaseSlot = releaseOnce, takeSlot = takeResource, stallMs = HANDOFF_LAUNCH_STALL_MS, sweep, sweepEveryMs = HANDOFF_SWEEP_EVERY_MS, admission = NO_ADMISSION, onPass = () => {} } = {}) {
+  reuseResourceConnections(); // One connection per process for every slot call below, so passes never leak handles [C7,#3338].
   const started = [];
   const sweeps = repeatingSweep(sweep, sweepEveryMs);
   let existing;
