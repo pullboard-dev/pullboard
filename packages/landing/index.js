@@ -1,5 +1,7 @@
 /** Landing's automatic wake custody behind its cell front door [B35,C7]. */
 export { automaticLandingDirectory, scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding } from './src/shell/automatic-landing-scheduler.js';
+/** Landing retry and backoff policy for the automatic lander [C7]. */
+export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/core/automatic-landing-retry.js';
 /** Landing, queue and main-red front door [C7] */
 export * from "./src/shell/computed-conflict-receipt.js";
 export * from "./src/shell/computed-conflict-return.js";
@@ -22,10 +24,12 @@ export * from "./src/shell/landing-replay.js";
 export * from "./src/shell/landing-resource.js";
 export { takeLandingResource } from "./src/shell/landing-resource.js";
 export * from "./src/shell/landing-shards.js";
+export * from "./src/shell/run-shards.js";
 export * from "./src/shell/landing-test-policy.js";
 export * from "./src/core/landing-waivers.js";
 export * from "./src/core/landing-worker-identity.js";
 export * from "./src/shell/landing-worker.js";
+export { inProcessLandingBatch, landingProgress } from "./src/shell/landing-in-process.js";
 export * from "./src/shell/landing-worktree-prune.js";
 export * from "./src/shell/main-failure-matches.js";
 export * from "./src/shell/main-red.js";
@@ -45,7 +49,7 @@ export * from "./src/shell/landing-step-selection.js";
 export * from "./src/shell/landing-step-merge.js";
 export * from "./src/shell/landing-step-failures.js";
 export * from "./src/shell/landing-step-gate.js";
-export { runLandingCliSmoke, runCommitCliSmoke } from "./src/shell/landing-cli-smoke.js";
+export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt } from "./src/shell/landing-cli-smoke.js";
 export * from "./src/shell/landing-step-diagnose.js";
 export * from "./src/shell/landing-step-publish.js";
 export * from "./src/shell/landing-step-trunk.js";

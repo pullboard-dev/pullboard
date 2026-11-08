@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The approved shared Needs-you rows use real board calls and person decisions [N26,B26]. */
 import assert from 'node:assert/strict';

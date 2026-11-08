@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /**
  * The README's screenshots and timed tour recording (I11, I13) are reproducible demo artifacts,
