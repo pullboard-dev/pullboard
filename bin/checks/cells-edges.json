@@ -548,6 +548,10 @@
       "cells": 9,
       "deep": 1
     },
+    "apps/cli/src/shell/item-folder-idle.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "apps/cli/src/shell/item-folder-identity.js": {
       "cells": 3,
       "deep": 0

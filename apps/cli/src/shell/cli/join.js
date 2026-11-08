@@ -1,4 +1,5 @@
 /** Helpers for `pullboard join` and `pullboard whoami`: session binding and model identity. Split from src/cli.js, which re-exports it [C7]. */
+import { folderIdle } from '../item-folder-idle.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { identifyCaller } from '../cli-identity.js';
 import { gitSyncLinked } from '../../../../../packages/store/index.js';
@@ -93,7 +94,8 @@ export function endedItemFolderSession(board, me, folder) {
   const digest = agentSessionDigest();
   if (!digest || !board) return null;
   const binding = endedFolderSession(repoInfo(folder), { agent: me.id, digest,
-    liveSeats: () => store.listAgents(board).filter(seat => seat.presence === 'live') });
+    liveSeats: () => store.listAgents(board).filter(seat => seat.presence === 'live'),
+    idle: () => folderIdle(board, me, folder) });
   return binding ? { digest, binding } : null;
 }
 
