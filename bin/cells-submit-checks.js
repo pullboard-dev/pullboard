@@ -204,15 +204,50 @@ function sharedPolicy(file) {
     || file === 'bin/cell-lint-transition.json';
 }
 
+/** The plan's own settings, without its per-cell rows, so a row edit is told apart from a global one. */
+function planSettings(plan) {
+  const { cells, files, tests, ...settings } = plan ?? {};
+  return JSON.stringify(settings);
+}
+
+/**
+ * Split the changed policy files into the cells they name and a reason to recheck everything.
+ * A cell's own plan shard, path-map shard or baseline shard, and an index edit that only adds, removes or edits
+ * cell rows, name just those cells; any other shared file, or an index edit that names no row, still means all
+ * cells, so an unknown policy file always fails safe.
+ *
+ * Why: 12 of the 21 slow cells steps on 8 Nov rechecked every cell for a one-row policy edit.
+ *
+ * @returns {{ all: string|undefined, cells: Set<string> }}
+ */
+function policyScope(files, plans) {
+  const [before, after] = plans, cells = new Set(), names = new Map((after?.cells ?? []).map(cell => [cell.name, cell]));
+  const rows = plan => new Map((plan?.cells ?? []).map(cell => [cell.name, JSON.stringify(cell)]));
+  const oldRows = rows(before), newRows = rows(after);
+  const changedRows = [...newRows].filter(([name, row]) => oldRows.get(name) !== row).map(([name]) => name);
+  const settingsSame = planSettings(before) === planSettings(after);
+  for (const file of files) {
+    if (plans.some(plan => plan.stays?.some(row => row.path === file))) return { all: file, cells };
+    if (!sharedPolicy(file)) continue;
+    if (file === 'bin/cells-plan.json' && settingsSame && changedRows.length) { for (const name of changedRows) cells.add(name); continue; }
+    const keyed = /^(?:bin\/cells-plan\/path-map|bin\/cell-lint-baselines\/cells)\/([a-z][a-z0-9-]*)\.json$/u.exec(file)?.[1];
+    const own = [...names.values()].find(cell => shardFile(cell) === file || keyed !== undefined && cell.name.replace(':', '-') === keyed);
+    if (own) { cells.add(own.name); continue; }
+    return { all: file, cells };
+  }
+  return { all: undefined, cells };
+}
+
 function allCellsReason(files, plans) {
-  return files.find(file => sharedPolicy(file) || plans.some(plan => plan.stays?.some(row => row.path === file)));
+  return policyScope(files, plans).all;
 }
 
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
   // Shared metadata or an unowned root-tool stay can alter every reachable cell.
-  if (allCellsReason(files, plans)) {
+  const scope = policyScope(files, plans);
+  if (scope.all) {
     return after.cells.map(cell => cell.name);
   }
   const byPath = new Map();
@@ -223,7 +258,7 @@ export function touchedCells(files, before, after, inventories) {
       || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
     return byPath.get(file);
   };
-  const touched = new Set(files.flatMap(owners));
+  const touched = new Set([...files.flatMap(owners), ...scope.cells]);
   const selected = new Set(touched);
   // A cut follows pure re-export shims across cell boundaries. Treat the effective
   // importer through those shims as direct; never traverse a real implementation.

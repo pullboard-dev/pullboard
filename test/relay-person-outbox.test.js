@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A paired browser retries only saved ciphertext after an interrupted person request [H12,H16,H17]. The case traces
  * API1 snapshot PUTs, so it runs on the legacy wire (#903). */

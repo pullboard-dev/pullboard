@@ -69,11 +69,22 @@
   "packages/api/tests/shout-item-cli.test.js": {
     "raw-board": 4
   },
+  "packages/blueprints/tests/blueprint-fixture.js": {
+    "repo-read": 2,
+    "tempdir": 2,
+    "model": 1
+  },
+  "packages/blueprints/tests/blueprint-part-2.test.js": {
+    "repo-read": 2,
+    "hand-policy": 1
+  },
+  "packages/blueprints/tests/blueprint-part-4.test.js": {
+    "hand-policy": 2
+  },
   "packages/blueprints/tests/blueprint.test.js": {
-    "repo-read": 4,
-    "model": 2,
-    "tempdir": 3,
-    "hand-policy": 5
+    "model": 1,
+    "tempdir": 1,
+    "hand-policy": 2
   },
   "packages/codemap/tests/root-allowlist.test.js": {
     "tempdir": 2
@@ -111,9 +122,6 @@
   },
   "packages/doctrine/tests/package.test.js": {
     "repo-read": 2,
-    "tempdir": 2
-  },
-  "packages/gate/tests/browser-scan-cache.test.js": {
     "tempdir": 2
   },
   "packages/gate/tests/check-baseline-delivery.test.js": {
@@ -582,9 +590,9 @@
   },
   "test/api-http.test.js": {
     "tempdir": 4,
-    "hand-policy": 6,
-    "model": 13,
-    "raw-board": 12
+    "hand-policy": 5,
+    "model": 8,
+    "raw-board": 6
   },
   "test/api-requests.test.js": {
     "tempdir": 1,
@@ -713,15 +721,6 @@
   "test/browser-admission-runners.test.js": {
     "tempdir": 3,
     "hand-policy": 1
-  },
-  "test/browser-barrel-admission.test.js": {
-    "tempdir": 1
-  },
-  "test/browser-source-files.test.js": {
-    "tempdir": 3
-  },
-  "test/browser-verdict-by-launch.test.js": {
-    "tempdir": 2
   },
   "test/builder-family-required.test.js": {
     "hand-policy": 1,
@@ -3934,5 +3933,10 @@
   },
   "test/worktree-start.test.js": {
     "model": 8
+  },
+  "test/api-http-events.test.js": {
+    "model": 5,
+    "raw-board": 6,
+    "hand-policy": 1
   }
 }

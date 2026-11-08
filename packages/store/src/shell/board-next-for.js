@@ -333,7 +333,7 @@ export function nextFor(board, options) {
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
-    if (collisions.length) { skip(entry, 'COLLISION'); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
+    if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
       skip(entry, 'FOREIGN_DEPENDENCY');
@@ -351,9 +351,8 @@ export function nextFor(board, options) {
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
   for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {
     if (waiting.length || foreignBlockers(board, entry).length || claimWaitingOn(board, entry.item_id).length) continue;
-    return { item: entry, reasons: focusReasons(board, entry, [...reasons, ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
+    return { item: entry, reasons: focusReasons(board, entry, [...reasons.filter(line => !collisions.includes(line)), ...collisions.map(line => `overlap: ${line}`), ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
   }
-  for (const { collisions } of overlapping) reasons.push(...collisions);
   if (ownRejectionFirst) return { item: held, reasons };
   if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
@@ -388,7 +387,8 @@ export function greenReviewFor(board, who) {
 /**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running, green or infrastructure-exhausted gate means the work is done and only waits for the
- * machine; a red gate returns the item to its builder, so it stays offered.
+ * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
+ * which no build can fix and next never hands out (#3796).
  *
  * Only a job for the item's current head counts: a job left from an older head proves nothing about new work.
  *
@@ -403,6 +403,7 @@ export function gateAtHead(board, entry) {
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
   const state = job.state === 'infrastructure' ? (job.error?.code === 'GATE_INFRA_EXHAUSTED' ? 'GATE_INFRA_EXHAUSTED' : null)
+    : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
 }
