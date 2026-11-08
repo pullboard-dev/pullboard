@@ -682,7 +682,7 @@ function submittedItem(board, options = {}) {
 function gatePendingItem(board) {
   const id = submittedItem(board);
   const item = store.getItem(board, id);
-  recordSubmitHandoff(board.db, id, { version: 1, id: 'job-pending', agentId: 'web-1', commit: item.item_commit,
+  recordSubmitHandoff(board.db, id, { version: 1, id: `job-pending-${id}`, agentId: 'web-1', commit: item.item_commit,
     executionCommit: item.item_commit, executionTree: item.item_tree, digest: item.item_frozen_digest, state: 'running' });
   return id;
 }
