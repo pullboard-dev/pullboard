@@ -157,7 +157,7 @@ export function traceTimeline({ lines, events, subject, since = null }) {
     entries.push({
       time: line.at, source: 'call', agent: line.agent, command: line.command, item: line.item ?? null,
       outcome: line.refusal?.code ?? (line.error ? 'error' : line.exit === 0 ? 'ok' : `exit ${line.exit}`),
-      ms: line.ms ?? null, why: line.refusal?.message ?? line.error ?? '',
+      ms: line.ms ?? null, why: line.refusal?.message ?? line.error ?? (typeof line.why === 'string' ? line.why : ''),
     });
   }
   for (const row of events) {

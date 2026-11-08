@@ -45,6 +45,16 @@ test('clause 1: a refused call shows its refusal code and why, and --since drops
   assert.deepEqual(recent.map(entry => entry.command), ['show']);
 });
 
+test('clause 1: a successful call shows the intent the agent stated with --why [C7]', () => {
+  const lines = [
+    { at: '2026-11-06T12:00:00.000Z', agent: 'web-1', command: 'show', item: 7, exit: 0, refusal: null, ms: 5, why: 'checking the bar before building' },
+    { at: '2026-11-06T12:01:00.000Z', agent: 'web-1', command: 'show', item: 7, exit: 0, refusal: null, ms: 4, why: null },
+  ];
+  const entries = traceTimeline({ lines, events: [], subject: 'web-1' });
+  assert.equal(traceLine(entries[0]), '2026-11-06T12:00:00.000Z  show  #7  ok  5ms  checking the bar before building');
+  assert.equal(traceLine(entries[1]), '2026-11-06T12:01:00.000Z  show  #7  ok  4ms  -');
+});
+
 test('clause 2: trace <item> prints every agent\'s calls and events on that item, and --json is one versioned document [C7]', () => {
   const { box, id } = scratch();
   assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
