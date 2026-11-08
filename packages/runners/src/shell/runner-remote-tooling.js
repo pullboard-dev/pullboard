@@ -27,6 +27,8 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
 let LOADED_TOOLING = null;
+// When this module loaded: bytes written after it do not belong to this controller, even though the capture waits for first use.
+const LOAD_INSTANT = Date.now();
 
 /** Whether any runners.js instance has pinned the loaded tooling in this process. */
 export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
@@ -35,8 +37,7 @@ export function runnerToolingPinned() { return LOADED_TOOLING !== null; }
  * Pin one runners.js instance's controller generation when it loads; the closure capture waits for first use.
  * Why: parsing the package at import cost every command ~0.8 s; the load instant still bounds which bytes count.
  */
-export function pinRunnerTooling() {
-  const since = Date.now();
+export function pinRunnerTooling(since = LOAD_INSTANT) {
   let loaded;
   const generation = { get loaded() { return loaded === undefined ? (loaded = loadedTooling(since)) : loaded; } };
   LOADED_TOOLING ??= generation;
