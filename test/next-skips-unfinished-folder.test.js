@@ -9,11 +9,25 @@ import { fileFixtureItem, joinFixtureSeat } from './testkit-fixture.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** Make a web seat checkout and join it. */
-function seat(box, name) {
+/** Run `work` as one agent session, as a real agent shell does: the CLI and the Git hooks it starts see that session. */
+function as(box, session, work) {
+  const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
+  box.env.CLAUDECODE = '1';
+  box.env.CLAUDE_CODE_SESSION_ID = session;
+  try { return work(); }
+  finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete box.env[name];
+      else box.env[name] = value;
+    }
+  }
+}
+
+/** Make a web seat checkout and join it from `session`. */
+function seat(box, name, session) {
   const root = join(box.dir, name);
   box.git(box.repo, 'worktree', 'add', '-q', root, '-b', `web/${name}`);
-  const joined = joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL });
+  const joined = as(box, session, () => joinFixtureSeat(box, root, 'web', { model: FIXTURE_MODEL }));
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   return { root, id: JSON.parse(joined.out).agent };
 }
@@ -27,25 +41,28 @@ function unfinishedBoard() {
   const first = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Folder mid-merge', check: 'true', args: ['--specs', 'G1'] });
   const second = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Next free item', check: 'true', args: ['--specs', 'G1'] });
   const a = String(first.item_id), b = String(second.item_id);
-  const holder = seat(box, 'web-a');
+  const holder = seat(box, 'web-a', 'session-a');
+  const folder = as(box, 'session-a', () => {
   const claimed = box.run(holder.root, 'claim', a);
   assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
-  const folder = /item folder: (.+)/u.exec(claimed.out)?.[1];
-  assert.ok(folder, claimed.out);
-  box.git(folder, 'switch', '-q', '-c', 'theirs', 'main');
-  assert.equal(e2e.commitFile(box, folder, 'web/conflict.txt', 'theirs\n', 'feat(web): their side [G1]').status, 0);
-  box.git(folder, 'switch', '-q', `web/item-${a}`);
-  assert.equal(e2e.commitFile(box, folder, 'web/conflict.txt', 'ours\n', 'feat(web): our side [G1]').status, 0);
-  assert.notEqual(box.tryGit(folder, 'merge', '--no-edit', 'theirs').status, 0, 'the merge stops on a conflict');
-  assert.notEqual(box.git(folder, 'ls-files', '--unmerged'), '', 'the index has unmerged entries');
+  const path = /item folder: (.+)/u.exec(claimed.out)?.[1];
+  assert.ok(path, claimed.out);
+  box.git(path, 'switch', '-q', '-c', 'theirs', 'main');
+  assert.equal(e2e.commitFile(box, path, 'web/conflict.txt', 'theirs\n', 'feat(web): their side [G1]').status, 0);
+  box.git(path, 'switch', '-q', `web/item-${a}`);
+  assert.equal(e2e.commitFile(box, path, 'web/conflict.txt', 'ours\n', 'feat(web): our side [G1]').status, 0);
+  assert.notEqual(box.tryGit(path, 'merge', '--no-edit', 'theirs').status, 0, 'the merge stops on a conflict');
+  assert.notEqual(box.git(path, 'ls-files', '--unmerged'), '', 'the index has unmerged entries');
   const released = box.run(holder.root, 'release', a, '--reason', 'OTHER', '--note', 'fixture');
   assert.equal(released.code, 0, `${released.out}\n${released.err}`);
-  return { box, a, b, holder, claimer: seat(box, 'web-b'), folder, status: box.git(folder, 'status', '--porcelain') };
+  return path;
+  });
+  return { box, a, b, holder, claimer: seat(box, 'web-b', 'session-b'), folder, status: box.git(folder, 'status', '--porcelain') };
 }
 
 test('clause 1: next for another seat names ITEM_FOLDER_UNFINISHED for the mid-merge item, leaves its folder untouched and offers the free item [B3,C7]', () => {
   const { box, a, b, claimer, folder, status } = unfinishedBoard();
-  const next = box.run(claimer.root, 'next');
+  const next = as(box, 'session-b', () => box.run(claimer.root, 'next'));
   const all = `${next.out}\n${next.err}`;
   assert.equal(next.code, 0, all);
   assert.match(next.out, new RegExp(`skipped #${a}: ITEM_FOLDER_UNFINISHED: item folder .*web-a-item-${a} for #${a} holds an unfinished merge`, 'u'), all);
@@ -58,7 +75,7 @@ test('clause 1: next for another seat names ITEM_FOLDER_UNFINISHED for the mid-m
 
 test('clause 1: pullboard claim of the mid-merge item refuses with the named code, the folder path, the operation and the item [B3,C7]', () => {
   const { box, a, claimer, folder, status } = unfinishedBoard();
-  const claimed = box.run(claimer.root, 'claim', a);
+  const claimed = as(box, 'session-b', () => box.run(claimer.root, 'claim', a));
   const all = `${claimed.out}\n${claimed.err}`;
   assert.notEqual(claimed.code, 0, all);
   assert.doesNotMatch(all, /maintenance cannot archive/u);
