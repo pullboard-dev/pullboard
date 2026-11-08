@@ -152,12 +152,42 @@ function auditedChange(db, write) {
   }
 }
 
+/**
+ * A job stopped because its runner was already out (runner-dispatch's RUNNER_UNAVAILABLE, reason runner-unavailable)
+ * on a runner still in runner_unavailable: keep that quarantine as it is. No unavailable event is written and the
+ * row's since, detail and probe fields stay, so its idle proof is not restarted; the job's exact recovery identity
+ * only joins the row's pending jobs, so the proof still covers its cleanup. False when the runner is not out.
+ *
+ * Why: one drop marked every job waiting on that runner cleanup-unverified, and each re-quarantined the runner
+ * already out: about 250 of about 700 unavailable events in 6 h on 8 Nov were this cascade (#3698) [C7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} host
+ * @param {{ recovery?: object }} diagnostic
+ * @returns {boolean} True when the runner was already out and nothing more is recorded.
+ */
+function keepQuarantine(db, host, diagnostic) {
+  return auditedChange(db, () => {
+    const row = db.prepare('SELECT failure FROM runner_unavailable WHERE host=?').get(host);
+    if (!row) return false;
+    if (!recoveryIdentity(diagnostic.recovery)) return true;
+    let failure;
+    try { failure = JSON.parse(row.failure); } catch { return true; }
+    const pending = Array.isArray(failure?.pending) ? failure.pending : [failure?.original?.recovery ?? null];
+    const job = diagnostic.recovery;
+    if (pending.some(entry => recoveryIdentity(entry) && entry.request === job.request && entry.nonce === job.nonce) || pending.length >= 128) return true;
+    db.prepare('UPDATE runner_unavailable SET failure=? WHERE host=?').run(JSON.stringify({ ...failure, pending: [...pending, job] }), host);
+    return true;
+  });
+}
+
 /** Record the failed call and confirming health result together, resetting only this host's recovery generation. */
 export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine = true } = {}) {
   if (diagnostic) db.prepare(`INSERT INTO runner_transport_error(host,at,diagnostic) VALUES(?,?,?)
     ON CONFLICT(host) DO UPDATE SET at=excluded.at,diagnostic=excluded.diagnostic`)
     .run(host, new Date().toISOString(), JSON.stringify(diagnostic));
   if (!quarantine && reason !== 'cleanup-unverified') return;
+  if (reason === 'cleanup-unverified' && diagnostic?.reason === 'runner-unavailable' && keepQuarantine(db, host, diagnostic)) return;
   return auditedChange(db, () => {
   const old = db.prepare('SELECT failure FROM runner_unavailable WHERE host=?').get(host);
   let prior;

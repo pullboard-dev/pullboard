@@ -6,6 +6,7 @@ import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -78,9 +79,12 @@ function answerFirstReasons(reasons) {
 
 /** Replace each 'is held by coordinator' line with one count line, keeping every other reason [C7,#2895]. */
 function heldCounted(reasons) {
+  // The review-cover pause explains why new builds stop, so it leads every count line and is never folded away [#3741].
+  const paused = reasons.filter(reason => reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
+  reasons = reasons.filter(reason => !reason.endsWith(REVIEW_COVER_PAUSE_TAIL));
   const held = reasons.filter(reason => /^#\d+ is held by coordinator:/u.test(reason));
   const remaining = reasons.filter(reason => !/^#\d+ is held by coordinator:/u.test(reason));
-  return [...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
+  return [...paused, ...(held.length ? [`${held.length} ${held.length === 1 ? 'item is' : 'items are'} held by coordinator`] : []), ...remaining];
 }
 
 /**
@@ -263,6 +267,7 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
+      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
       const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
         const record = store.returnedRecord(board, item.item_id);

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
+import { fixtureProjectPolicy } from './testkit-fixture.js';
 import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck, withAuditedMain } from '../packages/gate/index.js';
 import { withOpenedBoard } from '../apps/cli/index.js';
@@ -40,12 +41,6 @@ function fixtureGit(cwd, ...args) {
   for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
     'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[name];
   return runFixtureGit(args, { cwd, env });
-}
-
-/** Commit the current policy alongside each private Git fixture before native item writes use it. */
-function fixturePolicy(repo) {
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['test/'] } } }));
-  writeFileSync(join(repo, 'SPEC.md'), '# Audit fixture\n## G\n- G1 [approved, must] The fixture keeps its proof. | gate: true\n');
 }
 
 test('only the two exact named-file Node check forms are eligible [C7]', () => {
@@ -88,7 +83,10 @@ function auditFixture(t) {
   mkdirSync(join(repo, 'test'), { recursive: true });
   writeFileSync(join(repo, 'test/a.test.js'), '');
   writeFileSync(join(repo, 'test/b.test.js'), '');
-  fixturePolicy(repo);
+  fixtureProjectPolicy(repo, {
+    config: { gate: 'true', lanes: { core: { owns: ['test/'] } } },
+    spec: '# Audit fixture\n## G\n- G1 [approved, must] The fixture keeps its proof. | gate: true\n',
+  });
   fixtureGit(repo, 'init', '-q', '-b', 'main');
   fixtureGit(repo, 'add', '-A');
   fixtureGit(repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture');
