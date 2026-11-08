@@ -75,8 +75,7 @@ export async function measureFileInflation(t, mode) {
     BROWSER_SLOT_HELD_ENV, 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_BROWSER_BY_LAUNCH']) delete env[key];
   const files = Array.from({ length: 8 }, (_, n) => 'work-' + n + '.test.js');
   for (const file of files) writeFileSync(join(root, file), workload(file));
-  assert.equal(await testsNeedBrowser(root, files, { byLaunch: true }), false,
-    'the private machine uses supported launch classification for these Git-only files');
+  assert.equal(await testsNeedBrowser(root, files), false, 'these Git-only files declare no browser');
   const standalone = [];
   for (const file of files) {
     const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [runner, file], {

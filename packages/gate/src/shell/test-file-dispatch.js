@@ -53,7 +53,7 @@ function admissionImport(value, browser, runner, outputMarker) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
-      + "if(process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH==='1')process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
+      + "process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
     + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
@@ -129,8 +129,7 @@ export function dispatchTestFiles(options, env) {
   /** Browser waits happen before reserving CPU, and their real lease lasts through the file's exit. */
   async function browserLease(file) {
     if (!env.PULLBOARD_TEST_BROWSER_RESOURCE) return null;
-    const byLaunch = env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
-    if (!await testsNeedBrowser(process.cwd(), [file], { byLaunch })) return null;
+    if (!await testsNeedBrowser(process.cwd(), [file])) return null;
     signal.throwIfAborted();
     return takeResource({ name: env.PULLBOARD_TEST_BROWSER_RESOURCE,
       capacity: Number(env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd(),

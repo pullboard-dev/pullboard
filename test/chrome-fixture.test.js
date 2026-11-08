@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The shared Chrome fixture bounds startup and removes profiles only after the owned process group exits [C7]. */
 import assert from 'node:assert/strict';

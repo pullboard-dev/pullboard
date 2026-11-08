@@ -23,7 +23,7 @@ export const ACCOUNT_HOME_ENV = 'PULLBOARD_ACCOUNT_HOME';
 /** An SSH runner names the spawn-journal preload it puts in NODE_OPTIONS, so classifiers can tell it from a foreign one. */
 export const RUNNER_PRELOAD_ENV = 'PULLBOARD_RUNNER_PRELOAD';
 
-/** The launch guard a browser-free test file passes to its Node children (gate.browserByLaunch). */
+/** The launch guard an undeclared test file passes to its Node children (BROWSER_UNDECLARED). */
 const SLOT_GUARD_IMPORT = `--import=${new URL('./browser-slot-guard.js', import.meta.url).href}`;
 
 /** The import a runner declares; its file must hold exactly the runner's journal source for that directory. */

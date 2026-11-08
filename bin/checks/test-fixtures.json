@@ -113,9 +113,6 @@
     "repo-read": 2,
     "tempdir": 2
   },
-  "packages/gate/tests/browser-scan-cache.test.js": {
-    "tempdir": 2
-  },
   "packages/gate/tests/check-baseline-delivery.test.js": {
     "tempdir": 1,
     "hand-policy": 1,
@@ -713,15 +710,6 @@
   "test/browser-admission-runners.test.js": {
     "tempdir": 3,
     "hand-policy": 1
-  },
-  "test/browser-barrel-admission.test.js": {
-    "tempdir": 1
-  },
-  "test/browser-source-files.test.js": {
-    "tempdir": 3
-  },
-  "test/browser-verdict-by-launch.test.js": {
-    "tempdir": 2
   },
   "test/builder-family-required.test.js": {
     "hand-policy": 1,

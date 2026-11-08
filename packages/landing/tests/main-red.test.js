@@ -239,10 +239,11 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
   settings.gate = { ...settings.gate, browserFreeChecks: true };
   writeFileSync(settingsFile, JSON.stringify(settings) + '\n', { mode: 0o600 });
   put(box.root, 'test/browser.test.js', [
+    '// pullboard: browser',
     "import assert from 'node:assert/strict';",
     "import { spawnSync } from 'node:child_process';",
     "import { test } from 'node:test';",
-    '/** A potentially reachable Chrome launch makes this an admission fixture, without launching it here. */',
+    '/** The first-line declaration makes this a browser admission fixture, without launching Chrome here. */',
     "export function browserLaunch() { return spawnSync('google-chrome', []); }",
     "test('browser-capable comparison stays red [V1]', () => assert.equal(1, 2));",
   ].join('\n') + '\n');

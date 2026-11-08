@@ -437,7 +437,7 @@ test('single-quoted named-test checks skip the browser slot [C7]', async () => {
     .replace('printf \'%s\\n\' "$out"', 'printf \'%s\\n\' "$(printf %s "$out")"');
   assert.equal(await classify(substituted), true, 'a command substitution remains outside the exact printf wrapper');
   assert.equal(await classify('node bin/run-tests.js test/cockpit/brief.test.js'), true,
-    'known browser suites remain browser-gated');
+    'a named file with no readable declaration stays browser-gated');
   assert.equal(await checkNeedsBrowser(repo, itemCheck, {
     env: { ...process.env, NODE_OPTIONS: '--import=unknown-preload.mjs' },
   }), true, 'an unclassified preload keeps the check browser-gated');
@@ -452,7 +452,7 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   const classifyEnv = { ...process.env, NODE_OPTIONS: '' };
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
   assert.equal(await checkNeedsBrowser(repo, 'node bin/run-tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
-    'known browser suites remain browser-gated');
+    'a named file with no readable declaration stays browser-gated');
   const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });

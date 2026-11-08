@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Hosted installation and pairing-storage behavior use real HTTP and Chrome [H5,H15,C7]. */
 import assert from 'node:assert/strict';

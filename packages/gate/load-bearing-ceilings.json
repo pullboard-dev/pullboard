@@ -179,9 +179,6 @@
     "detached": 1,
     "unref": 1
   },
-  "packages/gate/src/shell/browser-scan-cache.js": {
-    "state-file": 3
-  },
   "packages/gate/src/shell/check-baseline-worker.js": {
     "detached": 1,
     "state-file": 3,

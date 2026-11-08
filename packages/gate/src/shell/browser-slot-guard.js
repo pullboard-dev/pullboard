@@ -1,15 +1,16 @@
 /**
- * The runtime half of gate.browserByLaunch [C7]: a test file the runner admitted without a browser slot
- * (PULLBOARD_TEST_BROWSER_SLOT=none) fails by name when it launches Chrome through the repository's
- * launch helper (test/chrome-fixture.js), which checks the slot itself; cockpit files always hold one.
+ * The run-time enforcement of browser declarations [C7]: a test file whose first line is not
+ * `// pullboard: browser` runs without a browser lease (PULLBOARD_TEST_BROWSER_SLOT=none) and fails
+ * BROWSER_UNDECLARED by name when it launches Chrome through the shared launcher (test/chrome-fixture.js),
+ * which checks the lease itself.
  *
  * This module is a best-effort second guard for direct launches. The runner imports it in each
- * browser-free test file's process before the test body, and puts it in NODE_OPTIONS so Node children
+ * undeclared test file's process before the test body, and puts it in NODE_OPTIONS so Node children
  * that inherit that environment install it too. A child that strips its environment, a non-Node child,
  * or a shell running a script file is out of scope and not caught (docs/api.md). Installed, it wraps
  * node:child_process's spawn, spawnSync, exec, execSync, execFile, execFileSync and fork: a call whose
  * executable is a browser (Chrome's known install paths, PULLBOARD_CHROME's value, or a browser basename,
- * directly, through PATH or inside a shell command string) throws BROWSER_SLOT_REQUIRED naming the file,
+ * directly, through PATH or inside a shell command string) throws BROWSER_UNDECLARED naming the file,
  * before anything starts. test/chrome-fixture.js keeps its own check at the launch point as a second layer.
  * Without the marker, importing this module changes nothing.
  */
@@ -27,6 +28,7 @@ import {
   resolve,
 } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { BROWSER_MARKER } from '../core/browser-declaration.js';
 
 // Node registers this symbol globally; looking it up needs no util facade or dynamic loader.
 const PROMISIFY_CUSTOM = Symbol.for('nodejs.util.promisify.custom');
@@ -43,7 +45,8 @@ const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']);
 const INSTALLED = Symbol.for('pullboard.browserSlotGuard');
 
 /**
- * The refusal for a browser launch without a slot, naming the test file the runner recorded.
+ * The refusal for a browser launch from a test file that did not declare one, naming the file the runner
+ * recorded and the one-line fix.
  *
  * @param {string} what - what was started, for the message
  * @returns {Refused}
@@ -52,8 +55,8 @@ export function browserSlotRefusal(what) {
   const absolute = process.env.PULLBOARD_TEST_FILE ? resolve(process.env.PULLBOARD_TEST_FILE) : '';
   const local = absolute ? relative(process.cwd(), absolute) : '';
   const file = !absolute ? 'this test file' : (local && !local.startsWith('..') && !isAbsolute(local) ? local : absolute).split('\\').join('/');
-  return new Refused('BROWSER_SLOT_REQUIRED', `${file} launched Chrome (${what}), but the gate classified it browser-free, so it holds no browser slot; import startChrome or launchChromeProcess from test/chrome-fixture.js in that file's own import graph so the gate admits it with a browser slot`,
-    `import startChrome or launchChromeProcess from test/chrome-fixture.js in ${file}'s import graph, then run it again`);
+  return new Refused('BROWSER_UNDECLARED', `${file} launched Chrome (${what}) without declaring it, so it holds no browser lease; make its first line ${BROWSER_MARKER}`,
+    `make the first line of ${file} ${BROWSER_MARKER}, then run it again`);
 }
 
 /** A path with symlinks resolved when it exists, so a link to Chrome still reads as Chrome. */
@@ -151,7 +154,7 @@ export function browserInCall(method, input) {
 }
 
 /**
- * Wrap node:child_process so a browser-free test file cannot start a browser, and publish the wrapped
+ * Wrap node:child_process so an undeclared test file cannot start a browser, and publish the wrapped
  * functions to ES module importers. Idempotent; inert unless the marker says none.
  *
  * @returns {boolean} whether the guard is installed

@@ -29,7 +29,8 @@
 import { lex, lineAt, readText, runCheck, TEST_FILE, walk } from './scan.js';
 
 const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
-const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */']);
+// The browser declaration (// pullboard: browser) is the first line of a file that launches Chrome [C7].
+const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */', '// pullboard: browser']);
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
 const ANCHOR = /(?<![\w$])import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const SOURCE_PATH = /(?:^|\/)src(?:\/|$)/u;

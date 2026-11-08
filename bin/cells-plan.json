@@ -2122,6 +2122,30 @@
         "packages/api/src/core/api-moves.js",
         "seed"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-call-values.js",
+        "packages/gate/src/core/browser-call-values.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-launch-source.js",
+        "packages/gate/src/core/browser-launch-source.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "src/browser-source-files.js",
+        "packages/gate/src/shell/browser-source-files.js",
+        "rule"
+      ]
     }
   ],
   "entries": [

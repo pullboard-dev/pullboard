@@ -1388,14 +1388,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/gate/src/core/browser-launch-source.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "packages/gate/src/core/browser-module-reach.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/gate/src/core/check-baseline-format.js": {
       "cells": 1,
       "deep": 0
@@ -1418,11 +1410,7 @@
     },
     "packages/gate/src/shell/browser-admission.js": {
       "cells": 4,
-      "deep": 3
-    },
-    "packages/gate/src/shell/browser-scan-cache.js": {
-      "cells": 1,
-      "deep": 0
+      "deep": 2
     },
     "packages/gate/src/shell/browser-slot-guard.js": {
       "cells": 1,
@@ -4337,10 +4325,6 @@
       "deep": 0
     },
     "src/board.js": {
-      "cells": 1,
-      "deep": 0
-    },
-    "src/browser-admission.js": {
       "cells": 1,
       "deep": 0
     },

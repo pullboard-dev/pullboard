@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Paused size and quota limits do not re-seal history or repeat notices across commands [H15,H17]. */
 import assert from 'node:assert/strict';

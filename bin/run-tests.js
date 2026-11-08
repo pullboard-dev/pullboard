@@ -1341,7 +1341,7 @@ async function main(args) {
         const { runLandingShards } = await import('../src/landing-shards.js');
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { browserBoundFiles } = await import('../packages/gate/src/shell/browser-admission.js');
-        // One import-graph pass over the whole plan, shared by every shard: a fresh scan per shard cost ~2 s a file [C7].
+        // One read of each planned file's first-line declaration, shared by every shard [C7].
         const browserBound = browserBoundFiles(process.cwd(), files).then(bound => new Set(bound));
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite && !narrowsSelection(actions.args, optionTakesValue), parseProcessCensus, args: (nativeFileArguments(actions.args, { files: Infinity }, knownNodeOption, optionTakesValue), landingShardOptions(actions.args, optionTakesValue)), // The unsharded parser's refusals, then every option as written.
           runnerAdmission: { ...runnerAdmission, runnerOnly },
@@ -1469,19 +1469,18 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       && !process.env.PULLBOARD_TEST_BROWSER_OWNER_PID) {
     // The worker is announced to #589 before it can wait here; admission remains before file import/body.
     process.env.PULLBOARD_TEST_BROWSER_OWNER_PID = String(process.pid);
-    // The test body never sees the setting itself: its own fixtures classify with their own machine settings.
-    const byLaunch = process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH === '1';
+    // The test body never sees the setting itself; the file's first-line declaration alone decides its lease [C7].
     delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
     const { testsNeedBrowser } = await import('../packages/gate/src/shell/browser-admission.js');
-    if (await testsNeedBrowser(process.cwd(), [process.argv[1]], { byLaunch })) {
+    if (await testsNeedBrowser(process.cwd(), [process.argv[1]])) {
       const { takeResource } = await import('../packages/resources/index.js');
       const lease = await takeResource({ name: process.env.PULLBOARD_TEST_BROWSER_RESOURCE,
         capacity: Number(process.env.PULLBOARD_TEST_BROWSER_CAPACITY), kind: 'test-browser-file', root: process.cwd() });
       // Hold through file cleanup and process exit, including abort/watchdog paths.
       process.once('exit', () => lease.release());
-      if (byLaunch) process.env.PULLBOARD_TEST_BROWSER_SLOT = 'held';
-    } else if (byLaunch) {
-      // Any browser spawn from this file or a Node child it starts is refused by name (BROWSER_SLOT_REQUIRED).
+      process.env.PULLBOARD_TEST_BROWSER_SLOT = 'held';
+    } else {
+      // Undeclared: any browser spawn from this file or a Node child it starts is refused by name (BROWSER_UNDECLARED).
       process.env.PULLBOARD_TEST_BROWSER_SLOT = 'none';
       const guard = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url);
       await import(guard.href);

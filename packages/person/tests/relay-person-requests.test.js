@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** A paired browser seals person intent; only native Pullboard executes it [H12,H16,B26]. These cases time and trace API1
  * snapshot PUTs, so they run on the legacy wire (#903); API2 person moves are proven in relay-person-actions.test.js. */

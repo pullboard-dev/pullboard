@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** Real Chrome fixture diagnostics and timeout boundary [H16,C7]. The probes hold API1 state reads, so they run on the
  * legacy wire (#903). */
