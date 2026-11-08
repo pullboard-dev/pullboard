@@ -1159,7 +1159,7 @@ test('unlinked board commands attempt zero outbound requests [H1,P5]', async (t)
 });
 
 
-test('offline linked reads use the local board, moves refuse, and the same relay resumes [H10]', async (t) => {
+test('offline linked reads use the local board, moves queue locally, and the same relay receives them when it returns [H10,H21]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -1203,40 +1203,27 @@ test('offline linked reads use the local board, moves refuse, and the same relay
     assert.ok(localState.state.items.some(item => item.title === 'private cleanup fixture item'),
       'the local view reads the same private board contents while the relay is stopped');
 
-    for (const args of [
-      ['add', box.lane, 'refused offline add'],
-      ['shout', 'coordinator', 'refused offline shout'],
-    ]) {
-      const refused = await box.cli(...args);
-      assert.equal(refused.code, 1);
-      assert.equal(refused.document.error.code, 'RELAY_UNAVAILABLE');
-      assert.ok(refused.document.error.message.includes(box.origin), 'the refusal names the address attempted');
-      assert.match(refused.document.error.message, /retry this move when the relay is reachable/);
+    for (const args of [['add', box.lane, 'queued offline add'], ['shout', 'all', 'queued offline shout']]) {
+      const queued = await box.cli(...args);
+      assert.equal(queued.code, 0, 'H21: an offline move returns at once and is queued, not refused');
     }
     const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
     viewMoveUrl.searchParams.set('k', viewKey);
     const viewMove = await fetchFresh(viewMoveUrl, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'refused offline view move' } }),
+      body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'queued offline view move' } }),
     });
-    assert.equal(viewMove.status, 409, 'the local view API uses the linked move refusal path');
-    assert.equal((await viewMove.json()).error.code, 'RELAY_UNAVAILABLE');
-
-    assert.deepEqual(readFileSync(boardFile), beforeBytes, 'offline reads and refused moves leave the native board bytes unchanged');
-    assert.deepEqual((await box.cli('export')).document.tables, beforeTables, 'no speculative local move or event was applied');
-
+    assert.equal(viewMove.status, 200, 'the local view API also queues the move');
+    const queuedStatus = await box.cli('status');
+    assert.deepEqual(queuedStatus.document.relay.outbox.map(move => move.operation), ['addItem', 'shout', 'addItem'], 'every offline move waits in order');
+    const addsOf = tables => tables.event.filter(event => event.event_kind === 'add').length;
+    assert.equal(addsOf((await box.cli('export')).document.tables), addsOf(beforeTables) + 2, 'each queued add is on the local board at once');
     await box.restartRelay();
     const resumed = await box.cli('add', box.lane, 'move after relay returns');
     assert.equal(resumed.code, 0, 'the relay resumes without relay off/on repair');
-    assert.equal(resumed.document.item.item_title, 'move after relay returns');
-    const afterTables = (await box.cli('export')).document.tables;
-    assert.equal(afterTables.event.length, beforeEvents.length + 1, 'only the acknowledged recovery move is recorded locally');
-    assert.equal(afterTables.event.at(-1).event_kind, 'add');
-    const remoteStateResponse = await fetch(`${box.origin}/api/v2/boards/${link.board}/state`, {
-      headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION) },
-    });
-    assert.equal(remoteStateResponse.status, 200);
-    assert.equal((await remoteStateResponse.json()).state.sequence, 1, 'the resumed move has exactly one relay position');
+    const sent = (await box.cli('status')).document.relay;
+    assert.equal(sent.behind, 0, 'the queued moves reached the same relay without relay off/on repair');
+    assert.equal(sent.sequence, 4, 'each queued move and the recovery move hold exactly one relay position');
   } finally {
     if (view) await view.close();
     for (const [name, value] of oldEnvironment) {
