@@ -42,7 +42,7 @@ export function source(name = 'shared failure [G1]', expected = 2) {
 }
 
 /** Build and claim one private board whose accepted main already has a named red test. */
-export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', affectedTests = 'node test/runner.js', mainRed = true, handoff = false, waitMainRedBaseline = false } = {}) {
+export function fixture(t, { candidate = source(), check = 'test -f change.txt', gateSuffix = '', affectedTests = 'node test/runner.js', mainRed = true, handoff = false, waitMainRedBaseline = false, phases = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-main-red-')));
   t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const root = join(directory, 'repo');
@@ -77,6 +77,8 @@ export function fixture(t, { candidate = source(), check = 'test -f change.txt',
     "const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...files], { encoding: 'utf8', env: process.env });",
     "process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');",
     'process.exitCode = run.status ?? 1;',
+    // With `phases`, the runner ends like bin/run-tests.js: its phase line on stderr after TAP's final count (#3794).
+    ...(phases ? ["process.stdout.write('', () => process.stderr.write('run-tests: phases selection 0.1s, admission 0.0s, tests 0.4s, cleanup 0.0s, total 0.5s\\n'));"] : []),
   ].join('\n') + '\n');
   box.main = commit(box, root);
   box.item = fileFixtureItem(box, root, { lane: 'core', title: 'Unrelated change', criterion: 'The unrelated change works.',
