@@ -79,7 +79,7 @@ function commitPage(box, n) {
   return box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): ready page ${n} [G1]`);
 }
 
-test('the coordinator gate reuses a kept checkout, writing only changed files, and discards a dirty one [C7]', async t => {
+test('clause 1: the coordinator gate reuses a kept checkout, writing only changed files, and discards a dirty one [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const isolated = helpers.sandbox();
