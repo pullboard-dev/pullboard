@@ -4,18 +4,22 @@ import { renderVerificationComparison } from '../../../../../packages/verify/ind
 import { recordedClaimWorktrees } from '../../../../../packages/activity/index.js';
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
+import { reviewFamilyBuildPause } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
 import { mainRedReviewItems } from '../../../../../packages/landing/index.js';
 import { mainRedReworkItems } from '../../../../../packages/landing/index.js';
+import { passingMainRedItems } from '../../../../../packages/landing/index.js';
 import { computedReturnArgs } from '../../../../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
+  closePassingMainReds,
   nextProgress,
 } from '../../../../../packages/sandbox/index.js';
 import {
+  retainedGateAssertions,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
@@ -29,6 +33,7 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
+import { fallbackReclaim } from '../fallback-reclaim.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -119,8 +124,16 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
+  await fallbackReclaim(ctx, 'next');
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
-  withBoard(ctx, board => {
+  // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  const hasQueuedReds = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board);
+    return store.queuedReds(board, me.id).some(red =>
+      !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
+  });
+  if (hasQueuedReds) withBoard(ctx, board => {
     const me = whoAmI(ctx, board);
     const reds = store.queuedReds(board, me.id).filter(red =>
       !store.activityInterruptWasDelivered(board, me.id, `event:${red.eventId}`));
@@ -138,7 +151,7 @@ async function nextWithProgress(io, values, progress) {
   // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, reviewFamilyBuildPause };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -164,13 +177,39 @@ async function nextWithProgress(io, values, progress) {
       io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
       return 0;
     }
+    if (!values.verify) {
+      const ownerQueue = withBoardRead(ctx, board => {
+        const me = whoAmI(ctx, board);
+        return store.ownershipWaiting(board, ctx.info.isMain ? 'coordinator' : me.lane);
+      });
+      if (ownerQueue.length) {
+        io.result?.({ action: 'ownership', ownershipWaiting: ownerQueue });
+        for (const waiting of ownerQueue) {
+          io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+          io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+          io.say(waiting.diff);
+        }
+        return 0;
+      }
+    }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
     const selectionValues = redClaims.length
       ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
       : values;
+    // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
+    await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
     const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
+    if (found.ownershipWaiting?.length) {
+      io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
+      for (const waiting of found.ownershipWaiting) {
+        io.say(`#${waiting.item} waits on your ownership of ${waiting.paths.join(', ')}`);
+        io.say(`source: ${waiting.commit} (${waiting.sourceRef})`);
+        io.say(waiting.diff);
+      }
+      return 0;
+    }
     if (found.context) ctx = found.context;
     if (found.specMerged) {
       io.say(`merged main before claiming #${found.specMerged.item}: added spec rows ${found.specMerged.rows.join(', ')}`);
@@ -201,7 +240,11 @@ async function nextWithProgress(io, values, progress) {
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
-      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
+        const record = store.returnedRecord(board, item.item_id);
+        return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
+      });
+      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
@@ -224,6 +267,14 @@ async function nextWithProgress(io, values, progress) {
         }
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         io.say(`next: build and commit in ${found.itemFolder ?? ctx.info.root}, then ${here} pullboard submit ${item.item_id}`);
+        if (returned) {
+          if (returned.gate) {
+            io.say(`returned red at ${String(returned.gate.commit).slice(0, 12)}: ${returned.gate.code ?? returned.gate.state}${returned.gate.message ? `: ${returned.gate.message}` : ''}`);
+            for (const line of returned.gate.failing) io.say(`  gate red: ${line}`);
+          }
+          if (returned.reject) io.say(`rejected ${returned.reject.reason} by ${returned.reject.by} at ${String(returned.reject.commit).slice(0, 12)}: ${returned.reject.note}`);
+          for (const fact of returned.facts) io.say(`  builder fact, ${fact}`);
+        }
         for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);

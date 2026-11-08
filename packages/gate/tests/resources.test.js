@@ -50,6 +50,7 @@ import { expireHeartbeat } from '../../../test/resources-lease-fixture.js';
 import { resourceWorkerSources } from '../../../test/resources-lease-fixture.js';
 import { checkProject } from '../../../test/resources-verify-fixture.js';
 import { verificationProject } from '../../../test/resources-verify-fixture.js';
+import { fixtureAddArgv } from '../../../test/testkit-fixture.js';
 const TEMP = [];
 const CHILDREN = new Set();
 const MODULE = pathToFileURL(resolve(import.meta.dirname, '../../resources/index.js')).href;
@@ -452,7 +453,7 @@ test('a non-browser check does not wait for the browser slot [C7]', async () => 
   assert.equal(await checkNeedsBrowser(repo, itemCheck, { env: classifyEnv }), false, 'an explicit CPU-only test file is classifiable');
   assert.equal(await checkNeedsBrowser(repo, 'node bin/run-tests.js test/cockpit/brief.test.js', { env: classifyEnv }), true,
     'known browser suites remain browser-gated');
-  const added = runFixtureChild(process.execPath, [BIN, 'add', 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'CPU check item', '--check', itemCheck, '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(added.status, 0, added.stderr);
@@ -503,7 +504,7 @@ test('browser-free checks skip the slot only when the machine allows it [C7]', a
   const box = fixture();
   const { repo } = checkProject(box);
   const check = `out=$(node bin/run-tests.js --test-name-pattern "item check marker" test/cpu-check.test.js 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - item check marker' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`;
-  const added = runFixtureChild(process.execPath, [BIN, 'add', 'coordinator', 'Browser-free policy check', '--check', check, '--wait', '--json'], {
+  const added = runFixtureChild(process.execPath, [...fixtureAddArgv(BIN), 'coordinator', 'Browser-free policy check', '--check', check, '--wait', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
   });
   assert.equal(added.status, 0, added.stderr);

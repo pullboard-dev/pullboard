@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { openBoard } from '../apps/lib/index.js';
 import { closeBoard, getItem, agentParent, proofReceipts, submitHandoff } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 /** Read only the native item, queue state and gate receipts from the private fixture board. */
 function nativeState(box, id) {
@@ -57,7 +58,7 @@ test('detached handoff dispatcher and worker drop inherited session ids while th
 
   // The submitting seat stays in its original session while a stale unrelated ID simulates the dispatcher starter.
   boxProject.env.CODEX_SESSION_ID = 'fake-dispatcher-session';
-  const added = boxProject.run(boxProject.repo, 'add', 'web', 'Handoff session receipt', '--specs', 'G1',
+  const added = fixtureAdd(boxProject.run, boxProject.repo, 'web', 'Handoff session receipt', '--specs', 'G1',
     '--criterion', 'The queued gate retains native seat provenance.', '--check', `${process.execPath} ${gate}`,
     '--brief', 'Files: web/session.txt\nChange: bind the handoff session\nTest: the queued gate retains native seat provenance', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);

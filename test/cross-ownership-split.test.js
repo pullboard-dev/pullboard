@@ -1,75 +1,60 @@
-/** An item whose bar names a coordinator-owned path refuses at add and claim with the split [C7,#3277]. */
+/** An item whose bar names a coordinator-owned path is refused with CROSS_OWNERSHIP and the split as next step [C7,#2650]. */
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { fixture as nativeFixture } from './next-take-fixture.js';
-import { applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
-import * as store from '../packages/store/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const sandboxes = [];
-const SPEC = '# Lane check fixture\n\n## G · Goals\n- G1 [approved, must] The feature works. | gate: test\n';
-
-after(() => { for (const dir of sandboxes) rmSync(dir, { recursive: true, force: true }); });
+const helpers = createE2eHelpers();
+after(helpers.cleanup);
 
 /** A real repo with lanes web (web/) and api (api/), and a joined web seat in its own worktree. */
 function fixture() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-lane-check-')));
-  sandboxes.push(dir);
-  const shims = join(dir, 'bin');
-  mkdirSync(shims);
-  writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`, { mode: 0o755 });
-  chmodSync(join(shims, 'pullboard'), 0o755);
-  const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home') };
-  for (const name of Object.keys(env)) if (name.startsWith('GIT_') && !/^GIT_(?:CONFIG|AUTHOR|COMMITTER)/u.test(name)) delete env[name];
-  delete env.PULLBOARD_RELAY_TOKEN;
-  const repo = join(dir, 'repo');
-  mkdirSync(repo);
-  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  const run = (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '' };
-  };
-  git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(run(repo, 'init').code, 0);
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h',
-    lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G1'] } } }, null, 2));
-  writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  mkdirSync(join(repo, 'web'));
-  writeFileSync(join(repo, 'web', 'shared.txt'), 'base\n');
-  git(repo, 'add', '-A');
-  git(repo, 'commit', '-q', '-m', 'chore: create fixture');
-  const created = run(repo, 'worktree', 'web', '--route', 'strong', '--model', 'fixture-model', '--json');
-  assert.equal(created.code, 0, created.err + created.out);
-  return { repo, web: JSON.parse(created.out).path, run };
+  const box = helpers.project('true', helpers.sandbox());
+  return { repo: box.repo, web: box.web, run: box.run };
 }
 
-
-const BRIEF = 'Change the hook.\nFiles:\n  - web/a.js\n  - .githooks/pre-commit\n';
-
-/** File a web item with the given brief and return the exit code and parsed error. */
-function add(box, brief) {
-  const result = box.run(box.web, 'add', 'web', 'Coordinator path item', '--route', 'strong', '--specs', 'G1', '--criterion', 'It works', '--brief', brief, '--json');
-  return { code: result.code, out: result.out, err: result.err };
+/** File an item from a directory with the given criterion and brief and return the exit code and parsed result. */
+function add(box, cwd, lane, criterion, brief) {
+  const result = fixtureAdd(box.run, cwd, lane, 'Cross item', '--route', 'strong', '--specs', 'G1', '--criterion', criterion, '--brief', brief, '--json');
+  return { code: result.code, doc: result.code === 0 ? JSON.parse(result.out) : JSON.parse(result.out).error };
 }
 
-test('clause 1: add refuses a bar naming a coordinator-owned path with BRIEF_LANE [C7,#3277]', () => {
+const LANE_BRIEF = 'Files:\n- web/a.js\nTest:\n- web/a.test.js';
+const HOOK = 'The hook .githooks/pre-commit refuses it [test].';
+const SPLIT = /add coordinator .* --after <lane item id>/u;
+
+test('clause 1: add of an item whose bar names a coordinator-owned path refuses with CROSS_OWNERSHIP, through the real add command [C7,#2650]', () => {
   const box = fixture();
-  const refused = add(box, BRIEF);
-  assert.equal(refused.code, 1);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'BRIEF_LANE');
-  assert.match(error.message, /coordinator owns.*\.githooks\/pre-commit/u);
-  assert.equal(add(box, 'Change it.\nFiles:\n  - web/a.js\n').code, 0);
+  const refused = add(box, box.web, 'web', HOOK, LANE_BRIEF);
+  assert.notEqual(refused.code, 0);
+  assert.equal(refused.doc.code, 'CROSS_OWNERSHIP');
+  assert.match(refused.doc.message, /\.githooks\/pre-commit/u);
+  const inBrief = add(box, box.web, 'web', 'It works [test].', 'Files:\n- web/a.js\n- pullboard.json\nTest:\n- web/a.test.js');
+  assert.equal(inBrief.doc.code, 'CROSS_OWNERSHIP');
+  const clean = add(box, box.web, 'web', 'It works [test].', LANE_BRIEF);
+  assert.equal(clean.code, 0, JSON.stringify(clean.doc));
 });
 
-test('clause 2: the refusal next step files the coordinator piece with --after the lane item [C7,#3277]', () => {
+test('clause 2: claim of an existing item whose bar names a coordinator-owned path refuses with the same code before any claim is recorded, through the real claim command [C7,#2650]', () => {
   const box = fixture();
-  const error = JSON.parse(add(box, BRIEF).out).error;
-  assert.match(error.next, /pullboard add coordinator .*--after /u);
+  const filed = add(box, box.repo, 'web', HOOK, LANE_BRIEF);
+  assert.equal(filed.code, 0, `the coordinator may file any path: ${JSON.stringify(filed.doc)}`);
+  const id = filed.doc.item?.item_id ?? filed.doc.item_id;
+  const result = box.run(box.web, 'claim', String(id), '--json');
+  assert.notEqual(result.code, 0, result.out + result.err);
+  const refused = JSON.parse(result.out).error;
+  assert.equal(refused.code, 'CROSS_OWNERSHIP');
+  assert.match(refused.message, /\.githooks\/pre-commit/u);
+  const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  assert.equal((shown.item ?? shown).item_status, 'open', 'no claim was recorded');
+});
+
+test('clause 3: both refusals next step files the coordinator piece with --after the lane item, for add and for claim [C7,#2650]', () => {
+  const box = fixture();
+  const added = add(box, box.web, 'web', HOOK, LANE_BRIEF).doc;
+  assert.match(added.next ?? added.nextStep ?? JSON.stringify(added), SPLIT, 'add names the split');
+  const filed = add(box, box.repo, 'web', HOOK, LANE_BRIEF);
+  const id = filed.doc.item?.item_id ?? filed.doc.item_id;
+  const claimed = JSON.parse(box.run(box.web, 'claim', String(id), '--json').out).error;
+  assert.match(claimed.next ?? claimed.nextStep ?? JSON.stringify(claimed), SPLIT, 'claim names the split');
 });

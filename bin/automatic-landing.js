@@ -28,9 +28,12 @@ const FILE = fileURLToPath(import.meta.url);
 /**
  * The scheduled wake's own io: the outbox, the native board and the board openers the relay path asks for.
  * Why: exported so a test drives landing through exactly the io the wake builds, not a hand-made copy (#2479).
+ * A wake run inside a command passes that command's schema-diagnostic set, so a board mismatch the command already
+ * reported is not printed a second time by the wake's own board open [A5,C7].
  */
-export function wakeIo(root) {
+export function wakeIo(root, { schemaDiagnostics } = {}) {
   return { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: process.stderr,
+    ...(schemaDiagnostics ? { schemaDiagnostics } : {}),
     replayConflictRecord: outbox.replay,
     // The lander waits out a seat's long write instead of ending a landing at the board's default 10 s [C7].
     openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
@@ -41,9 +44,9 @@ export function wakeIo(root) {
 }
 
 /** Read current Git and queue facts without retaining a board connection while the worker waits [B35]. */
-function landingObservation(root) {
+function landingObservation(root, ioOptions = {}) {
   invalidateGitFacts();
-  const ctx = context(wakeIo(root));
+  const ctx = context(wakeIo(root, ioOptions));
   const trunk = mainCheckout(root);
   return { main: trunk?.commit, branch: trunk?.branch,
     waiting: withBoardRead(ctx, board => listItems(board, { all: true })
@@ -51,11 +54,14 @@ function landingObservation(root) {
     pending: readMainAudit(join(automaticLandingDirectory(root), 'pending.json'))?.id };
 }
 
-/** Bootstrap observation for verified work left by an older worker, without replacing a concurrent accept [B35]. */
-export async function bootstrapLandingWake(root, { schedule = scheduleAutomaticLanding, now = Date.now } = {}) {
-  const primary = primaryCheckoutRoot(context(wakeIo(root)).info);
+/**
+ * Bootstrap observation for verified work left by an older worker, without replacing a concurrent accept [B35].
+ * schemaDiagnostics is the calling command's set of already-reported board mismatches.
+ */
+export async function bootstrapLandingWake(root, { schedule = scheduleAutomaticLanding, now = Date.now, schemaDiagnostics } = {}) {
+  const primary = primaryCheckoutRoot(context(wakeIo(root, { schemaDiagnostics })).info);
   if (!primary || readMainAudit(join(automaticLandingDirectory(primary), 'pending.json'))) return false;
-  const observed = landingObservation(primary);
+  const observed = landingObservation(primary, { schemaDiagnostics });
   if (!observed.waiting || !observed.branch || !automaticLandingEnabled(mainPolicy(primary).config)) return false;
   return Boolean(await schedule(primary, new Date(now() + 1000).toISOString(), new URL('./automatic-landing.js', import.meta.url),
     { expectedId: null }));

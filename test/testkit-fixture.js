@@ -1,5 +1,8 @@
 /** Keep CLI-created test items and seats valid as add and join rules evolve [C7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { openBoard } from '../apps/lib/index.js';
 
 /** Normalize the two child-process result shapes used by CLI-backed fixtures. */
 function fixtureResult(result) {
@@ -31,4 +34,72 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
 /** Create and join a fixture worktree with all current admission identity flags. */
 export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
   return fixtureResult(run(root, 'worktree', lane, '--model', model, '--route', route, '--json'));
+}
+
+/**
+ * Run a fixture `pullboard add` through the kit and return the runner's result untouched.
+ *
+ * Why: every test that files an item reaches the CLI through this one seam, so a new add rule is met here
+ * once instead of in hundreds of copies. Tests that assert a refusal keep their exact arguments.
+ *
+ * @param {(cwd: string, ...args: string[]) => unknown} run - The fixture's CLI runner, such as box.run.
+ * @param {string} cwd - The checkout the command runs in.
+ * @param {...string} args - Everything after `add`: lane, title words and flags.
+ * @returns {unknown} Whatever the runner returns, a promise included.
+ */
+export function fixtureAdd(run, cwd, ...args) {
+  return run(cwd, 'add', ...args);
+}
+
+/**
+ * Run a fixture `pullboard join` through the kit and return the runner's result untouched.
+ *
+ * Why: seat admission rules (model, route, family) change; one seam lets the kit meet them for every test.
+ *
+ * @param {(cwd: string, ...args: string[]) => unknown} run - The fixture's CLI runner, such as box.run.
+ * @param {string} cwd - The worktree that joins.
+ * @param {...string} args - Everything after `join`: lane and flags.
+ * @returns {unknown} Whatever the runner returns, a promise included.
+ */
+export function fixtureJoin(run, cwd, ...args) {
+  return run(cwd, 'join', ...args);
+}
+
+/** The argv head for a spawned `pullboard add`: the CLI path then the verb, so spawned adds share the kit seam. */
+export function fixtureAddArgv(cli) {
+  return [cli, 'add'];
+}
+
+/** The argv head for a spawned `pullboard join`: the CLI path then the verb, so spawned joins share the kit seam. */
+export function fixtureJoinArgv(cli) {
+  return [cli, 'join'];
+}
+
+/**
+ * Commit the native submit hand-off policy into a fixture project and bring its web checkout up to date.
+ *
+ * Why: policy files are written once here, so a policy rule change is met for every test.
+ *
+ * @param {object} box - The e2e project (repo, web, git).
+ * @param {object} config - The base pullboard.json config the project was built with.
+ * @returns {string} The board file inside the repository's .git, where the native CLI keeps it.
+ */
+export function fixtureHandoffPolicy(box, config) {
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, gate: 'true', submit: { handoff: true } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return join(box.repo, '.git', 'pullboard', 'board.sqlite');
+}
+
+/**
+ * Open a fixture project's board in process, bound to its web checkout.
+ *
+ * Why: in-process board reads go through the kit seam instead of opening the file by hand.
+ *
+ * @param {object} box - The e2e project (boardFile, web).
+ * @returns {object} The open board; the caller closes board.db.
+ */
+export function fixtureOpenBoard(box) {
+  return openBoard(box.boardFile, undefined, { gitRoot: box.web });
 }

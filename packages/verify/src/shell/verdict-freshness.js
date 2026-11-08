@@ -117,7 +117,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const history = (baseline, paths) => {
     // A reviewed trunk that left main (a rebased or rewritten branch) is judged from merge-base(trunk, main).
     if (!validatedBaselines.has(baseline)) {
-      const onMain = spawnSync('git', ['--no-replace-objects', 'merge-base', '--is-ancestor', baseline, tip],
+      const onMain = gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', baseline, tip],
         { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
       if (onMain.status === 0) validatedBaselines.set(baseline, baseline);
       else if (onMain.status === 1) {

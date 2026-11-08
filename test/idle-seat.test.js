@@ -7,12 +7,13 @@ import { test } from 'node:test';
 import { agentHookCommand } from '../packages/seats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
+import { fixtureAdd } from './testkit-fixture.js';
 
 test('a seat with no claim is sent to pullboard next and never told to wait for assignment [N2,I6]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Completed setup item', '--criterion', 'A setup marker exists', '--check', 'test -f web/setup').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Completed setup item', '--criterion', 'A setup marker exists', '--check', 'test -f web/setup').code, 0);
   assert.equal(box.run(box.repo, 'withdraw', '1', 'Setup is complete').code, 0);
   const view = await helpers.startView(box, box.repo);
   await view.stop();
@@ -41,7 +42,7 @@ test('a seat with no claim is sent to pullboard next and never told to wait for 
   assert.match(refusal.message, /lane web/u);
   assert.match(refusal.message, /route strong/u);
   assert.match(refusal.message + refusal.next, /pullboard next --wait 9/u, 'no-work output names when to ask the queue again');
-  assert.equal(box.run(box.repo, 'add', 'web', 'Held work', '--criterion', 'A marker exists', '--check', 'test -f web/ready').code, 0);
+  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Held work', '--criterion', 'A marker exists', '--check', 'test -f web/ready').code, 0);
   assert.equal(box.run(box.repo, 'hold', 'web', '--reason', 'Release approval is pending').code, 0);
   const held = box.run(box.web, 'next', '--json');
   assert.equal(held.code, 1, held.out);
